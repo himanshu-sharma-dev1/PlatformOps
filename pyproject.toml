@@ -1,0 +1,26 @@
+[project]
+name = "platformops"
+version = "0.1.0"
+description = "A portfolio-grade DevOps/SRE control plane and orchestrator"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+authors = [
+    { name = "Himanshu Sharma" },
+]
+
+[project.urls]
+Repository = "https://github.com/himanshusharma/PlatformOps"
+Documentation = "https://github.com/himanshusharma/PlatformOps/tree/main/docs"
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "platformops.*"
+disallow_untyped_defs = true

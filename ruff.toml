@@ -1,0 +1,36 @@
+# Ruff linter configuration
+# https://docs.astral.sh/ruff/
+
+target-version = "py312"
+line-length = 120
+
+[lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort (import ordering)
+    "UP",   # pyupgrade (modern Python syntax)
+    "B",    # flake8-bugbear (common bugs)
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults (FastAPI Depends)
+    "SIM108", # use ternary operator (readability preference)
+    "UP042",   # Class inherits from both str and Enum
+    "TCH001", # Move application import into a type-checking block
+    "TCH002", # Move third-party import into a type-checking block
+    "TCH003", # Move standard library import into a type-checking block
+]
+
+[lint.per-file-ignores]
+"scripts/*" = ["T201"]  # allow print() in scripts
+
+[lint.isort]
+known-first-party = ["platformops"]
+
+[format]
+quote-style = "double"
+indent-style = "space"

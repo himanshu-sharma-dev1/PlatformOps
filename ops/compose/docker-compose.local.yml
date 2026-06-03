@@ -1,0 +1,74 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: platformops-postgres
+    environment:
+      POSTGRES_USER: platformops
+      POSTGRES_PASSWORD: platformops
+      POSTGRES_DB: platformops
+    ports:
+      - "5432:5432"
+    volumes:
+      - platformops-postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: platformops-redis
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - ../docker/configs/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - platformops-redis:/data
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: platformops-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - ../docker/configs/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - platformops-rabbitmq:/var/lib/rabbitmq
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: platformops-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../docker/configs/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  loki:
+    image: grafana/loki:2.9.8
+    container_name: platformops-loki
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    volumes:
+      - ../docker/configs/loki.yml:/etc/loki/local-config.yaml:ro
+
+  web-api:
+    build:
+      context: ../..
+      dockerfile: ops/docker/web-api/Dockerfile
+    container_name: platformops-web-api
+    ports:
+      - "8000:8000"
+    environment:
+      - PLATFORMOPS_DATABASE_URL=sqlite:////app/data/platformops.db
+      - PLATFORMOPS_LOCAL_MODE=true
+    volumes:
+      - platformops-data:/app/data
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+      - prometheus
+      - loki
+
+volumes:
+  platformops-postgres:
+  platformops-redis:
+  platformops-rabbitmq:
+  platformops-data:

@@ -1,0 +1,14 @@
+{
+  "artifact_id": "1780484109-2-3",
+  "service_id": 36,
+  "left_snapshot_id": 2,
+  "right_snapshot_id": 3,
+  "left_snapshot_name": "release-2.0.0-162509543669",
+  "right_snapshot_name": "release-2.0.0-162509543669-v1",
+  "final_yaml": "service: DTrain Controller\nservice_key: dtrain-controller\ncontainer_name: node-1-dtrain-controller\nimage: platformops/dtrain-controller:local\nenvironment: {}\nports:\n- 8102:8080\nvolumes:\n- /tmp/platformops/dtrain/controller/logs:/app/logs\n- /tmp/platformops/dtrain/controller/config:/app/config\n- /tmp/platformops/dtrain/artifacts:/app/artifacts\nhealthcheck: {}\n",
+  "differences": [],
+  "applied_at": "2026-06-03T16:25:09.578663Z",
+  "backup_snapshot_id": 6,
+  "resolved_config_path": "/tmp/platformops/dtrain/controller/config/dtrain.yaml",
+  "apply_mode": "reload"
+}

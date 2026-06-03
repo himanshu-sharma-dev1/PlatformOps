@@ -1,0 +1,23 @@
+---
+- name: Validate PlatformOps node prerequisites
+  hosts: all
+  gather_facts: true
+  become: true
+  tasks:
+    - name: Check Docker CLI
+      ansible.builtin.command: docker --version
+      register: docker_version
+      changed_when: false
+
+    - name: Check Docker daemon
+      ansible.builtin.command: docker info
+      register: docker_info
+      changed_when: false
+
+    - name: Print validation summary
+      ansible.builtin.debug:
+        msg:
+          node: "{{ node_name | default(inventory_hostname) }}"
+          docker_cli: "{{ docker_version.stdout }}"
+          docker_ready: "{{ docker_info.rc == 0 }}"
+          os: "{{ ansible_distribution }} {{ ansible_distribution_version }}"

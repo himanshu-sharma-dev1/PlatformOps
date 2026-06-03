@@ -1,0 +1,25 @@
+---
+- name: Capture service backup artifact
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Ensure backup artifact directory exists
+      ansible.builtin.file:
+        path: "{{ artifact_path | dirname }}"
+        state: directory
+        mode: "0750"
+
+    - name: Archive configured host paths
+      community.general.archive:
+        path: "{{ backup_paths | default([]) }}"
+        dest: "{{ artifact_path }}"
+        format: gz
+      when: backup_paths | default([]) | length > 0
+
+    - name: Report backup artifact
+      ansible.builtin.debug:
+        msg:
+          service: "{{ service_name }}"
+          strategy: "{{ strategy }}"
+          artifact: "{{ artifact_path }}"

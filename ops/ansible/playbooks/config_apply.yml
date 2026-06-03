@@ -1,0 +1,21 @@
+---
+- name: Validate and apply service configuration
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Write staged config payload
+      ansible.builtin.copy:
+        content: "{{ config_content }}"
+        dest: "/tmp/platformops-{{ container_name }}.yml"
+        mode: "0640"
+
+    - name: Reload or restart service container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        restart: true
+      when: apply_mode in ["restart", "reload"]
+
+    - name: Report config apply mode
+      ansible.builtin.debug:
+        msg: "Applied config for {{ container_name }} using {{ apply_mode }}"

@@ -1,0 +1,765 @@
+services:
+  postgres-core:
+    display_name: PostgreSQL Core
+    kind: infrastructure
+    image: postgres:16-alpine
+    container_name: node-{node_id}-postgres-core
+    subsystem: shared-data-plane
+    ports: []
+    environment:
+      POSTGRES_DB: platformops
+      POSTGRES_USER: platformops
+      POSTGRES_PASSWORD: platformops
+    volumes:
+      - "{volume_root}/postgres/data:/var/lib/postgresql/data"
+      - "{volume_root}/postgres/logs:/var/log/postgresql"
+    config_files:
+      - "{volume_root}/postgres/config/postgresql.conf"
+    log_paths:
+      - "{volume_root}/postgres/logs"
+    healthcheck:
+      command: "pg_isready -U platformops"
+    backup:
+      type: pg_dump
+      artifact_root: "{volume_root}/backups/postgres"
+    tags: [database, infra, stateful]
+
+  redis-core:
+    display_name: Redis Core
+    kind: infrastructure
+    image: redis:7-alpine
+    container_name: node-{node_id}-redis-core
+    subsystem: shared-data-plane
+    command: "redis-server /usr/local/etc/redis/redis.conf"
+    ports: []
+    volumes:
+      - "{volume_root}/redis/data:/data"
+      - "{volume_root}/redis/logs:/var/log/redis"
+      - "{project_root}/ops/docker/configs/redis.conf:/usr/local/etc/redis/redis.conf:ro"
+    config_files:
+      - "{project_root}/ops/docker/configs/redis.conf"
+    log_paths:
+      - "{volume_root}/redis/logs"
+    healthcheck:
+      command: "redis-cli ping"
+    backup:
+      type: volume-archive
+      artifact_root: "{volume_root}/backups/redis"
+    tags: [cache, broker, infra, stateful]
+
+  rabbitmq-core:
+    display_name: RabbitMQ Core
+    kind: infrastructure
+    image: rabbitmq:3.13-management-alpine
+    container_name: node-{node_id}-rabbitmq-core
+    subsystem: shared-data-plane
+    ports: []
+    environment:
+      RABBITMQ_DEFAULT_USER: platformops
+      RABBITMQ_DEFAULT_PASS: platformops
+    volumes:
+      - "{volume_root}/rabbitmq/data:/var/lib/rabbitmq"
+      - "{volume_root}/rabbitmq/logs:/var/log/rabbitmq"
+      - "{project_root}/ops/docker/configs/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro"
+    config_files:
+      - "{project_root}/ops/docker/configs/rabbitmq.conf"
+    log_paths:
+      - "{volume_root}/rabbitmq/logs"
+    healthcheck:
+      command: "rabbitmq-diagnostics ping"
+    backup:
+      type: definitions-export
+      artifact_root: "{volume_root}/backups/rabbitmq"
+    tags: [broker, infra, stateful]
+
+  clickhouse-core:
+    display_name: ClickHouse Core
+    kind: infrastructure
+    image: clickhouse/clickhouse-server:24.8
+    container_name: node-{node_id}-clickhouse-core
+    subsystem: analytics-plane
+    ports: []
+    volumes:
+      - "{volume_root}/clickhouse/data:/var/lib/clickhouse"
+      - "{volume_root}/clickhouse/logs:/var/log/clickhouse-server"
+      - "{project_root}/ops/docker/configs/clickhouse-users.xml:/etc/clickhouse-server/users.d/platformops.xml:ro"
+    config_files:
+      - "{project_root}/ops/docker/configs/clickhouse-users.xml"
+    log_paths:
+      - "{volume_root}/clickhouse/logs"
+    healthcheck:
+      command: "clickhouse-client --query 'SELECT 1'"
+    backup:
+      type: volume-archive
+      artifact_root: "{volume_root}/backups/clickhouse"
+    tags: [analytics, infra, stateful]
+
+  nifi-core:
+    display_name: NiFi Flow Core
+    kind: infrastructure
+    image: apache/nifi:1.27.0
+    container_name: node-{node_id}-nifi-core
+    subsystem: dataflow-plane
+    ports: []
+    environment:
+      SINGLE_USER_CREDENTIALS_USERNAME: platformops
+      SINGLE_USER_CREDENTIALS_PASSWORD: platformops123456
+    volumes:
+      - "{volume_root}/nifi/data:/opt/nifi/nifi-current/database_repository"
+      - "{volume_root}/nifi/logs:/opt/nifi/nifi-current/logs"
+      - "{volume_root}/nifi/conf:/opt/nifi/nifi-current/conf"
+    config_files:
+      - "{volume_root}/nifi/conf/nifi.properties"
+    log_paths:
+      - "{volume_root}/nifi/logs"
+    healthcheck:
+      command: "test -d /opt/nifi/nifi-current/logs"
+    tags: [dataflow, infra]
+
+  etcd-core:
+    display_name: etcd Core
+    kind: infrastructure
+    image: quay.io/coreos/etcd:v3.5.15
+    container_name: node-{node_id}-etcd-core
+    subsystem: vector-plane
+    command: "etcd --data-dir=/etcd --advertise-client-urls=http://0.0.0.0:2379 --listen-client-urls=http://0.0.0.0:2379"
+    ports: []
+    volumes:
+      - "{volume_root}/etcd/data:/etcd"
+      - "{volume_root}/etcd/logs:/var/log/etcd"
+    config_files: []
+    log_paths:
+      - "{volume_root}/etcd/logs"
+    healthcheck:
+      command: "etcdctl endpoint health"
+    tags: [coordination, infra, stateful]
+
+  minio-core:
+    display_name: MinIO Object Store
+    kind: infrastructure
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: node-{node_id}-minio-core
+    subsystem: vector-plane
+    command: "server /data --console-address :9001"
+    ports: []
+    environment:
+      MINIO_ROOT_USER: platformops
+      MINIO_ROOT_PASSWORD: platformops123
+    volumes:
+      - "{volume_root}/minio/data:/data"
+      - "{volume_root}/minio/logs:/var/log/minio"
+    config_files: []
+    log_paths:
+      - "{volume_root}/minio/logs"
+    healthcheck:
+      command: "curl -f http://localhost:9000/minio/health/live"
+    backup:
+      type: volume-archive
+      artifact_root: "{volume_root}/backups/minio"
+    tags: [object-store, infra, stateful]
+
+  milvus-core:
+    display_name: Milvus Vector Store
+    kind: infrastructure
+    image: milvusdb/milvus:v2.4.15
+    container_name: node-{node_id}-milvus-core
+    subsystem: vector-plane
+    command: "milvus run standalone"
+    ports: []
+    environment:
+      ETCD_ENDPOINTS: "node-{node_id}-etcd-core:2379"
+      MINIO_ADDRESS: "node-{node_id}-minio-core:9000"
+    volumes:
+      - "{volume_root}/milvus/data:/var/lib/milvus"
+      - "{volume_root}/milvus/logs:/var/log/milvus"
+    config_files: []
+    log_paths:
+      - "{volume_root}/milvus/logs"
+    healthcheck:
+      command: "curl -f http://localhost:9091/healthz"
+    backup:
+      type: volume-archive
+      artifact_root: "{volume_root}/backups/milvus"
+    tags: [vector-db, infra, stateful]
+
+  prometheus-core:
+    display_name: Prometheus Core
+    kind: infrastructure
+    image: prom/prometheus:v2.55.1
+    container_name: node-{node_id}-prometheus-core
+    subsystem: observability-plane
+    ports: ["9090:9090"]
+    volumes:
+      - "{project_root}/ops/docker/configs/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+      - "{volume_root}/prometheus/data:/prometheus"
+      - "{volume_root}/prometheus/logs:/var/log/prometheus"
+    config_files:
+      - "{project_root}/ops/docker/configs/prometheus.yml"
+    log_paths:
+      - "{volume_root}/prometheus/logs"
+    healthcheck:
+      command: "wget -qO- http://localhost:9090/-/ready"
+    tags: [metrics, infra]
+
+  loki-core:
+    display_name: Loki Core
+    kind: infrastructure
+    image: grafana/loki:2.9.8
+    container_name: node-{node_id}-loki-core
+    subsystem: observability-plane
+    command: "-config.file=/etc/loki/local-config.yaml"
+    ports: ["3100:3100"]
+    volumes:
+      - "{project_root}/ops/docker/configs/loki.yml:/etc/loki/local-config.yaml:ro"
+      - "{volume_root}/loki:/loki"
+    config_files:
+      - "{project_root}/ops/docker/configs/loki.yml"
+    log_paths:
+      - "{volume_root}/loki"
+    healthcheck:
+      command: "wget -qO- http://localhost:3100/ready"
+    tags: [logs, infra]
+
+  alloy-core:
+    display_name: Alloy Collector Core
+    kind: infrastructure
+    image: grafana/alloy:v1.7.1
+    container_name: node-{node_id}-alloy-core
+    subsystem: observability-plane
+    command: "run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy"
+    ports: ["12345:12345"]
+    volumes:
+      - "{project_root}/ops/docker/configs/alloy.river:/etc/alloy/config.alloy:ro"
+      - "{volume_root}/alloy/data:/var/lib/alloy"
+      - "{volume_root}/alloy/logs:/var/log/alloy"
+    config_files:
+      - "{project_root}/ops/docker/configs/alloy.river"
+    log_paths:
+      - "{volume_root}/alloy/logs"
+    healthcheck:
+      command: "wget -qO- http://localhost:12345/-/ready"
+    tags: [logs, telemetry, infra]
+
+  node-exporter:
+    display_name: Node Exporter
+    kind: infrastructure
+    image: prom/node-exporter:v1.8.2
+    container_name: node-{node_id}-node-exporter
+    subsystem: observability-plane
+    ports: ["9100:9100"]
+    volumes:
+      - "/proc:/host/proc:ro"
+      - "/sys:/host/sys:ro"
+      - "/:/rootfs:ro"
+      - "{volume_root}/node-exporter/logs:/var/log/node-exporter"
+    config_files: []
+    log_paths:
+      - "{volume_root}/node-exporter/logs"
+    healthcheck:
+      command: "wget -qO- http://localhost:9100/metrics"
+    tags: [metrics, host, infra]
+
+  dcgm-exporter:
+    display_name: DCGM GPU Exporter
+    kind: infrastructure
+    image: nvcr.io/nvidia/k8s/dcgm-exporter:3.3.8-3.6.0-ubuntu22.04
+    container_name: node-{node_id}-dcgm-exporter
+    subsystem: observability-plane
+    ports: ["9400:9400"]
+    volumes:
+      - "{volume_root}/dcgm-exporter/logs:/var/log/dcgm-exporter"
+    config_files: []
+    log_paths:
+      - "{volume_root}/dcgm-exporter/logs"
+    healthcheck:
+      command: "wget -qO- http://localhost:9400/metrics"
+    tags: [metrics, gpu, infra]
+
+  airflow-postgres:
+    display_name: Airflow PostgreSQL
+    kind: infrastructure
+    image: postgres:13-alpine
+    container_name: node-{node_id}-airflow-postgres
+    subsystem: workflow-plane
+    ports: []
+    environment:
+      POSTGRES_DB: airflow
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+    volumes:
+      - "{volume_root}/airflow/postgres/data:/var/lib/postgresql/data"
+      - "{volume_root}/airflow/postgres/logs:/var/log/postgresql"
+    config_files: []
+    log_paths:
+      - "{volume_root}/airflow/postgres/logs"
+    healthcheck:
+      command: "pg_isready -U airflow"
+    tags: [airflow, database, infra, isolated]
+
+  airflow-redis:
+    display_name: Airflow Redis
+    kind: infrastructure
+    image: redis:7-alpine
+    container_name: node-{node_id}-airflow-redis
+    subsystem: workflow-plane
+    command: "redis-server /usr/local/etc/redis/redis.conf"
+    ports: []
+    volumes:
+      - "{volume_root}/airflow/redis/data:/data"
+      - "{volume_root}/airflow/redis/logs:/var/log/redis"
+      - "{project_root}/ops/docker/configs/redis.conf:/usr/local/etc/redis/redis.conf:ro"
+    config_files:
+      - "{project_root}/ops/docker/configs/redis.conf"
+    log_paths:
+      - "{volume_root}/airflow/redis/logs"
+    healthcheck:
+      command: "redis-cli ping"
+    tags: [airflow, cache, infra, isolated]
+
+  ans:
+    display_name: Analytics Node Service
+    kind: app
+    image: platformops/ans:local
+    container_name: node-{node_id}-ans
+    subsystem: analytics-plane
+    ports: ["8081:8080"]
+    environment:
+      POSTGRES_URL: "postgresql://platformops:platformops@node-{node_id}-postgres-core:5432/platformops"
+      RABBITMQ_URL: "amqp://platformops:platformops@node-{node_id}-rabbitmq-core:5672/"
+      CLICKHOUSE_URL: "http://node-{node_id}-clickhouse-core:8123"
+      NIFI_URL: "http://node-{node_id}-nifi-core:8443"
+    volumes:
+      - "{volume_root}/ans/logs:/app/logs"
+      - "{volume_root}/ans/config:/app/config"
+    config_files:
+      - "{volume_root}/ans/config/app.yaml"
+    log_paths:
+      - "{volume_root}/ans/logs"
+    healthcheck:
+      command: "wget -qO- http://localhost:8080/health"
+    tags: [analytics, app]
+
+  rag:
+    display_name: RAG Service
+    kind: app
+    image: platformops/rag:local
+    container_name: node-{node_id}-rag
+    subsystem: vector-plane
+    ports: ["8090:8080"]
+    environment:
+      POSTGRES_URL: "postgresql://platformops:platformops@node-{node_id}-postgres-core:5432/platformops"
+      REDIS_URL: "redis://node-{node_id}-redis-core:6379/0"
+      RABBITMQ_URL: "amqp://platformops:platformops@node-{node_id}-rabbitmq-core:5672/"
+      MILVUS_HOST: "node-{node_id}-milvus-core"
+    volumes:
+      - "{volume_root}/rag/logs:/app/logs"
+      - "{volume_root}/rag/config:/app/config"
+    config_files:
+      - "{volume_root}/rag/config/rag.yaml"
+    log_paths:
+      - "{volume_root}/rag/logs"
+    healthcheck:
+      command: "wget -qO- http://localhost:8080/health"
+    tags: [ai, vector, app]
+
+  airflow:
+    display_name: Airflow API Server
+    kind: app
+    image: apache/airflow:2.10.4
+    container_name: node-{node_id}-airflow
+    subsystem: workflow-plane
+    command: "api-server"
+    ports: ["8080:8080"]
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://airflow:airflow@node-{node_id}-airflow-postgres:5432/airflow"
+      AIRFLOW__CELERY__BROKER_URL: "redis://node-{node_id}-airflow-redis:6379/0"
+      AIRFLOW__CORE__EXECUTOR: "CeleryExecutor"
+    volumes:
+      - "{volume_root}/airflow/dags:/opt/airflow/dags"
+      - "{volume_root}/airflow/logs:/opt/airflow/logs"
+      - "{volume_root}/airflow/config:/opt/airflow/config"
+    config_files:
+      - "{volume_root}/airflow/config/airflow.cfg"
+    log_paths:
+      - "{volume_root}/airflow/logs"
+    healthcheck:
+      command: "airflow jobs check"
+    tags: [workflow, app]
+
+  airflow-scheduler:
+    display_name: Airflow Scheduler
+    kind: helper
+    image: apache/airflow:2.10.4
+    container_name: node-{node_id}-airflow-scheduler
+    subsystem: workflow-plane
+    command: "scheduler"
+    ports: []
+    volumes:
+      - "{volume_root}/airflow/dags:/opt/airflow/dags"
+      - "{volume_root}/airflow/logs:/opt/airflow/logs"
+    config_files: []
+    log_paths:
+      - "{volume_root}/airflow/logs/scheduler"
+    healthcheck:
+      command: "airflow jobs check --job-type SchedulerJob"
+    tags: [workflow, helper]
+
+  airflow-worker:
+    display_name: Airflow Worker
+    kind: helper
+    image: apache/airflow:2.10.4
+    container_name: node-{node_id}-airflow-worker
+    subsystem: workflow-plane
+    command: "celery worker"
+    ports: []
+    volumes:
+      - "{volume_root}/airflow/dags:/opt/airflow/dags"
+      - "{volume_root}/airflow/logs:/opt/airflow/logs"
+    config_files: []
+    log_paths:
+      - "{volume_root}/airflow/logs/worker"
+    healthcheck:
+      command: "celery --app airflow.providers.celery.executors.celery_executor.app inspect ping"
+    tags: [workflow, helper]
+
+  airflow-dagprocessor:
+    display_name: Airflow DagProcessor
+    kind: helper
+    image: apache/airflow:2.10.4
+    container_name: node-{node_id}-airflow-dagprocessor
+    subsystem: workflow-plane
+    command: "dag-processor"
+    ports: []
+    volumes:
+      - "{volume_root}/airflow/dags:/opt/airflow/dags"
+      - "{volume_root}/airflow/logs:/opt/airflow/logs"
+    config_files: []
+    log_paths:
+      - "{volume_root}/airflow/logs/dag_processor"
+    healthcheck:
+      command: "test -d /opt/airflow/dags"
+    tags: [workflow, helper]
+
+  airflow-triggerer:
+    display_name: Airflow Triggerer
+    kind: helper
+    image: apache/airflow:2.10.4
+    container_name: node-{node_id}-airflow-triggerer
+    subsystem: workflow-plane
+    command: "triggerer"
+    ports: []
+    volumes:
+      - "{volume_root}/airflow/logs:/opt/airflow/logs"
+    config_files: []
+    log_paths:
+      - "{volume_root}/airflow/logs/triggerer"
+    healthcheck:
+      command: "airflow jobs check --job-type TriggererJob"
+    tags: [workflow, helper]
+
+  airflow-init:
+    display_name: Airflow Init
+    kind: helper
+    image: apache/airflow:2.10.4
+    container_name: node-{node_id}-airflow-init
+    subsystem: workflow-plane
+    command: "db migrate"
+    run_once: true
+    exited_zero_satisfies: true
+    ports: []
+    volumes:
+      - "{volume_root}/airflow/logs:/opt/airflow/logs"
+    config_files: []
+    log_paths:
+      - "{volume_root}/airflow/logs"
+    healthcheck:
+      command: "airflow db check"
+    tags: [workflow, helper, init]
+
+  option-copilot:
+    display_name: Option Copilot
+    kind: app
+    image: platformops/option-copilot:local
+    container_name: node-{node_id}-option-copilot
+    subsystem: analytics-plane
+    ports: ["8091:8080"]
+    volumes:
+      - "{volume_root}/option-copilot/logs:/app/logs"
+      - "{volume_root}/option-copilot/config:/app/config"
+    config_files:
+      - "{volume_root}/option-copilot/config/app.yaml"
+    log_paths:
+      - "{volume_root}/option-copilot/logs"
+    tags: [analytics, app]
+
+  mcp-gateway:
+    display_name: MCP Gateway
+    kind: app
+    image: platformops/mcp-gateway:local
+    container_name: node-{node_id}-mcp-gateway
+    subsystem: integration-plane
+    ports: ["8092:8080"]
+    volumes:
+      - "{volume_root}/mcp-gateway/logs:/app/logs"
+      - "{volume_root}/mcp-gateway/config:/app/config"
+    config_files:
+      - "{volume_root}/mcp-gateway/config/gateway.yaml"
+    log_paths:
+      - "{volume_root}/mcp-gateway/logs"
+    tags: [integration, app]
+
+  conv-form:
+    display_name: Conversation Form
+    kind: app
+    image: platformops/conv-form:local
+    container_name: node-{node_id}-conv-form
+    subsystem: conversation-plane
+    ports: ["8093:8080"]
+    volumes:
+      - "{volume_root}/conv-form/logs:/app/logs"
+      - "{volume_root}/conv-form/config:/app/config"
+    config_files:
+      - "{volume_root}/conv-form/config/form.yaml"
+    log_paths:
+      - "{volume_root}/conv-form/logs"
+    tags: [conversation, app]
+
+  mcp-proxy:
+    display_name: MCP Proxy
+    kind: app
+    image: platformops/mcp-proxy:local
+    container_name: node-{node_id}-mcp-proxy
+    subsystem: integration-plane
+    ports: ["8094:8080"]
+    volumes:
+      - "{volume_root}/mcp-proxy/logs:/app/logs"
+      - "{volume_root}/mcp-proxy/config:/app/config"
+    config_files:
+      - "{volume_root}/mcp-proxy/config/proxy.yaml"
+    log_paths:
+      - "{volume_root}/mcp-proxy/logs"
+    tags: [integration, app]
+
+  text2sql:
+    display_name: Text2SQL
+    kind: app
+    image: platformops/text2sql:local
+    container_name: node-{node_id}-text2sql
+    subsystem: analytics-plane
+    ports: ["8095:8080"]
+    volumes:
+      - "{volume_root}/text2sql/logs:/app/logs"
+      - "{volume_root}/text2sql/config:/app/config"
+    config_files:
+      - "{volume_root}/text2sql/config/text2sql.yaml"
+    log_paths:
+      - "{volume_root}/text2sql/logs"
+    tags: [analytics, app]
+
+  training-server:
+    display_name: Training Server
+    kind: app
+    image: platformops/training-server:local
+    container_name: node-{node_id}-training-server
+    subsystem: mlops-plane
+    ports: []
+    volumes:
+      - "{volume_root}/training/logs:/app/logs"
+      - "{volume_root}/training/config:/app/config"
+      - "{volume_root}/training/artifacts:/app/artifacts"
+    config_files:
+      - "{volume_root}/training/config/training.yaml"
+    log_paths:
+      - "{volume_root}/training/logs"
+    tags: [ai, mlops, app]
+
+  inference-server:
+    display_name: Inference Server
+    kind: app
+    image: platformops/inference-server:local
+    container_name: node-{node_id}-inference-server
+    subsystem: mlops-plane
+    ports: ["8096:8080"]
+    volumes:
+      - "{volume_root}/inference/logs:/app/logs"
+      - "{volume_root}/inference/config:/app/config"
+      - "{volume_root}/inference/models:/app/models"
+    config_files:
+      - "{volume_root}/inference/config/inference.yaml"
+    log_paths:
+      - "{volume_root}/inference/logs"
+    tags: [ai, mlops, app]
+
+  asr:
+    display_name: ASR Service
+    kind: app
+    image: platformops/asr:local
+    container_name: node-{node_id}-asr
+    subsystem: speech-plane
+    ports: ["8097:8080"]
+    volumes:
+      - "{volume_root}/asr/logs:/app/logs"
+      - "{volume_root}/asr/config:/app/config"
+    config_files:
+      - "{volume_root}/asr/config/asr.yaml"
+    log_paths:
+      - "{volume_root}/asr/logs"
+    tags: [speech, app]
+
+  tts:
+    display_name: TTS Service
+    kind: app
+    image: platformops/tts:local
+    container_name: node-{node_id}-tts
+    subsystem: speech-plane
+    ports: ["8098:8080"]
+    volumes:
+      - "{volume_root}/tts/logs:/app/logs"
+      - "{volume_root}/tts/config:/app/config"
+    config_files:
+      - "{volume_root}/tts/config/tts.yaml"
+    log_paths:
+      - "{volume_root}/tts/logs"
+    tags: [speech, app]
+
+  conv-call:
+    display_name: Conversation Call
+    kind: app
+    image: platformops/conv-call:local
+    container_name: node-{node_id}-conv-call
+    subsystem: conversation-plane
+    ports: ["8099:8080"]
+    volumes:
+      - "{volume_root}/conv-call/logs:/app/logs"
+      - "{volume_root}/conv-call/config:/app/config"
+    config_files:
+      - "{volume_root}/conv-call/config/call.yaml"
+    log_paths:
+      - "{volume_root}/conv-call/logs"
+    tags: [conversation, speech, app]
+
+  mcp-server:
+    display_name: MCP Server
+    kind: app
+    image: platformops/mcp-server:local
+    container_name: node-{node_id}-mcp-server
+    subsystem: integration-plane
+    ports: ["8100:8080"]
+    volumes:
+      - "{volume_root}/mcp-server/logs:/app/logs"
+      - "{volume_root}/mcp-server/config:/app/config"
+    config_files:
+      - "{volume_root}/mcp-server/config/server.yaml"
+    log_paths:
+      - "{volume_root}/mcp-server/logs"
+    tags: [integration, app]
+
+  airtel-churn:
+    display_name: Churn Forecast Demo
+    kind: app
+    image: platformops/airtel-churn:local
+    container_name: node-{node_id}-airtel-churn
+    subsystem: analytics-plane
+    ports: ["8101:8080"]
+    volumes:
+      - "{volume_root}/airtel-churn/logs:/app/logs"
+      - "{volume_root}/airtel-churn/config:/app/config"
+    config_files:
+      - "{volume_root}/airtel-churn/config/churn.yaml"
+    log_paths:
+      - "{volume_root}/airtel-churn/logs"
+    tags: [analytics, demo, app]
+
+  dtrain-controller:
+    display_name: DTrain Controller
+    kind: app
+    image: platformops/dtrain-controller:local
+    container_name: node-{node_id}-dtrain-controller
+    subsystem: distributed-training-plane
+    ports: ["8102:8080"]
+    volumes:
+      - "{volume_root}/dtrain/controller/logs:/app/logs"
+      - "{volume_root}/dtrain/controller/config:/app/config"
+      - "{volume_root}/dtrain/artifacts:/app/artifacts"
+    config_files:
+      - "{volume_root}/dtrain/controller/config/dtrain.yaml"
+    log_paths:
+      - "{volume_root}/dtrain/controller/logs"
+    tags: [ai, mlops, distributed-training, app]
+
+  dtrain-worker:
+    display_name: DTrain Worker
+    kind: helper
+    image: platformops/dtrain-worker:local
+    container_name: node-{node_id}-dtrain-worker
+    subsystem: distributed-training-plane
+    ports: []
+    volumes:
+      - "{volume_root}/dtrain/worker/logs:/app/logs"
+      - "{volume_root}/dtrain/worker/config:/app/config"
+      - "{volume_root}/dtrain/artifacts:/app/artifacts"
+    config_files:
+      - "{volume_root}/dtrain/worker/config/worker.yaml"
+    log_paths:
+      - "{volume_root}/dtrain/worker/logs"
+    tags: [ai, mlops, distributed-training, helper]
+
+  dtrain-tracker:
+    display_name: DTrain Experiment Tracker
+    kind: infrastructure
+    image: ghcr.io/mlflow/mlflow:v2.16.2
+    container_name: node-{node_id}-dtrain-tracker
+    subsystem: distributed-training-plane
+    command: "mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:///mlflow.db --default-artifact-root /mlflow/artifacts"
+    ports: ["5000:5000"]
+    volumes:
+      - "{volume_root}/dtrain/mlflow:/mlflow"
+      - "{volume_root}/dtrain/tracker/logs:/var/log/mlflow"
+    config_files: []
+    log_paths:
+      - "{volume_root}/dtrain/tracker/logs"
+    tags: [ai, mlops, tracking, infra]
+
+  web-api:
+    display_name: Demo Web API
+    kind: app
+    image: platformops/web-api:local
+    build_context: "{project_root}/ops/docker/web-api"
+    container_name: node-{node_id}-web-api
+    subsystem: demo-plane
+    ports: ["8088:8080"]
+    environment:
+      DATABASE_URL: "postgresql://platformops:platformops@node-{node_id}-postgres-core:5432/platformops"
+      REDIS_URL: "redis://node-{node_id}-redis-core:6379/0"
+    volumes:
+      - "{volume_root}/web-api/logs:/app/logs"
+      - "{volume_root}/web-api/config:/app/config"
+    config_files:
+      - "{volume_root}/web-api/config/app.yaml"
+    log_paths:
+      - "{volume_root}/web-api/logs"
+    healthcheck:
+      command: "wget -qO- http://localhost:8080/health"
+    tags: [demo, app]
+
+  worker:
+    display_name: Demo Worker
+    kind: app
+    image: platformops/worker:local
+    build_context: "{project_root}/ops/docker/worker"
+    container_name: node-{node_id}-worker
+    subsystem: demo-plane
+    ports: []
+    environment:
+      REDIS_URL: "redis://node-{node_id}-redis-core:6379/0"
+      RABBITMQ_URL: "amqp://platformops:platformops@node-{node_id}-rabbitmq-core:5672/"
+    volumes:
+      - "{volume_root}/worker/logs:/app/logs"
+      - "{volume_root}/worker/config:/app/config"
+    config_files:
+      - "{volume_root}/worker/config/worker.yaml"
+    log_paths:
+      - "{volume_root}/worker/logs"
+    healthcheck:
+      command: "python -c 'print(\"ok\")'"
+    tags: [demo, app]

@@ -1,0 +1,12 @@
+<clickhouse>
+  <profiles>
+    <platformops>
+      <log_queries>1</log_queries>
+    </platformops>
+  </profiles>
+  <users>
+    <default>
+      <profile>platformops</profile>
+    </default>
+  </users>
+</clickhouse>

@@ -1,0 +1,26 @@
+---
+- name: Collect Docker and file logs
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Tail Docker logs
+      ansible.builtin.command: "docker logs --tail {{ tail_lines | default(150) }} {{ container_name }}"
+      register: docker_logs
+      changed_when: false
+      failed_when: false
+
+    - name: Tail configured file logs with sudo
+      ansible.builtin.shell: "tail -n {{ tail_lines | default(150) }} {{ item }}"
+      args:
+        executable: /bin/bash
+      loop: "{{ log_paths | default([]) }}"
+      register: file_logs
+      changed_when: false
+      failed_when: false
+
+    - name: Print log payload
+      ansible.builtin.debug:
+        msg:
+          docker: "{{ docker_logs.stdout_lines }}"
+          files: "{{ file_logs.results | default([]) }}"

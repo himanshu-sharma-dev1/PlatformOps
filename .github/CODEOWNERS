@@ -1,0 +1,18 @@
+# Global code ownership configuration
+# Learn more at: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-codeowners
+
+# Default owners for all files in the repository
+*       @himanshusharma-dev1
+
+# Infrastructure configurations
+/ops/terraform/   @himanshusharma-dev1
+/ops/helm/        @himanshusharma-dev1
+/ops/compose/     @himanshusharma-dev1
+/ops/docker/      @himanshusharma-dev1
+
+# Core application components
+/apps/api/        @himanshusharma-dev1
+/apps/web/        @himanshusharma-dev1
+
+# CI/CD Workflows
+/.github/workflows/ @himanshusharma-dev1

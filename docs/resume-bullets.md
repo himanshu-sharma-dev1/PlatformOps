@@ -1,0 +1,7 @@
+# Resume Bullets - SRE / Platform Engineer
+
+- **Architected a Portfolio SRE Control Plane (PlatformOps)** in FastAPI, React, and SQLite that manages a 39-card service catalog across 9 subsystem planes (shared-data, vector, MLOps, conversation) using Ansible/Docker orchestration.
+- **Engineered an Active Lifecycle Governance Safety Review engine** that intercepts service, node, and cluster terminations, automatically analyzing node-level topology to block deletions of protected infrastructure (PostgreSQL, Milvus, etcd) or resources with active downstream dependents unless force-deleted with logged audit warnings.
+- **Implemented a Topological Rollout Sequencer** using dependency graphs to construct duplicate-free, ordered deployment plans by subsystem plane, enforcing database isolation for the workflow plane (Airflow) by mapping dedicated postgres/redis instances.
+- **Designed a Distributed Training (DTrain) Control Plane Showcase** tracking tracker/controller/worker container states, checking backing MQ/Cache dependencies, and compiling deterministic simulation metrics for active GPU accelerator pools.
+- **Created a Deep Capability Metadata Profiler** categorizing stateful services by backup strategies (database dumps, volume archives, object-store archives) and config strategies (live, generated, configless), triggering policy scanner findings for stateful resources lacking backup rules.

@@ -1,0 +1,14 @@
+apiVersion: v2
+name: platformops
+description: A Helm chart for deploying the PlatformOps Control Plane API
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - devops
+  - control-plane
+  - fastapi
+  - orchestrator
+maintainers:
+  - name: Himanshu Sharma
+    email: himanshu.sharma@example.com

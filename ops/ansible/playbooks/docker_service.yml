@@ -1,0 +1,70 @@
+---
+- name: Deploy or remove a Docker service card
+  hosts: all
+  gather_facts: false
+  become: true
+  vars:
+    remove: false
+    contract: {}
+  tasks:
+    - name: Ensure Docker network exists
+      community.docker.docker_network:
+        name: "{{ docker_network }}"
+        state: present
+      when: not remove
+
+    - name: Ensure host volume directories exist
+      ansible.builtin.file:
+        path: "{{ item.split(':')[0] }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ contract.volumes | default([]) }}"
+      when:
+        - not remove
+        - item.split(':')[0] | basename | regex_search('\\.') is none
+
+    - name: Ensure mounted config file parent directories exist
+      ansible.builtin.file:
+        path: "{{ item.split(':')[0] | dirname }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ contract.volumes | default([]) }}"
+      when:
+        - not remove
+        - item.split(':')[0] | basename | regex_search('\\.') is not none
+
+    - name: Create placeholder config files when a file mount is expected
+      ansible.builtin.copy:
+        dest: "{{ item.split(':')[0] }}"
+        content: "# Managed by PlatformOps. Replace with service-specific config.\n"
+        force: false
+        mode: "0644"
+      loop: "{{ contract.volumes | default([]) }}"
+      when:
+        - not remove
+        - item.split(':')[0] | basename | regex_search('\\.') is not none
+
+    - name: Remove service container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        state: absent
+      when: remove
+
+    - name: Run service container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        image: "{{ image }}"
+        state: started
+        restart_policy: unless-stopped
+        networks:
+          - name: "{{ docker_network }}"
+        published_ports: "{{ contract.ports | default([]) }}"
+        volumes: "{{ contract.volumes | default([]) }}"
+        env: "{{ contract.environment | default({}) }}"
+        command: "{{ contract.command | default(omit) }}"
+      when: not remove
+
+    - name: Show deployed service
+      ansible.builtin.debug:
+        msg: "{{ service_name }} is managed as {{ container_name }}"
+      when: not remove

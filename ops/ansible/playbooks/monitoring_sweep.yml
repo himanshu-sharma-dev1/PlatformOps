@@ -1,0 +1,18 @@
+---
+- name: Run service health checks
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Run health command
+      ansible.builtin.shell: "{{ item.health_command }}"
+      args:
+        executable: /bin/bash
+      loop: "{{ checks | default([]) }}"
+      register: health_results
+      changed_when: false
+      failed_when: false
+
+    - name: Print health result matrix
+      ansible.builtin.debug:
+        msg: "{{ health_results.results | default([]) }}"

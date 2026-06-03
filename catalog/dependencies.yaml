@@ -1,0 +1,102 @@
+dependencies:
+  postgres-core: []
+  redis-core: []
+  rabbitmq-core: []
+  clickhouse-core: []
+  nifi-core: []
+  etcd-core: []
+  minio-core: []
+  milvus-core:
+    - etcd-core
+    - minio-core
+  prometheus-core: []
+  loki-core: []
+  alloy-core: []
+  node-exporter: []
+  dcgm-exporter: []
+  airflow-postgres: []
+  airflow-redis: []
+  dtrain-tracker: []
+
+  ans:
+    - postgres-core
+    - rabbitmq-core
+    - clickhouse-core
+    - nifi-core
+    - prometheus-core
+    - alloy-core
+    - node-exporter
+  rag:
+    - postgres-core
+    - redis-core
+    - rabbitmq-core
+    - etcd-core
+    - minio-core
+    - milvus-core
+    - prometheus-core
+    - alloy-core
+    - node-exporter
+  airflow:
+    - airflow-postgres
+    - airflow-redis
+  airflow-scheduler:
+    - airflow
+    - airflow-postgres
+    - airflow-redis
+  airflow-worker:
+    - airflow
+    - airflow-postgres
+    - airflow-redis
+  airflow-dagprocessor:
+    - airflow
+  airflow-triggerer:
+    - airflow
+  airflow-init:
+    - airflow-postgres
+    - airflow-redis
+  option-copilot:
+    - postgres-core
+    - rabbitmq-core
+    - redis-core
+    - clickhouse-core
+  mcp-gateway:
+    - postgres-core
+    - redis-core
+    - rabbitmq-core
+  conv-form:
+    - postgres-core
+    - redis-core
+    - rabbitmq-core
+  mcp-proxy:
+    - rabbitmq-core
+    - redis-core
+  text2sql:
+    - postgres-core
+    - redis-core
+  training-server:
+    - rabbitmq-core
+  inference-server:
+    - rabbitmq-core
+  asr:
+    - postgres-core
+  tts:
+    - postgres-core
+  conv-call:
+    - postgres-core
+  mcp-server:
+    - redis-core
+  airtel-churn: []
+  dtrain-controller:
+    - rabbitmq-core
+    - redis-core
+    - dtrain-tracker
+  dtrain-worker:
+    - dtrain-controller
+    - rabbitmq-core
+    - redis-core
+  web-api:
+    - postgres-core
+    - redis-core
+  worker:
+    - redis-core
+    - rabbitmq-core

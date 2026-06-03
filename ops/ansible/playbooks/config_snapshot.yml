@@ -1,0 +1,16 @@
+---
+- name: Capture mounted service configuration
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Read config files
+      ansible.builtin.slurp:
+        src: "{{ item.host_path }}"
+      loop: "{{ config_files | default([]) }}"
+      register: config_payloads
+      failed_when: false
+
+    - name: Show snapshot payload metadata
+      ansible.builtin.debug:
+        msg: "{{ config_payloads.results | default([]) | map(attribute='source') | list }}"

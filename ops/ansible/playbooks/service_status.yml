@@ -1,0 +1,17 @@
+---
+- name: Inspect Docker service status
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Inspect target container
+      community.docker.docker_container_info:
+        name: "{{ container_name }}"
+      register: container_info
+
+    - name: Emit status summary
+      ansible.builtin.debug:
+        msg:
+          exists: "{{ container_info.exists }}"
+          state: "{{ container_info.container.State.Status if container_info.exists else 'missing' }}"
+          health: "{{ container_info.container.State.Health.Status | default('not-configured') if container_info.exists else 'missing' }}"
