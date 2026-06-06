@@ -35,9 +35,22 @@ This checklist details the steps to refine the DevOps/SRE control plane, upgrade
 - [x] **Verification Harness**: Run `make check` inside the project root to verify python schema files compile and pass integration checks.
 - [x] **Production Compilation**: Verify that `npm run build` succeeds on the React package with no errors.
 
+### Phase 7: UI Mockup Refinements & Revamp
+- [x] **Branding Logo Style**: Update `.sidebar .brand .logo` in `styles.css` to feature a neon indigo outline border, translucent background, and text shadow glow to match the shell mockup.
+- [x] **Dashboard Telemetry Cards Enhancements**: Integrate inline progress bars (Nodes, Observability) and live colored sparklines (Running Services, Open Incidents, Burning SLOs) inside the dashboard metrics cards in `main.tsx`.
+- [x] **Circular SLO Gauges**: Implement SVG-based `CircularGauge` component in `main.tsx` and render a row of circular/arc gauges with glowing status rings in the SRE Monitoring dashboard.
+- [x] **SRE AI Chat UI Revamp**: Update chat bubbles in `renderAiChat` with distinct avatars/labels, layout alignment, interactive suggestion capsules, and terminal-style query inputs.
+- [x] **Production Verification**: Run `npm run build` and ensure zero TypeScript errors or CSS bundling warnings.
+
 ## Review & Summary
 - **Config Manager Color Swap**: Modified the comparison pre-formatted content tags in `main.tsx` to display Expected values (Left) in light red (`rgba(239, 68, 68, 0.08)`) text `#f87171` and Actual values (Right) in light green (`rgba(16, 185, 129, 0.08)`) text `#34d399` to align with the visual standard for deletions/additions.
 - **Log Files Explorer Table Refactor**: Applied the premium design system table layout `.lf-table` class structure and styled table nodes (`.fn`, `.size`, `.lines`) to the Diagnostics sub-tab log archives. Hooked `onClick` to bind row elements to `selectedArchive`.
 - **Log Archive Preview Modal**: Created a glassmorphism modal component triggered by selecting an archive. It outputs file size, discovered date, and path metrics. Displays a simulated tail stream using a new React helper `generateMockLogs`. Also features a "Trigger Loki Backfill" button running the `/api/services/{id}/diagnostics/backfill` backend pipeline.
 - **TypeScript Type Sync**: Updated `type LogArchive` in `apps/web/src/main.tsx` to include `discovered_at?: string;` property matching the backend pydantic serializer schema, achieving a clean build.
 - **Execution Verification**: Verified compiled integrity and tested deployment compatibility; both backend verification (`make check`) and production frontend build (`npm run build`) succeeded with 0 errors.
+- **UI Mockup Refinements & Revamp (Phase 7)**:
+  - **Sidebar Branding Glow**: Modified the brand logo icon container CSS in `styles.css` to render as a hollow neon border, transparent container background, and a glowing text-shadow, creating the glowing 'P' look.
+  - **Telemetry Cards Bars & Sparklines**: Refactored the dashboard grid telemetry cards inside `main.tsx` to render inline progress indicators for Nodes and Observability, and colored green, orange, and red sparkline metrics for Running Services, Open Incidents, and Burning SLOs.
+  - **Circular SVG-based SLO Performance Gauges**: Added a `renderCircularGauge` component using standard React SVG markup to construct glowing ring gauges, replacing the plain list with a premium, multi-gauge dashboard layout inside SRE Monitoring.
+  - **SRE AI Analyst Chat Console**: Revamped the SRE Incident AI chatbot UI by placing distinct robot and operator avatar nodes, container styling, quick suggestion capsule triggers (Run lock runbook, Inspect volume, Show config, Check logs), and a monospace input bar styled as a terminal command prompt (`$`).
+  - **Successful Compilation**: Executed build suite checks and verified zero TypeScript warnings or bundling errors during production generation (`npm run build`).

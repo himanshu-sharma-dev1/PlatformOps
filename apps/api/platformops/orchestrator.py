@@ -21,6 +21,7 @@ from .catalog import (
     service_catalog,
 )
 from .jobs import create_job, finish_job, run_local_job
+from .tasks import run_job_async
 from .models import (
     AuditExport,
     BackupRun,
@@ -137,10 +138,12 @@ def validate_node(db: Session, node: Node) -> DeploymentJob:
         )
         return finish_job(db, job, ok=True, output=rich_output)
 
-    completed = run_local_job(db, job, cwd=settings.project_root)
-    node.status = "healthy" if completed.status == JobStatus.success.value else "unreachable"
-    db.commit()
-    return completed
+    def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
+        bg_node = bg_db.get(Node, node.id)
+        if bg_node:
+            bg_node.status = "healthy" if ok else "unreachable"
+
+    return run_job_async(db, job, cwd=settings.project_root, on_complete=on_complete)
 
 
 def create_service_instance(
@@ -462,19 +465,21 @@ def deploy_service(db: Session, service: ServiceInstance) -> DeploymentJob:
         )
         return completed
 
-    completed = run_local_job(db, job, cwd=settings.project_root, timeout_seconds=300)
-    service.status = "running" if completed.status == JobStatus.success.value else "error"
-    db.commit()
-    record_event(
-        db,
-        category="deployment",
-        level="info" if service.status == "running" else "error",
-        message=f"Deploy finished for {service.name} with status {service.status}",
-        service_id=service.id,
-        node_id=node.id,
-        metadata={"job_id": completed.id},
-    )
-    return completed
+    def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
+        bg_service = bg_db.get(ServiceInstance, service.id)
+        if bg_service:
+            bg_service.status = "running" if ok else "error"
+            record_event(
+                bg_db,
+                category="deployment",
+                level="info" if ok else "error",
+                message=f"Deploy finished for {bg_service.name} with status {bg_service.status}",
+                service_id=bg_service.id,
+                node_id=bg_service.node_id,
+                metadata={"job_id": bg_job.id},
+            )
+
+    return run_job_async(db, job, cwd=settings.project_root, timeout_seconds=300, on_complete=on_complete)
 
 
 def _deployment_command_preview(node: Node, service: ServiceInstance | None, service_key: str) -> str:
@@ -532,19 +537,21 @@ def delete_service(db: Session, service: ServiceInstance) -> DeploymentJob:
         )
         return completed
 
-    completed = run_local_job(db, job, cwd=settings.project_root, timeout_seconds=180)
-    service.status = "deleted" if completed.status == JobStatus.success.value else "error"
-    db.commit()
-    record_event(
-        db,
-        category="lifecycle",
-        level="info" if service.status == "deleted" else "error",
-        message=f"Delete finished for {service.name} with status {service.status}",
-        service_id=service.id,
-        node_id=node.id,
-        metadata={"job_id": completed.id},
-    )
-    return completed
+    def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
+        bg_service = bg_db.get(ServiceInstance, service.id)
+        if bg_service:
+            bg_service.status = "deleted" if ok else "error"
+            record_event(
+                bg_db,
+                category="lifecycle",
+                level="info" if ok else "error",
+                message=f"Delete finished for {bg_service.name} with status {bg_service.status}",
+                service_id=bg_service.id,
+                node_id=bg_service.node_id,
+                metadata={"job_id": bg_job.id},
+            )
+
+    return run_job_async(db, job, cwd=settings.project_root, timeout_seconds=180, on_complete=on_complete)
 
 
 def install_missing_dependencies(db: Session, service: ServiceInstance) -> dict[str, Any]:
@@ -748,7 +755,9 @@ def service_diagnostics(
         {
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "level": "INFO",
-            "message": "Local mode is recording Ansible commands instead of changing Docker state.",
+            "message": "Local mode is recording Ansible commands instead of changing Docker state."
+            if settings.local_mode
+            else f"{service.name} diagnostics target check requested.",
         },
         {
             "timestamp": datetime.utcnow().isoformat() + "Z",
@@ -4549,7 +4558,7 @@ def restore_config_snapshot(db: Session, service: ServiceInstance, snapshot: Con
             },
         )
         return finish_job(db, job, ok=True, output=f"Simulated config restore from {snapshot.name}.")
-    return run_local_job(db, job)
+    return run_job_async(db, job, cwd=settings.project_root)
 
 
 def validate_config(content: str) -> dict[str, Any]:
@@ -4586,7 +4595,7 @@ def apply_config(db: Session, service: ServiceInstance, *, content: str, apply_m
     return (
         finish_job(db, job, ok=True, output="Configuration validated and simulated apply completed.")
         if settings.local_mode
-        else run_local_job(db, job)
+        else run_job_async(db, job, cwd=settings.project_root)
     )
 
 
