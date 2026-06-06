@@ -32,10 +32,15 @@ from platformops.main import (  # noqa: E402
 from platformops.models import ServiceInstance  # noqa: E402
 from platformops.orchestrator import (  # noqa: E402
     RUNNING_STATUSES,
+    apply_config_direct,
+    apply_config_migration,
+    assess_release_safety,
+    backfill_service_logs,
     bootstrap_observability_plane,
     capability_coverage_report,
-    complete_maintenance,
     compare_config_snapshots,
+    complete_maintenance,
+    config_workspace,
     create_audit_export,
     create_config_snapshot,
     create_force_delete_approval,
@@ -45,32 +50,30 @@ from platformops.orchestrator import (  # noqa: E402
     create_secret_record,
     create_service_instance,
     decide_force_delete_approval,
+    decide_release_approval,
     dependency_preflight,
     deployment_plan,
     detect_drift,
     diagnostics_targets_for_service,
-    decide_release_approval,
-    assess_release_safety,
     evaluate_force_delete_policy,
     evaluate_slos,
-    execute_runbook,
     execute_deployment_plan,
+    execute_runbook,
     generate_capacity_report,
     generate_compose,
     generate_inventory,
-    get_config_timeline_page,
     get_cluster_operations_view,
-    get_dtrain_overview,
+    get_config_timeline_page,
     get_dashboard_summary,
+    get_dtrain_overview,
     get_node_connection_report,
     get_node_job_history,
     get_node_metrics,
     get_node_onboarding_report,
-    service_diagnostics_analysis,
+    get_service_capabilities,
     get_service_metrics,
     get_service_release_timeline,
     get_service_summary,
-    get_service_capabilities,
     get_subsystem_rollout_plan,
     index_log_archives,
     install_missing_dependencies,
@@ -87,10 +90,12 @@ from platformops.orchestrator import (  # noqa: E402
     observability_pipeline_report,
     placement_auto_deploy,
     placement_recommendations,
+    prepare_config_migration,
     record_event,
     remediate_node_onboarding,
     rename_config_snapshot,
     resolve_incident,
+    restore_config_migration,
     restore_config_snapshot,
     revoke_force_delete_approval,
     rollback_release,
@@ -98,20 +103,16 @@ from platformops.orchestrator import (  # noqa: E402
     run_backup,
     run_policy_scan,
     schedule_maintenance,
-    apply_config_direct,
-    apply_config_migration,
-    backfill_service_logs,
-    config_workspace,
-    prepare_config_migration,
-    restore_config_migration,
-    service_install_schema,
     service_diagnostics,
+    service_diagnostics_analysis,
+    service_install_schema,
     service_live_logs,
     update_service_instance,
     validate_force_delete_approval,
     validate_node,
 )
 from platformops.schemas import ClusterCreate, ClusterUpdate, NodeCreate, NodeUpdate  # noqa: E402
+from platformops.settings import settings  # noqa: E402
 
 
 def assert_true(condition: bool, message: str) -> None:
@@ -119,7 +120,51 @@ def assert_true(condition: bool, message: str) -> None:
         raise AssertionError(message)
 
 
+def wait_for_job(db, job_or_id):
+    from platformops.models import DeploymentJob, JobStatus
+    from platformops.settings import settings
+
+    if settings.local_mode:
+        return job_or_id if not isinstance(job_or_id, int) else db.get(DeploymentJob, job_or_id)
+
+    import time
+
+    job_id = job_or_id if isinstance(job_or_id, int) else job_or_id.id
+    for _ in range(200):
+        db.expire_all()
+        job = db.get(DeploymentJob, job_id)
+        if job is None:
+            break
+        if job.status in {JobStatus.success.value, JobStatus.failed.value}:
+            return job
+        time.sleep(0.05)
+    return db.get(DeploymentJob, job_id)
+
+
 def main() -> None:
+    import os
+    import stat
+    import tempfile
+
+    global mock_ansible_path, temp_dir
+    temp_dir = tempfile.mkdtemp()
+    mock_ansible_path = os.path.join(temp_dir, "ansible-playbook")
+    with open(mock_ansible_path, "w") as f:
+        f.write("#!/usr/bin/env python3\n")
+        f.write("import sys\n")
+        f.write("print('PLAY [Mock Ansible Playbook Run]')\n")
+        f.write("print('TASK [Gathering Facts]')\n")
+        f.write("print('ok: [localhost]')\n")
+        f.write("print('PLAY RECAP ***************************************************************************')\n")
+        f.write(
+            "print('localhost                  : ok=2    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0')\n"
+        )
+        f.write("sys.exit(0)\n")
+
+    os.chmod(mock_ansible_path, os.stat(mock_ansible_path).st_mode | stat.S_IEXEC)
+    original_path = os.environ.get("PATH", "")
+    os.environ["PATH"] = temp_dir + os.pathsep + original_path
+
     init_db()
     services = service_catalog()
     dependencies = dependency_catalog()
@@ -193,7 +238,8 @@ def main() -> None:
             updated_node.docker_network.endswith("updated"), "Node update endpoint should persist mutable node fields"
         )
         validate_job = validate_node(db, updated_node)
-        assert_true(validate_job.status == "success", "Node validate action should succeed in local mode")
+        validate_job = wait_for_job(db, validate_job)
+        assert_true(validate_job.status == "success", "Node validate action should succeed")
         db.refresh(updated_node)
         assert_true(
             "checked_at" in (updated_node.facts_json or ""), "Node validation should persist facts_json payload"
@@ -232,7 +278,14 @@ def main() -> None:
             local_preset["updated_fields"].get("environment") == "local", "Local preset should set environment=local"
         )
         remediation_validation = remediate_node_onboarding(db, updated_node.id, action="run-validation")
-        assert_true(remediation_validation["ok"], "Run-validation remediation should succeed in local mode")
+        if not settings.local_mode and remediation_validation.get("validation_job"):
+            v_job = wait_for_job(db, remediation_validation["validation_job"]["id"])
+            remediation_validation["ok"] = v_job.status == "success"
+            remediation_validation["validation_job"]["status"] = v_job.status
+            remediation_validation["validation_job"]["output"] = v_job.output
+            remediation_validation["validation_job"]["error"] = v_job.error
+
+        assert_true(remediation_validation["ok"], "Run-validation remediation should succeed")
         assert_true(
             remediation_validation["validation_job"] is not None,
             "Run-validation remediation should return validation job details",
@@ -273,7 +326,9 @@ def main() -> None:
         option_on_edge.status = "created"
         db.commit()
         option_contract = json.loads(option_on_edge.config_json or "{}")
-        assert_true(option_contract.get("ports") == ["19091:8080"], "Service creation should persist contract overrides")
+        assert_true(
+            option_contract.get("ports") == ["19091:8080"], "Service creation should persist contract overrides"
+        )
         edge_preflight_before = dependency_preflight(db, option_on_edge)
         assert_true(not edge_preflight_before["ok"], "Option Copilot should initially miss dependencies on edge node")
         install_result = install_missing_dependencies(db, option_on_edge)
@@ -295,8 +350,13 @@ def main() -> None:
             "Deployment plan steps should expose Ansible command previews",
         )
         execute_result = execute_deployment_plan(db, dtrain, auto_install_dependencies=True)
-        assert_true(execute_result["plan"]["service_key"] == dtrain.service_key, "Executed deployment plan should reference target service")
-        assert_true(execute_result["target_job"] is not None, "Executed deployment plan should return target deployment job")
+        assert_true(
+            execute_result["plan"]["service_key"] == dtrain.service_key,
+            "Executed deployment plan should reference target service",
+        )
+        assert_true(
+            execute_result["target_job"] is not None, "Executed deployment plan should return target deployment job"
+        )
         assert_true(
             "docker_service.yml" in execute_result["target_job"].command,
             "Executed deployment plan should expose target Ansible command",
@@ -309,7 +369,10 @@ def main() -> None:
         assert_true(node_jobs["node_id"] == dtrain.node_id, "Node job history should resolve the selected node")
         assert_true(node_jobs["total_jobs"] >= 1, "Node job history should include recorded jobs")
         assert_true(
-            any("docker_service.yml" in item["command"] or "validate_node.yml" in item["command"] for item in node_jobs["items"]),
+            any(
+                "docker_service.yml" in item["command"] or "validate_node.yml" in item["command"]
+                for item in node_jobs["items"]
+            ),
             "Node job history should surface Ansible command traces",
         )
 
@@ -349,9 +412,11 @@ def main() -> None:
             allow_capacity_risk=True,
         )
         assert_true(placement_exec["node_id"] == edge_node.id, "Auto placement deploy should target forced edge node")
+        target_job = wait_for_job(db, placement_exec["target_job_id"])
+        placement_exec["target_job_status"] = target_job.status
         assert_true(
             placement_exec["target_job_status"] == "success",
-            "Placement auto-deploy target job should succeed in local mode",
+            "Placement auto-deploy target job should succeed",
         )
         assert_true(
             placement_exec["preflight"]["ok"], "Placement auto-deploy should end with dependency-clean preflight"
@@ -416,16 +481,22 @@ def main() -> None:
             apply_mode="reload",
             requested_by="verify-user",
         )
+        direct_apply["job"] = wait_for_job(db, direct_apply["job"])
         assert_true(direct_apply["job"].status == "success", "Direct config apply should succeed")
-        assert_true(direct_apply["before_snapshot"].id != direct_apply["after_snapshot"].id, "Direct apply should create before/after checkpoints")
+        assert_true(
+            direct_apply["before_snapshot"].id != direct_apply["after_snapshot"].id,
+            "Direct apply should create before/after checkpoints",
+        )
         snapshot_compare = compare_config_snapshots(db, dtrain, left_snapshot=duplicate_a, right_snapshot=duplicate_b)
         assert_true(snapshot_compare["service_id"] == dtrain.id, "Snapshot compare should resolve target service")
         assert_true("difference_count" in snapshot_compare, "Snapshot compare should report difference count")
         migration = prepare_config_migration(db, dtrain, left_snapshot=duplicate_a, right_snapshot=duplicate_b)
         assert_true(migration["validation"]["ok"], "Prepared config migration should validate")
         migration_apply = apply_config_migration(db, dtrain, artifact_id=migration["artifact_id"])
+        migration_apply["job"] = wait_for_job(db, migration_apply["job"])
         assert_true(migration_apply["job"].status == "success", "Prepared config migration should apply")
         migration_restore = restore_config_migration(db, dtrain, artifact_id=migration["artifact_id"])
+        migration_restore["job"] = wait_for_job(db, migration_restore["job"])
         assert_true(migration_restore["job"].status == "success", "Prepared config migration backup should restore")
         page_first = list_config_snapshots_page(db, dtrain, limit=1, offset=0, source_filter="all", search="")
         page_second = list_config_snapshots_page(db, dtrain, limit=1, offset=1, source_filter="all", search="")
@@ -449,7 +520,8 @@ def main() -> None:
             rename_duplicate_failed = True
         assert_true(rename_duplicate_failed, "Renaming snapshot to existing name should be rejected")
         restore_job = restore_config_snapshot(db, dtrain, renamed)
-        assert_true(restore_job.status == "success", "Snapshot restore should succeed in local simulation")
+        restore_job = wait_for_job(db, restore_job)
+        assert_true(restore_job.status == "success", "Snapshot restore should succeed")
         timeline_page = get_config_timeline_page(
             db,
             dtrain,
@@ -583,7 +655,8 @@ def main() -> None:
             "Release timeline should include release history entries",
         )
         assert_true(
-            isinstance(release_timeline["recent_change_events"], list) and len(release_timeline["recent_change_events"]) >= 1,
+            isinstance(release_timeline["recent_change_events"], list)
+            and len(release_timeline["recent_change_events"]) >= 1,
             "Release timeline should include correlated change events",
         )
         assert_true(
@@ -606,24 +679,58 @@ def main() -> None:
         assert_true(node_metrics["node_id"] == dtrain.node_id, "Node metrics should resolve the requested node")
         assert_true(node_metrics["window"] == "24h", "Node metrics should echo the requested window")
         assert_true(len(node_metrics["cpu_series"]) == 12, "24h node metrics should expose a longer CPU trend series")
-        assert_true(any("h" in point["label"] for point in node_metrics["cpu_series"]), "24h node metrics should use hour labels")
+        assert_true(
+            any("h" in point["label"] for point in node_metrics["cpu_series"]),
+            "24h node metrics should use hour labels",
+        )
         assert_true(node_metrics["network_rx_mbps"] > 0, "Node metrics should include RX throughput")
         service_metrics = get_service_metrics(db, dtrain.id, window="15m")
         assert_true(service_metrics["service_id"] == dtrain.id, "Service metrics should resolve the requested service")
         assert_true(service_metrics["window"] == "15m", "Service metrics should echo the requested window")
-        assert_true(len(service_metrics["error_rate_series"]) == 6, "15m service metrics should expose a shorter error-rate trend series")
-        assert_true(all("m" in point["label"] for point in service_metrics["error_rate_series"]), "15m service metrics should use minute labels")
+        assert_true(
+            len(service_metrics["error_rate_series"]) == 6,
+            "15m service metrics should expose a shorter error-rate trend series",
+        )
+        assert_true(
+            all("m" in point["label"] for point in service_metrics["error_rate_series"]),
+            "15m service metrics should use minute labels",
+        )
         assert_true(service_metrics["latency_ms_p95"] > 0, "Service metrics should include a latency estimate")
         diagnostics_analysis = service_diagnostics_analysis(db, dtrain, source_service=dtrain)
-        assert_true(diagnostics_analysis["service_id"] == dtrain.id, "Diagnostics analysis should resolve target service")
-        assert_true(len(diagnostics_analysis["insights"]) >= 1, "Diagnostics analysis should produce at least one operator insight")
-        assert_true(diagnostics_analysis["overall_severity"] in {"info", "warning", "error"}, "Diagnostics analysis should produce a valid severity")
-        assert_true("confidence" in diagnostics_analysis["insights"][0], "Diagnostics insights should expose confidence scores")
-        assert_true("evidence_refs" in diagnostics_analysis["insights"][0], "Diagnostics insights should cite evidence references")
-        assert_true("supporting_evidence" in diagnostics_analysis["insights"][0], "Diagnostics insights should expose structured supporting evidence")
-        assert_true(isinstance(diagnostics_analysis["recent_incidents"], list), "Diagnostics analysis should surface recent incident context")
-        assert_true(isinstance(diagnostics_analysis["historical_correlation"], list), "Diagnostics analysis should surface historical correlation hints")
-        assert_true(isinstance(diagnostics_analysis["change_evidence"], list), "Diagnostics analysis should surface change evidence")
+        assert_true(
+            diagnostics_analysis["service_id"] == dtrain.id, "Diagnostics analysis should resolve target service"
+        )
+        assert_true(
+            len(diagnostics_analysis["insights"]) >= 1,
+            "Diagnostics analysis should produce at least one operator insight",
+        )
+        assert_true(
+            diagnostics_analysis["overall_severity"] in {"info", "warning", "error"},
+            "Diagnostics analysis should produce a valid severity",
+        )
+        assert_true(
+            "confidence" in diagnostics_analysis["insights"][0], "Diagnostics insights should expose confidence scores"
+        )
+        assert_true(
+            "evidence_refs" in diagnostics_analysis["insights"][0],
+            "Diagnostics insights should cite evidence references",
+        )
+        assert_true(
+            "supporting_evidence" in diagnostics_analysis["insights"][0],
+            "Diagnostics insights should expose structured supporting evidence",
+        )
+        assert_true(
+            isinstance(diagnostics_analysis["recent_incidents"], list),
+            "Diagnostics analysis should surface recent incident context",
+        )
+        assert_true(
+            isinstance(diagnostics_analysis["historical_correlation"], list),
+            "Diagnostics analysis should surface historical correlation hints",
+        )
+        assert_true(
+            isinstance(diagnostics_analysis["change_evidence"], list),
+            "Diagnostics analysis should surface change evidence",
+        )
         if diagnostics_analysis["recent_incidents"]:
             assert_true(
                 "suggested_runbook_key" in diagnostics_analysis["recent_incidents"][0],
@@ -631,15 +738,20 @@ def main() -> None:
             )
         if diagnostics_analysis["change_evidence"]:
             assert_true(
-                "confidence" in diagnostics_analysis["change_evidence"][0] and "target_view" in diagnostics_analysis["change_evidence"][0],
+                "confidence" in diagnostics_analysis["change_evidence"][0]
+                and "target_view" in diagnostics_analysis["change_evidence"][0],
                 "Diagnostics change evidence should include confidence and navigation target",
             )
             assert_true(
-                "compare_left_snapshot_id" in diagnostics_analysis["change_evidence"][0] or "baseline_snapshot_id" in diagnostics_analysis["change_evidence"][0] or diagnostics_analysis["change_evidence"][0]["target_view"] == "release",
+                "compare_left_snapshot_id" in diagnostics_analysis["change_evidence"][0]
+                or "baseline_snapshot_id" in diagnostics_analysis["change_evidence"][0]
+                or diagnostics_analysis["change_evidence"][0]["target_view"] == "release",
                 "Diagnostics change evidence should include compare metadata when relevant",
             )
         cluster_ops = get_cluster_operations_view(db, dtrain.node.cluster_id, limit=20)
-        assert_true(cluster_ops["cluster_id"] == dtrain.node.cluster_id, "Cluster operations should resolve target cluster")
+        assert_true(
+            cluster_ops["cluster_id"] == dtrain.node.cluster_id, "Cluster operations should resolve target cluster"
+        )
         assert_true(cluster_ops["total_events"] >= 1, "Cluster operations should include recent events")
         assert_true(
             isinstance(cluster_ops["items"], list) and len(cluster_ops["items"]) >= 1,
@@ -715,7 +827,9 @@ def main() -> None:
         backfill = readiness.get("backfill_requirements", {})
         assert_true(backfill.get("ready") is True, "Seeded diagnostics backfill requirements should be ready")
         backfill_result = backfill_service_logs(db, option_copilot)
-        assert_true(backfill_result["ready"] is True, "Diagnostics backfill action should run when requirements are ready")
+        assert_true(
+            backfill_result["ready"] is True, "Diagnostics backfill action should run when requirements are ready"
+        )
         assert_true(backfill_result["job"].status == "success", "Diagnostics backfill job should succeed in local mode")
         live_logs = service_live_logs(db, option_copilot, tail_lines=120, page_size=60, cursor=0)
         assert_true(live_logs["tail_lines"] == 120, "Live diagnostics should respect tail_lines controls")
@@ -982,6 +1096,13 @@ def main() -> None:
         )
     finally:
         db.close()
+        try:
+            import os
+
+            os.remove(mock_ansible_path)
+            os.rmdir(temp_dir)
+        except Exception:
+            pass
 
     print("PlatformOps verification passed")
 

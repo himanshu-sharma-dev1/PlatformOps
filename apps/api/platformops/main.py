@@ -34,8 +34,14 @@ from .models import (
 )
 from .orchestrator import (
     apply_config,
+    apply_config_direct,
+    apply_config_migration,
+    assess_release_safety,
+    backfill_service_logs,
+    bootstrap_observability_plane,
     capability_coverage_report,
     catalog_cards,
+    compare_config_snapshots,
     complete_maintenance,
     create_audit_export,
     create_config_snapshot,
@@ -45,34 +51,28 @@ from .orchestrator import (
     create_release_approval,
     create_secret_record,
     create_service_instance,
-    update_service_instance,
-    compare_config_snapshots,
-    config_workspace as build_config_workspace,
-    config_capabilities_for_service,
-    current_config,
     decide_force_delete_approval,
+    decide_release_approval,
     delete_service,
     dependency_preflight,
     deploy_service,
     deploy_subsystem,
     deployment_plan,
     detect_drift,
-    service_diagnostics_analysis,
     diagnostics_targets_for_service,
-    assess_release_safety,
     evaluate_force_delete_policy,
     evaluate_slos,
-    execute_runbook,
     execute_deployment_plan,
+    execute_runbook,
     generate_capacity_report,
     generate_compose,
     generate_inventory,
-    get_cluster_summary,
     get_cluster_operations_view,
-    get_config_timeline_page,
+    get_cluster_summary,
     get_config_snapshot_detail,
-    get_dtrain_overview,
+    get_config_timeline_page,
     get_dashboard_summary,
+    get_dtrain_overview,
     get_node_connection_report,
     get_node_job_history,
     get_node_metrics,
@@ -102,21 +102,16 @@ from .orchestrator import (
     list_events,
     list_releases,
     mark_force_delete_approval_used,
-    mark_release_approval_used,
     observability_pipeline_report,
-    bootstrap_observability_plane,
     placement_auto_deploy,
     placement_recommendations,
+    prepare_config_migration,
     record_event,
     remediate_node_onboarding,
     rename_config_snapshot,
     resolve_incident,
-    restore_config_snapshot,
-    apply_config_direct,
-    backfill_service_logs,
-    prepare_config_migration,
-    apply_config_migration,
     restore_config_migration,
+    restore_config_snapshot,
     revoke_force_delete_approval,
     revoke_release_approval,
     rollback_release,
@@ -126,13 +121,17 @@ from .orchestrator import (
     run_policy_scan,
     schedule_maintenance,
     service_diagnostics,
-    service_live_logs,
+    service_diagnostics_analysis,
     service_install_schema,
+    service_live_logs,
     topology,
+    update_service_instance,
     validate_config,
     validate_force_delete_approval,
-    decide_release_approval,
     validate_node,
+)
+from .orchestrator import (
+    config_workspace as build_config_workspace,
 )
 from .schemas import (
     AuditExportOut,
@@ -140,13 +139,13 @@ from .schemas import (
     CapabilityCoverageOut,
     CapacityReportOut,
     ClusterCreate,
-    ClusterOut,
     ClusterOperationsOut,
+    ClusterOut,
     ClusterSummary,
     ClusterUpdate,
     ConfigApply,
-    ConfigSnapshotCreate,
     ConfigSnapshotCompareOut,
+    ConfigSnapshotCreate,
     ConfigSnapshotDetailOut,
     ConfigSnapshotOut,
     ConfigSnapshotPageOut,
@@ -203,17 +202,16 @@ from .schemas import (
     ReleaseCreate,
     ReleaseRecordOut,
     ReleaseSafetyOut,
-    ServiceReleaseTimelineOut,
     RunbookExecutionOut,
     SecretCreate,
     SecretRecordOut,
     ServiceCapabilities,
+    ServiceCreate,
     ServiceInstallSchemaOut,
     ServiceMetricsOut,
+    ServiceOut,
     ServiceReleaseTimelineOut,
     ServiceSummaryOut,
-    ServiceCreate,
-    ServiceOut,
     ServiceUpdate,
     SloReportOut,
     SubsystemRolloutPlan,
@@ -1087,7 +1085,9 @@ def service_releases(service_id: int, limit: int = 100, db: Session = Depends(ge
 
 
 @app.get("/api/services/{service_id}/releases/safety", response_model=ReleaseSafetyOut)
-def service_release_safety(service_id: int, version: str, image: str | None = None, db: Session = Depends(get_db)) -> dict:
+def service_release_safety(
+    service_id: int, version: str, image: str | None = None, db: Session = Depends(get_db)
+) -> dict:
     return assess_release_safety(db, _get_service(db, service_id), version=version, image=image)
 
 
@@ -1113,7 +1113,9 @@ def create_release_approval_endpoint(payload: ReleaseApprovalCreate, db: Session
 
 
 @app.get("/api/release-approvals", response_model=list[ReleaseApprovalOut])
-def list_release_approvals(service_id: int | None = None, limit: int = 100, db: Session = Depends(get_db)) -> list[ReleaseApproval]:
+def list_release_approvals(
+    service_id: int | None = None, limit: int = 100, db: Session = Depends(get_db)
+) -> list[ReleaseApproval]:
     return latest_release_approvals(db, service_id=service_id, limit=limit)
 
 
@@ -1372,7 +1374,9 @@ def get_snapshot_detail(service_id: int, snapshot_id: int, db: Session = Depends
 
 
 @app.get("/api/services/{service_id}/config/compare", response_model=ConfigSnapshotCompareOut)
-def compare_snapshots(service_id: int, left_snapshot_id: int, right_snapshot_id: int, db: Session = Depends(get_db)) -> dict:
+def compare_snapshots(
+    service_id: int, left_snapshot_id: int, right_snapshot_id: int, db: Session = Depends(get_db)
+) -> dict:
     service = _get_service(db, service_id)
     left_snapshot = _get_snapshot(db, left_snapshot_id)
     right_snapshot = _get_snapshot(db, right_snapshot_id)

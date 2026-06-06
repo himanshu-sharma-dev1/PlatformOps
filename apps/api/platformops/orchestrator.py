@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import difflib
 import json
 import socket
 from datetime import UTC, datetime, timedelta
@@ -20,8 +19,7 @@ from .catalog import (
     required_dependencies,
     service_catalog,
 )
-from .jobs import create_job, finish_job, run_local_job
-from .tasks import run_job_async
+from .jobs import create_job, finish_job
 from .models import (
     AuditExport,
     BackupRun,
@@ -48,6 +46,7 @@ from .models import (
     SloReport,
 )
 from .settings import settings
+from .tasks import run_job_async
 
 RUNNING_STATUSES = {"running", "healthy", "success"}
 
@@ -121,16 +120,16 @@ def validate_node(db: Session, node: Node) -> DeploymentJob:
             f"TASK [Gathering Facts] ***************************************************************\n"
             f"ok: [{node.name}]\n\n"
             f"TASK [Check Docker CLI] **************************************************************\n"
-            f"ok: [{node.name}] => {{\"changed\": false, \"rc\": 0, \"stdout\": \"Docker version 24.0.7, build afdd53b\"}}\n\n"
+            f'ok: [{node.name}] => {{"changed": false, "rc": 0, "stdout": "Docker version 24.0.7, build afdd53b"}}\n\n'
             f"TASK [Check Docker daemon] ***********************************************************\n"
-            f"ok: [{node.name}] => {{\"changed\": false, \"rc\": 0, \"stdout\": \"Server Version: 24.0.7\"}}\n\n"
+            f'ok: [{node.name}] => {{"changed": false, "rc": 0, "stdout": "Server Version: 24.0.7"}}\n\n'
             f"TASK [Print validation summary] ******************************************************\n"
             f"ok: [{node.name}] => {{\n"
-            f"    \"msg\": {{\n"
-            f"        \"docker_cli\": \"Docker version 24.0.7, build afdd53b\",\n"
-            f"        \"docker_ready\": true,\n"
-            f"        \"node\": \"{node.name}\",\n"
-            f"        \"os\": \"Ubuntu 22.04\"\n"
+            f'    "msg": {{\n'
+            f'        "docker_cli": "Docker version 24.0.7, build afdd53b",\n'
+            f'        "docker_ready": true,\n'
+            f'        "node": "{node.name}",\n'
+            f'        "os": "Ubuntu 22.04"\n'
             f"    }}\n"
             f"}}\n\n"
             f"PLAY RECAP ***************************************************************************\n"
@@ -142,6 +141,22 @@ def validate_node(db: Session, node: Node) -> DeploymentJob:
         bg_node = bg_db.get(Node, node.id)
         if bg_node:
             bg_node.status = "healthy" if ok else "unreachable"
+            if ok:
+                facts = {
+                    "checked_at": datetime.utcnow().isoformat() + "Z",
+                    "mode": "production-ansible",
+                }
+                try:
+                    if bg_job.output and '"msg":' in bg_job.output:
+                        import re
+
+                        match = re.search(r'"msg":\s*({[^}]+})', bg_job.output)
+                        if match:
+                            parsed_msg = json.loads(match.group(1))
+                            facts.update(parsed_msg)
+                except Exception:
+                    pass
+                bg_node.facts_json = json.dumps(facts)
 
     return run_job_async(db, job, cwd=settings.project_root, on_complete=on_complete)
 
@@ -208,7 +223,12 @@ def update_service_instance(
     )
     if not merged_contract:
         raise ValueError(f"Unknown service key: {service.service_key}")
-    service.name = (name or "").strip() or merged_contract.get("display_name") or merged_contract.get("name") or service.service_key
+    service.name = (
+        (name or "").strip()
+        or merged_contract.get("display_name")
+        or merged_contract.get("name")
+        or service.service_key
+    )
     service.kind = merged_contract.get("kind", service.kind)
     service.container_name = merged_contract.get("container_name", service.container_name)
     service.image = merged_contract.get("image", service.image)
@@ -250,7 +270,11 @@ def service_install_schema(
 ) -> dict[str, Any]:
     if service_key not in service_catalog():
         raise ValueError(f"Unknown service key: {service_key}")
-    contract = json.loads(service.config_json or "{}") if service else rendered_contract(service_key, node_id=node.id, volume_root=node.volume_root)
+    contract = (
+        json.loads(service.config_json or "{}")
+        if service
+        else rendered_contract(service_key, node_id=node.id, volume_root=node.volume_root)
+    )
     contract_defaults = copy.deepcopy(contract)
     fields: list[dict[str, Any]] = [
         {
@@ -445,11 +469,11 @@ def deploy_service(db: Session, service: ServiceInstance) -> DeploymentJob:
             f"TASK [Gathering Facts] ***************************************************************\n"
             f"ok: [{node.name}]\n\n"
             f"TASK [Create service directories] ****************************************************\n"
-            f"changed: [{node.name}] => {{\"changed\": true, \"path\": \"{node.volume_root}/{service.service_key}\"}}\n\n"
+            f'changed: [{node.name}] => {{"changed": true, "path": "{node.volume_root}/{service.service_key}"}}\n\n'
             f"TASK [Copy docker-compose templates] *************************************************\n"
-            f"changed: [{node.name}] => {{\"changed\": true, \"dest\": \"{node.volume_root}/compose/docker-compose.{service.service_key}.yml\"}}\n\n"
+            f'changed: [{node.name}] => {{"changed": true, "dest": "{node.volume_root}/compose/docker-compose.{service.service_key}.yml"}}\n\n'
             f"TASK [Start container service] *******************************************************\n"
-            f"changed: [{node.name}] => {{\"changed\": true, \"rc\": 0, \"stdout\": \"Container {service.container_name} Started\"}}\n\n"
+            f'changed: [{node.name}] => {{"changed": true, "rc": 0, "stdout": "Container {service.container_name} Started"}}\n\n'
             f"PLAY RECAP ***************************************************************************\n"
             f"{node.name.ljust(28)}: ok=4    changed=3    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0"
         )
@@ -579,6 +603,18 @@ def install_missing_dependencies(db: Session, service: ServiceInstance) -> dict[
                 "message": f"{dependency.name} deployment {dependency_job.status}",
             }
         )
+
+    if not settings.local_mode and actions:
+        import time
+
+        for action in actions:
+            job_id = action["job_id"]
+            for _ in range(200):
+                db.expire_all()
+                dep_job = db.get(DeploymentJob, job_id)
+                if dep_job and dep_job.status in {JobStatus.success.value, JobStatus.failed.value}:
+                    break
+                time.sleep(0.05)
 
     preflight = dependency_preflight(db, service)
     summary = (
@@ -877,16 +913,25 @@ def service_diagnostics_analysis(
     dependency = diagnostics["readiness"]["dependency_summary"]
     readiness = diagnostics["readiness"]
     latest_monitoring = db.scalar(
-        select(MonitoringCheck).where(MonitoringCheck.service_id == service.id).order_by(MonitoringCheck.created_at.desc())
+        select(MonitoringCheck)
+        .where(MonitoringCheck.service_id == service.id)
+        .order_by(MonitoringCheck.created_at.desc())
     )
-    latest_slo = db.scalar(select(SloReport).where(SloReport.service_id == service.id).order_by(SloReport.created_at.desc()))
+    latest_slo = db.scalar(
+        select(SloReport).where(SloReport.service_id == service.id).order_by(SloReport.created_at.desc())
+    )
     latest_release = db.scalar(
         select(ReleaseRecord).where(ReleaseRecord.service_id == service.id).order_by(ReleaseRecord.created_at.desc())
     )
     latest_snapshot = db.scalar(
-        select(ConfigSnapshot).where(ConfigSnapshot.service_id == service.id).order_by(ConfigSnapshot.version.desc()).limit(1)
+        select(ConfigSnapshot)
+        .where(ConfigSnapshot.service_id == service.id)
+        .order_by(ConfigSnapshot.version.desc())
+        .limit(1)
     )
-    latest_drift = db.scalar(select(DriftReport).where(DriftReport.service_id == service.id).order_by(DriftReport.created_at.desc()))
+    latest_drift = db.scalar(
+        select(DriftReport).where(DriftReport.service_id == service.id).order_by(DriftReport.created_at.desc())
+    )
     drift_differences: list[dict[str, Any]] = []
     drift_fields: list[str] = []
     if latest_drift is not None:
@@ -970,7 +1015,9 @@ def service_diagnostics_analysis(
                 "status": incident.status,
                 "summary": incident.summary,
                 "remediation": incident.remediation,
-                "created_at": incident.created_at.isoformat() if incident.created_at else datetime.utcnow().isoformat() + "Z",
+                "created_at": incident.created_at.isoformat()
+                if incident.created_at
+                else datetime.utcnow().isoformat() + "Z",
                 "resolved_at": incident.resolved_at.isoformat() if incident.resolved_at else None,
                 "latest_runbook_key": latest_runbook.runbook_key if latest_runbook else None,
                 "latest_runbook_status": latest_runbook.status if latest_runbook else None,
@@ -990,7 +1037,9 @@ def service_diagnostics_analysis(
                 "kind": "release",
                 "title": f"Latest release {latest_release.version}",
                 "summary": f"Image {latest_release.image} via {latest_release.strategy} strategy.",
-                "created_at": latest_release.created_at.isoformat() if latest_release.created_at else datetime.utcnow().isoformat() + "Z",
+                "created_at": latest_release.created_at.isoformat()
+                if latest_release.created_at
+                else datetime.utcnow().isoformat() + "Z",
                 "severity": "warning" if metrics["log_error_rate"] >= 0.4 or metrics["restart_count"] > 0 else "info",
                 "detail": release_notes or "Recent release may be relevant if symptoms started after deployment.",
                 "confidence": 82 if metrics["log_error_rate"] >= 0.4 or metrics["restart_count"] > 0 else 58,
@@ -1004,14 +1053,18 @@ def service_diagnostics_analysis(
                 "kind": "drift",
                 "title": f"Latest drift check: {latest_drift.status}",
                 "summary": f"{difference_count} difference(s) against the latest baseline snapshot.",
-                "created_at": latest_drift.created_at.isoformat() if latest_drift.created_at else datetime.utcnow().isoformat() + "Z",
+                "created_at": latest_drift.created_at.isoformat()
+                if latest_drift.created_at
+                else datetime.utcnow().isoformat() + "Z",
                 "severity": "warning" if latest_drift.status == "drifted" else "info",
                 "detail": "Config drift can explain incidents if runtime behavior diverged from the last known snapshot.",
                 "confidence": 90 if latest_drift.status == "drifted" and drift_fields else 66,
                 "target_view": "config-compare",
                 "baseline_snapshot_id": latest_drift.baseline_snapshot_id,
                 "compare_left_snapshot_id": latest_drift.baseline_snapshot_id,
-                "compare_right_snapshot_id": latest_snapshot.id if latest_snapshot else latest_drift.baseline_snapshot_id,
+                "compare_right_snapshot_id": latest_snapshot.id
+                if latest_snapshot
+                else latest_drift.baseline_snapshot_id,
                 "drift_fields": drift_fields[:6],
                 "drift_preview": drift_differences[:4],
             }
@@ -1081,7 +1134,9 @@ def service_diagnostics_analysis(
                 "target_view": "config-compare",
                 "severity": "warning" if latest_drift.status == "drifted" else "info",
                 "compare_left_snapshot_id": latest_drift.baseline_snapshot_id,
-                "compare_right_snapshot_id": latest_snapshot.id if latest_snapshot else latest_drift.baseline_snapshot_id,
+                "compare_right_snapshot_id": latest_snapshot.id
+                if latest_snapshot
+                else latest_drift.baseline_snapshot_id,
                 "baseline_snapshot_id": latest_drift.baseline_snapshot_id,
             }
         if prefix == "drift-field" and latest_drift is not None:
@@ -1092,7 +1147,9 @@ def service_diagnostics_analysis(
                 "target_view": "config-compare",
                 "severity": "warning",
                 "compare_left_snapshot_id": latest_drift.baseline_snapshot_id,
-                "compare_right_snapshot_id": latest_snapshot.id if latest_snapshot else latest_drift.baseline_snapshot_id,
+                "compare_right_snapshot_id": latest_snapshot.id
+                if latest_snapshot
+                else latest_drift.baseline_snapshot_id,
                 "baseline_snapshot_id": latest_drift.baseline_snapshot_id,
             }
         if prefix == "config-event":
@@ -1197,7 +1254,9 @@ def service_diagnostics_analysis(
             actions.append(
                 {
                     "action_id": "run-incident-runbook",
-                    "label": "Run dependency recovery" if dependency_runbook_key == "dependency-recovery" else "Run suggested runbook",
+                    "label": "Run dependency recovery"
+                    if dependency_runbook_key == "dependency-recovery"
+                    else "Run suggested runbook",
                     "description": "Execute the dependency recovery runbook against the active incident."
                     if dependency_runbook_key == "dependency-recovery"
                     else f"Execute the recommended {dependency_runbook_key} runbook for this context.",
@@ -1323,7 +1382,11 @@ def service_diagnostics_analysis(
                 "confidence": 92 if metrics["restart_count"] > 0 else 80,
                 "summary": f"Error rate is {metrics['log_error_rate']:.2f}/min with {metrics['restart_count']} restart indicator(s).",
                 "rationale": "Recent runtime signals suggest the container should be inspected through live logs and, if needed, escalated into an incident.",
-                "evidence_refs": [f"metric:error-rate:{metrics['log_error_rate']}", f"metric:restarts:{metrics['restart_count']}"] + common_refs[:2],
+                "evidence_refs": [
+                    f"metric:error-rate:{metrics['log_error_rate']}",
+                    f"metric:restarts:{metrics['restart_count']}",
+                ]
+                + common_refs[:2],
                 "actions": runtime_actions,
             }
         )
@@ -1345,7 +1408,8 @@ def service_diagnostics_analysis(
                 "confidence": 78,
                 "summary": f"Queue depth is {metrics['queue_depth']} in the current {metrics['window']} telemetry window.",
                 "rationale": "Higher queue depth often points to broker latency, blocked consumers, or a backing dependency that needs inspection.",
-                "evidence_refs": [f"metric:queue-depth:{metrics['queue_depth']}"] + ([f"dependency:{broker_target['service_key']}"] if broker_target else []),
+                "evidence_refs": [f"metric:queue-depth:{metrics['queue_depth']}"]
+                + ([f"dependency:{broker_target['service_key']}"] if broker_target else []),
                 "actions": [
                     {
                         "action_id": "focus-dependency-diagnostics" if broker_target else "open-live-logs",
@@ -1527,7 +1591,8 @@ def service_diagnostics_analysis(
                 "confidence": 88 if drift_fields else 74,
                 "summary": "The latest drift check reported differences from the baseline snapshot.",
                 "rationale": "When runtime state drifts from the saved baseline, rollback or config review can often resolve the issue faster than repeated restarts.",
-                "evidence_refs": [f"drift:{latest_drift.status}"] + [f"drift-field:{field}" for field in drift_fields[:3]],
+                "evidence_refs": [f"drift:{latest_drift.status}"]
+                + [f"drift-field:{field}" for field in drift_fields[:3]],
                 "actions": [
                     {
                         "action_id": "open-config",
@@ -1569,8 +1634,12 @@ def service_diagnostics_analysis(
                 "severity": "warning",
                 "confidence": 64,
                 "summary": f"{latest_monitoring.name}: {latest_monitoring.value}.",
-                "rationale": latest_monitoring.detail or "The latest monitoring check flagged this target for follow-up.",
-                "evidence_refs": [f"monitoring:{latest_monitoring.name}", f"monitoring-value:{latest_monitoring.value}"],
+                "rationale": latest_monitoring.detail
+                or "The latest monitoring check flagged this target for follow-up.",
+                "evidence_refs": [
+                    f"monitoring:{latest_monitoring.name}",
+                    f"monitoring-value:{latest_monitoring.value}",
+                ],
                 "actions": [
                     {
                         "action_id": "open-live-logs",
@@ -1637,10 +1706,14 @@ def service_diagnostics_analysis(
         )
 
     for insight in insights:
-        insight["supporting_evidence"] = [resolve_supporting_evidence(ref) for ref in insight.get("evidence_refs", [])[:4]]
+        insight["supporting_evidence"] = [
+            resolve_supporting_evidence(ref) for ref in insight.get("evidence_refs", [])[:4]
+        ]
 
     severity_rank = {"info": 0, "warning": 1, "error": 2}
-    insights.sort(key=lambda item: (-int(item.get("confidence", 0)), -severity_rank.get(item["severity"], 0), item["title"]))
+    insights.sort(
+        key=lambda item: (-int(item.get("confidence", 0)), -severity_rank.get(item["severity"], 0), item["title"])
+    )
     overall_severity = max((item["severity"] for item in insights), key=lambda item: severity_rank.get(item, 0))
     next_steps: list[str] = []
     for insight in insights:
@@ -1705,7 +1778,9 @@ def index_log_archives(db: Session, service: ServiceInstance) -> list[LogArchive
 def backfill_service_logs(db: Session, service: ServiceInstance) -> dict[str, Any]:
     diagnostics = service_diagnostics(db, service)
     requirements = diagnostics["readiness"].get("backfill_requirements", {})
-    command = f"{_ansible_base_command(service.node, 'service_log_backfill.yml')} --extra-vars service={service.service_key}"
+    command = (
+        f"{_ansible_base_command(service.node, 'service_log_backfill.yml')} --extra-vars service={service.service_key}"
+    )
     job = create_job(db, action="log-backfill", command=command, service_id=service.id, node_id=service.node_id)
     ready = bool(requirements.get("ready"))
     output = (
@@ -2500,9 +2575,7 @@ def assess_release_safety(
     risky = bool(reasons)
     severity = "high" if service.kind == "infrastructure" or {"stateful", "database"} & tags else "medium"
     recommended_action = (
-        "Request and approve a release gate before deploying this change."
-        if risky
-        else "Safe to release directly."
+        "Request and approve a release gate before deploying this change." if risky else "Safe to release directly."
     )
     return {
         "service_id": service.id,
@@ -2633,9 +2706,17 @@ def validate_release_approval(
         db.commit()
         return {"allowed": False, "approval": approval, "violations": ["Approval has expired."]}
     if approval.status != "approved":
-        return {"allowed": False, "approval": approval, "violations": [f"Approval status is '{approval.status}', expected 'approved'."]}
+        return {
+            "allowed": False,
+            "approval": approval,
+            "violations": [f"Approval status is '{approval.status}', expected 'approved'."],
+        }
     if approval.target_version != target_version or approval.target_image != target_image:
-        return {"allowed": False, "approval": approval, "violations": ["Approval payload does not match the requested version/image."]}
+        return {
+            "allowed": False,
+            "approval": approval,
+            "violations": ["Approval payload does not match the requested version/image."],
+        }
     return {"allowed": True, "approval": approval, "violations": []}
 
 
@@ -3528,15 +3609,24 @@ def get_service_metrics(db: Session, service_id: int, window: str = "1h") -> dic
     metric_window = _normalize_metric_window(window)
     dependency = dependency_preflight(db, service)
     latest_monitoring = db.scalar(
-        select(MonitoringCheck).where(MonitoringCheck.service_id == service.id).order_by(MonitoringCheck.created_at.desc())
+        select(MonitoringCheck)
+        .where(MonitoringCheck.service_id == service.id)
+        .order_by(MonitoringCheck.created_at.desc())
     )
-    latest_slo = db.scalar(select(SloReport).where(SloReport.service_id == service.id).order_by(SloReport.created_at.desc()))
-    open_incidents = db.scalar(
-        select(func.count()).select_from(IncidentRecord).where(
-            IncidentRecord.service_id == service.id,
-            IncidentRecord.status == "open",
+    latest_slo = db.scalar(
+        select(SloReport).where(SloReport.service_id == service.id).order_by(SloReport.created_at.desc())
+    )
+    open_incidents = (
+        db.scalar(
+            select(func.count())
+            .select_from(IncidentRecord)
+            .where(
+                IncidentRecord.service_id == service.id,
+                IncidentRecord.status == "open",
+            )
         )
-    ) or 0
+        or 0
+    )
 
     seed = service.id * 17 + len(service.service_key)
     cpu_percent = round(8 + len(service.service_key) * 1.7 + (0 if service.kind == "helper" else 6), 1)
@@ -3724,7 +3814,9 @@ def get_service_summary(db: Session, service_id: int) -> dict[str, Any]:
     latest_job = db.scalar(
         select(DeploymentJob).where(DeploymentJob.service_id == service.id).order_by(DeploymentJob.created_at.desc())
     )
-    latest_backup = db.scalar(select(BackupRun).where(BackupRun.service_id == service.id).order_by(BackupRun.created_at.desc()))
+    latest_backup = db.scalar(
+        select(BackupRun).where(BackupRun.service_id == service.id).order_by(BackupRun.created_at.desc())
+    )
     latest_release = db.scalar(
         select(ReleaseRecord).where(ReleaseRecord.service_id == service.id).order_by(ReleaseRecord.created_at.desc())
     )
@@ -3732,11 +3824,17 @@ def get_service_summary(db: Session, service_id: int) -> dict[str, Any]:
         select(DriftReport).where(DriftReport.service_id == service.id).order_by(DriftReport.created_at.desc())
     )
     latest_monitoring = db.scalar(
-        select(MonitoringCheck).where(MonitoringCheck.service_id == service.id).order_by(MonitoringCheck.created_at.desc())
+        select(MonitoringCheck)
+        .where(MonitoringCheck.service_id == service.id)
+        .order_by(MonitoringCheck.created_at.desc())
     )
-    latest_slo = db.scalar(select(SloReport).where(SloReport.service_id == service.id).order_by(SloReport.created_at.desc()))
+    latest_slo = db.scalar(
+        select(SloReport).where(SloReport.service_id == service.id).order_by(SloReport.created_at.desc())
+    )
     latest_runbook = db.scalar(
-        select(RunbookExecution).where(RunbookExecution.service_id == service.id).order_by(RunbookExecution.created_at.desc())
+        select(RunbookExecution)
+        .where(RunbookExecution.service_id == service.id)
+        .order_by(RunbookExecution.created_at.desc())
     )
     active_incidents = list(
         db.scalars(
@@ -3749,12 +3847,13 @@ def get_service_summary(db: Session, service_id: int) -> dict[str, Any]:
             .limit(5)
         ).all()
     )
-    snapshot_count = db.scalar(
-        select(func.count()).select_from(ConfigSnapshot).where(ConfigSnapshot.service_id == service.id)
-    ) or 0
-    recent_event_count = db.scalar(
-        select(func.count()).select_from(OperationalEvent).where(OperationalEvent.service_id == service.id)
-    ) or 0
+    snapshot_count = (
+        db.scalar(select(func.count()).select_from(ConfigSnapshot).where(ConfigSnapshot.service_id == service.id)) or 0
+    )
+    recent_event_count = (
+        db.scalar(select(func.count()).select_from(OperationalEvent).where(OperationalEvent.service_id == service.id))
+        or 0
+    )
     recent_events = list(
         db.scalars(
             select(OperationalEvent)
@@ -3832,14 +3931,9 @@ def get_service_release_timeline(db: Session, service_id: int, *, limit: int = 8
         related_events = [
             event
             for event in release_events
-            if (
-                event.created_at and release.created_at and event.created_at >= release.created_at
-            )
+            if (event.created_at and release.created_at and event.created_at >= release.created_at)
         ][:3]
-        rollback_executed = any(
-            f"Rolled back release {release.version}" in event.message
-            for event in release_events
-        )
+        rollback_executed = any(f"Rolled back release {release.version}" in event.message for event in release_events)
         notes = [f"Strategy: {release.strategy}"]
         if release.notes:
             notes.append(release.notes)
@@ -3974,7 +4068,9 @@ def get_dashboard_summary(db: Session) -> dict[str, Any]:
     healthy_observability_nodes = observability["summary"]["healthy_nodes"]
     degraded_observability_nodes = observability["summary"]["degraded_nodes"]
     blocked_services = sum(
-        1 for service in services if service.status not in RUNNING_STATUSES or not dependency_preflight(db, service)["ok"]
+        1
+        for service in services
+        if service.status not in RUNNING_STATUSES or not dependency_preflight(db, service)["ok"]
     )
 
     return {
@@ -4000,9 +4096,15 @@ def get_cluster_operations_view(db: Session, cluster_id: int, *, limit: int = 40
 
     nodes = list(db.scalars(select(Node).where(Node.cluster_id == cluster_id)).all())
     node_ids = [node.id for node in nodes]
-    services = list(
-        db.scalars(select(ServiceInstance).where(ServiceInstance.node_id.in_(node_ids) if node_ids else False)).all()
-    ) if node_ids else []
+    services = (
+        list(
+            db.scalars(
+                select(ServiceInstance).where(ServiceInstance.node_id.in_(node_ids) if node_ids else False)
+            ).all()
+        )
+        if node_ids
+        else []
+    )
     service_ids = [service.id for service in services]
     service_by_id = {service.id: service for service in services}
     node_by_id = {node.id: node for node in nodes}
@@ -4036,7 +4138,11 @@ def get_cluster_operations_view(db: Session, cluster_id: int, *, limit: int = 40
         if category in {"release-approval", "lifecycle", "audit"}:
             return "governance"
         if category in {"incident", "runbook", "monitoring"}:
-            return "recovery" if ("resolve" in message.lower() or "completed" in message.lower() or "executed" in message.lower()) else "recovery"
+            return (
+                "recovery"
+                if ("resolve" in message.lower() or "completed" in message.lower() or "executed" in message.lower())
+                else "recovery"
+            )
         return "change" if level == "info" else "governance"
 
     items: list[dict[str, Any]] = []
@@ -4069,12 +4175,17 @@ def get_cluster_operations_view(db: Session, cluster_id: int, *, limit: int = 40
             }
         )
 
-    active_incidents = db.scalar(
-        select(func.count()).select_from(IncidentRecord).where(
-            IncidentRecord.node_id.in_(node_ids) if node_ids else False,
-            IncidentRecord.status == "open",
+    active_incidents = (
+        db.scalar(
+            select(func.count())
+            .select_from(IncidentRecord)
+            .where(
+                IncidentRecord.node_id.in_(node_ids) if node_ids else False,
+                IncidentRecord.status == "open",
+            )
         )
-    ) or 0
+        or 0
+    )
 
     return {
         "cluster_id": cluster.id,
@@ -4296,7 +4407,9 @@ def prepare_config_migration(
         "final_yaml": merged_yaml,
         "differences": compare["differences"],
     }
-    _migration_artifact_path(service.id, artifact_id).write_text(json.dumps(artifact_payload, indent=2), encoding="utf-8")
+    _migration_artifact_path(service.id, artifact_id).write_text(
+        json.dumps(artifact_payload, indent=2), encoding="utf-8"
+    )
     validation = validate_config(merged_yaml)
     return {
         "artifact_id": artifact_id,
@@ -5487,12 +5600,13 @@ def get_node_onboarding_report(db: Session, node_id: int) -> dict[str, Any]:
             next_actions.append(item)
 
     suggested_actions: list[str] = []
-    needs_remote_profile = (
-        node.environment != "local"
-        and (not remote_host_ok or not (node.ssh_key_path or "").strip() or not (node.ssh_user or "").strip())
+    needs_remote_profile = node.environment != "local" and (
+        not remote_host_ok or not (node.ssh_key_path or "").strip() or not (node.ssh_user or "").strip()
     )
     if needs_remote_profile:
-        suggested_actions.append("apply-aws-gpu-preset" if "gpu" in (node.docker_network or "").lower() else "apply-aws-general-preset")
+        suggested_actions.append(
+            "apply-aws-gpu-preset" if "gpu" in (node.docker_network or "").lower() else "apply-aws-general-preset"
+        )
     elif node.environment == "local" and (node.host.startswith("ec2-") or "aws" in (node.docker_network or "").lower()):
         suggested_actions.append("apply-local-preset")
 
