@@ -804,13 +804,39 @@ def list_nodes(cluster_id: int | None = None, db: Session = Depends(get_db)) -> 
     return list(db.scalars(statement).all())
 
 
+def _save_ssh_private_key(node_id: int, private_key_content: str) -> str:
+    import os
+    import stat
+
+    from .settings import settings
+
+    keys_dir = settings.resolve(settings.runtime_dir) / "ssh_keys"
+    keys_dir.mkdir(parents=True, exist_ok=True)
+    key_file = keys_dir / f"node_{node_id}.pem"
+
+    content = private_key_content.strip() + "\n"
+    key_file.write_text(content, encoding="utf-8")
+
+    os.chmod(key_file, stat.S_IRUSR | stat.S_IWUSR)
+    return str(key_file)
+
+
 @app.post("/api/nodes", response_model=NodeOut)
 def create_node(payload: NodeCreate, db: Session = Depends(get_db)) -> Node:
     _get_cluster(db, payload.cluster_id)
-    node = Node(**payload.model_dump())
+    private_key = payload.ssh_private_key
+    node_data = payload.model_dump(exclude={"ssh_private_key"})
+    node = Node(**node_data)
     db.add(node)
     db.commit()
     db.refresh(node)
+
+    if private_key:
+        key_path = _save_ssh_private_key(node.id, private_key)
+        node.ssh_key_path = key_path
+        db.commit()
+        db.refresh(node)
+
     return node
 
 
@@ -822,6 +848,12 @@ def update_node(node_id: int, payload: NodeUpdate, db: Session = Depends(get_db)
         return node
     if "cluster_id" in updates:
         _get_cluster(db, updates["cluster_id"])
+
+    private_key = updates.pop("ssh_private_key", None)
+    if private_key is not None:
+        key_path = _save_ssh_private_key(node.id, private_key)
+        node.ssh_key_path = key_path
+
     for key, value in updates.items():
         setattr(node, key, value)
     db.commit()
@@ -832,7 +864,7 @@ def update_node(node_id: int, payload: NodeUpdate, db: Session = Depends(get_db)
         level="info",
         message=f"Updated node '{node.name}'",
         node_id=node.id,
-        metadata={"node_id": node.id, "updates": updates},
+        metadata={"node_id": node.id, "updates": payload.model_dump(exclude_none=True)},
     )
     return node
 

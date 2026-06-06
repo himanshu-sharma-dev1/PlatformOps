@@ -33,6 +33,7 @@ class NodeCreate(BaseModel):
     host: str = "localhost"
     ssh_user: str = "ubuntu"
     ssh_key_path: str = ""
+    ssh_private_key: str | None = None
     environment: str = "local"
     volume_root: str = "/tmp/platformops"
     docker_network: str = "platformops-net"
@@ -44,6 +45,7 @@ class NodeUpdate(BaseModel):
     host: str | None = None
     ssh_user: str | None = None
     ssh_key_path: str | None = None
+    ssh_private_key: str | None = None
     environment: str | None = None
     volume_root: str | None = None
     docker_network: str | None = None

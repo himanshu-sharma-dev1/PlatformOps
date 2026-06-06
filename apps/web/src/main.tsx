@@ -51,6 +51,7 @@ type NodeDraft = {
   host: string;
   ssh_user: string;
   ssh_key_path: string;
+  ssh_private_key: string;
   environment: string;
   volume_root: string;
   docker_network: string;
@@ -1215,6 +1216,7 @@ function App() {
       host: "localhost",
       ssh_user: "ubuntu",
       ssh_key_path: "",
+      ssh_private_key: "",
       environment: "local",
       volume_root: "/tmp/platformops",
       docker_network: "platformops-net",
@@ -2030,6 +2032,7 @@ function App() {
         host: "localhost",
         ssh_user: "ubuntu",
         ssh_key_path: "",
+        ssh_private_key: "",
         environment: "local",
         volume_root: "/tmp/platformops",
         docker_network: "platformops-net",
@@ -2051,6 +2054,7 @@ function App() {
         host: node.host,
         ssh_user: node.ssh_user,
         ssh_key_path: node.ssh_key_path ?? "",
+        ssh_private_key: "",
         environment: node.environment,
         volume_root: node.volume_root,
         docker_network: node.docker_network,
@@ -2082,6 +2086,7 @@ function App() {
             host: draft.host.trim() || "localhost",
             ssh_user: draft.ssh_user.trim() || "ubuntu",
             ssh_key_path: draft.ssh_key_path.trim(),
+            ssh_private_key: draft.ssh_private_key.trim() || undefined,
             environment: draft.environment.trim() || "local",
             volume_root: draft.volume_root.trim() || "/tmp/platformops",
             docker_network: draft.docker_network.trim() || "platformops-net",
@@ -2102,6 +2107,7 @@ function App() {
           host: draft.host.trim() || "localhost",
           ssh_user: draft.ssh_user.trim() || "ubuntu",
           ssh_key_path: draft.ssh_key_path.trim(),
+          ssh_private_key: draft.ssh_private_key.trim() || undefined,
           environment: draft.environment.trim() || "local",
           volume_root: draft.volume_root.trim() || "/tmp/platformops",
           docker_network: draft.docker_network.trim() || "platformops-net",
@@ -6443,8 +6449,28 @@ function App() {
                   <input className="input" value={nodeEditor.draft.ssh_user} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, ssh_user: e.target.value } }))} />
                 </div>
                 <div className="field">
-                  <label>SSH Key Path</label>
+                  <label>SSH Key Path (Optional if key pasted below)</label>
                   <input className="input" value={nodeEditor.draft.ssh_key_path} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, ssh_key_path: e.target.value } }))} placeholder="e.g. ~/.ssh/id_rsa" />
+                </div>
+                <div className="field">
+                  <label>SSH Private Key Content (PEM format)</label>
+                  <textarea 
+                    className="input" 
+                    style={{ 
+                      minHeight: "100px", 
+                      fontFamily: "var(--mono)", 
+                      fontSize: "0.75rem", 
+                      background: "rgba(0,0,0,0.2)", 
+                      border: "1px solid var(--line)", 
+                      color: "#fff",
+                      padding: "0.5rem",
+                      borderRadius: "6px",
+                      resize: "vertical"
+                    }} 
+                    value={nodeEditor.draft.ssh_private_key || ""} 
+                    onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, ssh_private_key: e.target.value } }))} 
+                    placeholder="-----BEGIN OPENSSH PRIVATE KEY-----\n..." 
+                  />
                 </div>
                 <div className="field">
                   <label>Volume Root Directory</label>
