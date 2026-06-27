@@ -54,6 +54,18 @@ def format_contract_value(value: Any, *, node_id: int, volume_root: str) -> Any:
     return value
 
 
-def rendered_contract(service_key: str, *, node_id: int, volume_root: str) -> dict[str, Any]:
+def rendered_contract(
+    service_key: str,
+    *,
+    node_id: int,
+    volume_root: str,
+    overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     contract = dict(get_service_contract(service_key))
+    if overrides:
+        for k, v in overrides.items():
+            if isinstance(v, dict) and isinstance(contract.get(k), dict):
+                contract[k] = {**contract[k], **v}
+            else:
+                contract[k] = v
     return format_contract_value(contract, node_id=node_id, volume_root=volume_root)
