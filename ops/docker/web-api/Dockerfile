@@ -21,6 +21,8 @@ WORKDIR /app
 # Install security certificates or curl if needed for healthchecks
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    docker.io \
+    docker-cli \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user/group for security compliance
