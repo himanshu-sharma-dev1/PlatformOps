@@ -18,12 +18,12 @@ FROM python:3.12-slim AS runner
 
 WORKDIR /app
 
-# Install security certificates or curl if needed for healthchecks
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    docker.io \
-    docker-cli \
     && rm -rf /var/lib/apt/lists/*
+
+# Copy Docker binary from host to bypass repository network issues
+COPY ops/docker/web-api/docker /usr/bin/docker
 
 # Create a non-root user/group for security compliance
 RUN groupadd -g 10001 appgroup && \
