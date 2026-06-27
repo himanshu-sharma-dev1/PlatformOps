@@ -137,8 +137,11 @@ def validate_node(db: Session, node: Node) -> DeploymentJob:
         )
         return finish_job(db, job, ok=True, output=rich_output)
 
+    node_id = node.id
+    node_name = node.name
+
     def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
-        bg_node = bg_db.get(Node, node.id)
+        bg_node = bg_db.get(Node, node_id)
         if bg_node:
             bg_node.status = "healthy" if ok else "unreachable"
             if ok:
@@ -489,8 +492,10 @@ def deploy_service(db: Session, service: ServiceInstance) -> DeploymentJob:
         )
         return completed
 
+    service_id = service.id
+
     def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
-        bg_service = bg_db.get(ServiceInstance, service.id)
+        bg_service = bg_db.get(ServiceInstance, service_id)
         if bg_service:
             bg_service.status = "running" if ok else "error"
             record_event(
@@ -561,8 +566,10 @@ def delete_service(db: Session, service: ServiceInstance) -> DeploymentJob:
         )
         return completed
 
+    service_id = service.id
+
     def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
-        bg_service = bg_db.get(ServiceInstance, service.id)
+        bg_service = bg_db.get(ServiceInstance, service_id)
         if bg_service:
             bg_service.status = "deleted" if ok else "error"
             record_event(
