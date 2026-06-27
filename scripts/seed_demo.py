@@ -63,12 +63,21 @@ def main() -> None:
             "web-api",
         }
 
+        real_containers = {
+            "postgres-core": "platformops-postgres",
+            "redis-core": "platformops-redis",
+            "rabbitmq-core": "platformops-rabbitmq",
+            "prometheus-core": "platformops-prometheus",
+            "loki-core": "platformops-loki",
+            "web-api": "platformops-web-api",
+        }
+
         for service_key in core_services:
             service = create_service_instance(db, node=node, service_key=service_key)
             contract = rendered_contract(service_key, node_id=node.id, volume_root=node.volume_root)
             service.name = contract.get("display_name") or contract.get("name") or service_key
             service.kind = contract.get("kind", "app")
-            service.container_name = contract.get("container_name", f"node-{node.id}-{service_key}")
+            service.container_name = real_containers.get(service_key, contract.get("container_name", f"node-{node.id}-{service_key}"))
             service.image = contract.get("image", "")
             service.config_json = json.dumps(contract)
             if service.service_key in always_running:
