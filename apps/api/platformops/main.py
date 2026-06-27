@@ -1665,3 +1665,19 @@ def remediate_node_onboarding_endpoint(
 @app.get("/api/dtrain/overview", response_model=DTrainOverview)
 def get_dtrain_overview_endpoint(db: Session = Depends(get_db)) -> dict:
     return get_dtrain_overview(db)
+
+
+# Serve frontend SPA if dist folder exists
+import os
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+dist_path = "/app/dist"
+if os.path.exists(dist_path):
+    app.mount("/assets", StaticFiles(directory=f"{dist_path}/assets"), name="static")
+
+    @app.get("/{full_path:path}")
+    def serve_frontend(full_path: str):
+        if full_path.startswith("api/") or full_path.startswith("docs") or full_path.startswith("openapi.json"):
+            raise HTTPException(status_code=404)
+        return FileResponse(f"{dist_path}/index.html")
