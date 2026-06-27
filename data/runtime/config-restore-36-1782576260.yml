@@ -1,0 +1,12 @@
+service: DTrain Controller
+service_key: dtrain-controller
+container_name: node-1-dtrain-controller
+image: platformops/dtrain-controller:local
+environment: {}
+ports:
+- 8102:8080
+volumes:
+- /tmp/platformops/dtrain/controller/logs:/app/logs
+- /tmp/platformops/dtrain/controller/config:/app/config
+- /tmp/platformops/dtrain/artifacts:/app/artifacts
+healthcheck: {}

@@ -10,6 +10,9 @@ services:
       - "5432:5432"
     volumes:
       - platformops-postgres:/var/lib/postgresql/data
+    networks:
+      platformops_prod_network:
+        ipv4_address: "180.80.0.5"
 
   redis:
     image: redis:7-alpine
@@ -20,6 +23,9 @@ services:
     volumes:
       - ../docker/configs/redis.conf:/usr/local/etc/redis/redis.conf:ro
       - platformops-redis:/data
+    networks:
+      platformops_prod_network:
+        ipv4_address: "180.80.0.15"
 
   rabbitmq:
     image: rabbitmq:3.13-management
@@ -30,6 +36,9 @@ services:
     volumes:
       - ../docker/configs/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
       - platformops-rabbitmq:/var/lib/rabbitmq
+    networks:
+      platformops_prod_network:
+        ipv4_address: "180.80.0.2"
 
   prometheus:
     image: prom/prometheus:v2.52.0
@@ -38,6 +47,9 @@ services:
       - "9090:9090"
     volumes:
       - ../docker/configs/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      platformops_prod_network:
+        ipv4_address: "180.80.0.13"
 
   loki:
     image: grafana/loki:2.9.8
@@ -47,25 +59,41 @@ services:
       - "3100:3100"
     volumes:
       - ../docker/configs/loki.yml:/etc/loki/local-config.yaml:ro
+    networks:
+      platformops_prod_network:
+        ipv4_address: "180.80.0.43"
 
   web-api:
     build:
       context: ../..
       dockerfile: ops/docker/web-api/Dockerfile
     container_name: platformops-web-api
+    user: root
     ports:
-      - "8000:8000"
+      - "9002:8000"
     environment:
       - PLATFORMOPS_DATABASE_URL=sqlite:////app/data/platformops.db
-      - PLATFORMOPS_LOCAL_MODE=true
+      - PLATFORMOPS_LOCAL_MODE=false
     volumes:
       - platformops-data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - postgres
       - redis
       - rabbitmq
       - prometheus
       - loki
+    networks:
+      platformops_prod_network:
+        ipv4_address: "180.80.0.4"
+
+networks:
+  platformops_prod_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: "180.80.0.0/24"
+          gateway: "180.80.0.1"
 
 volumes:
   platformops-postgres:

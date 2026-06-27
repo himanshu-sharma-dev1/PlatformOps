@@ -841,15 +841,48 @@ def service_live_logs(
     )
 
     lines: list[dict[str, str]] = []
-    for item in events:
-        lines.append(
-            {
-                "timestamp": item.created_at.isoformat() if item.created_at else datetime.utcnow().isoformat() + "Z",
-                "level": (item.level or "INFO").upper(),
-                "message": item.message,
-                "source": item.category,
-            }
-        )
+    
+    if not settings.local_mode:
+        import httpx
+        loki_url = "http://platformops-loki:3100/loki/api/v1/query_range"
+        params = {
+            "query": f'{{container_name="{service.container_name}"}}',
+            "limit": safe_tail,
+        }
+        try:
+            response = httpx.get(loki_url, params=params, timeout=2.0)
+            if response.status_code == 200:
+                data = response.json()
+                loki_lines = []
+                results = data.get("data", {}).get("result", [])
+                for res_stream in results:
+                    stream_labels = res_stream.get("stream", {})
+                    for val in res_stream.get("values", []):
+                        ts_ns = int(val[0])
+                        ts_iso = datetime.utcfromtimestamp(ts_ns / 1e9).isoformat() + "Z"
+                        msg = val[1]
+                        loki_lines.append({
+                            "timestamp": ts_iso,
+                            "level": stream_labels.get("level", "INFO").upper(),
+                            "message": msg.strip(),
+                            "source": "loki",
+                        })
+                loki_lines.sort(key=lambda x: x["timestamp"], reverse=True)
+                if loki_lines:
+                    lines = loki_lines[:fetch_size]
+        except Exception:
+            pass
+
+    if not lines:
+        for item in events:
+            lines.append(
+                {
+                    "timestamp": item.created_at.isoformat() if item.created_at else datetime.utcnow().isoformat() + "Z",
+                    "level": (item.level or "INFO").upper(),
+                    "message": item.message,
+                    "source": item.category,
+                }
+            )
 
     if not lines:
         lines = [
@@ -1778,6 +1811,54 @@ def index_log_archives(db: Session, service: ServiceInstance) -> list[LogArchive
 def backfill_service_logs(db: Session, service: ServiceInstance) -> dict[str, Any]:
     diagnostics = service_diagnostics(db, service)
     requirements = diagnostics["readiness"].get("backfill_requirements", {})
+    
+    if not settings.local_mode:
+        import base64
+        import sys
+        contract = json.loads(service.config_json or "{}")
+        log_paths = contract.get("log_paths", [])
+        resolved_paths = []
+        for path in log_paths:
+            if isinstance(path, str):
+                resolved_paths.append(path.format(
+                    volume_root=service.node.volume_root.rstrip("/"),
+                    project_root=str(settings.project_root)
+                ))
+        log_paths_b64 = base64.b64encode(json.dumps(resolved_paths).encode()).decode()
+        labels = {
+            "container_name": service.container_name,
+            "service_name": service.name,
+        }
+        labels_b64 = base64.b64encode(json.dumps(labels).encode()).decode()
+        backfill_script = settings.resolve(settings.ansible_dir) / "playbooks" / "service_log_backfill.py"
+        
+        command = (
+            f"{sys.executable} {backfill_script} "
+            f"--loki_url http://platformops-loki:3100 "
+            f"--log_paths_b64 {log_paths_b64} "
+            f"--labels_b64 {labels_b64}"
+        )
+        job = create_job(db, action="log-backfill", command=command, service_id=service.id, node_id=service.node_id)
+        
+        def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
+            record_event(
+                bg_db,
+                category="diagnostics",
+                level="info" if ok else "warning",
+                message=f"Log backfill completed for {service.name}" if ok else f"Log backfill failed for {service.name}",
+                service_id=service.id,
+                node_id=service.node_id,
+                metadata={"job_id": bg_job.id},
+            )
+            
+        return {
+            "service_id": service.id,
+            "ready": True,
+            "requirements": requirements,
+            "job": run_job_async(db, job, cwd=settings.project_root, on_complete=on_complete),
+            "summary": "Log backfill task started in background.",
+        }
+
     command = (
         f"{_ansible_base_command(service.node, 'service_log_backfill.yml')} --extra-vars service={service.service_key}"
     )
@@ -2526,14 +2607,48 @@ def run_monitoring_sweep(db: Session) -> list[MonitoringCheck]:
     for service in services:
         contract = json.loads(service.config_json or "{}")
         health = contract.get("healthcheck", {})
-        status = "ok" if service.status in RUNNING_STATUSES else "warning"
+        
+        if not settings.local_mode:
+            import subprocess
+            import sys
+            status_script = settings.resolve(settings.ansible_dir) / "playbooks" / "service_status.py"
+            cmd = [
+                sys.executable,
+                str(status_script),
+                "--container-name", service.container_name,
+                "--network-name", service.node.docker_network,
+            ]
+            try:
+                res = subprocess.run(cmd, capture_output=True, text=True, check=False)
+                if res.returncode == 0 and res.stdout.strip():
+                    parsed = json.loads(res.stdout)
+                    main_info = parsed.get("main_container", {})
+                    container_state = main_info.get("state", "unknown")
+                    # Update status of container based on real state
+                    service.status = "running" if container_state == "running" else container_state
+                    status = "ok" if container_state == "running" else "warning"
+                    value = container_state
+                    detail = json.dumps(main_info)
+                else:
+                    status = "warning"
+                    value = "unknown"
+                    detail = f"Status script failed: {res.stderr}"
+            except Exception as e:
+                status = "warning"
+                value = "error"
+                detail = f"Failed to execute status check: {e}"
+        else:
+            status = "ok" if service.status in RUNNING_STATUSES else "warning"
+            value = service.status
+            detail = health.get("command", "No healthcheck command configured")
+
         check = MonitoringCheck(
             service_id=service.id,
             node_id=service.node_id,
             name=f"{service.service_key}-health",
             status=status,
-            value=service.status,
-            detail=health.get("command", "No healthcheck command configured"),
+            value=value,
+            detail=detail,
         )
         db.add(check)
         checks.append(check)
@@ -4643,6 +4758,42 @@ def rename_config_snapshot(
 
 
 def restore_config_snapshot(db: Session, service: ServiceInstance, snapshot: ConfigSnapshot) -> DeploymentJob:
+    # Write snapshot content to temporary file
+    runtime_dir = settings.resolve(settings.runtime_dir)
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    temp_yaml = runtime_dir / f"config-restore-{service.id}-{int(datetime.utcnow().timestamp())}.yml"
+    temp_yaml.write_text(snapshot.content or "{}", encoding="utf-8")
+
+    if not settings.local_mode:
+        script_path = settings.resolve(settings.ansible_dir) / "playbooks" / "service_config_apply.sh"
+        command = (
+            f"bash {script_path} "
+            f"--container-name {service.container_name} "
+            f"--config-yaml {temp_yaml} "
+            f"--service-name {service.service_key} "
+            f"--apply-mode restart"
+        )
+        job = create_job(db, action="restore-config", command=command, service_id=service.id, node_id=service.node_id)
+        
+        def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
+            bg_service = bg_db.get(ServiceInstance, service.id)
+            if bg_service:
+                if ok:
+                    try:
+                        bg_service.config_json = json.dumps(yaml.safe_load(snapshot.content or "{}"))
+                    except Exception:
+                        pass
+                record_event(
+                    bg_db,
+                    category="config",
+                    level="info" if ok else "error",
+                    message=f"Restored configuration to snapshot version {snapshot.version} for {bg_service.name}" if ok else f"Configuration restore failed for {bg_service.name}",
+                    service_id=bg_service.id,
+                    node_id=bg_service.node_id,
+                    metadata={"job_id": bg_job.id},
+                )
+        return run_job_async(db, job, cwd=settings.project_root, on_complete=on_complete)
+
     vars_path = write_job_vars(
         "restore",
         service.id,
@@ -4654,24 +4805,22 @@ def restore_config_snapshot(db: Session, service: ServiceInstance, snapshot: Con
     )
     command = f"{_ansible_base_command(service.node, 'docker_service.yml')} --extra-vars @{vars_path}"
     job = create_job(db, action="restore-config", command=command, service_id=service.id, node_id=service.node_id)
-
-    if settings.local_mode:
-        record_event(
-            db,
-            category="config",
-            level="info",
-            message=f"Restored config snapshot {snapshot.name} for {service.name}",
-            service_id=service.id,
-            node_id=service.node_id,
-            metadata={
-                "action": "restored",
-                "actor": "platform-operator",
-                "snapshot_id": snapshot.id,
-                "version": snapshot.version,
-            },
-        )
-        return finish_job(db, job, ok=True, output=f"Simulated config restore from {snapshot.name}.")
-    return run_job_async(db, job, cwd=settings.project_root)
+    
+    record_event(
+        db,
+        category="config",
+        level="info",
+        message=f"Restored config snapshot {snapshot.name} for {service.name}",
+        service_id=service.id,
+        node_id=service.node_id,
+        metadata={
+            "action": "restored",
+            "actor": "platform-operator",
+            "snapshot_id": snapshot.id,
+            "version": snapshot.version,
+        },
+    )
+    return finish_job(db, job, ok=True, output=f"Simulated config restore from {snapshot.name}.")
 
 
 def validate_config(content: str) -> dict[str, Any]:
@@ -4694,6 +4843,42 @@ def apply_config(db: Session, service: ServiceInstance, *, content: str, apply_m
         )
         return finish_job(db, job, ok=False, error=validation["message"])
 
+    # Write config to a temporary yaml file under data/runtime/
+    runtime_dir = settings.resolve(settings.runtime_dir)
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    temp_yaml = runtime_dir / f"config-apply-{service.id}-{int(datetime.utcnow().timestamp())}.yml"
+    temp_yaml.write_text(content, encoding="utf-8")
+
+    if not settings.local_mode:
+        script_path = settings.resolve(settings.ansible_dir) / "playbooks" / "service_config_apply.sh"
+        command = (
+            f"bash {script_path} "
+            f"--container-name {service.container_name} "
+            f"--config-yaml {temp_yaml} "
+            f"--service-name {service.service_key} "
+            f"--apply-mode {apply_mode}"
+        )
+        job = create_job(db, action="apply-config", command=command, service_id=service.id, node_id=service.node_id)
+        
+        def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
+            bg_service = bg_db.get(ServiceInstance, service.id)
+            if bg_service:
+                if ok:
+                    try:
+                        bg_service.config_json = json.dumps(yaml.safe_load(content))
+                    except Exception:
+                        pass
+                record_event(
+                    bg_db,
+                    category="config",
+                    level="info" if ok else "error",
+                    message=f"Applied configuration change to {bg_service.name} ({apply_mode})" if ok else f"Configuration apply failed for {bg_service.name}",
+                    service_id=bg_service.id,
+                    node_id=bg_service.node_id,
+                    metadata={"job_id": bg_job.id},
+                )
+        return run_job_async(db, job, cwd=settings.project_root, on_complete=on_complete)
+
     vars_path = write_job_vars(
         "config",
         service.id,
@@ -4705,11 +4890,7 @@ def apply_config(db: Session, service: ServiceInstance, *, content: str, apply_m
     )
     command = f"{_ansible_base_command(service.node, 'config_apply.yml')} --extra-vars @{vars_path}"
     job = create_job(db, action="apply-config", command=command, service_id=service.id, node_id=service.node_id)
-    return (
-        finish_job(db, job, ok=True, output="Configuration validated and simulated apply completed.")
-        if settings.local_mode
-        else run_job_async(db, job, cwd=settings.project_root)
-    )
+    return finish_job(db, job, ok=True, output="Configuration validated and simulated apply completed.")
 
 
 def write_job_vars(prefix: str, entity_id: int, values: dict[str, Any]) -> Path:

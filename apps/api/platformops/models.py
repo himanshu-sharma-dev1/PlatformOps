@@ -49,7 +49,7 @@ class Node(Base):
     ssh_key_path: Mapped[str] = mapped_column(String(512), default="")
     environment: Mapped[str] = mapped_column(String(40), default=NodeEnvironment.local.value)
     volume_root: Mapped[str] = mapped_column(String(512), default="/tmp/platformops")
-    docker_network: Mapped[str] = mapped_column(String(120), default="platformops-net")
+    docker_network: Mapped[str] = mapped_column(String(120), default="platformops_prod_network")
     status: Mapped[str] = mapped_column(String(40), default="unknown")
     facts_json: Mapped[str] = mapped_column(Text, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

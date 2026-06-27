@@ -36,11 +36,15 @@ COPY apps/api/platformops /app/apps/api/platformops
 COPY catalog /app/catalog
 COPY ops/ansible /app/ops/ansible
 
+# Install community.docker collection for root and appuser
+RUN ansible-galaxy collection install community.docker
+
 # Ensure output directory exists and is owned by appuser
 RUN mkdir -p /app/data && chown -R appuser:appgroup /app
 
 # Switch to non-root user
 USER appuser
+RUN ansible-galaxy collection install community.docker
 
 # Environment variables
 ENV PORT=8000

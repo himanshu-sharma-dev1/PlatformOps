@@ -34,7 +34,7 @@ def main() -> None:
                 ssh_user="local",
                 environment="local",
                 volume_root="/tmp/platformops",
-                docker_network="platformops-net",
+                docker_network="platformops_prod_network",
                 status="healthy",
             )
             db.add(node)
@@ -50,7 +50,7 @@ def main() -> None:
                 ssh_user="local",
                 environment="local",
                 volume_root="/tmp/platformops-gpu",
-                docker_network="platformops-net-gpu",
+                docker_network="platformops_prod_network",
                 status="healthy",
             )
             db.add(node_gpu)
@@ -66,7 +66,7 @@ def main() -> None:
                 ssh_user="local",
                 environment="local",
                 volume_root="/tmp/platformops-edge",
-                docker_network="platformops-net-edge",
+                docker_network="platformops_prod_network",
                 status="warning",
             )
             db.add(node_edge)

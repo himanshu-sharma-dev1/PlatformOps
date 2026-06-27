@@ -4,7 +4,7 @@ import { Layout } from "./components/Layout";
 import { GlassCard } from "./components/GlassCard";
 import "./styles.css";
 
-const API = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:9002";
 const OPERATOR_PREFERENCES_KEY = "platformops.operator.preferences.v1";
 
 type CatalogCard = {
