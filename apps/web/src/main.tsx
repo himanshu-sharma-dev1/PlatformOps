@@ -1186,6 +1186,20 @@ function App() {
   const [secrets, setSecrets] = useState<SecretRecord[]>([]);
   const [maintenance, setMaintenance] = useState<MaintenanceWindow[]>([]);
   const [auditExports, setAuditExports] = useState<AuditExport[]>([]);
+
+  // GlitchTip / Observability States
+  const [monitoringSubTab, setMonitoringSubTab] = useState<string>("metrics");
+  const [gtSelectedServiceId, setGtSelectedServiceId] = useState<number | null>(null);
+  const [gtIssues, setGtIssues] = useState<any[]>([]);
+  const [gtSelectedIssueId, setGtSelectedIssueId] = useState<string | null>(null);
+  const [gtEventDetails, setGtEventDetails] = useState<any | null>(null);
+  const [gtUptimeMonitors, setGtUptimeMonitors] = useState<any[]>([]);
+  const [gtKeys, setGtKeys] = useState<any[]>([]);
+  const [gtTransactions, setGtTransactions] = useState<any[]>([]);
+  const [gtIntegrationStatus, setGtIntegrationStatus] = useState<any>(null);
+  const [gtActiveMonitorTab, setGtActiveMonitorTab] = useState<string>("issues");
+  const [uptimeFormVisible, setUptimeFormVisible] = useState<boolean>(false);
+  const [uptimeForm, setUptimeForm] = useState<any>({ name: "", monitor_type: "Ping", url: "", interval: 60, expected_status: 200 });
   const [notice, setNotice] = useState<string>("Ready");
 
   // New state variables for cPlatform features
@@ -1872,30 +1886,211 @@ function App() {
     return () => window.clearInterval(interval);
   }, [autoPollLogs, selectedService, diagnosticsSourceServiceId, services, logsPollMs, tailLines, historyPageSize, diagnosticsTargetKey]);
 
-  async function loadNodeMetricsData() {
+  async function loadNodeMetricsData(nodeId?: number) {
     setLoadingMetrics(true);
     try {
-      const [resNode, resProc] = await Promise.all([
-        fetch("/api/metrics/node"),
-        fetch("/api/metrics/processes")
-      ]);
-      const dataNode = await resNode.json();
-      const dataProc = await resProc.json();
-      
-      if (dataNode && !dataNode.error) {
-        setRealtimeNodeMetrics({
-          cpu: parseFloat(dataNode.cpu || 0),
-          memory: parseFloat(dataNode.memory || 0),
-          disk: parseFloat(dataNode.disk || 0)
-        });
-      }
-      if (dataProc && dataProc.processes) {
-        setProcessMetrics(dataProc.processes);
+      if (nodeId) {
+        const resNode = await fetch(`/api/nodes/${nodeId}/metrics`);
+        const dataNode = await resNode.json();
+        if (dataNode && !dataNode.error) {
+          setRealtimeNodeMetrics({
+            cpu: parseFloat(dataNode.cpu_percent || 0),
+            memory: parseFloat(dataNode.memory_percent || 0),
+            disk: parseFloat(dataNode.disk_percent || 0)
+          });
+        }
+        const resProc = await fetch("/api/metrics/processes");
+        const dataProc = await resProc.json();
+        if (dataProc && dataProc.processes) {
+          setProcessMetrics(dataProc.processes);
+        }
+      } else {
+        const [resNode, resProc] = await Promise.all([
+          fetch("/api/metrics/node"),
+          fetch("/api/metrics/processes")
+        ]);
+        const dataNode = await resNode.json();
+        const dataProc = await resProc.json();
+        
+        if (dataNode && !dataNode.error) {
+          setRealtimeNodeMetrics({
+            cpu: parseFloat(dataNode.cpu || 0),
+            memory: parseFloat(dataNode.memory || 0),
+            disk: parseFloat(dataNode.disk || 0)
+          });
+        }
+        if (dataProc && dataProc.processes) {
+          setProcessMetrics(dataProc.processes);
+        }
       }
     } catch (e) {
       console.error("Failed to fetch node metrics:", e);
     } finally {
       setLoadingMetrics(false);
+    }
+  }
+
+  async function loadGlitchTipIntegrationStatus() {
+    try {
+      const res = await fetch("/PlatformIO/Monitoring/IntegrationStatus/");
+      const data = await res.json();
+      setGtIntegrationStatus(data);
+    } catch (e) {
+      console.error("Failed to fetch GlitchTip status:", e);
+    }
+  }
+
+  async function loadGlitchTipDataForService(serviceName: string) {
+    if (!serviceName) return;
+    try {
+      const resIssues = await fetch("/PlatformIO/Monitoring/Issues/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ service_name: serviceName, window: "24h" })
+      });
+      const dataIssues = await resIssues.json();
+      if (dataIssues.success) setGtIssues(dataIssues.issues || []);
+
+      const resUptime = await fetch("/PlatformIO/Monitoring/Uptime/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ service_name: serviceName })
+      });
+      const dataUptime = await resUptime.json();
+      if (dataUptime.success) setGtUptimeMonitors(dataUptime.monitors || []);
+
+      const resKeys = await fetch("/PlatformIO/Monitoring/Keys/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ service_name: serviceName })
+      });
+      const dataKeys = await resKeys.json();
+      if (dataKeys.success) setGtKeys(dataKeys.keys || []);
+
+      const resPerf = await fetch("/PlatformIO/Monitoring/Performance/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ service_name: serviceName })
+      });
+      const dataPerf = await resPerf.json();
+      if (dataPerf.success) setGtTransactions(dataPerf.transactions || []);
+    } catch (e) {
+      console.error("Failed to load GlitchTip data for service:", e);
+    }
+  }
+
+  async function loadEventDetails(issueId: string) {
+    setGtSelectedIssueId(issueId);
+    setGtEventDetails(null);
+    try {
+      const res = await fetch("/PlatformIO/Monitoring/Issues/EventDetails/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ issue_id: issueId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setGtEventDetails(data.event);
+      } else {
+        setNotice(`Failed to load event details: ${data.error}`);
+      }
+    } catch (e) {
+      console.error("Failed to load event details:", e);
+    }
+  }
+
+  async function runIssueAction(issueId: string, action: string, serviceName: string) {
+    try {
+      const res = await fetch("/PlatformIO/Monitoring/IssueAction/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ issue_id: issueId, action })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNotice(`Issue status updated to ${action}`);
+        await loadGlitchTipDataForService(serviceName);
+        if (gtSelectedIssueId === issueId) {
+          setGtSelectedIssueId(null);
+          setGtEventDetails(null);
+        }
+      } else {
+        setNotice(`Action failed: ${data.error}`);
+      }
+    } catch (e) {
+      console.error("Failed to update issue action:", e);
+    }
+  }
+
+  async function runAddMonitor(serviceName: string) {
+    if (!uptimeForm.name || !uptimeForm.url) {
+      setNotice("Name and URL are required to add monitor");
+      return;
+    }
+    try {
+      const res = await fetch("/PlatformIO/Monitoring/Uptime/Add/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          service_name: serviceName,
+          name: uptimeForm.name,
+          monitor_type: uptimeForm.monitor_type,
+          url: uptimeForm.url,
+          interval: parseInt(uptimeForm.interval || 60),
+          expected_status: parseInt(uptimeForm.expected_status || 200)
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNotice("Uptime monitor added successfully");
+        setUptimeFormVisible(false);
+        setUptimeForm({ name: "", monitor_type: "Ping", url: "", interval: 60, expected_status: 200 });
+        await loadGlitchTipDataForService(serviceName);
+      } else {
+        setNotice(`Failed to add monitor: ${data.error}`);
+      }
+    } catch (e) {
+      console.error("Failed to add monitor:", e);
+    }
+  }
+
+  async function runDeleteMonitor(monitorId: string, serviceName: string) {
+    if (!window.confirm("Are you sure you want to delete this uptime monitor?")) return;
+    try {
+      const res = await fetch("/PlatformIO/Monitoring/Uptime/Delete/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ monitor_id: monitorId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNotice("Uptime monitor deleted successfully");
+        await loadGlitchTipDataForService(serviceName);
+      } else {
+        setNotice(`Failed to delete monitor: ${data.error}`);
+      }
+    } catch (e) {
+      console.error("Failed to delete monitor:", e);
+    }
+  }
+
+  async function runPatchObservability(serviceId: number, serviceName: string) {
+    setNotice("Running Sentry Observability Injection Patch...");
+    try {
+      const res = await fetch("/PlatformIO/Monitoring/PatchObservability/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ service_id: serviceId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNotice("Sentry SDK injected and container restarted successfully.");
+        await loadGlitchTipDataForService(serviceName);
+      } else {
+        setNotice(`Observability patch failed: ${data.error}`);
+      }
+    } catch (e) {
+      console.error("Failed to run observability patch:", e);
     }
   }
 
@@ -3470,6 +3665,8 @@ function App() {
   useEffect(() => {
     if (activeView === "node-metrics") {
       loadNodeMetricsData();
+    } else if (activeView === "monitoring") {
+      loadGlitchTipIntegrationStatus();
     }
   }, [activeView]);
 
@@ -6288,8 +6485,422 @@ function App() {
     );
   }
 
+  function renderGlitchTipWorkspace() {
+    const selectedService = services.find((s) => s.id === gtSelectedServiceId) || services[0];
+    
+    const configured = gtIntegrationStatus?.configured;
+    const reachable = gtIntegrationStatus?.reachable;
+    
+    const handleServiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const val = parseInt(e.target.value);
+      setGtSelectedServiceId(val);
+      const svc = services.find((s) => s.id === val);
+      if (svc) {
+        loadGlitchTipDataForService(svc.name);
+      }
+    };
+    
+    if (!gtSelectedServiceId && services.length > 0) {
+      setGtSelectedServiceId(services[0].id);
+      loadGlitchTipDataForService(services[0].name);
+    }
+    
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(255, 255, 255, 0.02)", padding: "0.75rem 1rem", borderRadius: "12px", border: "1px solid var(--line)" }}>
+          <div style={{ display: "flex", gap: "1.5rem", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span className={`status-dot ${configured && reachable ? "ok" : "error"}`} style={{ width: "10px", height: "10px", borderRadius: "50%", display: "inline-block" }}></span>
+              <strong style={{ fontSize: "0.9rem" }}>
+                {configured && reachable ? "YantrAI Connected" : "YantrAI / GlitchTip Offline"}
+              </strong>
+            </div>
+            {configured && (
+              <small style={{ color: "var(--ink-4)" }}>
+                Base URL: <code>{gtIntegrationStatus?.base_url}</code> | Org: <code>{gtIntegrationStatus?.org}</code>
+              </small>
+            )}
+          </div>
+          
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+            <span style={{ fontSize: "0.85rem", color: "var(--ink-3)" }}>Target service:</span>
+            <select 
+              value={gtSelectedServiceId || ""} 
+              onChange={handleServiceChange}
+              style={{
+                background: "var(--bg-2)",
+                border: "1px solid var(--line-2)",
+                borderRadius: "6px",
+                padding: "0.25rem 0.5rem",
+                color: "var(--ink-1)",
+                fontSize: "0.85rem",
+                outline: "none"
+              }}
+            >
+              {services.map(s => (
+                <option key={s.id} value={s.id}>{s.name} ({s.service_key})</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 3fr", gap: "1.5rem" }}>
+          <GlassCard style={{ padding: "1rem", height: "fit-content" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+              <button 
+                onClick={() => setGtActiveMonitorTab("issues")}
+                className={`btn ${gtActiveMonitorTab === "issues" ? "btn-primary" : "btn-secondary"}`}
+                style={{ justifyContent: "flex-start", padding: "0.75rem 1rem", fontSize: "0.85rem", textAlign: "left" }}
+              >
+                🐞 Issues &amp; Errors ({gtIssues.length})
+              </button>
+              <button 
+                onClick={() => setGtActiveMonitorTab("uptime")}
+                className={`btn ${gtActiveMonitorTab === "uptime" ? "btn-primary" : "btn-secondary"}`}
+                style={{ justifyContent: "flex-start", padding: "0.75rem 1rem", fontSize: "0.85rem", textAlign: "left" }}
+              >
+                ⏱️ Uptime Monitors ({gtUptimeMonitors.length})
+              </button>
+              <button 
+                onClick={() => setGtActiveMonitorTab("performance")}
+                className={`btn ${gtActiveMonitorTab === "performance" ? "btn-primary" : "btn-secondary"}`}
+                style={{ justifyContent: "flex-start", padding: "0.75rem 1rem", fontSize: "0.85rem", textAlign: "left" }}
+              >
+                ⚡ Performance API ({gtTransactions.length})
+              </button>
+              <button 
+                onClick={() => setGtActiveMonitorTab("keys")}
+                className={`btn ${gtActiveMonitorTab === "keys" ? "btn-primary" : "btn-secondary"}`}
+                style={{ justifyContent: "flex-start", padding: "0.75rem 1rem", fontSize: "0.85rem", textAlign: "left" }}
+              >
+                🔑 SDK Keys &amp; DSN
+              </button>
+              <button 
+                onClick={() => setGtActiveMonitorTab("patch")}
+                className={`btn ${gtActiveMonitorTab === "patch" ? "btn-primary" : "btn-secondary"}`}
+                style={{ justifyContent: "flex-start", padding: "0.75rem 1rem", fontSize: "0.85rem", textAlign: "left" }}
+              >
+                🛠️ Runtime Patching
+              </button>
+            </div>
+          </GlassCard>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+            {gtActiveMonitorTab === "issues" && (
+              <GlassCard style={{ padding: "1.5rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                  <h3 style={{ fontSize: "1.25rem", fontWeight: 600 }}>Active Issues &amp; Tracebacks</h3>
+                  <button className="btn btn-secondary btn-sm" onClick={() => selectedService && loadGlitchTipDataForService(selectedService.name)}>Refresh</button>
+                </div>
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  {gtIssues.map((issue) => {
+                    const isExpanded = gtSelectedIssueId === issue.id;
+                    return (
+                      <div key={issue.id} style={{ border: "1px solid var(--line-2)", borderRadius: "8px", background: "rgba(255,255,255,0.01)", overflow: "hidden" }}>
+                        <div style={{ padding: "1rem", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", background: "rgba(255,255,255,0.01)" }} onClick={() => isExpanded ? setGtSelectedIssueId(null) : loadEventDetails(issue.id)}>
+                          <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+                            <span className="pill pill-error" style={{ textTransform: "uppercase", fontSize: "0.7rem" }}>{issue.level}</span>
+                            <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{issue.title}</span>
+                          </div>
+                          <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+                            <span style={{ fontSize: "0.8rem", color: "var(--ink-4)" }}>Seen: <strong>{issue.count}</strong> times</span>
+                            <span style={{ transition: "transform 0.2s", transform: isExpanded ? "rotate(90deg)" : "none" }}>▶</span>
+                          </div>
+                        </div>
+
+                        {isExpanded && (
+                          <div style={{ padding: "1rem", borderTop: "1px solid var(--line-2)", background: "rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", gap: "1rem" }}>
+                            {gtEventDetails ? (
+                              <>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", fontSize: "0.8rem" }}>
+                                  <div>
+                                    <div style={{ color: "var(--ink-4)" }}>Event ID:</div>
+                                    <code>{gtEventDetails.eventID}</code>
+                                  </div>
+                                  <div>
+                                    <div style={{ color: "var(--ink-4)" }}>Date / Time:</div>
+                                    <code>{formatLocalTimestamp(gtEventDetails.dateCreated)}</code>
+                                  </div>
+                                </div>
+
+                                {gtEventDetails.entries?.map((entry: any, index: number) => {
+                                  if (entry.type === "exception") {
+                                    return (
+                                      <div key={index} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                                        <h4 style={{ fontSize: "0.9rem", color: "var(--err)", fontWeight: 600 }}>Stack Trace Exception</h4>
+                                        {entry.data?.values?.map((val: any, valIdx: number) => (
+                                          <div key={valIdx} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                                            <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--err)" }}>{val.type}: {val.value}</div>
+                                            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                                              {val.stacktrace?.frames?.map((frame: any, frameIdx: number) => (
+                                                <div key={frameIdx} style={{ padding: "0.5rem", background: "rgba(255,255,255,0.02)", border: "1px solid var(--line-2)", borderRadius: "6px", fontSize: "0.8rem" }}>
+                                                  <div style={{ display: "flex", justifyContent: "space-between", color: "var(--ink-3)" }}>
+                                                    <span>File: <code>{frame.filename}</code></span>
+                                                    <span>Line: <strong>{frame.lineNo}</strong> in <code>{frame.function}</code></span>
+                                                  </div>
+                                                  {frame.context_line && (
+                                                    <pre style={{ margin: "6px 0 0 0", padding: "4px", background: "rgba(0,0,0,0.3)", borderRadius: "4px", borderLeft: "3px solid var(--err)", color: "var(--ink-2)", overflowX: "auto" }}>
+                                                      {frame.context_line}
+                                                    </pre>
+                                                  )}
+                                                  {frame.vars && Object.keys(frame.vars).length > 0 && (
+                                                    <div style={{ marginTop: "6px", fontSize: "0.75rem" }}>
+                                                      <span style={{ color: "var(--ink-4)", fontWeight: 600 }}>Local variables:</span>
+                                                      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "4px" }}>
+                                                        <tbody>
+                                                          {Object.entries(frame.vars).map(([k, v]: [string, any]) => (
+                                                            <tr key={k} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                                                              <td style={{ color: "var(--navy-100)", width: "30%", padding: "2px 4px" }}>{k}</td>
+                                                              <td style={{ color: "var(--ink-3)", padding: "2px 4px" }}><code>{JSON.stringify(v)}</code></td>
+                                                            </tr>
+                                                          ))}
+                                                        </tbody>
+                                                      </table>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
+                                  }
+                                  if (entry.type === "breadcrumbs") {
+                                    return (
+                                      <div key={index} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                                        <h4 style={{ fontSize: "0.9rem", color: "var(--navy-100)", fontWeight: 600 }}>Breadcrumbs Timeline</h4>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", maxHeight: "250px", overflowY: "auto" }}>
+                                          {entry.data?.values?.map((crumb: any, cIdx: number) => (
+                                            <div key={cIdx} style={{ fontSize: "0.75rem", padding: "4px 8px", background: "rgba(255,255,255,0.02)", borderLeft: "3px solid var(--line-2)", display: "flex", gap: "1rem" }}>
+                                              <span style={{ color: "var(--ink-4)" }}>{formatLocalTimestamp(crumb.timestamp)}</span>
+                                              <span className="pill" style={{ fontSize: "0.65rem", padding: "2px 4px" }}>{crumb.category}</span>
+                                              <span style={{ flex: 1 }}>{crumb.message}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })}
+                                
+                                <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
+                                  <button className="btn btn-secondary btn-sm" onClick={() => runIssueAction(issue.id, "resolve", selectedService.name)}>Mark Resolved</button>
+                                  <button className="btn btn-secondary btn-sm" onClick={() => runIssueAction(issue.id, "ignore", selectedService.name)}>Ignore / Mute</button>
+                                </div>
+                              </>
+                            ) : (
+                              <div style={{ color: "var(--ink-4)", textAlign: "center", padding: "1rem" }}>Loading issue traceback event details...</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {gtIssues.length === 0 && (
+                    <div style={{ textAlign: "center", padding: "2rem", color: "var(--ink-4)" }}>No unresolved issues mapped to this project slug in GlitchTip.</div>
+                  )}
+                </div>
+              </GlassCard>
+            )}
+
+            {gtActiveMonitorTab === "uptime" && (
+              <GlassCard style={{ padding: "1.5rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                  <h3 style={{ fontSize: "1.25rem", fontWeight: 600 }}>TCP / HTTP Uptime Monitors</h3>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <button className="btn btn-primary btn-sm" onClick={() => setUptimeFormVisible(!uptimeFormVisible)}>
+                      {uptimeFormVisible ? "Cancel" : "Add Monitor"}
+                    </button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => selectedService && loadGlitchTipDataForService(selectedService.name)}>Refresh</button>
+                  </div>
+                </div>
+
+                {uptimeFormVisible && (
+                  <div style={{ border: "1px solid var(--line)", borderRadius: "10px", padding: "1rem", background: "rgba(0,0,0,0.1)", marginBottom: "1rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.8rem", color: "var(--ink-3)", display: "block", marginBottom: "4px" }}>Monitor Name *</label>
+                      <input 
+                        type="text" 
+                        value={uptimeForm.name} 
+                        onChange={(e) => setUptimeForm({ ...uptimeForm, name: e.target.value })}
+                        style={{ width: "100%", background: "var(--bg-2)", border: "1px solid var(--line-2)", color: "var(--ink-1)", padding: "0.4rem", borderRadius: "6px" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.8rem", color: "var(--ink-3)", display: "block", marginBottom: "4px" }}>Target URL *</label>
+                      <input 
+                        type="text" 
+                        value={uptimeForm.url} 
+                        onChange={(e) => setUptimeForm({ ...uptimeForm, url: e.target.value })}
+                        style={{ width: "100%", background: "var(--bg-2)", border: "1px solid var(--line-2)", color: "var(--ink-1)", padding: "0.4rem", borderRadius: "6px" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.8rem", color: "var(--ink-3)", display: "block", marginBottom: "4px" }}>Type</label>
+                      <select 
+                        value={uptimeForm.monitor_type} 
+                        onChange={(e) => setUptimeForm({ ...uptimeForm, monitor_type: e.target.value })}
+                        style={{ width: "100%", background: "var(--bg-2)", border: "1px solid var(--line-2)", color: "var(--ink-1)", padding: "0.4rem", borderRadius: "6px" }}
+                      >
+                        <option value="Ping">Ping TCP Connect</option>
+                        <option value="GET">HTTP GET</option>
+                        <option value="POST">HTTP POST</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.8rem", color: "var(--ink-3)", display: "block", marginBottom: "4px" }}>Interval (sec)</label>
+                      <input 
+                        type="number" 
+                        value={uptimeForm.interval} 
+                        onChange={(e) => setUptimeForm({ ...uptimeForm, interval: e.target.value })}
+                        style={{ width: "100%", background: "var(--bg-2)", border: "1px solid var(--line-2)", color: "var(--ink-1)", padding: "0.4rem", borderRadius: "6px" }}
+                      />
+                    </div>
+                    <div style={{ gridColumn: "span 2", display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
+                      <button className="btn btn-primary" onClick={() => selectedService && runAddMonitor(selectedService.name)}>Submit</button>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  {gtUptimeMonitors.map((mon) => (
+                    <div key={mon.id} style={{ border: "1px solid var(--line-2)", borderRadius: "8px", padding: "1rem", background: "rgba(255,255,255,0.01)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                            <span className={`status-dot ${mon.isUp ? "ok" : "error"}`} style={{ width: "8px", height: "8px", borderRadius: "50%" }}></span>
+                            <strong style={{ fontSize: "0.95rem" }}>{mon.name}</strong>
+                            <small style={{ color: "var(--ink-4)" }}>({mon.monitorType})</small>
+                          </div>
+                          <span style={{ fontSize: "0.8rem", color: "var(--ink-3)", display: "block", marginTop: "2px" }}>Target: <code>{mon.url}</code></span>
+                        </div>
+                        <button className="icon-btn btn-error" onClick={() => selectedService && runDeleteMonitor(mon.id, selectedService.name)}>
+                          🗑️
+                        </button>
+                      </div>
+
+                      {mon.incidents && mon.incidents.length > 0 && (
+                        <div style={{ marginTop: "1rem", borderTop: "1px solid rgba(255,255,255,0.03)", paddingTop: "0.5rem" }}>
+                          <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--ink-3)", display: "block", marginBottom: "4px" }}>Incidents History:</span>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", maxHeight: "120px", overflowY: "auto" }}>
+                            {mon.incidents.slice(0, 5).map((inc: any, iIdx: number) => (
+                              <div key={iIdx} style={{ fontSize: "0.75rem", display: "flex", justifyContent: "space-between", padding: "2px 4px", background: "rgba(255,255,255,0.02)" }}>
+                                <span style={{ color: inc.isUp ? "var(--ok)" : "var(--err)" }}>{inc.isUp ? "ONLINE" : "OFFLINE"}</span>
+                                <span style={{ color: "var(--ink-4)" }}>{formatLocalTimestamp(inc.startCheck)}</span>
+                                <span style={{ color: "var(--ink-3)" }}>{inc.reason || "status code check"}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {gtUptimeMonitors.length === 0 && (
+                    <div style={{ textAlign: "center", padding: "2rem", color: "var(--ink-4)" }}>No uptime monitors active for this project.</div>
+                  )}
+                </div>
+              </GlassCard>
+            )}
+
+            {gtActiveMonitorTab === "performance" && (
+              <GlassCard style={{ padding: "1.5rem" }}>
+                <h3 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1rem" }}>API Transaction Endpoints (Performance)</h3>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid var(--line-2)", color: "var(--ink-4)", fontSize: "0.8rem", textAlign: "left" }}>
+                        <th style={{ padding: "0.5rem" }}>Route Transaction</th>
+                        <th style={{ padding: "0.5rem" }}>Calls</th>
+                        <th style={{ padding: "0.5rem" }}>Avg Duration (ms)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {gtTransactions.map((tx, idx) => (
+                        <tr key={idx} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)", fontSize: "0.85rem" }}>
+                          <td style={{ padding: "0.5rem", color: "var(--navy-100)" }}><code>{tx.transaction}</code></td>
+                          <td style={{ padding: "0.5rem" }}>{tx.count}</td>
+                          <td style={{ padding: "0.5rem" }}>{Math.round(tx.avgDuration || 0)} ms</td>
+                        </tr>
+                      ))}
+                      {gtTransactions.length === 0 && (
+                        <tr>
+                          <td colSpan={3} style={{ padding: "1.5rem", textAlign: "center", color: "var(--ink-4)" }}>No performance telemetry collected for this window.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </GlassCard>
+            )}
+
+            {gtActiveMonitorTab === "keys" && (
+              <GlassCard style={{ padding: "1.5rem" }}>
+                <h3 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1rem" }}>DSN Keys &amp; SDK Quickstart</h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  {gtKeys.map((keyInfo, idx) => (
+                    <div key={idx} style={{ padding: "1rem", border: "1px solid var(--line-2)", borderRadius: "8px", background: "rgba(255,255,255,0.01)" }}>
+                      <div style={{ fontSize: "0.8rem", color: "var(--ink-4)", marginBottom: "4px" }}>DSN (Data Source Name):</div>
+                      <pre style={{ margin: 0, padding: "8px", background: "rgba(0,0,0,0.3)", borderRadius: "6px", color: "var(--navy-100)", fontSize: "0.85rem", overflowX: "auto" }}>
+                        {keyInfo.dsn?.public}
+                      </pre>
+                    </div>
+                  ))}
+                  
+                  {gtKeys.length === 0 && (
+                    <div style={{ border: "1px solid var(--line-2)", borderRadius: "8px", padding: "1rem", background: "rgba(255,255,255,0.01)" }}>
+                      <div style={{ fontSize: "0.8rem", color: "var(--ink-4)", marginBottom: "4px" }}>Fallback Mock DSN:</div>
+                      <pre style={{ margin: 0, padding: "8px", background: "rgba(0,0,0,0.3)", borderRadius: "6px", color: "var(--navy-100)", fontSize: "0.85rem", overflowX: "auto" }}>
+                        {`http://gt_whEhIEhw5qaoRPxS_bFIM279WeTZQD7zwsP0uyMOrXU8NeWC@54.183.53.93:9008/${selectedService?.id || 1}`}
+                      </pre>
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: "1rem" }}>
+                    <h4 style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: "0.5rem" }}>Python Integration Guide</h4>
+                    <pre style={{ margin: 0, padding: "10px", background: "rgba(0,0,0,0.4)", borderRadius: "8px", fontSize: "0.8rem", color: "var(--ink-3)", overflowX: "auto" }}>
+{`pip install sentry-sdk
+
+import sentry_sdk
+sentry_sdk.init(
+    dsn="${gtKeys[0]?.dsn?.public || `http://gt_whEhIEhw5qaoRPxS_bFIM279WeTZQD7zwsP0uyMOrXU8NeWC@54.183.53.93:9008/${selectedService?.id || 1}`}",
+    traces_sample_rate=1.0,
+)`}
+                    </pre>
+                  </div>
+                </div>
+              </GlassCard>
+            )}
+
+            {gtActiveMonitorTab === "patch" && (
+              <GlassCard style={{ padding: "1.5rem" }}>
+                <h3 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "0.5rem" }}>sentry_sdk Injection &amp; Patching</h3>
+                <p style={{ fontSize: "0.85rem", color: "var(--ink-3)", marginBottom: "1rem" }}>
+                  Injects the <code>sentry_sdk</code> package dynamically into the selected service's Docker container, configures <code>sitecustomize.py</code>, and triggers a container restart to start piping exceptions.
+                </p>
+                <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={() => selectedService && runPatchObservability(selectedService.id, selectedService.name)}
+                    disabled={!selectedService}
+                  >
+                    🛠️ Run Sentry Runtime Patch
+                  </button>
+                  <small style={{ color: "var(--ink-4)" }}>
+                    Target container: <code>{selectedService?.container_name || "not selected"}</code>
+                  </small>
+                </div>
+              </GlassCard>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   function renderMonitoringView() {
-    // SRE monitoring checklist, active incidents, SLO metrics (10-performance.html reference)
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
         <div className="page-head">
@@ -6303,76 +6914,98 @@ function App() {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: "1.5rem" }}>
-          {/* Left panel: SLOs & Health Checks */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-            <GlassCard style={{ padding: "1.5rem" }}>
-              <h3 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1rem" }}>SLO Performance Dashboard</h3>
-              <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", justifyContent: "space-around", padding: "0.5rem 0" }}>
-                {slos.map((s) => {
-                  const color = s.status === "burning" ? "var(--err)" : s.status === "warning" ? "var(--warn)" : "var(--ok)";
-                  return renderCircularGauge(parseFloat(s.observed), parseFloat(s.target), s.name, color);
-                })}
-              </div>
-            </GlassCard>
-
-            <GlassCard style={{ padding: "1.5rem" }}>
-              <h3 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1rem" }}>Active Health checks ({checks.length})</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-                {checks.map((c) => (
-                  <div key={c.id} style={{ display: "flex", gap: "0.5rem", padding: "0.5rem", background: "rgba(255,255,255,0.02)", border: "1px solid var(--line-2)", borderRadius: "8px" }}>
-                    <span className={`status-dot ${c.status}`} style={{ width: "8px", height: "8px", borderRadius: "50%", alignSelf: "center", flexShrink: 0 }}></span>
-                    <div>
-                      <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>{c.name}</div>
-                      <small style={{ color: "var(--ink-4)", display: "block" }}>{c.value}</small>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </GlassCard>
-          </div>
-
-          {/* Right panel: Active Incidents & Maintenance */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-            <GlassCard style={{ padding: "1.5rem" }}>
-              <h3 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1rem" }}>Active Incidents</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                {incidents.map((incident) => (
-                  <div key={incident.id} style={{ padding: "1rem", border: "1px solid var(--line)", borderRadius: "12px", background: "rgba(255,255,255,0.02)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <strong>{incident.title}</strong>
-                      <span className={`pill ${incident.severity === "sev1" ? "pill-error" : "pill-warn"}`}>{incident.severity}</span>
-                    </div>
-                    <p style={{ fontSize: "0.8rem", color: "var(--ink-3)", margin: "4px 0" }}>{incident.summary}</p>
-                    <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
-                      <button className="btn btn-secondary btn-sm" onClick={() => runIncidentRunbook(incident)}>Runbook</button>
-                      <button className="btn btn-primary btn-sm" onClick={() => resolveIncident(incident)}>Resolve</button>
-                    </div>
-                  </div>
-                ))}
-                {incidents.length === 0 && <p style={{ color: "var(--ink-4)" }}>No active SRE incidents reported. All systems green.</p>}
-              </div>
-            </GlassCard>
-
-            <GlassCard style={{ padding: "1.5rem" }}>
-              <h3 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1rem" }}>Scheduled Maintenance</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                {maintenance.map((m) => (
-                  <div key={m.id} style={{ padding: "0.75rem", border: "1px solid var(--line-2)", borderRadius: "10px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <strong>{m.title}</strong>
-                      <span className="pill pill-ok">{m.status}</span>
-                    </div>
-                    <small style={{ display: "block", color: "var(--ink-4)", marginTop: "4px" }}>Start: {formatLocalTimestamp(m.starts_at)}</small>
-                    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.5rem" }}>
-                      <button className="btn btn-secondary btn-sm" onClick={() => completeMaintenance(m)}>Complete</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </GlassCard>
-          </div>
+        <div style={{ display: "flex", gap: "1rem", borderBottom: "1px solid var(--line-2)", paddingBottom: "0.5rem" }}>
+          <button 
+            className={`btn ${monitoringSubTab === "metrics" ? "btn-primary" : "btn-secondary"} btn-sm`}
+            onClick={() => setMonitoringSubTab("metrics")}
+          >
+            📊 SRE Metrics &amp; Incidents
+          </button>
+          <button 
+            className={`btn ${monitoringSubTab === "glitchtip" ? "btn-primary" : "btn-secondary"} btn-sm`}
+            onClick={() => {
+              setMonitoringSubTab("glitchtip");
+              loadGlitchTipIntegrationStatus();
+            }}
+          >
+            🐞 YantrAI / GlitchTip Error Workspace
+          </button>
         </div>
+
+        {monitoringSubTab === "glitchtip" ? (
+          renderGlitchTipWorkspace()
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: "1.5rem" }}>
+            {/* Left panel: SLOs & Health Checks */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+              <GlassCard style={{ padding: "1.5rem" }}>
+                <h3 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1rem" }}>SLO Performance Dashboard</h3>
+                <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", justifyContent: "space-around", padding: "0.5rem 0" }}>
+                  {slos.map((s) => {
+                    const color = s.status === "burning" ? "var(--err)" : s.status === "warning" ? "var(--warn)" : "var(--ok)";
+                    return renderCircularGauge(parseFloat(s.observed), parseFloat(s.target), s.name, color);
+                  })}
+                </div>
+              </GlassCard>
+
+              <GlassCard style={{ padding: "1.5rem" }}>
+                <h3 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1rem" }}>Active Health checks ({checks.length})</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                  {checks.map((c) => (
+                    <div key={c.id} style={{ display: "flex", gap: "0.5rem", padding: "0.5rem", background: "rgba(255,255,255,0.02)", border: "1px solid var(--line-2)", borderRadius: "8px" }}>
+                      <span className={`status-dot ${c.status}`} style={{ width: "8px", height: "8px", borderRadius: "50%", alignSelf: "center", flexShrink: 0 }}></span>
+                      <div>
+                        <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>{c.name}</div>
+                        <small style={{ color: "var(--ink-4)", display: "block" }}>{c.value}</small>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </GlassCard>
+            </div>
+
+            {/* Right panel: Active Incidents & Maintenance */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+              <GlassCard style={{ padding: "1.5rem" }}>
+                <h3 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1rem" }}>Active Incidents</h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  {incidents.map((incident) => (
+                    <div key={incident.id} style={{ padding: "1rem", border: "1px solid var(--line)", borderRadius: "12px", background: "rgba(255,255,255,0.02)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <strong>{incident.title}</strong>
+                        <span className={`pill ${incident.severity === "sev1" ? "pill-error" : "pill-warn"}`}>{incident.severity}</span>
+                      </div>
+                      <p style={{ fontSize: "0.8rem", color: "var(--ink-3)", margin: "4px 0" }}>{incident.summary}</p>
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
+                        <button className="btn btn-secondary btn-sm" onClick={() => runIncidentRunbook(incident)}>Runbook</button>
+                        <button className="btn btn-primary btn-sm" onClick={() => resolveIncident(incident)}>Resolve</button>
+                      </div>
+                    </div>
+                  ))}
+                  {incidents.length === 0 && <p style={{ color: "var(--ink-4)" }}>No active SRE incidents reported. All systems green.</p>}
+                </div>
+              </GlassCard>
+
+              <GlassCard style={{ padding: "1.5rem" }}>
+                <h3 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1rem" }}>Scheduled Maintenance</h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  {maintenance.map((m) => (
+                    <div key={m.id} style={{ padding: "0.75rem", border: "1px solid var(--line-2)", borderRadius: "10px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <strong>{m.title}</strong>
+                        <span className="pill pill-ok">{m.status}</span>
+                      </div>
+                      <small style={{ display: "block", color: "var(--ink-4)", marginTop: "4px" }}>Start: {formatLocalTimestamp(m.starts_at)}</small>
+                      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.5rem" }}>
+                        <button className="btn btn-secondary btn-sm" onClick={() => completeMaintenance(m)}>Complete</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </GlassCard>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -7518,6 +8151,18 @@ function App() {
 
   
   function renderNodeMetricsView() {
+    const handleNodeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const nid = e.target.value ? parseInt(e.target.value) : undefined;
+      const targetNode = nodes.find(n => n.id === nid);
+      if (targetNode) {
+        setSelectedNode(targetNode);
+        loadNodeMetricsData(targetNode.id);
+      } else {
+        setSelectedNode(null);
+        loadNodeMetricsData();
+      }
+    };
+
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
         <div className="page-head">
@@ -7525,8 +8170,27 @@ function App() {
             <h1>Node <em>Metrics</em></h1>
             <p className="sub">Real-time CPU, memory, disk, and process telemetry streamed from Prometheus exporters.</p>
           </div>
-          <div className="actions">
-            <button className="btn btn-primary" onClick={loadNodeMetricsData} disabled={loadingMetrics}>
+          <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+            <span style={{ fontSize: "0.85rem", color: "var(--ink-3)" }}>Select Node:</span>
+            <select 
+              value={selectedNode?.id || ""} 
+              onChange={handleNodeChange}
+              style={{
+                background: "var(--bg-2)",
+                border: "1px solid var(--line-2)",
+                borderRadius: "6px",
+                padding: "0.25rem 0.5rem",
+                color: "var(--ink-1)",
+                fontSize: "0.85rem",
+                outline: "none"
+              }}
+            >
+              <option value="">Local Control Plane Node</option>
+              {nodes.map(n => (
+                <option key={n.id} value={n.id}>{n.name} ({n.host})</option>
+              ))}
+            </select>
+            <button className="btn btn-primary" onClick={() => loadNodeMetricsData(selectedNode?.id)} disabled={loadingMetrics}>
               {loadingMetrics ? "Refreshing..." : "Refresh Metrics"}
             </button>
           </div>
