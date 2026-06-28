@@ -1155,6 +1155,9 @@ function App() {
   const [snapshotPage, setSnapshotPage] = useState<ConfigSnapshotPage | null>(null);
   const [snapshotCompare, setSnapshotCompare] = useState<ConfigSnapshotCompare | null>(null);
   const [snapshotSourceFilter, setSnapshotSourceFilter] = useState<string>("all");
+  const [checkpointFilter, setCheckpointFilter] = useState<"all" | "active" | "renamed" | "backup">("all");
+  const [checkpointSearch, setCheckpointSearch] = useState<string>("");
+  const [selectedSnapshotPreview, setSelectedSnapshotPreview] = useState<ConfigSnapshotDetail | null>(null);
   const [snapshotSearch, setSnapshotSearch] = useState<string>("");
   const [snapshotLimit, setSnapshotLimit] = useState<number>(20);
   const [migrationArtifactId, setMigrationArtifactId] = useState<string>("");
@@ -3153,6 +3156,35 @@ function App() {
     setNotice(next.message || `Loaded ${source} config for ${service.name}`);
   }
 
+  async function viewSnapshot(snapshotId: number) {
+    try {
+      const snapDetail = await api<ConfigSnapshotDetail>(`/api/services/${selectedService!.id}/config/snapshots/${snapshotId}`);
+      setSelectedSnapshotPreview(snapDetail);
+      setNotice(`Loaded snapshot v${snapDetail.version}`);
+    } catch (err) {
+      console.error(err);
+      setNotice("Failed to load snapshot preview");
+    }
+  }
+
+  async function syncPeerConfig(peerServiceId: number, peerName: string) {
+    if (!config) return;
+    const rolloutYaml = (migrationArtifactId && migrationContent) ? migrationContent : config.content;
+    try {
+      setNotice(`Syncing validated config to peer ${peerName}...`);
+      const result = await api<{ job: Job; before_snapshot: ConfigSnapshotItem; after_snapshot: ConfigSnapshotItem }>(`/api/services/${peerServiceId}/config/direct-apply`, {
+        method: "POST",
+        body: JSON.stringify({ content: rolloutYaml, apply_mode: "reload" }),
+      });
+      setJob(result.job);
+      setNotice(`Rollout sync to peer ${peerName} complete! Checkpoint v${result.before_snapshot.version} -> v${result.after_snapshot.version}`);
+      await refresh();
+    } catch (err) {
+      console.error(err);
+      setNotice(`Peer sync failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   async function compareSelectedSnapshots() {
     if (!selectedService || !compareSnapshotLeft || !compareSnapshotRight) return;
     const next = await api<ConfigSnapshotCompare>(
@@ -4972,6 +5004,19 @@ function App() {
 
   function renderConfigManagerView() {
     // Config Manager with side-by-side tree and diff navigator (08-config-manager.html reference)
+    const isCustomName = (name: string) => !/^v\d+-\d{8}-\d{6}/.test(name);
+    const filteredSnapshots = (snapshotPage?.items ?? [])
+      .filter((snap, idx) => {
+        if (checkpointFilter === "active") return idx === 0;
+        if (checkpointFilter === "renamed") return isCustomName(snap.name);
+        if (checkpointFilter === "backup") return idx > 0;
+        return true;
+      })
+      .filter(snap => {
+        if (!checkpointSearch) return true;
+        return snap.name.toLowerCase().includes(checkpointSearch.toLowerCase());
+      });
+
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
         <div className="page-head">
@@ -4991,7 +5036,7 @@ function App() {
 
           {/* Right main workspace panel */}
           {selectedService ? (
-            <GlassCard style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <GlassCard style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1rem", position: "relative" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
                   <h3 style={{ fontSize: "1.25rem", fontWeight: 600 }}>{selectedService.name} config</h3>
@@ -5024,6 +5069,67 @@ function App() {
               {/* Sub-tabs views */}
               {configTab === "current" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem", flex: 1 }}>
+                  {config?.active_checkpoint && (
+                    <div style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "0.75rem 1rem",
+                      background: config.drift_state === "in_sync" ? "rgba(16, 185, 129, 0.06)" : "rgba(239, 68, 68, 0.06)",
+                      border: config.drift_state === "in_sync" ? "1px solid rgba(16, 185, 129, 0.15)" : "1px solid rgba(239, 68, 68, 0.15)",
+                      borderRadius: "10px",
+                      fontSize: "0.85rem",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <span style={{ color: config.drift_state === "in_sync" ? "#34d399" : "#f87171" }}>●</span>
+                        <span>
+                          Active Checkpoint: <strong>v{config.active_checkpoint.version}</strong> · {config.active_checkpoint.name}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <span className={`pill ${config.drift_state === "in_sync" ? "pill-ok" : "pill-error"}`}>
+                          {config.drift_state === "in_sync" ? "In Sync" : "Drifted"}
+                        </span>
+                        <button className="btn btn-secondary btn-xs" onClick={() => config.active_checkpoint && viewSnapshot(config.active_checkpoint.id)}>
+                          View Active
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedSnapshotPreview && (
+                    <div style={{ padding: "1rem", border: "1px solid var(--line-2)", borderRadius: "12px", background: "rgba(255,255,255,0.03)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                        <h4 style={{ margin: 0, fontSize: "0.95rem" }}>Snapshot View - {selectedSnapshotPreview.name}</h4>
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <button className="btn btn-secondary btn-xs" onClick={() => {
+                            if (config) {
+                              setConfig({ ...config, content: selectedSnapshotPreview.content });
+                              setSelectedSnapshotPreview(null);
+                              setNotice(`Loaded snapshot v${selectedSnapshotPreview.version} content into active editor`);
+                            }
+                          }}>
+                            Load into Editor
+                          </button>
+                          <button className="btn btn-secondary btn-xs" onClick={() => setSelectedSnapshotPreview(null)}>Close</button>
+                        </div>
+                      </div>
+                      <pre style={{
+                        background: "#020408",
+                        color: "#38bdf8",
+                        fontFamily: "var(--mono)",
+                        fontSize: "0.8rem",
+                        padding: "1rem",
+                        borderRadius: "8px",
+                        maxHeight: "240px",
+                        overflowY: "auto",
+                        margin: 0
+                      }}>
+                        {selectedSnapshotPreview.content}
+                      </pre>
+                    </div>
+                  )}
+
                   <textarea 
                     value={config?.content ?? ""} 
                     onChange={(e) => setConfig(config ? { ...config, content: e.target.value } : null)}
@@ -5060,15 +5166,149 @@ function App() {
               )}
 
               {configTab === "timeline" && (
-                <div className="timeline">
-                  {(configTimelinePage?.items ?? []).map((event) => (
-                    <article key={event.id}>
-                      <span className="pill" style={{ scale: "0.8", alignSelf: "flex-start" }}>{event.action}</span>
-                      <strong>{event.message}</strong>
-                      <small style={{ color: "var(--ink-4)" }}>by {event.actor} · {formatLocalTimestamp(event.created_at)}</small>
-                    </article>
-                  ))}
-                  {(!configTimelinePage || configTimelinePage.items.length === 0) && <p>No checkpoints found for this configuration.</p>}
+                <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                  {/* Search and Filters toolbar */}
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button className={`chip ${checkpointFilter === "all" ? "on" : ""}`} onClick={() => setCheckpointFilter("all")}>All Checkpoints</button>
+                      <button className={`chip ${checkpointFilter === "active" ? "on" : ""}`} onClick={() => setCheckpointFilter("active")}>Active</button>
+                      <button className={`chip ${checkpointFilter === "renamed" ? "on" : ""}`} onClick={() => setCheckpointFilter("renamed")}>Renamed</button>
+                      <button className={`chip ${checkpointFilter === "backup" ? "on" : ""}`} onClick={() => setCheckpointFilter("backup")}>Backups</button>
+                    </div>
+                    <input 
+                      type="text" 
+                      className="input" 
+                      placeholder="Filter checkpoints by name..." 
+                      value={checkpointSearch}
+                      onChange={(e) => setCheckpointSearch(e.target.value)}
+                      style={{ maxWidth: "240px", fontSize: "0.8rem", padding: "0.35rem 0.65rem", background: "rgba(255,255,255,0.04)" }}
+                    />
+                  </div>
+
+                  {/* Active Snapshot Preview Card */}
+                  {selectedSnapshotPreview && (
+                    <div style={{ padding: "1rem", border: "1px solid var(--line-2)", borderRadius: "12px", background: "rgba(255,255,255,0.03)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                        <h4 style={{ margin: 0, fontSize: "0.95rem" }}>Snapshot View - {selectedSnapshotPreview.name}</h4>
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <button className="btn btn-secondary btn-xs" onClick={() => {
+                            if (config) {
+                              setConfig({ ...config, content: selectedSnapshotPreview.content });
+                              setNotice(`Loaded snapshot v${selectedSnapshotPreview.version} content into active editor`);
+                              setConfigTab("current");
+                            }
+                          }}>
+                            Load into Editor
+                          </button>
+                          <button className="btn btn-secondary btn-xs" onClick={() => setSelectedSnapshotPreview(null)}>Close Preview</button>
+                        </div>
+                      </div>
+                      <pre style={{
+                        background: "#020408",
+                        color: "#38bdf8",
+                        fontFamily: "var(--mono)",
+                        fontSize: "0.8rem",
+                        padding: "1rem",
+                        borderRadius: "8px",
+                        maxHeight: "300px",
+                        overflowY: "auto",
+                        margin: 0
+                      }}>
+                        {selectedSnapshotPreview.content}
+                      </pre>
+                    </div>
+                  )}
+
+                  {/* Checkpoints List */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    {filteredSnapshots.map((snap) => {
+                      const originalIdx = (snapshotPage?.items ?? []).findIndex(s => s.id === snap.id);
+                      const isRenamed = isCustomName(snap.name);
+                      return (
+                        <div key={`checkpoint-item-${snap.id}`} style={{
+                          border: "1px solid var(--line)",
+                          borderRadius: "12px",
+                          padding: "1rem",
+                          background: originalIdx === 0 ? "rgba(99,102,241,0.04)" : "rgba(255,255,255,0.01)",
+                          transition: "all 0.2s ease"
+                        }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+                            <div>
+                              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                                <strong style={{ fontSize: "0.95rem" }}>{snap.name}</strong>
+                                <span className="pill" style={{ scale: 0.85 }}>v{snap.version}</span>
+                                {isRenamed && <span className="pill pill-warn" style={{ scale: 0.85 }}>Renamed</span>}
+                                <span className={`pill ${originalIdx === 0 ? "pill-primary" : "pill-secondary"}`} style={{ scale: 0.85 }}>
+                                  {originalIdx === 0 ? "Active" : "Backup"}
+                                </span>
+                              </div>
+                              <div style={{ color: "var(--ink-4)", fontSize: "0.8rem", marginTop: "0.25rem" }}>
+                                Captured {formatLocalTimestamp(snap.created_at)} · Source: {snap.source}
+                              </div>
+                            </div>
+                            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                              <button className="btn btn-secondary btn-xs" onClick={() => viewSnapshot(snap.id)}>View</button>
+                              <button className="btn btn-secondary btn-xs" onClick={() => openRenameSnapshot(snap.id, snap.name)}>Rename</button>
+                              <div 
+                                onClick={() => {
+                                  if (compareSnapshotLeft === snap.id) {
+                                    setCompareSnapshotLeft(null);
+                                  } else if (compareSnapshotRight === snap.id) {
+                                    setCompareSnapshotRight(null);
+                                  } else if (!compareSnapshotLeft) {
+                                    setCompareSnapshotLeft(snap.id);
+                                  } else {
+                                    setCompareSnapshotRight(snap.id);
+                                  }
+                                }} 
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "0.35rem",
+                                  cursor: "pointer",
+                                  fontSize: "0.75rem",
+                                  color: (compareSnapshotLeft === snap.id || compareSnapshotRight === snap.id) ? "var(--primary)" : "var(--ink-3)",
+                                  border: "1px solid var(--line-2)",
+                                  borderRadius: "6px",
+                                  padding: "0.25rem 0.5rem",
+                                  userSelect: "none"
+                                }}
+                              >
+                                <input 
+                                  type="checkbox" 
+                                  checked={compareSnapshotLeft === snap.id || compareSnapshotRight === snap.id} 
+                                  readOnly
+                                  style={{ cursor: "pointer", pointerEvents: "none", margin: 0 }}
+                                />
+                                Compare {(compareSnapshotLeft === snap.id) ? "A" : (compareSnapshotRight === snap.id) ? "B" : ""}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {filteredSnapshots.length === 0 && (
+                      <div style={{ color: "var(--ink-4)", fontStyle: "italic", textAlign: "center", padding: "1.5rem" }}>
+                        No checkpoints found matching the active filter.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Configuration Event Log (Timeline Events) */}
+                  {configTimelinePage && configTimelinePage.items.length > 0 && (
+                    <div style={{ marginTop: "1.5rem", borderTop: "1px solid var(--line)", paddingTop: "1.5rem" }}>
+                      <h4 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem" }}>Configuration Event Log</h4>
+                      <div className="timeline">
+                        {configTimelinePage.items.map((event) => (
+                          <article key={event.id}>
+                            <span className="pill" style={{ scale: "0.8", alignSelf: "flex-start" }}>{event.action}</span>
+                            <strong>{event.message}</strong>
+                            <small style={{ color: "var(--ink-4)" }}>by {event.actor} · {formatLocalTimestamp(event.created_at)}</small>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -5192,17 +5432,121 @@ function App() {
                     }}
                   />
                   <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
-                    <div className="tags">
-                      {(config?.peers ?? []).slice(0, 4).map((peer) => (
-                        <span key={`config-peer-${peer.service_id}`}>{peer.node_name}: {peer.status}</span>
-                      ))}
-                      {(config?.peers ?? []).length === 0 && <span>no rollout peers</span>}
-                    </div>
                     <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
                       <button className="btn btn-secondary btn-sm" onClick={validateMigrationYaml}>Validate YAML</button>
                       <button className="btn btn-primary btn-sm" onClick={applyPreparedMigration}>Apply migration</button>
                       <button className="btn btn-secondary btn-sm" onClick={restorePreparedMigration}>Restore backup</button>
                     </div>
+                  </div>
+
+                  {/* Fleet Rollout Strategy Section */}
+                  <div style={{ marginTop: "1.5rem", borderTop: "1px solid var(--line)", paddingTop: "1.5rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                      <h3 style={{ fontSize: "1.1rem", fontWeight: 600, margin: 0 }}>Fleet Rollout Strategy</h3>
+                      <small style={{ color: "var(--ink-4)" }}>Peer nodes sharing the same type</small>
+                    </div>
+                    <p style={{ color: "var(--ink-3)", fontSize: "0.85rem", marginBottom: "1rem" }}>
+                      The following sibling node instances in the cluster run the same service type. You can deploy the current validated configuration to peer nodes in a controlled sequence.
+                    </p>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.75rem" }}>
+                      {(config?.peers ?? []).map((peer) => (
+                        <div key={`migrate-peer-${peer.service_id}`} style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "1rem",
+                          border: "1px solid var(--line-2)",
+                          borderRadius: "12px",
+                          background: "rgba(255,255,255,0.02)"
+                        }}>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{peer.node_name} / {peer.name}</div>
+                            <div style={{ fontSize: "0.8rem", color: "var(--ink-4)", marginTop: "0.2rem" }}>
+                              service_id: {peer.service_id} · Status: {peer.status}
+                            </div>
+                          </div>
+                          <button 
+                            className="btn btn-secondary btn-sm" 
+                            onClick={() => syncPeerConfig(peer.service_id, peer.node_name)}
+                          >
+                            Sync validated config
+                          </button>
+                        </div>
+                      ))}
+                      {(config?.peers ?? []).length === 0 && (
+                        <div style={{ color: "var(--ink-4)", fontSize: "0.85rem", fontStyle: "italic", textAlign: "center", padding: "1rem" }}>
+                          No sibling peer node instances of this type exist in the cluster.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Floating Compare Bar */}
+              {(compareSnapshotLeft || compareSnapshotRight) && (
+                <div style={{
+                  position: "sticky",
+                  bottom: "0",
+                  background: "rgba(10, 15, 30, 0.95)",
+                  backdropFilter: "blur(12px)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "16px",
+                  padding: "1rem 1.5rem",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  boxShadow: "0 -8px 32px rgba(0,0,0,0.5)",
+                  zIndex: 100,
+                  marginTop: "1.5rem"
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <span className="pill pill-primary" style={{ scale: "0.9" }}>A</span>
+                      <span style={{ fontSize: "0.85rem" }}>
+                        {compareSnapshotLeft 
+                          ? `v${(snapshotPage?.items ?? []).find(s => s.id === compareSnapshotLeft)?.version || compareSnapshotLeft}`
+                          : "--"}
+                      </span>
+                    </div>
+                    <span style={{ color: "var(--ink-4)" }}>➔</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <span className="pill pill-secondary" style={{ scale: "0.9" }}>B</span>
+                      <span style={{ fontSize: "0.85rem" }}>
+                        {compareSnapshotRight 
+                          ? `v${(snapshotPage?.items ?? []).find(s => s.id === compareSnapshotRight)?.version || compareSnapshotRight}`
+                          : "--"}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: "0.75rem" }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => {
+                      setCompareSnapshotLeft(null);
+                      setCompareSnapshotRight(null);
+                      setSnapshotCompare(null);
+                    }}>
+                      Clear Selection
+                    </button>
+                    <button 
+                      className="btn btn-primary btn-sm" 
+                      disabled={!compareSnapshotLeft || !compareSnapshotRight}
+                      onClick={async () => {
+                        setConfigTab("compare");
+                        await compareSelectedSnapshots();
+                      }}
+                    >
+                      Compare Checkpoints
+                    </button>
+                    <button 
+                      className="btn btn-primary btn-sm" 
+                      disabled={!compareSnapshotLeft || !compareSnapshotRight}
+                      onClick={async () => {
+                        setConfigTab("migration");
+                        await prepareConfigMigration();
+                      }}
+                    >
+                      Prepare Migration
+                    </button>
                   </div>
                 </div>
               )}
