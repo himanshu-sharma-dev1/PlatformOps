@@ -77,6 +77,7 @@ services:
     environment:
       - PLATFORMOPS_DATABASE_URL=sqlite:////app/data/platformops.db
       - PLATFORMOPS_LOCAL_MODE=false
+      - PLATFORMOPS_GLITCHTIP_BASE_URL=http://glitchtip-web:8000
     volumes:
       - platformops-data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
@@ -92,6 +93,7 @@ services:
     networks:
       platformops_prod_network:
         ipv4_address: "180.80.0.4"
+      cplatform_iktara_cPlatform: {}
 
 networks:
   platformops_prod_network:
@@ -100,6 +102,8 @@ networks:
       config:
         - subnet: "180.80.0.0/24"
           gateway: "180.80.0.1"
+  cplatform_iktara_cPlatform:
+    external: true
 
 volumes:
   platformops-postgres:
