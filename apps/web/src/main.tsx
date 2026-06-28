@@ -1143,6 +1143,9 @@ function App() {
   const [autoPollLogs, setAutoPollLogs] = useState<boolean>(false);
   const [diagnosticsTargetKey, setDiagnosticsTargetKey] = useState<string>("");
   const [diagnosticsTargets, setDiagnosticsTargets] = useState<DiagnosticsTarget[]>([]);
+  const [realtimeNodeMetrics, setRealtimeNodeMetrics] = useState<{ cpu: number; memory: number; disk: number } | null>(null);
+  const [processMetrics, setProcessMetrics] = useState<{ name: string; cpu: string }[]>([]);
+  const [loadingMetrics, setLoadingMetrics] = useState<boolean>(false);
   const [diagnosticsSourceServiceId, setDiagnosticsSourceServiceId] = useState<number | null>(null);
   const [configTimelinePage, setConfigTimelinePage] = useState<ConfigTimelinePage | null>(null);
   const [configTimelineAction, setConfigTimelineAction] = useState<string>("all");
@@ -1868,6 +1871,33 @@ function App() {
     }, Math.max(1000, logsPollMs));
     return () => window.clearInterval(interval);
   }, [autoPollLogs, selectedService, diagnosticsSourceServiceId, services, logsPollMs, tailLines, historyPageSize, diagnosticsTargetKey]);
+
+  async function loadNodeMetricsData() {
+    setLoadingMetrics(true);
+    try {
+      const [resNode, resProc] = await Promise.all([
+        fetch("/api/metrics/node"),
+        fetch("/api/metrics/processes")
+      ]);
+      const dataNode = await resNode.json();
+      const dataProc = await resProc.json();
+      
+      if (dataNode && !dataNode.error) {
+        setRealtimeNodeMetrics({
+          cpu: parseFloat(dataNode.cpu || 0),
+          memory: parseFloat(dataNode.memory || 0),
+          disk: parseFloat(dataNode.disk || 0)
+        });
+      }
+      if (dataProc && dataProc.processes) {
+        setProcessMetrics(dataProc.processes);
+      }
+    } catch (e) {
+      console.error("Failed to fetch node metrics:", e);
+    } finally {
+      setLoadingMetrics(false);
+    }
+  }
 
   async function selectCluster(cluster: Cluster) {
     setSelectedCluster(cluster);
@@ -3436,6 +3466,12 @@ function App() {
     services.find((service) => service.id === diagnosticsSourceServiceId) ??
     selectedService;
   const [activeView, setActiveView] = useState<string>("clusters");
+
+  useEffect(() => {
+    if (activeView === "node-metrics") {
+      loadNodeMetricsData();
+    }
+  }, [activeView]);
 
   async function runDiagnosticsInsightAction(action: DiagnosticsInsightAction) {
     const sourceService =
@@ -7483,20 +7519,65 @@ function App() {
   
   function renderNodeMetricsView() {
     return (
-      <div className="card" style={{ padding: "1.5rem" }}>
-        <h2>Node Metrics</h2>
-        <p>Real-time metrics from Prometheus via node-exporter and process-exporter.</p>
-        <button className="btn btn-primary" onClick={async () => {
-          const res = await fetch("/api/metrics/node");
-          const data = await res.json();
-          alert(JSON.stringify(data, null, 2));
-        }}>Fetch Node Metrics</button>
-        <br/><br/>
-        <button className="btn btn-primary" onClick={async () => {
-          const res = await fetch("/api/metrics/processes");
-          const data = await res.json();
-          alert(JSON.stringify(data, null, 2));
-        }}>Fetch Process Metrics</button>
+      <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        <div className="page-head">
+          <div className="titles">
+            <h1>Node <em>Metrics</em></h1>
+            <p className="sub">Real-time CPU, memory, disk, and process telemetry streamed from Prometheus exporters.</p>
+          </div>
+          <div className="actions">
+            <button className="btn btn-primary" onClick={loadNodeMetricsData} disabled={loadingMetrics}>
+              {loadingMetrics ? "Refreshing..." : "Refresh Metrics"}
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
+          {/* Left Panel: Circular Gauges */}
+          <GlassCard style={{ padding: "1.5rem" }}>
+            <h3 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1.5rem" }}>System Utilization</h3>
+            <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", justifyContent: "space-around" }}>
+              {renderCircularGauge(realtimeNodeMetrics?.cpu ?? 0, 100, "CPU Usage", (realtimeNodeMetrics?.cpu ?? 0) > 80 ? "var(--err)" : (realtimeNodeMetrics?.cpu ?? 0) > 50 ? "var(--warn)" : "var(--ok)")}
+              {renderCircularGauge(realtimeNodeMetrics?.memory ?? 0, 100, "RAM Usage", (realtimeNodeMetrics?.memory ?? 0) > 85 ? "var(--err)" : (realtimeNodeMetrics?.memory ?? 0) > 60 ? "var(--warn)" : "var(--ok)")}
+              {renderCircularGauge(realtimeNodeMetrics?.disk ?? 0, 100, "Disk Usage", (realtimeNodeMetrics?.disk ?? 0) > 90 ? "var(--err)" : (realtimeNodeMetrics?.disk ?? 0) > 75 ? "var(--warn)" : "var(--ok)")}
+            </div>
+            {realtimeNodeMetrics === null && !loadingMetrics && (
+              <p style={{ textAlign: "center", color: "var(--ink-4)", marginTop: "1rem", fontSize: "0.85rem", fontStyle: "italic" }}>
+                No telemetry parsed. Click Refresh Metrics.
+              </p>
+            )}
+          </GlassCard>
+
+          {/* Right Panel: Top Processes */}
+          <GlassCard style={{ padding: "1.5rem" }}>
+            <h3 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "1rem" }}>Top Processes (CPU %)</h3>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--line)", textAlign: "left" }}>
+                  <th style={{ padding: "0.5rem 0", color: "var(--ink-4)" }}>Process Group</th>
+                  <th style={{ padding: "0.5rem 0", color: "var(--ink-4)", textAlign: "right" }}>CPU Core-Seconds/Sec</th>
+                </tr>
+              </thead>
+              <tbody>
+                {processMetrics.map((proc, idx) => (
+                  <tr key={`${proc.name}-${idx}`} style={{ borderBottom: "1px solid var(--line-2)" }}>
+                    <td style={{ padding: "0.5rem 0", fontFamily: "var(--mono)" }}><code>{proc.name}</code></td>
+                    <td style={{ padding: "0.5rem 0", textAlign: "right", fontWeight: "bold" }}>
+                      {parseFloat(proc.cpu).toFixed(3)}
+                    </td>
+                  </tr>
+                ))}
+                {processMetrics.length === 0 && (
+                  <tr>
+                    <td colSpan={2} style={{ textAlign: "center", padding: "2rem", color: "var(--ink-4)" }}>
+                      No process metric streams recorded.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </GlassCard>
+        </div>
       </div>
     );
   }
