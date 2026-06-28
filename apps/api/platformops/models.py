@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from datetime import datetime
 from enum import Enum
+from typing import List, Optional
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -35,7 +38,7 @@ class Cluster(Base):
     environment: Mapped[str] = mapped_column(String(80), default="development")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
-    nodes: Mapped[list["Node"]] = relationship(back_populates="cluster", cascade="all, delete-orphan")
+    nodes: Mapped[List["Node"]] = relationship(back_populates="cluster", cascade="all, delete-orphan")
 
 
 class Node(Base):
@@ -55,7 +58,7 @@ class Node(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     cluster: Mapped[Cluster] = relationship(back_populates="nodes")
-    services: Mapped[list["ServiceInstance"]] = relationship(back_populates="node", cascade="all, delete-orphan")
+    services: Mapped[List["ServiceInstance"]] = relationship(back_populates="node", cascade="all, delete-orphan")
 
 
 class ServiceInstance(Base):
@@ -73,26 +76,26 @@ class ServiceInstance(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     node: Mapped[Node] = relationship(back_populates="services")
-    jobs: Mapped[list["DeploymentJob"]] = relationship(back_populates="service", cascade="all, delete-orphan")
-    snapshots: Mapped[list["ConfigSnapshot"]] = relationship(back_populates="service", cascade="all, delete-orphan")
+    jobs: Mapped[List["DeploymentJob"]] = relationship(back_populates="service", cascade="all, delete-orphan")
+    snapshots: Mapped[List["ConfigSnapshot"]] = relationship(back_populates="service", cascade="all, delete-orphan")
 
 
 class DeploymentJob(Base):
     __tablename__ = "deployment_jobs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    service_id: Mapped[int | None] = mapped_column(ForeignKey("service_instances.id"), nullable=True)
-    node_id: Mapped[int | None] = mapped_column(ForeignKey("nodes.id"), nullable=True)
+    service_id: Mapped[Optional[int]] = mapped_column(ForeignKey("service_instances.id"), nullable=True)
+    node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id"), nullable=True)
     action: Mapped[str] = mapped_column(String(80))
     status: Mapped[str] = mapped_column(String(40), default=JobStatus.queued.value)
     command: Mapped[str] = mapped_column(Text, default="")
     output: Mapped[str] = mapped_column(Text, default="")
     error: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
-    service: Mapped[ServiceInstance | None] = relationship(back_populates="jobs")
+    service: Mapped[Optional[ServiceInstance]] = relationship(back_populates="jobs")
 
 
 class ConfigSnapshot(Base):
@@ -113,8 +116,8 @@ class OperationalEvent(Base):
     __tablename__ = "operational_events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    service_id: Mapped[int | None] = mapped_column(ForeignKey("service_instances.id"), nullable=True)
-    node_id: Mapped[int | None] = mapped_column(ForeignKey("nodes.id"), nullable=True)
+    service_id: Mapped[Optional[int]] = mapped_column(ForeignKey("service_instances.id"), nullable=True)
+    node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id"), nullable=True)
     category: Mapped[str] = mapped_column(String(80))
     level: Mapped[str] = mapped_column(String(40), default="info")
     message: Mapped[str] = mapped_column(Text)
@@ -132,15 +135,15 @@ class BackupRun(Base):
     artifact_path: Mapped[str] = mapped_column(String(512), default="")
     output: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 class MonitoringCheck(Base):
     __tablename__ = "monitoring_checks"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    service_id: Mapped[int | None] = mapped_column(ForeignKey("service_instances.id"), nullable=True)
-    node_id: Mapped[int | None] = mapped_column(ForeignKey("nodes.id"), nullable=True)
+    service_id: Mapped[Optional[int]] = mapped_column(ForeignKey("service_instances.id"), nullable=True)
+    node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(120))
     status: Mapped[str] = mapped_column(String(40), default="unknown")
     value: Mapped[str] = mapped_column(String(255), default="")
@@ -184,7 +187,7 @@ class ReleaseRecord(Base):
     notes: Mapped[str] = mapped_column(Text, default="")
     previous_image: Mapped[str] = mapped_column(String(255), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 class DriftReport(Base):
@@ -193,7 +196,7 @@ class DriftReport(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     service_id: Mapped[int] = mapped_column(ForeignKey("service_instances.id"))
     status: Mapped[str] = mapped_column(String(40), default="unknown")
-    baseline_snapshot_id: Mapped[int | None] = mapped_column(ForeignKey("config_snapshots.id"), nullable=True)
+    baseline_snapshot_id: Mapped[Optional[int]] = mapped_column(ForeignKey("config_snapshots.id"), nullable=True)
     differences_json: Mapped[str] = mapped_column(Text, default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
@@ -202,8 +205,8 @@ class PolicyFinding(Base):
     __tablename__ = "policy_findings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    service_id: Mapped[int | None] = mapped_column(ForeignKey("service_instances.id"), nullable=True)
-    node_id: Mapped[int | None] = mapped_column(ForeignKey("nodes.id"), nullable=True)
+    service_id: Mapped[Optional[int]] = mapped_column(ForeignKey("service_instances.id"), nullable=True)
+    node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id"), nullable=True)
     rule_id: Mapped[str] = mapped_column(String(120))
     severity: Mapped[str] = mapped_column(String(40), default="info")
     status: Mapped[str] = mapped_column(String(40), default="open")
@@ -216,38 +219,38 @@ class IncidentRecord(Base):
     __tablename__ = "incident_records"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    service_id: Mapped[int | None] = mapped_column(ForeignKey("service_instances.id"), nullable=True)
-    node_id: Mapped[int | None] = mapped_column(ForeignKey("nodes.id"), nullable=True)
+    service_id: Mapped[Optional[int]] = mapped_column(ForeignKey("service_instances.id"), nullable=True)
+    node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(180))
     severity: Mapped[str] = mapped_column(String(40), default="sev3")
     status: Mapped[str] = mapped_column(String(40), default="open")
     summary: Mapped[str] = mapped_column(Text, default="")
     remediation: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 class RunbookExecution(Base):
     __tablename__ = "runbook_executions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    incident_id: Mapped[int | None] = mapped_column(ForeignKey("incident_records.id"), nullable=True)
-    service_id: Mapped[int | None] = mapped_column(ForeignKey("service_instances.id"), nullable=True)
-    node_id: Mapped[int | None] = mapped_column(ForeignKey("nodes.id"), nullable=True)
+    incident_id: Mapped[Optional[int]] = mapped_column(ForeignKey("incident_records.id"), nullable=True)
+    service_id: Mapped[Optional[int]] = mapped_column(ForeignKey("service_instances.id"), nullable=True)
+    node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id"), nullable=True)
     runbook_key: Mapped[str] = mapped_column(String(120))
     status: Mapped[str] = mapped_column(String(40), default=JobStatus.queued.value)
     steps_json: Mapped[str] = mapped_column(Text, default="[]")
     output: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 class SloReport(Base):
     __tablename__ = "slo_reports"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    service_id: Mapped[int | None] = mapped_column(ForeignKey("service_instances.id"), nullable=True)
-    node_id: Mapped[int | None] = mapped_column(ForeignKey("nodes.id"), nullable=True)
+    service_id: Mapped[Optional[int]] = mapped_column(ForeignKey("service_instances.id"), nullable=True)
+    node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(120))
     target: Mapped[str] = mapped_column(String(80), default="99.9")
     observed: Mapped[str] = mapped_column(String(80), default="0")
@@ -273,23 +276,23 @@ class SecretRecord(Base):
     __tablename__ = "secret_records"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    service_id: Mapped[int | None] = mapped_column(ForeignKey("service_instances.id"), nullable=True)
-    node_id: Mapped[int | None] = mapped_column(ForeignKey("nodes.id"), nullable=True)
+    service_id: Mapped[Optional[int]] = mapped_column(ForeignKey("service_instances.id"), nullable=True)
+    node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id"), nullable=True)
     key: Mapped[str] = mapped_column(String(160))
     masked_value: Mapped[str] = mapped_column(String(255), default="********")
     scope: Mapped[str] = mapped_column(String(80), default="service")
     status: Mapped[str] = mapped_column(String(40), default="active")
     rotation_interval_days: Mapped[int] = mapped_column(Integer, default=90)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    rotated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    rotated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 class MaintenanceWindow(Base):
     __tablename__ = "maintenance_windows"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    service_id: Mapped[int | None] = mapped_column(ForeignKey("service_instances.id"), nullable=True)
-    node_id: Mapped[int | None] = mapped_column(ForeignKey("nodes.id"), nullable=True)
+    service_id: Mapped[Optional[int]] = mapped_column(ForeignKey("service_instances.id"), nullable=True)
+    node_id: Mapped[Optional[int]] = mapped_column(ForeignKey("nodes.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(180))
     status: Mapped[str] = mapped_column(String(40), default="scheduled")
     starts_at: Mapped[str] = mapped_column(String(80))
@@ -321,9 +324,9 @@ class ForceDeleteApproval(Base):
     approver: Mapped[str] = mapped_column(String(160), default="")
     decision_note: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 class ReleaseApproval(Base):
@@ -339,6 +342,6 @@ class ReleaseApproval(Base):
     approver: Mapped[str] = mapped_column(String(160), default="")
     decision_note: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

@@ -3,8 +3,14 @@ from __future__ import annotations
 import copy
 import json
 import socket
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+try:
+    from datetime import UTC
+except ImportError:
+    UTC = timezone.utc
+
 from typing import Any
 
 import yaml

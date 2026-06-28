@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import subprocess
 import threading
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -11,7 +14,7 @@ from .models import DeploymentJob, JobStatus
 
 
 def _run_subprocess(
-    job_id: int, command: str, cwd: Path | None, timeout: int, on_complete: Callable[[int, bool, str, str], None]
+    job_id: int, command: str, cwd: Optional[Path], timeout: int, on_complete: Callable[[int, bool, str, str], None]
 ):
     try:
         process = subprocess.Popen(
@@ -51,9 +54,9 @@ def run_job_async(
     db: Session,
     job: DeploymentJob,
     *,
-    cwd: Path | None = None,
+    cwd: Optional[Path] = None,
     timeout_seconds: int = 300,
-    on_complete: Callable[[Session, DeploymentJob, bool], None] | None = None,
+    on_complete: Optional[Callable[[Session, DeploymentJob, bool], None]] = None,
 ) -> DeploymentJob:
     job.status = JobStatus.running.value
     job.started_at = datetime.utcnow()

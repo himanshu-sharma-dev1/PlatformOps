@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Optional, List, Dict
+
 import json
 from typing import Any
 
@@ -320,12 +322,12 @@ def _get_release_approval(db: Session, approval_id: int) -> ReleaseApproval:
 
 
 @app.get("/api/health")
-def health() -> dict[str, str]:
+def health() -> Dict[str, str]:
     return {"status": "ok", "service": "platformops-api"}
 
 
 @app.get("/api/catalog/services")
-def list_catalog() -> list[dict]:
+def list_catalog() -> List[dict]:
     return catalog_cards()
 
 
@@ -333,9 +335,9 @@ def list_catalog() -> list[dict]:
 def get_service_install_schema(
     service_key: str,
     node_id: int,
-    service_id: int | None = None,
+    service_id: Optional[int] = None,
     db: Session = Depends(get_db),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     node = _get_node(db, node_id)
     service = _get_service(db, service_id) if service_id is not None else None
     return service_install_schema(db, service_key=service_key, node=node, service=service)
@@ -357,14 +359,14 @@ def get_deployment_plan(node_id: int, service_key: str, db: Session = Depends(ge
 @app.get("/api/services/placement/recommendations/{service_key}", response_model=PlacementRecommendationOut)
 def get_placement_recommendations(
     service_key: str,
-    prefer_node_id: int | None = None,
-    avoid_node_ids: str | None = None,
-    anti_affinity_service_key: str | None = None,
+    prefer_node_id: Optional[int] = None,
+    avoid_node_ids: Optional[str] = None,
+    anti_affinity_service_key: Optional[str] = None,
     require_healthy: bool = False,
     spread_subsystem: bool = False,
     db: Session = Depends(get_db),
 ) -> dict:
-    parsed_avoid: list[int] = []
+    parsed_avoid: List[int] = []
     if avoid_node_ids:
         parsed_avoid = [int(value.strip()) for value in avoid_node_ids.split(",") if value.strip()]
     try:
@@ -384,16 +386,16 @@ def get_placement_recommendations(
 @app.post("/api/services/placement/deploy/{service_key}", response_model=PlacementDeployOut)
 def deploy_from_placement(
     service_key: str,
-    prefer_node_id: int | None = None,
-    avoid_node_ids: str | None = None,
-    anti_affinity_service_key: str | None = None,
+    prefer_node_id: Optional[int] = None,
+    avoid_node_ids: Optional[str] = None,
+    anti_affinity_service_key: Optional[str] = None,
     require_healthy: bool = False,
     spread_subsystem: bool = False,
     auto_install_dependencies: bool = True,
     allow_capacity_risk: bool = False,
     db: Session = Depends(get_db),
 ) -> dict:
-    parsed_avoid: list[int] = []
+    parsed_avoid: List[int] = []
     if avoid_node_ids:
         parsed_avoid = [int(value.strip()) for value in avoid_node_ids.split(",") if value.strip()]
     try:
@@ -535,13 +537,13 @@ def bootstrap_observability(node_id: int, db: Session = Depends(get_db)) -> dict
 
 
 @app.get("/api/nodes/{node_id}/artifacts/inventory", response_model=GeneratedArtifactOut)
-def node_inventory(node_id: int, db: Session = Depends(get_db)) -> dict[str, str]:
+def node_inventory(node_id: int, db: Session = Depends(get_db)) -> Dict[str, str]:
     node = _get_node(db, node_id)
     return {"name": f"{node.name}-inventory.ini", "content_type": "text/ini", "content": generate_inventory(node)}
 
 
 @app.get("/api/nodes/{node_id}/artifacts/compose", response_model=GeneratedArtifactOut)
-def node_compose(node_id: int, db: Session = Depends(get_db)) -> dict[str, str]:
+def node_compose(node_id: int, db: Session = Depends(get_db)) -> Dict[str, str]:
     node = _get_node(db, node_id)
     return {
         "name": f"{node.name}-docker-compose.yml",
@@ -550,16 +552,16 @@ def node_compose(node_id: int, db: Session = Depends(get_db)) -> dict[str, str]:
     }
 
 
-@app.get("/api/events", response_model=list[OperationalEventOut])
+@app.get("/api/events", response_model=List[OperationalEventOut])
 def get_events(
     limit: int = 100,
-    category: str | None = None,
-    level: str | None = None,
-    node_id: int | None = None,
-    service_id: int | None = None,
-    search: str | None = None,
+    category: Optional[str] = None,
+    level: Optional[str] = None,
+    node_id: Optional[int] = None,
+    service_id: Optional[int] = None,
+    search: Optional[str] = None,
     db: Session = Depends(get_db),
-) -> list[OperationalEvent]:
+) -> List[OperationalEvent]:
     return list_events(
         db,
         limit=limit,
@@ -596,14 +598,14 @@ def create_force_approval(payload: ForceDeleteApprovalCreate, db: Session = Depe
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.get("/api/lifecycle/force-approvals", response_model=list[ForceDeleteApprovalOut])
+@app.get("/api/lifecycle/force-approvals", response_model=List[ForceDeleteApprovalOut])
 def list_force_approvals(
     limit: int = 100,
-    target_type: str | None = None,
-    target_id: int | None = None,
-    status: str | None = None,
+    target_type: Optional[str] = None,
+    target_id: Optional[int] = None,
+    status: Optional[str] = None,
     db: Session = Depends(get_db),
-) -> list[ForceDeleteApproval]:
+) -> List[ForceDeleteApproval]:
     return latest_force_delete_approvals(
         db,
         limit=limit,
@@ -648,23 +650,23 @@ def revoke_force_approval(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.post("/api/policy/scan", response_model=list[PolicyFindingOut])
-def policy_scan(db: Session = Depends(get_db)) -> list[PolicyFinding]:
+@app.post("/api/policy/scan", response_model=List[PolicyFindingOut])
+def policy_scan(db: Session = Depends(get_db)) -> List[PolicyFinding]:
     return run_policy_scan(db)
 
 
-@app.get("/api/policy/findings", response_model=list[PolicyFindingOut])
-def policy_findings(limit: int = 200, db: Session = Depends(get_db)) -> list[PolicyFinding]:
+@app.get("/api/policy/findings", response_model=List[PolicyFindingOut])
+def policy_findings(limit: int = 200, db: Session = Depends(get_db)) -> List[PolicyFinding]:
     return latest_policy_findings(db, limit=limit)
 
 
-@app.post("/api/slo/evaluate", response_model=list[SloReportOut])
-def slo_evaluate(db: Session = Depends(get_db)) -> list[SloReport]:
+@app.post("/api/slo/evaluate", response_model=List[SloReportOut])
+def slo_evaluate(db: Session = Depends(get_db)) -> List[SloReport]:
     return evaluate_slos(db)
 
 
-@app.get("/api/slo/reports", response_model=list[SloReportOut])
-def slo_reports(limit: int = 200, db: Session = Depends(get_db)) -> list[SloReport]:
+@app.get("/api/slo/reports", response_model=List[SloReportOut])
+def slo_reports(limit: int = 200, db: Session = Depends(get_db)) -> List[SloReport]:
     return latest_slo_reports(db, limit=limit)
 
 
@@ -682,8 +684,8 @@ def open_incident(payload: IncidentCreate, db: Session = Depends(get_db)) -> Inc
     )
 
 
-@app.get("/api/incidents", response_model=list[IncidentRecordOut])
-def incidents(limit: int = 100, db: Session = Depends(get_db)) -> list[IncidentRecord]:
+@app.get("/api/incidents", response_model=List[IncidentRecordOut])
+def incidents(limit: int = 100, db: Session = Depends(get_db)) -> List[IncidentRecord]:
     return latest_incidents(db, limit=limit)
 
 
@@ -700,8 +702,8 @@ def incident_runbook(incident_id: int, runbook_key: str, db: Session = Depends(g
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.get("/api/runbooks/executions", response_model=list[RunbookExecutionOut])
-def runbook_executions(limit: int = 100, db: Session = Depends(get_db)) -> list[RunbookExecution]:
+@app.get("/api/runbooks/executions", response_model=List[RunbookExecutionOut])
+def runbook_executions(limit: int = 100, db: Session = Depends(get_db)) -> List[RunbookExecution]:
     return latest_runbook_executions(db, limit=limit)
 
 
@@ -710,8 +712,8 @@ def node_capacity(node_id: int, db: Session = Depends(get_db)) -> CapacityReport
     return generate_capacity_report(db, _get_node(db, node_id))
 
 
-@app.get("/api/capacity/reports", response_model=list[CapacityReportOut])
-def capacity_reports(limit: int = 100, db: Session = Depends(get_db)) -> list[CapacityReport]:
+@app.get("/api/capacity/reports", response_model=List[CapacityReportOut])
+def capacity_reports(limit: int = 100, db: Session = Depends(get_db)) -> List[CapacityReport]:
     return latest_capacity_reports(db, limit=limit)
 
 
@@ -729,8 +731,8 @@ def create_secret(payload: SecretCreate, db: Session = Depends(get_db)) -> Secre
     )
 
 
-@app.get("/api/secrets", response_model=list[SecretRecordOut])
-def secrets(limit: int = 100, db: Session = Depends(get_db)) -> list[SecretRecord]:
+@app.get("/api/secrets", response_model=List[SecretRecordOut])
+def secrets(limit: int = 100, db: Session = Depends(get_db)) -> List[SecretRecord]:
     return latest_secrets(db, limit=limit)
 
 
@@ -754,8 +756,8 @@ def create_maintenance(payload: MaintenanceWindowCreate, db: Session = Depends(g
     )
 
 
-@app.get("/api/maintenance", response_model=list[MaintenanceWindowOut])
-def maintenance_windows(limit: int = 100, db: Session = Depends(get_db)) -> list[MaintenanceWindow]:
+@app.get("/api/maintenance", response_model=List[MaintenanceWindowOut])
+def maintenance_windows(limit: int = 100, db: Session = Depends(get_db)) -> List[MaintenanceWindow]:
     return latest_maintenance_windows(db, limit=limit)
 
 
@@ -769,13 +771,13 @@ def audit_export(export_type: str = "summary", db: Session = Depends(get_db)) ->
     return create_audit_export(db, export_type=export_type)
 
 
-@app.get("/api/audit/exports", response_model=list[AuditExportOut])
-def audit_exports(limit: int = 100, db: Session = Depends(get_db)) -> list[AuditExport]:
+@app.get("/api/audit/exports", response_model=List[AuditExportOut])
+def audit_exports(limit: int = 100, db: Session = Depends(get_db)) -> List[AuditExport]:
     return latest_audit_exports(db, limit=limit)
 
 
-@app.get("/api/clusters", response_model=list[ClusterOut])
-def list_clusters(db: Session = Depends(get_db)) -> list[Cluster]:
+@app.get("/api/clusters", response_model=List[ClusterOut])
+def list_clusters(db: Session = Depends(get_db)) -> List[Cluster]:
     return list(db.scalars(select(Cluster).order_by(Cluster.created_at.desc())).all())
 
 
@@ -819,10 +821,10 @@ def update_cluster(cluster_id: int, payload: ClusterUpdate, db: Session = Depend
 def delete_cluster(
     cluster_id: int,
     force: bool = False,
-    force_reason: str | None = None,
-    force_approval_id: int | None = None,
+    force_reason: Optional[str] = None,
+    force_approval_id: Optional[int] = None,
     db: Session = Depends(get_db),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     cluster = _get_cluster(db, cluster_id)
     impact = lifecycle_impact(db, "cluster", cluster_id)
     policy = None
@@ -900,8 +902,8 @@ def delete_cluster(
     return {"status": "deleted", "cascaded_nodes": node_count, "cascaded_services": service_count}
 
 
-@app.get("/api/nodes", response_model=list[NodeOut])
-def list_nodes(cluster_id: int | None = None, db: Session = Depends(get_db)) -> list[Node]:
+@app.get("/api/nodes", response_model=List[NodeOut])
+def list_nodes(cluster_id: Optional[int] = None, db: Session = Depends(get_db)) -> List[Node]:
     statement = select(Node).order_by(Node.created_at.desc())
     if cluster_id is not None:
         statement = statement.where(Node.cluster_id == cluster_id)
@@ -982,10 +984,10 @@ def validate_node_endpoint(node_id: int, db: Session = Depends(get_db)) -> Deplo
 def delete_node(
     node_id: int,
     force: bool = False,
-    force_reason: str | None = None,
-    force_approval_id: int | None = None,
+    force_reason: Optional[str] = None,
+    force_approval_id: Optional[int] = None,
     db: Session = Depends(get_db),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     node = _get_node(db, node_id)
     impact = lifecycle_impact(db, "node", node_id)
     policy = None
@@ -1059,8 +1061,8 @@ def delete_node(
     return {"status": "deleted", "cascaded_services": service_count}
 
 
-@app.get("/api/services", response_model=list[ServiceOut])
-def list_services(node_id: int | None = None, db: Session = Depends(get_db)) -> list[ServiceInstance]:
+@app.get("/api/services", response_model=List[ServiceOut])
+def list_services(node_id: Optional[int] = None, db: Session = Depends(get_db)) -> List[ServiceInstance]:
     statement = select(ServiceInstance).order_by(ServiceInstance.created_at.desc())
     if node_id is not None:
         statement = statement.where(ServiceInstance.node_id == node_id)
@@ -1128,8 +1130,8 @@ def execute_service_deployment(
 def delete(
     service_id: int,
     force: bool = False,
-    force_reason: str | None = None,
-    force_approval_id: int | None = None,
+    force_reason: Optional[str] = None,
+    force_approval_id: Optional[int] = None,
     db: Session = Depends(get_db),
 ) -> DeploymentJob:
     service = _get_service(db, service_id)
@@ -1215,14 +1217,14 @@ def backup_service(service_id: int, db: Session = Depends(get_db)) -> BackupRun:
     return run_backup(db, _get_service(db, service_id))
 
 
-@app.get("/api/services/{service_id}/releases", response_model=list[ReleaseRecordOut])
-def service_releases(service_id: int, limit: int = 100, db: Session = Depends(get_db)) -> list[ReleaseRecord]:
+@app.get("/api/services/{service_id}/releases", response_model=List[ReleaseRecordOut])
+def service_releases(service_id: int, limit: int = 100, db: Session = Depends(get_db)) -> List[ReleaseRecord]:
     return list_releases(db, _get_service(db, service_id), limit=limit)
 
 
 @app.get("/api/services/{service_id}/releases/safety", response_model=ReleaseSafetyOut)
 def service_release_safety(
-    service_id: int, version: str, image: str | None = None, db: Session = Depends(get_db)
+    service_id: int, version: str, image: Optional[str] = None, db: Session = Depends(get_db)
 ) -> dict:
     return assess_release_safety(db, _get_service(db, service_id), version=version, image=image)
 
@@ -1248,10 +1250,10 @@ def create_release_approval_endpoint(payload: ReleaseApprovalCreate, db: Session
     )
 
 
-@app.get("/api/release-approvals", response_model=list[ReleaseApprovalOut])
+@app.get("/api/release-approvals", response_model=List[ReleaseApprovalOut])
 def list_release_approvals(
-    service_id: int | None = None, limit: int = 100, db: Session = Depends(get_db)
-) -> list[ReleaseApproval]:
+    service_id: Optional[int] = None, limit: int = 100, db: Session = Depends(get_db)
+) -> List[ReleaseApproval]:
     return latest_release_approvals(db, service_id=service_id, limit=limit)
 
 
@@ -1299,13 +1301,13 @@ def rollback_service_release(release_id: int, db: Session = Depends(get_db)) -> 
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.post("/api/monitoring/sweep", response_model=list[MonitoringCheckOut])
-def monitoring_sweep(db: Session = Depends(get_db)) -> list[MonitoringCheck]:
+@app.post("/api/monitoring/sweep", response_model=List[MonitoringCheckOut])
+def monitoring_sweep(db: Session = Depends(get_db)) -> List[MonitoringCheck]:
     return run_monitoring_sweep(db)
 
 
-@app.get("/api/monitoring/checks", response_model=list[MonitoringCheckOut])
-def monitoring_checks(limit: int = 200, db: Session = Depends(get_db)) -> list[MonitoringCheck]:
+@app.get("/api/monitoring/checks", response_model=List[MonitoringCheckOut])
+def monitoring_checks(limit: int = 200, db: Session = Depends(get_db)) -> List[MonitoringCheck]:
     return latest_monitoring_checks(db, limit=limit)
 
 
@@ -1318,7 +1320,7 @@ def get_job(job_id: int, db: Session = Depends(get_db)) -> DeploymentJob:
 
 
 @app.get("/api/jobs/{job_id}/logs")
-def get_job_logs(job_id: int, db: Session = Depends(get_db)) -> dict[str, str]:
+def get_job_logs(job_id: int, db: Session = Depends(get_db)) -> Dict[str, str]:
     job = db.get(DeploymentJob, job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -1326,7 +1328,7 @@ def get_job_logs(job_id: int, db: Session = Depends(get_db)) -> dict[str, str]:
 
 
 @app.get("/api/services/{service_id}/diagnostics", response_model=DiagnosticsOut)
-def diagnostics(service_id: int, target_service_key: str | None = None, db: Session = Depends(get_db)) -> dict:
+def diagnostics(service_id: int, target_service_key: Optional[str] = None, db: Session = Depends(get_db)) -> dict:
     service = _get_service(db, service_id)
     if not target_service_key or target_service_key == service.service_key:
         return service_diagnostics(db, service, source_service=service)
@@ -1352,7 +1354,7 @@ def diagnostics(service_id: int, target_service_key: str | None = None, db: Sess
 
 
 @app.get("/api/services/{service_id}/diagnostics/analysis", response_model=DiagnosticsAnalysisOut)
-def diagnostics_analysis(service_id: int, target_service_key: str | None = None, db: Session = Depends(get_db)) -> dict:
+def diagnostics_analysis(service_id: int, target_service_key: Optional[str] = None, db: Session = Depends(get_db)) -> dict:
     service = _get_service(db, service_id)
     if not target_service_key or target_service_key == service.service_key:
         return service_diagnostics_analysis(db, service, source_service=service)
@@ -1377,15 +1379,15 @@ def diagnostics_analysis(service_id: int, target_service_key: str | None = None,
     return service_diagnostics_analysis(db, target, source_service=service)
 
 
-@app.get("/api/services/{service_id}/diagnostics/targets", response_model=list[DiagnosticsTargetOut])
-def diagnostics_targets(service_id: int, db: Session = Depends(get_db)) -> list[dict]:
+@app.get("/api/services/{service_id}/diagnostics/targets", response_model=List[DiagnosticsTargetOut])
+def diagnostics_targets(service_id: int, db: Session = Depends(get_db)) -> List[dict]:
     return diagnostics_targets_for_service(db, _get_service(db, service_id))
 
 
 @app.get("/api/services/{service_id}/diagnostics/live", response_model=DiagnosticsLiveOut)
 def diagnostics_live(
     service_id: int,
-    target_service_key: str | None = None,
+    target_service_key: Optional[str] = None,
     tail_lines: int = 150,
     page_size: int = 100,
     cursor: int = 0,
@@ -1415,8 +1417,8 @@ def diagnostics_live(
     )
 
 
-@app.get("/api/services/{service_id}/diagnostics/archives", response_model=list[LogArchiveOut])
-def diagnostics_archives(service_id: int, db: Session = Depends(get_db)) -> list[LogArchive]:
+@app.get("/api/services/{service_id}/diagnostics/archives", response_model=List[LogArchiveOut])
+def diagnostics_archives(service_id: int, db: Session = Depends(get_db)) -> List[LogArchive]:
     return index_log_archives(db, _get_service(db, service_id))
 
 
@@ -1587,7 +1589,7 @@ def apply_config_direct_endpoint(service_id: int, payload: ConfigApply, db: Sess
 @app.post("/api/services/{service_id}/config/migration/prepare")
 def prepare_config_migration_endpoint(
     service_id: int,
-    payload: dict[str, int],
+    payload: Dict[str, int],
     db: Session = Depends(get_db),
 ) -> dict:
     service = _get_service(db, service_id)
@@ -1602,7 +1604,7 @@ def prepare_config_migration_endpoint(
 @app.post("/api/services/{service_id}/config/migration/apply")
 def apply_config_migration_endpoint(
     service_id: int,
-    payload: dict[str, str],
+    payload: Dict[str, str],
     db: Session = Depends(get_db),
 ) -> dict:
     try:
@@ -1620,7 +1622,7 @@ def apply_config_migration_endpoint(
 @app.post("/api/services/{service_id}/config/migration/restore")
 def restore_config_migration_endpoint(
     service_id: int,
-    payload: dict[str, str],
+    payload: Dict[str, str],
     db: Session = Depends(get_db),
 ) -> dict:
     try:

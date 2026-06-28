@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Generator
 from pathlib import Path
 
@@ -13,7 +15,7 @@ class Base(DeclarativeBase):
 
 def _database_url() -> str:
     if settings.database_url.startswith("sqlite:///") and not settings.database_url.startswith("sqlite:////"):
-        relative_path = Path(settings.database_url.removeprefix("sqlite:///"))
+        relative_path = Path(settings.database_url[10:])
         database_path = settings.resolve(relative_path)
         database_path.parent.mkdir(parents=True, exist_ok=True)
         return f"sqlite:///{database_path}"
