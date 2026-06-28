@@ -1350,7 +1350,7 @@ function App() {
   // cPlatform Layout Sub-Tab states
   const [clusterSubTab, setClusterSubTab] = useState<"nodes" | "topology" | "policy" | "audit">("nodes");
   const [configTab, setConfigTab] = useState<"current" | "timeline" | "compare" | "migration">("current");
-  const [diagTab, setDiagTab] = useState<"tail" | "files" | "analytics">("tail");
+  const [diagTab, setDiagTab] = useState<"summary" | "tail" | "files" | "analytics">("summary");
 
   // SRE Incident Analytics Chat state
   const [analyticsMessages, setAnalyticsMessages] = useState<{ sender: "user" | "assistant"; text: string; timestamp: string }[]>([
@@ -5922,14 +5922,183 @@ function App() {
                 </div>
               </div>
 
+              {/* Target Selector Bar */}
+              {diagnosticsTargets.length > 0 && (
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", background: "rgba(255,255,255,0.02)", padding: "0.5rem 0.75rem", borderRadius: "10px", border: "1px solid var(--line-2)" }}>
+                  <small style={{ color: "var(--ink-4)" }}>Inspect Target Service:</small>
+                  <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
+                    {diagnosticsTargets.map((target) => {
+                      const isSelected = diagnosticsTargetKey === target.service_key;
+                      return (
+                        <button
+                          key={`diag-target-${target.service_key}`}
+                          className={`btn ${isSelected ? "btn-primary" : "btn-secondary"} btn-xs`}
+                          onClick={() => focusDiagnosticsTarget(target.service_key)}
+                        >
+                          {target.name} ({target.kind})
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Sub-tabs selectors */}
               <div className="cluster-tabs">
+                <div className={`tab ${diagTab === "summary" ? "active" : ""}`} onClick={() => setDiagTab("summary")}>Summary</div>
                 <div className={`tab ${diagTab === "tail" ? "active" : ""}`} onClick={() => setDiagTab("tail")}>Live Tail Console</div>
                 <div className={`tab ${diagTab === "files" ? "active" : ""}`} onClick={() => setDiagTab("files")}>Log Files</div>
                 <div className={`tab ${diagTab === "analytics" ? "active" : ""}`} onClick={() => setDiagTab("analytics")}>SRE AI Incident Analyst</div>
               </div>
 
               {/* Tabs views */}
+              {diagTab === "summary" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "1.5rem" }}>
+                  {/* Left Column: Diagnostics Summary, Top Evidence, Lifecycle Events */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                    <div style={{ border: "1px solid var(--line)", borderRadius: "12px", padding: "1.25rem", background: "rgba(255,255,255,0.01)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                        <h4 style={{ margin: 0, fontSize: "1.1rem" }}>Diagnostics Summary</h4>
+                        <span className="pill pill-ok" style={{ scale: "0.9" }}>Active</span>
+                      </div>
+                      
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", fontSize: "0.85rem", marginBottom: "1rem" }}>
+                        <div style={{ padding: "0.5rem", borderBottom: "1px solid var(--line-2)" }}>
+                          <span style={{ color: "var(--ink-4)", display: "block" }}>Primary Root Cause</span>
+                          <strong>{diagnosticsAnalysis?.overview || "No anomalies detected"}</strong>
+                        </div>
+                        <div style={{ padding: "0.5rem", borderBottom: "1px solid var(--line-2)" }}>
+                          <span style={{ color: "var(--ink-4)", display: "block" }}>Target Scope</span>
+                          <strong>{diagnostics?.target_service_key || "Self"}</strong>
+                        </div>
+                        <div style={{ padding: "0.5rem", borderBottom: "1px solid var(--line-2)" }}>
+                          <span style={{ color: "var(--ink-4)", display: "block" }}>Logs Coverage</span>
+                          <strong>{diagnostics?.readiness.file_logs ? "Full logs coverage" : "Limited coverage"}</strong>
+                        </div>
+                        <div style={{ padding: "0.5rem", borderBottom: "1px solid var(--line-2)" }}>
+                          <span style={{ color: "var(--ink-4)", display: "block" }}>Source Provenance</span>
+                          <strong>{diagnostics?.readiness.loki_url ? "Loki log pipeline" : "Local db logs"}</strong>
+                        </div>
+                        <div style={{ padding: "0.5rem", borderBottom: "1px solid var(--line-2)" }}>
+                          <span style={{ color: "var(--ink-4)", display: "block" }}>Runtime Status</span>
+                          <strong>{diagnostics?.readiness.status || "Healthy"}</strong>
+                        </div>
+                        <div style={{ padding: "0.5rem", borderBottom: "1px solid var(--line-2)" }}>
+                          <span style={{ color: "var(--ink-4)", display: "block" }}>Runtime Errors</span>
+                          <strong style={{ color: diagnostics?.status === "error" ? "var(--err)" : "inherit" }}>
+                            {diagnostics?.status === "error" ? "Anomalies found" : "None"}
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Top Evidence / Warnings logs */}
+                    <div style={{ border: "1px solid var(--line)", borderRadius: "12px", padding: "1.25rem", background: "rgba(255,255,255,0.01)" }}>
+                      <h4 style={{ margin: 0, fontSize: "1rem", display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
+                        <span>⚠️</span> Top Evidence Log Signatures
+                      </h4>
+                      <div style={{
+                        background: "#020408",
+                        padding: "0.75rem",
+                        borderRadius: "8px",
+                        border: "1px solid var(--line-2)",
+                        maxHeight: "200px",
+                        overflowY: "auto",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.35rem"
+                      }}>
+                        {(diagnosticsLive?.lines ?? diagnostics?.recent_logs ?? [])
+                          .filter(l => l.level.toLowerCase().includes("err") || l.level.toLowerCase().includes("warn"))
+                          .map((line, idx) => (
+                            <div key={`evidence-${idx}`} style={{ fontSize: "0.78rem", display: "flex", gap: "0.5rem", borderBottom: "1px solid rgba(255,255,255,0.02)", paddingBottom: "2px" }}>
+                              <span style={{ color: "var(--ink-4)" }}>{line.timestamp.substring(11, 19)}</span>
+                              <span style={{ color: line.level.toLowerCase().includes("err") ? "var(--err)" : "var(--warn)", fontWeight: "bold" }}>
+                                {line.level.toUpperCase()}
+                              </span>
+                              <span style={{ color: "#e2e8f0" }}>{line.message}</span>
+                            </div>
+                          ))}
+                        {(diagnosticsLive?.lines ?? diagnostics?.recent_logs ?? []).filter(l => l.level.toLowerCase().includes("err") || l.level.toLowerCase().includes("warn")).length === 0 && (
+                          <div style={{ color: "var(--ink-4)", fontSize: "0.8rem", textAlign: "center", padding: "1rem" }}>
+                            No warning or error signatures indexed for this timeline.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Recent Lifecycle Events */}
+                    <div style={{ border: "1px solid var(--line)", borderRadius: "12px", padding: "1.25rem", background: "rgba(255,255,255,0.01)" }}>
+                      <h4 style={{ margin: 0, fontSize: "1rem", display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
+                        <span>⚙️</span> Recent Lifecycle Events
+                      </h4>
+                      <div className="timeline" style={{ maxHeight: "250px", overflowY: "auto", paddingRight: "0.5rem" }}>
+                        {events.slice(0, 10).map((event) => (
+                          <article key={event.id}>
+                            <span className={`pill ${event.level === "error" ? "pill-error" : event.level === "warning" ? "pill-warn" : "pill-ok"}`} style={{ scale: "0.8", alignSelf: "flex-start" }}>
+                              {event.category || "Event"}
+                            </span>
+                            <strong>{event.message}</strong>
+                            <small style={{ color: "var(--ink-4)" }}>{formatLocalTimestamp(event.created_at)}</small>
+                          </article>
+                        ))}
+                        {events.length === 0 && (
+                          <div style={{ color: "var(--ink-4)", fontSize: "0.8rem", textAlign: "center", padding: "1rem" }}>
+                            No recent lifecycle events recorded.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Issue Groups / Anomaly signatures */}
+                  <div style={{ border: "1px solid var(--line)", borderRadius: "12px", padding: "1.25rem", background: "rgba(255,255,255,0.01)", display: "flex", flexDirection: "column", gap: "1rem" }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: "1.1rem" }}>Issue Groups</h4>
+                      <small style={{ color: "var(--warn)", fontWeight: 600 }}>Active anomaly signatures</small>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", overflowY: "auto", maxHeight: "600px" }}>
+                      {(diagnosticsAnalysis?.insights ?? []).map((insight) => (
+                        <div key={`insight-group-${insight.insight_id}`} style={{
+                          padding: "0.9rem",
+                          border: "1px solid var(--line-2)",
+                          borderRadius: "10px",
+                          background: insight.severity === "error" ? "rgba(239, 68, 68, 0.02)" : "rgba(251, 191, 36, 0.02)"
+                        }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.35rem" }}>
+                            <strong style={{ fontSize: "0.88rem", color: insight.severity === "error" ? "var(--err)" : "var(--warn)" }}>
+                              {insight.title}
+                            </strong>
+                            <span className="pill" style={{ scale: "0.8" }}>{insight.confidence}% confidence</span>
+                          </div>
+                          <p style={{ margin: "4px 0", fontSize: "0.82rem", color: "var(--ink-2)" }}>{insight.summary}</p>
+                          <small style={{ color: "var(--ink-4)", display: "block" }}>{insight.rationale}</small>
+                          {insight.actions.length > 0 && (
+                            <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.35rem" }}>
+                              {insight.actions.map(act => (
+                                <button
+                                  key={act.action_id}
+                                  className={`btn btn-xs ${act.recommended ? "btn-primary" : "btn-secondary"}`}
+                                  onClick={() => runDiagnosticsInsightAction(act)}
+                                >
+                                  {act.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {(diagnosticsAnalysis?.insights ?? []).length === 0 && (
+                        <div style={{ color: "var(--ink-4)", fontStyle: "italic", textAlign: "center", padding: "2rem" }}>
+                          No active issues or runtime anomalies identified.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {diagTab === "tail" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem", flex: 1 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
