@@ -80,6 +80,93 @@ services:
         ipv4_address: 180.80.0.54
     restart: unless-stopped
 
+  platformops-obs-glitchtip-postgres:
+    image: postgres:16
+    container_name: platformops-obs-glitchtip-postgres
+    environment:
+      POSTGRES_DB: glitchtip
+      POSTGRES_USER: glitchtip
+      POSTGRES_PASSWORD: change-me
+    volumes:
+      - /home/ubuntu/PlatformOps/data/observability/glitchtip/postgres:/var/lib/postgresql/data
+    networks:
+      compose_platformops_prod_network:
+        ipv4_address: 180.80.0.55
+    restart: unless-stopped
+
+  platformops-obs-glitchtip-valkey:
+    image: valkey/valkey:7.2
+    container_name: platformops-obs-glitchtip-valkey
+    command: valkey-server --save 60 1000 --appendonly yes
+    volumes:
+      - /home/ubuntu/PlatformOps/data/observability/glitchtip/valkey:/data
+    networks:
+      compose_platformops_prod_network:
+        ipv4_address: 180.80.0.56
+    restart: unless-stopped
+
+  platformops-obs-glitchtip-migrate:
+    image: iktaraai/services:glitchtip-iktara-6.1.9
+    container_name: platformops-obs-glitchtip-migrate
+    env_file:
+      - /home/ubuntu/PlatformOps/ops/compose/observability/glitchtip.env
+    environment:
+      DATABASE_URL: postgresql://glitchtip:change-me@180.80.0.55:5432/glitchtip
+      REDIS_URL: redis://180.80.0.56:6379/0
+    depends_on:
+      - platformops-obs-glitchtip-postgres
+      - platformops-obs-glitchtip-valkey
+    networks:
+      compose_platformops_prod_network:
+        ipv4_address: 180.80.0.57
+    command: ./manage.py migrate
+    restart: "no"
+
+  platformops-obs-glitchtip-web:
+    image: iktaraai/services:glitchtip-iktara-6.1.9
+    container_name: platformops-obs-glitchtip-web
+    user: root
+    env_file:
+      - /home/ubuntu/PlatformOps/ops/compose/observability/glitchtip.env
+    environment:
+      DATABASE_URL: postgresql://glitchtip:change-me@180.80.0.55:5432/glitchtip
+      REDIS_URL: redis://180.80.0.56:6379/0
+    depends_on:
+      - platformops-obs-glitchtip-postgres
+      - platformops-obs-glitchtip-valkey
+    ports:
+      - "9008:8000"
+    volumes:
+      - /home/ubuntu/PlatformOps/ops/compose/observability/patch_glitchtip_schema.py:/tmp/patch_glitchtip_schema.py:ro
+      - /home/ubuntu/PlatformOps/ops/compose/observability/glitchtip_runtime_map.yaml:/tmp/glitchtip_runtime_map.yaml:ro
+    command: sh -lc "python /tmp/patch_glitchtip_schema.py && ./bin/start.sh"
+    networks:
+      compose_platformops_prod_network:
+        ipv4_address: 180.80.0.58
+    restart: unless-stopped
+
+  platformops-obs-glitchtip-worker:
+    image: iktaraai/services:glitchtip-iktara-6.1.9
+    container_name: platformops-obs-glitchtip-worker
+    user: root
+    env_file:
+      - /home/ubuntu/PlatformOps/ops/compose/observability/glitchtip.env
+    environment:
+      DATABASE_URL: postgresql://glitchtip:change-me@180.80.0.55:5432/glitchtip
+      REDIS_URL: redis://180.80.0.56:6379/0
+      SERVER_ROLE: worker
+    depends_on:
+      - platformops-obs-glitchtip-postgres
+      - platformops-obs-glitchtip-valkey
+    volumes:
+      - /home/ubuntu/PlatformOps/ops/compose/observability/patch_glitchtip_schema.py:/tmp/patch_glitchtip_schema.py:ro
+      - /home/ubuntu/PlatformOps/ops/compose/observability/glitchtip_runtime_map.yaml:/tmp/glitchtip_runtime_map.yaml:ro
+    command: sh -lc "python /tmp/patch_glitchtip_schema.py && ./bin/start.sh"
+    networks:
+      compose_platformops_prod_network:
+        ipv4_address: 180.80.0.59
+    restart: unless-stopped
+
 networks:
   compose_platformops_prod_network:
     external: true

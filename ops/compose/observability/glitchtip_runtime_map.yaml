@@ -1,0 +1,189 @@
+defaults:
+  environment: validation
+  traces_sample_rate: 0.5
+services:
+  AIOrchestrator:
+    project_slug: cplatform
+    release: cplatform
+    dsn: http://47a30a6e3f4e4da99b1aed2c6e67796e@54.183.53.93:9008/1
+    traces_sample_rate: 0.5
+  optionCopilot:
+    project_slug: optioncopilot
+    release: optioncopilot
+    dsn: http://766ac5ce00fd46ff8f7ea55a47be97e0@54.183.53.93:9008/4
+    traces_sample_rate: 0.5
+  TrainingServer:
+    project_slug: dtrain
+    release: dtrain
+    dsn: http://88b2a315d485448185c301415fad3824@54.183.53.93:9008/2
+    traces_sample_rate: 0.5
+  InferenceServer:
+    project_slug: dinfer
+    release: dinfer
+    dsn: http://9b4c3b221acf4cc09c996e44e9b02010@54.183.53.93:9008/3
+    traces_sample_rate: 0.5
+  ANS:
+    project_slug: ans
+    release: ans
+    dsn: http://ca1f978aa9584fdead5620cfa3309c4f@54.183.53.93:9008/5
+    traces_sample_rate: 0.5
+  RAG:
+    project_slug: rag
+    release: rag
+    dsn: http://f007c25f71e94d96b5a01a3abb825d33@54.183.53.93:9008/6
+    traces_sample_rate: 0.5
+  Text2SQL:
+    project_slug: text2sql
+    release: text2sql
+    dsn: http://a3bb6f8113b4426c96c5bbc7971a8776@54.183.53.93:9008/7
+    traces_sample_rate: 0.5
+  Asr:
+    project_slug: asr
+    release: asr
+    dsn: http://2d88962c28be4c859ae576ea1d3fe9b1@54.183.53.93:9008/8
+    traces_sample_rate: 0.5
+  TTS:
+    project_slug: tts
+    release: tts
+    dsn: http://bf26f52df720401aba41931ed0b7304d@54.183.53.93:9008/9
+    traces_sample_rate: 0.5
+  ConvCall:
+    project_slug: convcall
+    release: convcall
+    dsn: http://9b71c6b11a12430d8129733e3f732a8b@54.183.53.93:9008/10
+    traces_sample_rate: 0.5
+  ConvForm:
+    project_slug: convform
+    release: convform
+    dsn: http://05136d20650f48c98bd0dfc06c6f0ffb@54.183.53.93:9008/11
+    traces_sample_rate: 0.5
+  MCPServer:
+    project_slug: mcpserver
+    release: mcpserver
+    dsn: http://f761d21d21724f29a2a048bd6c1c7abd@54.183.53.93:9008/12
+    traces_sample_rate: 0.5
+  mcpProxy:
+    project_slug: mcpproxy
+    release: mcpproxy
+    dsn: http://31af83d5c80a4dbc91a7997008cb4376@54.183.53.93:9008/13
+    traces_sample_rate: 0.5
+  McpGateway:
+    project_slug: mcpgateway
+    release: mcpgateway
+    dsn: http://a1d2a2b077d54b81b0d51bdb4ab3cd49@54.183.53.93:9008/15
+    traces_sample_rate: 0.5
+  Text2CLK:
+    project_slug: text2clk
+    release: text2clk
+    dsn: http://c788595e4efc489d912d8a2224602a07@54.183.53.93:9008/14
+    traces_sample_rate: 0.5
+  DataJam:
+    project_slug: datajam
+    release: datajam
+    dsn: http://8e73ac44413f4e5ba6119b38cd4370cc@54.183.53.93:9008/16
+    traces_sample_rate: 0.5
+  ProxyDataJam:
+    project_slug: proxydatajam
+    release: proxydatajam
+    dsn: http://91d91e3074f9408abd76ff8f0fd3152c@54.183.53.93:9008/17
+    traces_sample_rate: 0.5
+  Airflow:
+    project_slug: airflow
+    release: airflow
+    dsn: http://0576e7c1efe24b21a093c49b25caa431@54.183.53.93:9008/18
+    traces_sample_rate: 0.5
+  AirtelChurn:
+    project_slug: airtelchurn
+    release: airtelchurn
+    dsn: http://7a44a3c1e9814e33ae4f1d8fb00a11a9@54.183.53.93:9008/19
+    traces_sample_rate: 0.5
+  InfraRabbitMQ:
+    project_slug: infrarabbitmq
+    release: infrarabbitmq
+    dsn: http://9bdc8e4f6adf49a08c359ef3ec648c2f@54.183.53.93:9008/20
+    traces_sample_rate: 0.5
+  InfraPostgreSQLCore:
+    project_slug: infrapostgresqlcore
+    release: infrapostgresqlcore
+    dsn: http://3ccafae5312e43b689e6f02dad53fd6f@54.183.53.93:9008/21
+    traces_sample_rate: 0.5
+  InfraRedisCore:
+    project_slug: infrarediscore
+    release: infrarediscore
+    dsn: http://9ca2de4cc4e34514bf6bb80aa6fcc808@54.183.53.93:9008/22
+    traces_sample_rate: 0.5
+  InfraAirflowPostgreSQL:
+    project_slug: infraairflowpostgresql
+    release: infraairflowpostgresql
+    dsn: http://785b5fd32d3246a2b68a96fbb40c0e1c@54.183.53.93:9008/23
+    traces_sample_rate: 0.5
+  InfraAirflowRedis:
+    project_slug: infraairflowredis
+    release: infraairflowredis
+    dsn: http://05dc1523c2704c35bb2f0c161c41656e@54.183.53.93:9008/24
+    traces_sample_rate: 0.5
+  InfraAirflowScheduler:
+    project_slug: infraairflowscheduler
+    release: infraairflowscheduler
+    dsn: http://d55a105dcc174bec8449bbfa58dd9c51@54.183.53.93:9008/25
+    traces_sample_rate: 0.5
+  InfraAirflowWorker:
+    project_slug: infraairflowworker
+    release: infraairflowworker
+    dsn: http://ea2d6fe0911f4d3b941a4f9d1b72f7c4@54.183.53.93:9008/26
+    traces_sample_rate: 0.5
+  InfraAirflowDagProcessor:
+    project_slug: infraairflowdagprocessor
+    release: infraairflowdagprocessor
+    dsn: http://0759292c470c4735a689ec0823c36ba8@54.183.53.93:9008/27
+    traces_sample_rate: 0.5
+  InfraAirflowTriggerer:
+    project_slug: infraairflowtriggerer
+    release: infraairflowtriggerer
+    dsn: http://6c9714351daa46818fcc26914fbdf5b8@54.183.53.93:9008/28
+    traces_sample_rate: 0.5
+  InfraClickHouse:
+    project_slug: infraclickhouse
+    release: infraclickhouse
+    dsn: http://e07d28435e2344b19222ca5fb7766279@54.183.53.93:9008/29
+    traces_sample_rate: 0.5
+  InfraNiFi:
+    project_slug: infranifi
+    release: infranifi
+    dsn: http://aae731cefe8d483793201813dc2cc534@54.183.53.93:9008/30
+    traces_sample_rate: 0.5
+  InfraMilvus:
+    project_slug: inframilvus
+    release: inframilvus
+    dsn: http://f4248016d2f547d0aca7ab5412874ffe@54.183.53.93:9008/31
+    traces_sample_rate: 0.5
+  InfraEtcd:
+    project_slug: infraetcd
+    release: infraetcd
+    dsn: http://2adb3f2bfce64012b30388a5562ab676@54.183.53.93:9008/32
+    traces_sample_rate: 0.5
+  InfraMinio:
+    project_slug: inframinio
+    release: inframinio
+    dsn: http://5dc3c3b8651947038cec7e18fa5952a4@54.183.53.93:9008/33
+    traces_sample_rate: 0.5
+  InfraNodeExporter:
+    project_slug: infranodeexporter
+    release: infranodeexporter
+    dsn: http://8745bb41320440238199da2d97cd71c5@54.183.53.93:9008/34
+    traces_sample_rate: 0.5
+  InfraDcgmExporter:
+    project_slug: infradcgmexporter
+    release: infradcgmexporter
+    dsn: http://3dd3263340aa47018006a879da73b16f@54.183.53.93:9008/35
+    traces_sample_rate: 0.5
+  InfraProcessExporter:
+    project_slug: infraprocessexporter
+    release: infraprocessexporter
+    dsn: http://fd39e4ffe5224cf48ebdadb542abd457@54.183.53.93:9008/36
+    traces_sample_rate: 0.5
+  InfraPrometheus:
+    project_slug: infraprometheus
+    release: infraprometheus
+    dsn: http://ab4efac1ee8e4d80b32471916b1ab54d@54.183.53.93:9008/37
+    traces_sample_rate: 0.5
