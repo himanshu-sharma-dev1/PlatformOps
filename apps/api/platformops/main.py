@@ -417,6 +417,110 @@ def observability_pipeline(db: Session = Depends(get_db)) -> dict:
     return observability_pipeline_report(db)
 
 
+
+import subprocess
+import json
+
+@app.post("/api/observability/deploy")
+def deploy_observability():
+    result = subprocess.run(
+        ["ansible-playbook", "-c", "local", "ops/ansible/playbooks/deploy_observability.yml"],
+        cwd="/app",
+        capture_output=True, text=True
+    )
+    return {"success": result.returncode == 0, "output": result.stdout + result.stderr}
+
+@app.post("/api/observability/teardown")
+def teardown_observability():
+    result = subprocess.run(
+        ["ansible-playbook", "-c", "local", "ops/ansible/playbooks/teardown_observability.yml"],
+        cwd="/app",
+        capture_output=True, text=True
+    )
+    return {"success": result.returncode == 0, "output": result.stdout + result.stderr}
+
+@app.get("/api/observability/status")
+def get_observability_status():
+    result = subprocess.run(
+        ["docker", "compose", "-f", "ops/compose/docker-compose.observability.yml", "-p", "platformops-obs", "ps", "--format", "json"],
+        cwd="/app",
+        capture_output=True, text=True
+    )
+    containers = []
+    for line in result.stdout.strip().splitlines():
+        if line:
+            containers.append(json.loads(line))
+    return {"containers": containers}
+
+
+import urllib.request
+import urllib.parse
+from datetime import datetime, timedelta
+
+@app.get("/api/diagnostics/logs")
+def get_diagnostics_logs(service: str, start: str = None, end: str = None, limit: int = 100):
+    try:
+        if not start:
+            start = str(int((datetime.now() - timedelta(hours=1)).timestamp() * 1e9))
+        if not end:
+            end = str(int(datetime.now().timestamp() * 1e9))
+        
+        query = '{container_name=~".*%s.*"}' % service
+        params = urllib.parse.urlencode({
+            'query': query,
+            'start': start,
+            'end': end,
+            'limit': limit
+        })
+        url = f"http://platformops-obs-loki:3100/loki/api/v1/query_range?{params}"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req) as response:
+            return json.loads(response.read())
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/api/metrics/node")
+def get_node_metrics():
+    try:
+        queries = {
+            "cpu": '100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)',
+            "memory": '(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100',
+            "disk": '(1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100'
+        }
+        results = {}
+        for key, q in queries.items():
+            params = urllib.parse.urlencode({'query': q})
+            url = f"http://platformops-obs-prometheus:9090/api/v1/query?{params}"
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read())
+                if data["data"]["result"]:
+                    results[key] = data["data"]["result"][0]["value"][1]
+                else:
+                    results[key] = 0
+        return results
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/api/metrics/processes")
+def get_process_metrics():
+    try:
+        q = 'topk(10, rate(namedprocess_namegroup_cpu_seconds_total[5m]))'
+        params = urllib.parse.urlencode({'query': q})
+        url = f"http://platformops-obs-prometheus:9090/api/v1/query?{params}"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read())
+            results = []
+            for item in data["data"]["result"]:
+                results.append({
+                    "name": item["metric"].get("groupname", "unknown"),
+                    "cpu": item["value"][1]
+                })
+            return {"processes": results}
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/api/dashboard/summary", response_model=DashboardSummaryOut)
 def dashboard_summary(db: Session = Depends(get_db)) -> dict:
     return get_dashboard_summary(db)

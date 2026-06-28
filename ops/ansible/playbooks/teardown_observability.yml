@@ -1,0 +1,13 @@
+---
+- name: Teardown Observability Stack
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  
+  vars:
+    base_dir: "/app"
+    compose_file: "{{ base_dir }}/ops/compose/docker-compose.observability.yml"
+    
+  tasks:
+    - name: Stop observability stack
+      command: docker compose -f {{ compose_file }} -p platformops-obs down

@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy Docker binary from host to bypass repository network issues
 COPY ops/docker/web-api/docker /usr/bin/docker
+COPY ops/docker/web-api/docker-compose /usr/libexec/docker/cli-plugins/docker-compose
 
 # Create a non-root user/group for security compliance
 RUN groupadd -g 10001 appgroup && \

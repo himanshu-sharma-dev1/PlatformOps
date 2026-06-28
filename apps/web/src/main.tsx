@@ -6967,6 +6967,53 @@ function App() {
     );
   }
 
+  
+  function renderNodeMetricsView() {
+    return (
+      <div className="card" style={{ padding: "1.5rem" }}>
+        <h2>Node Metrics</h2>
+        <p>Real-time metrics from Prometheus via node-exporter and process-exporter.</p>
+        <button className="btn btn-primary" onClick={async () => {
+          const res = await fetch("/api/metrics/node");
+          const data = await res.json();
+          alert(JSON.stringify(data, null, 2));
+        }}>Fetch Node Metrics</button>
+        <br/><br/>
+        <button className="btn btn-primary" onClick={async () => {
+          const res = await fetch("/api/metrics/processes");
+          const data = await res.json();
+          alert(JSON.stringify(data, null, 2));
+        }}>Fetch Process Metrics</button>
+      </div>
+    );
+  }
+
+  function renderObservabilityStackView() {
+    return (
+      <div className="card" style={{ padding: "1.5rem" }}>
+        <h2>Observability Stack Management</h2>
+        <p>Deploy or teardown the Loki, Alloy, and Prometheus stack.</p>
+        <button className="btn btn-primary" onClick={async () => {
+          const res = await fetch("/api/observability/deploy", { method: "POST" });
+          const data = await res.json();
+          alert(data.success ? "Deployed successfully" : "Deployment failed: " + data.output);
+        }}>Deploy Observability</button>
+        <br/><br/>
+        <button className="btn btn-secondary" onClick={async () => {
+          const res = await fetch("/api/observability/teardown", { method: "POST" });
+          const data = await res.json();
+          alert(data.success ? "Teardown successful" : "Teardown failed: " + data.output);
+        }}>Teardown Observability</button>
+        <br/><br/>
+        <button className="btn btn-primary" onClick={async () => {
+          const res = await fetch("/api/observability/status");
+          const data = await res.json();
+          alert(JSON.stringify(data, null, 2));
+        }}>Check Status</button>
+      </div>
+    );
+  }
+
   return (
     <Layout 
       activeView={activeView === "dashboard" ? "clusters" : activeView} 
@@ -6983,10 +7030,14 @@ function App() {
           </section>
         )}
 
-        {(activeView === "dashboard" || activeView === "clusters") && renderClustersView()}
-        {activeView === "config" && renderConfigManagerView()}
-        {activeView === "diagnostics" && renderDiagnosticsView()}
-        {activeView === "monitoring" && renderMonitoringView()}
+        
+        {activeView === "dashboard" || activeView === "clusters" ? renderClustersView() : null}
+        {activeView === "config" ? renderConfigManagerView() : null}
+        {activeView === "monitoring" ? renderMonitoringView() : null}
+        {activeView === "diagnostics" ? renderDiagnosticsView() : null}
+        {activeView === "node-metrics" ? renderNodeMetricsView() : null}
+        {activeView === "observability-stack" ? renderObservabilityStackView() : null}
+
       </main>
 
       {renderDrawers()}

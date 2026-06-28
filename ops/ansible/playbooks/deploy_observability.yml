@@ -1,0 +1,41 @@
+---
+- name: Deploy Observability Stack
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  
+  vars:
+    base_dir: "/app"
+    compose_file: "{{ base_dir }}/ops/compose/docker-compose.observability.yml"
+    
+  tasks:
+        
+    - name: Start observability stack
+      command: docker compose -f {{ compose_file }} -p platformops-obs up -d
+      
+    - name: Wait for Loki to be ready
+      uri:
+        url: http://180.80.0.50:3100/ready
+        status_code: 200
+      register: loki_result
+      until: loki_result.status == 200
+      retries: 30
+      delay: 5
+      
+    - name: Wait for Alloy to be ready
+      uri:
+        url: http://180.80.0.51:12345/-/ready
+        status_code: 200
+      register: alloy_result
+      until: alloy_result.status == 200
+      retries: 30
+      delay: 5
+      
+    - name: Wait for Prometheus to be ready
+      uri:
+        url: http://180.80.0.52:9090/-/healthy
+        status_code: 200
+      register: prom_result
+      until: prom_result.status == 200
+      retries: 30
+      delay: 5

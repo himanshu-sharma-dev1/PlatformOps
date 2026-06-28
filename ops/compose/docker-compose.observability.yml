@@ -1,0 +1,85 @@
+version: '3.9'
+
+services:
+  platformops-obs-loki:
+    image: grafana/loki:3.2.1
+    container_name: platformops-obs-loki
+    command: -config.file=/etc/loki/config.yaml
+    ports:
+      - "9021:3100"
+    volumes:
+      - /home/ubuntu/PlatformOps/ops/compose/observability/loki-config.yaml:/etc/loki/config.yaml:ro
+      - /home/ubuntu/PlatformOps/data/observability/loki:/loki
+    networks:
+      compose_platformops_prod_network:
+        ipv4_address: 180.80.0.50
+    restart: unless-stopped
+
+  platformops-obs-alloy:
+    image: grafana/alloy:v1.5.1
+    container_name: platformops-obs-alloy
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+    ports:
+      - "12346:12345"
+    volumes:
+      - /home/ubuntu/PlatformOps/ops/compose/observability/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /home/ubuntu/PlatformOps/data/observability/alloy:/var/lib/alloy
+    networks:
+      compose_platformops_prod_network:
+        ipv4_address: 180.80.0.51
+    depends_on:
+      - platformops-obs-loki
+    restart: unless-stopped
+
+  platformops-obs-prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: platformops-obs-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - "9022:9090"
+    volumes:
+      - /home/ubuntu/PlatformOps/ops/compose/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      compose_platformops_prod_network:
+        ipv4_address: 180.80.0.52
+    restart: unless-stopped
+
+  platformops-obs-node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: platformops-obs-node-exporter
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      compose_platformops_prod_network:
+        ipv4_address: 180.80.0.53
+    restart: unless-stopped
+
+  platformops-obs-process-exporter:
+    image: platformops/process-exporter:latest
+    container_name: platformops-obs-process-exporter
+    privileged: true
+    ports:
+      - "9257:9256"
+    volumes:
+      - /proc:/host/proc:ro
+    networks:
+      compose_platformops_prod_network:
+        ipv4_address: 180.80.0.54
+    restart: unless-stopped
+
+networks:
+  compose_platformops_prod_network:
+    external: true

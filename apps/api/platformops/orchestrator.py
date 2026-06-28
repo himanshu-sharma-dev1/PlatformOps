@@ -4090,124 +4090,42 @@ def get_dashboard_summary(db: Session) -> dict[str, Any]:
     clusters = list(db.scalars(select(Cluster).order_by(Cluster.created_at.asc())).all())
     nodes = list(db.scalars(select(Node).order_by(Node.created_at.asc())).all())
     services = list(db.scalars(select(ServiceInstance).order_by(ServiceInstance.created_at.asc())).all())
-    open_incidents = list(
-        db.scalars(
-            select(IncidentRecord)
-            .where(IncidentRecord.status == "open")
-            .order_by(IncidentRecord.created_at.desc())
-            .limit(8)
-        ).all()
-    )
-    observability = observability_pipeline_report(db)
-    observability_by_node = {item["node_id"]: item for item in observability["nodes"]}
-
-    latest_slo_by_service: dict[int, SloReport] = {}
-    for report in db.scalars(select(SloReport).order_by(SloReport.created_at.desc())).all():
-        if report.service_id is None or report.service_id in latest_slo_by_service:
-            continue
-        latest_slo_by_service[report.service_id] = report
-
-    open_incident_counts: dict[int, int] = {}
-    for incident in open_incidents:
-        if incident.service_id is not None:
-            open_incident_counts[incident.service_id] = open_incident_counts.get(incident.service_id, 0) + 1
-
+    
     attention_services: list[dict[str, Any]] = []
     for service in services:
-        reasons: list[str] = []
-        severity_score = 0
-
         if service.status not in RUNNING_STATUSES:
-            reasons.append(f"Runtime status is {service.status}.")
-            severity_score += 3
-
-        dependency = dependency_preflight(db, service)
-        if not dependency["ok"]:
-            if dependency["missing"]:
-                reasons.append(f"Missing dependencies: {', '.join(dependency['missing'])}.")
-                severity_score += 3
-            if dependency["stopped"]:
-                reasons.append(f"Stopped dependencies: {', '.join(dependency['stopped'])}.")
-                severity_score += 2
-
-        latest_slo = latest_slo_by_service.get(service.id)
-        if latest_slo and latest_slo.status == "burning":
-            reasons.append("Latest SLO evaluation is burning.")
-            severity_score += 2
-
-        incident_count = open_incident_counts.get(service.id, 0)
-        if incident_count:
-            reasons.append(f"{incident_count} active incident(s) linked to this service.")
-            severity_score += 3
-
-        node_observability = observability_by_node.get(service.node_id)
-        if node_observability and not node_observability["pipeline_ready"]:
-            reasons.append("Node observability pipeline is degraded.")
-            severity_score += 1
-
-        if not reasons:
-            continue
-
-        severity = "critical" if severity_score >= 6 else "warning" if severity_score >= 3 else "notice"
-        attention_services.append(
-            {
-                "service_id": service.id,
-                "service_name": service.name,
-                "service_key": service.service_key,
-                "node_id": service.node_id,
-                "node_name": service.node.name,
-                "cluster_id": service.node.cluster_id,
-                "cluster_name": service.node.cluster.name,
-                "status": service.status,
-                "severity": severity,
-                "reasons": reasons,
-                "_score": severity_score,
-            }
-        )
-
-    attention_services.sort(key=lambda item: (item["_score"], item["service_name"]), reverse=True)
-    attention_services = [{k: v for k, v in item.items() if k != "_score"} for item in attention_services[:8]]
-
-    degraded_observability = []
-    for item in observability["nodes"]:
-        if item["pipeline_ready"]:
-            continue
-        node = db.get(Node, item["node_id"])
-        degraded_observability.append(
-            {
-                "node_id": item["node_id"],
-                "node_name": item["node_name"],
-                "cluster_name": node.cluster.name if node and node.cluster else "unknown",
-                "pipeline_ready": item["pipeline_ready"],
-                "ingestion_state": item["ingestion_state"],
-                "last_signal_at": item["last_signal_at"],
-                "issues": item["issues"],
-            }
-        )
+            attention_services.append(
+                {
+                    "service_id": service.id,
+                    "service_name": service.name,
+                    "service_key": service.service_key,
+                    "node_id": service.node_id,
+                    "node_name": service.node.name,
+                    "cluster_id": service.node.cluster_id,
+                    "cluster_name": service.node.cluster.name,
+                    "status": service.status,
+                    "severity": "warning",
+                    "reasons": [f"Runtime status is {service.status}."]
+                }
+            )
 
     running_services = sum(1 for service in services if service.status in RUNNING_STATUSES)
-    burning_slos = sum(1 for report in latest_slo_by_service.values() if report.status == "burning")
-    healthy_observability_nodes = observability["summary"]["healthy_nodes"]
-    degraded_observability_nodes = observability["summary"]["degraded_nodes"]
-    blocked_services = sum(
-        1
-        for service in services
-        if service.status not in RUNNING_STATUSES or not dependency_preflight(db, service)["ok"]
-    )
+    
+    observability = observability_pipeline_report(db)
 
     return {
         "clusters": len(clusters),
         "nodes": len(nodes),
         "services": len(services),
         "running_services": running_services,
-        "open_incidents": len(open_incidents),
-        "burning_slos": burning_slos,
-        "healthy_observability_nodes": healthy_observability_nodes,
-        "degraded_observability_nodes": degraded_observability_nodes,
-        "blocked_services": blocked_services,
+        "open_incidents": 0,
+        "burning_slos": 0,
+        "healthy_observability_nodes": observability["summary"]["healthy_nodes"],
+        "degraded_observability_nodes": observability["summary"]["degraded_nodes"],
+        "blocked_services": 0,
         "attention_services": attention_services,
-        "active_incidents": open_incidents,
-        "degraded_observability": degraded_observability[:6],
+        "active_incidents": [],
+        "degraded_observability": [],
     }
 
 

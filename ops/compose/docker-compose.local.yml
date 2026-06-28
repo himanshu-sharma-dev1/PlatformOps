@@ -81,6 +81,8 @@ services:
       - platformops-data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
       - ../../apps/web/dist:/app/dist:ro
+      - ../ansible:/app/ops/ansible
+      - ../compose:/app/ops/compose
     depends_on:
       - postgres
       - redis

@@ -12,17 +12,23 @@ interface LayoutProps {
 
 export function Layout({ children, activeView, onViewChange, clusterContext, nodeContext, serviceContext }: LayoutProps) {
   // Determine grouping based on view
-  let groupName = "Infrastructure";
-  let viewName = "Clusters";
+  let groupName = "Platform";
+  let viewName = "Dashboard";
   if (activeView === "config") {
-    groupName = "Infrastructure";
+    groupName = "Platform";
     viewName = "Config Manager";
+  } else if (activeView === "monitoring") {
+    groupName = "Platform";
+    viewName = "Services";
   } else if (activeView === "diagnostics") {
     groupName = "Observability";
     viewName = "Diagnostics";
-  } else if (activeView === "monitoring") {
+  } else if (activeView === "node-metrics") {
     groupName = "Observability";
-    viewName = "Monitoring";
+    viewName = "Node Metrics";
+  } else if (activeView === "observability-stack") {
+    groupName = "Observability";
+    viewName = "Observability Stack";
   }
 
   return (
