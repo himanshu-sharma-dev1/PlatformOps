@@ -161,8 +161,8 @@ class ServiceInstallSchemaOut(BaseModel):
     exposure_supported: bool
     fields: list[ServiceInstallFieldOut]
     defaults: dict[str, Any]
-    preflight: PreflightOut
-    summary: str
+    preflight: Optional[PreflightOut] = None
+    summary: Optional[str] = None
 
 
 class JobOut(BaseModel):
