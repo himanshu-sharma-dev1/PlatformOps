@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional, List, Dict
-
 from datetime import datetime
 from typing import Any
 
@@ -12,12 +10,28 @@ class ClusterCreate(BaseModel):
     name: str
     region: str = "local"
     environment: str = "development"
+    repo_type: str = "github"
+    repo_url: str = ""
+    repo_branch: str = "main"
+    repo_token: str = ""
+    registry_type: str = "dockerhub"
+    registry_url: str = ""
+    registry_user: str = ""
+    registry_password: str = ""
 
 
 class ClusterUpdate(BaseModel):
-    name: Optional[str] = None
-    region: Optional[str] = None
-    environment: Optional[str] = None
+    name: str | None = None
+    region: str | None = None
+    environment: str | None = None
+    repo_type: str | None = None
+    repo_url: str | None = None
+    repo_branch: str | None = None
+    repo_token: str | None = None
+    registry_type: str | None = None
+    registry_url: str | None = None
+    registry_user: str | None = None
+    registry_password: str | None = None
 
 
 class ClusterOut(BaseModel):
@@ -25,6 +39,14 @@ class ClusterOut(BaseModel):
     name: str
     region: str
     environment: str
+    repo_type: str
+    repo_url: str
+    repo_branch: str
+    repo_token: str  # Kept masked in output representation
+    registry_type: str
+    registry_url: str
+    registry_user: str
+    registry_password: str  # Kept masked in output representation
 
     model_config = {"from_attributes": True}
 
@@ -35,23 +57,23 @@ class NodeCreate(BaseModel):
     host: str = "localhost"
     ssh_user: str = "ubuntu"
     ssh_key_path: str = ""
-    ssh_private_key: Optional[str] = None
+    ssh_private_key: str | None = None
     environment: str = "local"
     volume_root: str = "/tmp/platformops"
     docker_network: str = "platformops-net"
 
 
 class NodeUpdate(BaseModel):
-    cluster_id: Optional[int] = None
-    name: Optional[str] = None
-    host: Optional[str] = None
-    ssh_user: Optional[str] = None
-    ssh_key_path: Optional[str] = None
-    ssh_private_key: Optional[str] = None
-    environment: Optional[str] = None
-    volume_root: Optional[str] = None
-    docker_network: Optional[str] = None
-    status: Optional[str] = None
+    cluster_id: int | None = None
+    name: str | None = None
+    host: str | None = None
+    ssh_user: str | None = None
+    ssh_key_path: str | None = None
+    ssh_private_key: str | None = None
+    environment: str | None = None
+    volume_root: str | None = None
+    docker_network: str | None = None
+    status: str | None = None
 
 
 class NodeOut(BaseModel):
@@ -73,13 +95,13 @@ class NodeOut(BaseModel):
 class ServiceCreate(BaseModel):
     node_id: int
     service_key: str
-    name: Optional[str] = None
-    contract_overrides: Dict[str, Any] = Field(default_factory=dict)
+    name: str | None = None
+    contract_overrides: dict[str, Any] = Field(default_factory=dict)
 
 
 class ServiceUpdate(BaseModel):
-    name: Optional[str] = None
-    contract_overrides: Dict[str, Any] = Field(default_factory=dict)
+    name: str | None = None
+    contract_overrides: dict[str, Any] = Field(default_factory=dict)
 
 
 class ServiceOut(BaseModel):
@@ -97,9 +119,9 @@ class ServiceOut(BaseModel):
 
 class PreflightOut(BaseModel):
     ok: bool
-    missing: List[str] = Field(default_factory=list)
-    stopped: List[str] = Field(default_factory=list)
-    required: List[str] = Field(default_factory=list)
+    missing: list[str] = Field(default_factory=list)
+    stopped: list[str] = Field(default_factory=list)
+    required: list[str] = Field(default_factory=list)
     message: str
 
 
@@ -117,7 +139,7 @@ class DependencyInstallResultOut(BaseModel):
     service_id: int
     service_key: str
     node_id: int
-    dependency_actions: List[DependencyInstallActionOut]
+    dependency_actions: list[DependencyInstallActionOut]
 
 
 class ServiceInstallFieldOut(BaseModel):
@@ -127,7 +149,7 @@ class ServiceInstallFieldOut(BaseModel):
     required: bool = False
     value: Any = None
     help_text: str = ""
-    options: List[str] = Field(default_factory=list)
+    options: list[str] = Field(default_factory=list)
     section: str = "Configuration"
 
 
@@ -137,24 +159,24 @@ class ServiceInstallSchemaOut(BaseModel):
     kind: str
     configurable: bool
     exposure_supported: bool
-    fields: List[ServiceInstallFieldOut]
-    defaults: Dict[str, Any]
+    fields: list[ServiceInstallFieldOut]
+    defaults: dict[str, Any]
     preflight: PreflightOut
     summary: str
 
 
 class JobOut(BaseModel):
     id: int
-    service_id: Optional[int]
-    node_id: Optional[int]
+    service_id: int | None
+    node_id: int | None
     action: str
     status: str
     command: str
     output: str
     error: str
     created_at: datetime
-    started_at: Optional[datetime]
-    ended_at: Optional[datetime]
+    started_at: datetime | None
+    ended_at: datetime | None
 
     model_config = {"from_attributes": True}
 
@@ -167,11 +189,11 @@ class NodeJobHistoryItemOut(BaseModel):
     output: str
     error: str
     created_at: datetime
-    started_at: Optional[datetime]
-    ended_at: Optional[datetime]
-    service_id: Optional[int] = None
-    service_name: Optional[str] = None
-    service_key: Optional[str] = None
+    started_at: datetime | None
+    ended_at: datetime | None
+    service_id: int | None = None
+    service_name: str | None = None
+    service_key: str | None = None
 
 
 class NodeJobHistoryOut(BaseModel):
@@ -182,7 +204,7 @@ class NodeJobHistoryOut(BaseModel):
     config_jobs: int
     validation_jobs: int
     failed_jobs: int
-    items: List[NodeJobHistoryItemOut]
+    items: list[NodeJobHistoryItemOut]
 
 
 class ConfigApply(BaseModel):
@@ -190,8 +212,14 @@ class ConfigApply(BaseModel):
     apply_mode: str = "reload"
 
 
+class ConfigSyncPeer(BaseModel):
+    peer_id: int
+    apply_mode: str = "reload"
+    requested_by: str = "platform-operator"
+
+
 class ConfigSnapshotCreate(BaseModel):
-    name: Optional[str] = None
+    name: str | None = None
     source: str = "manual"
     requested_by: str = "platform-operator"
 
@@ -232,7 +260,7 @@ class ConfigSnapshotCompareOut(BaseModel):
     service_id: int
     left_snapshot: ConfigSnapshotDetailOut
     right_snapshot: ConfigSnapshotDetailOut
-    differences: List[ConfigSnapshotDiffItemOut]
+    differences: list[ConfigSnapshotDiffItemOut]
     difference_count: int
     summary: str
 
@@ -245,7 +273,7 @@ class ConfigSnapshotPageOut(BaseModel):
     has_more: bool
     source_filter: str
     search: str
-    items: List[ConfigSnapshotOut]
+    items: list[ConfigSnapshotOut]
 
 
 class ConfigWorkspaceOut(BaseModel):
@@ -253,27 +281,27 @@ class ConfigWorkspaceOut(BaseModel):
     content: str
     content_source: str = "live"
     message: str = ""
-    snapshots: List[ConfigSnapshotOut]
+    snapshots: list[ConfigSnapshotOut]
     snapshot_count: int = 0
-    active_checkpoint: Optional[ConfigSnapshotOut] = None
+    active_checkpoint: ConfigSnapshotOut | None = None
     drift_state: str = "unknown"
     config_source_label: str = "Live contract"
     config_path: str = ""
     file_label: str = ""
-    config_capabilities: Dict[str, Any] = Field(default_factory=dict)
-    runtime_target: Dict[str, Any] = Field(default_factory=dict)
-    peers: List[Dict[str, Any]] = Field(default_factory=list)
+    config_capabilities: dict[str, Any] = Field(default_factory=dict)
+    runtime_target: dict[str, Any] = Field(default_factory=dict)
+    peers: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ConfigTimelineEventOut(BaseModel):
     id: int
-    service_id: Optional[int]
-    node_id: Optional[int]
+    service_id: int | None
+    node_id: int | None
     level: str
     message: str
     action: str
     actor: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
     created_at: str
 
 
@@ -288,9 +316,9 @@ class ConfigTimelinePageOut(BaseModel):
     search: str
     created_after: str
     created_before: str
-    available_actions: List[str]
-    available_actors: List[str]
-    items: List[ConfigTimelineEventOut]
+    available_actions: list[str]
+    available_actors: list[str]
+    items: list[ConfigTimelineEventOut]
 
 
 class DiagnosticsOut(BaseModel):
@@ -300,13 +328,13 @@ class DiagnosticsOut(BaseModel):
     target_service_key: str
     target: str
     status: str
-    log_paths: List[str]
-    recent_logs: List[Dict[str, Any]]
-    readiness: Dict[str, Any]
+    log_paths: list[str]
+    recent_logs: list[dict[str, Any]]
+    readiness: dict[str, Any]
 
 
 class DiagnosticsTargetOut(BaseModel):
-    service_id: Optional[int]
+    service_id: int | None
     service_key: str
     name: str
     kind: str
@@ -335,7 +363,7 @@ class DiagnosticsLiveOut(BaseModel):
     next_cursor: int
     total_available: int
     has_more_history: bool
-    lines: List[DiagnosticsLogLineOut]
+    lines: list[DiagnosticsLogLineOut]
     generated_at: str
 
 
@@ -343,9 +371,9 @@ class DiagnosticsInsightActionOut(BaseModel):
     action_id: str
     label: str
     description: str
-    service_key: Optional[str] = None
-    incident_id: Optional[int] = None
-    runbook_key: Optional[str] = None
+    service_key: str | None = None
+    incident_id: int | None = None
+    runbook_key: str | None = None
     target_view: str
     recommended: bool = False
 
@@ -356,11 +384,11 @@ class DiagnosticsInsightEvidenceOut(BaseModel):
     summary: str
     target_view: str
     severity: str = "info"
-    service_key: Optional[str] = None
-    incident_id: Optional[int] = None
-    compare_left_snapshot_id: Optional[int] = None
-    compare_right_snapshot_id: Optional[int] = None
-    baseline_snapshot_id: Optional[int] = None
+    service_key: str | None = None
+    incident_id: int | None = None
+    compare_left_snapshot_id: int | None = None
+    compare_right_snapshot_id: int | None = None
+    baseline_snapshot_id: int | None = None
 
 
 class DiagnosticsInsightOut(BaseModel):
@@ -370,9 +398,9 @@ class DiagnosticsInsightOut(BaseModel):
     confidence: int
     summary: str
     rationale: str
-    evidence_refs: List[str]
-    supporting_evidence: List[DiagnosticsInsightEvidenceOut]
-    actions: List[DiagnosticsInsightActionOut]
+    evidence_refs: list[str]
+    supporting_evidence: list[DiagnosticsInsightEvidenceOut]
+    actions: list[DiagnosticsInsightActionOut]
 
 
 class DiagnosticsAnalysisOut(BaseModel):
@@ -385,18 +413,18 @@ class DiagnosticsAnalysisOut(BaseModel):
     target_name: str
     overall_severity: str
     overview: str
-    next_steps: List[str]
+    next_steps: list[str]
     generated_at: str
-    recent_incidents: List[Dict[str, Any]]
-    historical_correlation: List[str]
-    change_evidence: List[Dict[str, Any]]
-    insights: List[DiagnosticsInsightOut]
+    recent_incidents: list[dict[str, Any]]
+    historical_correlation: list[str]
+    change_evidence: list[dict[str, Any]]
+    insights: list[DiagnosticsInsightOut]
 
 
 class OperationalEventOut(BaseModel):
     id: int
-    service_id: Optional[int]
-    node_id: Optional[int]
+    service_id: int | None
+    node_id: int | None
     category: str
     level: str
     message: str
@@ -414,15 +442,15 @@ class BackupRunOut(BaseModel):
     artifact_path: str
     output: str
     created_at: datetime
-    completed_at: Optional[datetime]
+    completed_at: datetime | None
 
     model_config = {"from_attributes": True}
 
 
 class MonitoringCheckOut(BaseModel):
     id: int
-    service_id: Optional[int]
-    node_id: Optional[int]
+    service_id: int | None
+    node_id: int | None
     name: str
     status: str
     value: str
@@ -433,10 +461,10 @@ class MonitoringCheckOut(BaseModel):
 
 
 class TopologyOut(BaseModel):
-    nodes: List[Dict[str, Any]]
-    services: List[Dict[str, Any]]
-    edges: List[Dict[str, Any]]
-    subsystems: Dict[str, List[str]]
+    nodes: list[dict[str, Any]]
+    services: list[dict[str, Any]]
+    edges: list[dict[str, Any]]
+    subsystems: dict[str, list[str]]
 
 
 class DeploymentPlanOut(BaseModel):
@@ -444,8 +472,8 @@ class DeploymentPlanOut(BaseModel):
     service_key: str
     ok: bool
     summary: str
-    steps: List[Dict[str, Any]]
-    blocked_by: List[str]
+    steps: list[dict[str, Any]]
+    blocked_by: list[str]
 
 
 class DeploymentExecuteIn(BaseModel):
@@ -462,8 +490,8 @@ class DeploymentExecuteOut(BaseModel):
     plan: DeploymentPlanOut
     preflight_before: PreflightOut
     preflight_after: PreflightOut
-    dependency_actions: List[DependencyInstallActionOut]
-    target_job: Optional[JobOut] = None
+    dependency_actions: list[DependencyInstallActionOut]
+    target_job: JobOut | None = None
 
 
 class GeneratedArtifactOut(BaseModel):
@@ -487,10 +515,10 @@ class LogArchiveOut(BaseModel):
 
 class ReleaseCreate(BaseModel):
     version: str
-    image: Optional[str] = None
+    image: str | None = None
     strategy: str = "rolling"
     notes: str = ""
-    approval_id: Optional[int] = None
+    approval_id: int | None = None
 
 
 class ReleaseRecordOut(BaseModel):
@@ -503,7 +531,7 @@ class ReleaseRecordOut(BaseModel):
     notes: str
     previous_image: str
     created_at: datetime
-    completed_at: Optional[datetime]
+    completed_at: datetime | None
 
     model_config = {"from_attributes": True}
 
@@ -512,7 +540,7 @@ class DriftReportOut(BaseModel):
     id: int
     service_id: int
     status: str
-    baseline_snapshot_id: Optional[int]
+    baseline_snapshot_id: int | None
     differences_json: str
     created_at: datetime
 
@@ -521,8 +549,8 @@ class DriftReportOut(BaseModel):
 
 class PolicyFindingOut(BaseModel):
     id: int
-    service_id: Optional[int]
-    node_id: Optional[int]
+    service_id: int | None
+    node_id: int | None
     rule_id: str
     severity: str
     status: str
@@ -534,8 +562,8 @@ class PolicyFindingOut(BaseModel):
 
 
 class IncidentCreate(BaseModel):
-    service_id: Optional[int] = None
-    node_id: Optional[int] = None
+    service_id: int | None = None
+    node_id: int | None = None
     title: str
     severity: str = "sev3"
     summary: str = ""
@@ -543,38 +571,38 @@ class IncidentCreate(BaseModel):
 
 class IncidentRecordOut(BaseModel):
     id: int
-    service_id: Optional[int]
-    node_id: Optional[int]
+    service_id: int | None
+    node_id: int | None
     title: str
     severity: str
     status: str
     summary: str
     remediation: str
     created_at: datetime
-    resolved_at: Optional[datetime]
+    resolved_at: datetime | None
 
     model_config = {"from_attributes": True}
 
 
 class RunbookExecutionOut(BaseModel):
     id: int
-    incident_id: Optional[int]
-    service_id: Optional[int]
-    node_id: Optional[int]
+    incident_id: int | None
+    service_id: int | None
+    node_id: int | None
     runbook_key: str
     status: str
     steps_json: str
     output: str
     created_at: datetime
-    completed_at: Optional[datetime]
+    completed_at: datetime | None
 
     model_config = {"from_attributes": True}
 
 
 class SloReportOut(BaseModel):
     id: int
-    service_id: Optional[int]
-    node_id: Optional[int]
+    service_id: int | None
+    node_id: int | None
     name: str
     target: str
     observed: str
@@ -612,9 +640,9 @@ class NodeMetricsOut(BaseModel):
     disk_percent: float
     network_rx_mbps: float
     network_tx_mbps: float
-    cpu_series: List[MetricSeriesPointOut]
-    memory_series: List[MetricSeriesPointOut]
-    disk_series: List[MetricSeriesPointOut]
+    cpu_series: list[MetricSeriesPointOut]
+    memory_series: list[MetricSeriesPointOut]
+    disk_series: list[MetricSeriesPointOut]
 
 
 class ServiceMetricsOut(BaseModel):
@@ -629,9 +657,9 @@ class ServiceMetricsOut(BaseModel):
     queue_depth: int
     restart_count: int
     latency_ms_p95: float
-    cpu_series: List[MetricSeriesPointOut]
-    error_rate_series: List[MetricSeriesPointOut]
-    queue_depth_series: List[MetricSeriesPointOut]
+    cpu_series: list[MetricSeriesPointOut]
+    error_rate_series: list[MetricSeriesPointOut]
+    queue_depth_series: list[MetricSeriesPointOut]
 
 
 class ServiceSummaryOut(BaseModel):
@@ -646,24 +674,24 @@ class ServiceSummaryOut(BaseModel):
     image: str
     dependency: PreflightOut
     capabilities: ServiceCapabilities
-    latest_job: Optional[JobOut]
-    latest_backup: Optional[BackupRunOut]
-    latest_release: Optional[ReleaseRecordOut]
-    latest_drift: Optional[DriftReportOut]
-    latest_monitoring: Optional[MonitoringCheckOut]
-    latest_slo: Optional[SloReportOut]
-    latest_runbook: Optional[RunbookExecutionOut]
-    active_incidents: List[IncidentRecordOut]
+    latest_job: JobOut | None
+    latest_backup: BackupRunOut | None
+    latest_release: ReleaseRecordOut | None
+    latest_drift: DriftReportOut | None
+    latest_monitoring: MonitoringCheckOut | None
+    latest_slo: SloReportOut | None
+    latest_runbook: RunbookExecutionOut | None
+    active_incidents: list[IncidentRecordOut]
     snapshot_count: int
     recent_event_count: int
-    recent_events: List[OperationalEventOut]
+    recent_events: list[OperationalEventOut]
 
 
 class ServiceReleaseTimelineItemOut(BaseModel):
     release: ReleaseRecordOut
     rollback_executed: bool
-    notes: List[str]
-    related_events: List[OperationalEventOut]
+    notes: list[str]
+    related_events: list[OperationalEventOut]
 
 
 class ServiceReleaseTimelineOut(BaseModel):
@@ -672,9 +700,9 @@ class ServiceReleaseTimelineOut(BaseModel):
     current_image: str
     current_status: str
     rollback_available: bool
-    latest_rollback_job: Optional[JobOut]
-    items: List[ServiceReleaseTimelineItemOut]
-    recent_change_events: List[OperationalEventOut]
+    latest_rollback_job: JobOut | None
+    items: list[ServiceReleaseTimelineItemOut]
+    recent_change_events: list[OperationalEventOut]
 
 
 class DashboardAttentionServiceOut(BaseModel):
@@ -687,7 +715,7 @@ class DashboardAttentionServiceOut(BaseModel):
     cluster_name: str
     status: str
     severity: str
-    reasons: List[str]
+    reasons: list[str]
 
 
 class DashboardObservabilityNodeOut(BaseModel):
@@ -696,8 +724,8 @@ class DashboardObservabilityNodeOut(BaseModel):
     cluster_name: str
     pipeline_ready: bool
     ingestion_state: str
-    last_signal_at: Optional[str]
-    issues: List[str]
+    last_signal_at: str | None
+    issues: list[str]
 
 
 class DashboardSummaryOut(BaseModel):
@@ -710,9 +738,9 @@ class DashboardSummaryOut(BaseModel):
     healthy_observability_nodes: int
     degraded_observability_nodes: int
     blocked_services: int
-    attention_services: List[DashboardAttentionServiceOut]
-    active_incidents: List[IncidentRecordOut]
-    degraded_observability: List[DashboardObservabilityNodeOut]
+    attention_services: list[DashboardAttentionServiceOut]
+    active_incidents: list[IncidentRecordOut]
+    degraded_observability: list[DashboardObservabilityNodeOut]
 
 
 class ClusterOperationItemOut(BaseModel):
@@ -721,11 +749,11 @@ class ClusterOperationItemOut(BaseModel):
     level: str
     message: str
     created_at: str
-    service_id: Optional[int]
-    service_name: Optional[str]
-    service_key: Optional[str]
-    node_id: Optional[int]
-    node_name: Optional[str]
+    service_id: int | None
+    service_name: str | None
+    service_key: str | None
+    node_id: int | None
+    node_name: str | None
     action_family: str
 
 
@@ -737,7 +765,7 @@ class ClusterOperationsOut(BaseModel):
     recovery_events: int
     governance_events: int
     active_incidents: int
-    items: List[ClusterOperationItemOut]
+    items: list[ClusterOperationItemOut]
 
 
 class ReleaseSafetyOut(BaseModel):
@@ -745,7 +773,7 @@ class ReleaseSafetyOut(BaseModel):
     service_name: str
     risky: bool
     severity: str
-    reasons: List[str]
+    reasons: list[str]
     recommended_action: str
 
 
@@ -780,16 +808,16 @@ class ReleaseApprovalOut(BaseModel):
     approver: str
     decision_note: str
     created_at: datetime
-    approved_at: Optional[datetime]
-    expires_at: Optional[datetime]
-    used_at: Optional[datetime]
+    approved_at: datetime | None
+    expires_at: datetime | None
+    used_at: datetime | None
 
     model_config = {"from_attributes": True}
 
 
 class SecretCreate(BaseModel):
-    service_id: Optional[int] = None
-    node_id: Optional[int] = None
+    service_id: int | None = None
+    node_id: int | None = None
     key: str
     scope: str = "service"
     rotation_interval_days: int = 90
@@ -797,22 +825,22 @@ class SecretCreate(BaseModel):
 
 class SecretRecordOut(BaseModel):
     id: int
-    service_id: Optional[int]
-    node_id: Optional[int]
+    service_id: int | None
+    node_id: int | None
     key: str
     masked_value: str
     scope: str
     status: str
     rotation_interval_days: int
     created_at: datetime
-    rotated_at: Optional[datetime]
+    rotated_at: datetime | None
 
     model_config = {"from_attributes": True}
 
 
 class MaintenanceWindowCreate(BaseModel):
-    service_id: Optional[int] = None
-    node_id: Optional[int] = None
+    service_id: int | None = None
+    node_id: int | None = None
     title: str
     starts_at: str
     ends_at: str
@@ -821,8 +849,8 @@ class MaintenanceWindowCreate(BaseModel):
 
 class MaintenanceWindowOut(BaseModel):
     id: int
-    service_id: Optional[int]
-    node_id: Optional[int]
+    service_id: int | None
+    node_id: int | None
     title: str
     status: str
     starts_at: str
@@ -850,9 +878,9 @@ class LifecycleImpact(BaseModel):
     target_name: str
     severity: str
     can_delete_without_force: bool
-    dependents: List[str]
-    active_children: List[str]
-    warnings: List[str]
+    dependents: list[str]
+    active_children: list[str]
+    warnings: list[str]
     recommended_action: str
 
 
@@ -861,8 +889,8 @@ class SubsystemRolloutPlan(BaseModel):
     subsystem: str
     ok: bool
     summary: str
-    steps: List[Dict[str, Any]]
-    blocked_by: List[str]
+    steps: list[dict[str, Any]]
+    blocked_by: list[str]
 
 
 class ServiceCapabilities(BaseModel):
@@ -888,7 +916,7 @@ class ClusterSummary(BaseModel):
 class NodeSummary(BaseModel):
     node_id: int
     service_count: int
-    kind_counts: Dict[str, int]
+    kind_counts: dict[str, int]
     docker_network: str
     volume_root: str
     capacity_status: str
@@ -898,7 +926,7 @@ class NodeValidationJobOut(BaseModel):
     id: int
     status: str
     created_at: str
-    ended_at: Optional[str]
+    ended_at: str | None
     error: str
     output: str
     command: str
@@ -914,11 +942,11 @@ class NodeConnectionOut(BaseModel):
     status: str
     connection_state: str
     facts_available: bool
-    facts: Dict[str, Any]
-    facts_error: Optional[str]
-    last_checked_at: Optional[str]
-    validation_job: Optional[NodeValidationJobOut]
-    recommendations: List[str]
+    facts: dict[str, Any]
+    facts_error: str | None
+    last_checked_at: str | None
+    validation_job: NodeValidationJobOut | None
+    recommendations: list[str]
 
 
 class NodeOnboardingCheckOut(BaseModel):
@@ -940,9 +968,9 @@ class NodeOnboardingOut(BaseModel):
     pass_count: int
     warn_count: int
     fail_count: int
-    checks: List[NodeOnboardingCheckOut]
-    next_actions: List[str]
-    suggested_actions: List[str]
+    checks: list[NodeOnboardingCheckOut]
+    next_actions: list[str]
+    suggested_actions: list[str]
 
 
 class NodeOnboardingRemediationRequest(BaseModel):
@@ -954,16 +982,16 @@ class NodeOnboardingRemediationOut(BaseModel):
     action: str
     ok: bool
     message: str
-    updated_fields: Dict[str, str]
-    validation_job: Optional[NodeValidationJobOut]
+    updated_fields: dict[str, str]
+    validation_job: NodeValidationJobOut | None
 
 
 class DTrainOverview(BaseModel):
-    tracker: Dict[str, Any]
-    controller: Dict[str, Any]
-    workers: List[Dict[str, Any]]
-    dependencies: Dict[str, Any]
-    metrics: Dict[str, Any]
+    tracker: dict[str, Any]
+    controller: dict[str, Any]
+    workers: list[dict[str, Any]]
+    dependencies: dict[str, Any]
+    metrics: dict[str, Any]
     rollout_ready: bool
 
 
@@ -977,7 +1005,7 @@ class CapabilityCoverageItem(BaseModel):
     backup_ready: bool
     stateful: bool
     requires_sudo_for_file_logs: bool
-    issues: List[str]
+    issues: list[str]
 
 
 class CapabilityCoverageOut(BaseModel):
@@ -987,7 +1015,7 @@ class CapabilityCoverageOut(BaseModel):
     backup_ready: int
     policy_risk_services: int
     issues_count: int
-    items: List[CapabilityCoverageItem]
+    items: list[CapabilityCoverageItem]
 
 
 class LifecycleAuditOut(BaseModel):
@@ -996,9 +1024,9 @@ class LifecycleAuditOut(BaseModel):
     blocked_deletions: int
     forced_deletions: int
     safe_deletions: int
-    last_blocked_at: Optional[str]
-    last_forced_at: Optional[str]
-    last_safe_delete_at: Optional[str]
+    last_blocked_at: str | None
+    last_forced_at: str | None
+    last_safe_delete_at: str | None
 
 
 class ForceDeleteApprovalCreate(BaseModel):
@@ -1030,9 +1058,9 @@ class ForceDeleteApprovalOut(BaseModel):
     approver: str
     decision_note: str
     created_at: datetime
-    approved_at: Optional[datetime]
-    expires_at: Optional[datetime]
-    used_at: Optional[datetime]
+    approved_at: datetime | None
+    expires_at: datetime | None
+    used_at: datetime | None
 
     model_config = {"from_attributes": True}
 
@@ -1044,24 +1072,24 @@ class PlacementCandidateOut(BaseModel):
     score: int
     recommendation: str
     dependency_ready: bool
-    dependency_missing: List[str]
-    dependency_stopped: List[str]
+    dependency_missing: list[str]
+    dependency_stopped: list[str]
     capacity_status: str
     projected_memory_mb: int
     projected_storage_gb: int
     projected_cpu: float
-    notes: List[str]
+    notes: list[str]
 
 
 class PlacementRecommendationOut(BaseModel):
     service_key: str
     generated_at: str
-    prefer_node_id: Optional[int] = None
-    avoid_node_ids: List[int] = Field(default_factory=list)
-    anti_affinity_service_key: Optional[str] = None
+    prefer_node_id: int | None = None
+    avoid_node_ids: list[int] = Field(default_factory=list)
+    anti_affinity_service_key: str | None = None
     require_healthy: bool = False
     spread_subsystem: bool = False
-    candidates: List[PlacementCandidateOut]
+    candidates: list[PlacementCandidateOut]
 
 
 class ObservabilityNodePipelineOut(BaseModel):
@@ -1070,18 +1098,18 @@ class ObservabilityNodePipelineOut(BaseModel):
     node_status: str
     pipeline_ready: bool
     ingestion_state: str
-    last_signal_at: Optional[str]
-    components: Dict[str, str]
-    issues: List[str]
+    last_signal_at: str | None
+    components: dict[str, str]
+    issues: list[str]
 
 
 class ObservabilityPipelineOut(BaseModel):
     generated_at: str
-    defaults: Dict[str, Any]
-    labels: Dict[str, Any]
-    sources: Dict[str, Any]
-    nodes: List[ObservabilityNodePipelineOut]
-    summary: Dict[str, int]
+    defaults: dict[str, Any]
+    labels: dict[str, Any]
+    sources: dict[str, Any]
+    nodes: list[ObservabilityNodePipelineOut]
+    summary: dict[str, int]
 
 
 class ObservabilityBootstrapOut(BaseModel):
@@ -1089,7 +1117,7 @@ class ObservabilityBootstrapOut(BaseModel):
     subsystem: str
     ok: bool
     summary: str
-    jobs: List[Dict[str, Any]]
+    jobs: list[dict[str, Any]]
     pipeline_ready: bool
     ingestion_state: str
 
@@ -1116,6 +1144,6 @@ class PlacementDeployOut(BaseModel):
     target_service_status: str
     target_job_id: int
     target_job_status: str
-    dependency_actions: List[PlacementDeploymentActionOut]
+    dependency_actions: list[PlacementDeploymentActionOut]
     preflight: PreflightOut
     summary: str

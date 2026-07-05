@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import Optional, List, Dict
-
 import json
 from typing import Any
 
 from fastapi import Body, Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -43,6 +42,7 @@ from .orchestrator import (
     bootstrap_observability_plane,
     capability_coverage_report,
     catalog_cards,
+    check_port_and_name_availability,
     compare_config_snapshots,
     complete_maintenance,
     create_audit_export,
@@ -57,11 +57,13 @@ from .orchestrator import (
     decide_release_approval,
     delete_service,
     dependency_preflight,
+    deploy_observability_stack,
     deploy_service,
     deploy_subsystem,
     deployment_plan,
     detect_drift,
     diagnostics_targets_for_service,
+    discover_infrastructure,
     evaluate_force_delete_policy,
     evaluate_slos,
     execute_deployment_plan,
@@ -77,7 +79,6 @@ from .orchestrator import (
     get_dtrain_overview,
     get_node_connection_report,
     get_node_job_history,
-    get_node_metrics,
     get_node_onboarding_report,
     get_node_summary,
     get_service_capabilities,
@@ -98,6 +99,7 @@ from .orchestrator import (
     latest_runbook_executions,
     latest_secrets,
     latest_slo_reports,
+    launch_node_vm,
     lifecycle_audit_report,
     lifecycle_impact,
     list_config_snapshots_page,
@@ -126,6 +128,10 @@ from .orchestrator import (
     service_diagnostics_analysis,
     service_install_schema,
     service_live_logs,
+    sync_peer_config,
+    teardown_node_vm,
+    test_git_connection,
+    test_registry_connection,
     topology,
     update_service_instance,
     validate_config,
@@ -134,6 +140,9 @@ from .orchestrator import (
 )
 from .orchestrator import (
     config_workspace as build_config_workspace,
+)
+from .orchestrator import (
+    get_node_metrics as orchestrator_get_node_metrics,
 )
 from .schemas import (
     AuditExportOut,
@@ -152,6 +161,7 @@ from .schemas import (
     ConfigSnapshotOut,
     ConfigSnapshotPageOut,
     ConfigSnapshotRename,
+    ConfigSyncPeer,
     ConfigTimelinePageOut,
     ConfigValidateOut,
     ConfigWorkspaceOut,
@@ -322,12 +332,12 @@ def _get_release_approval(db: Session, approval_id: int) -> ReleaseApproval:
 
 
 @app.get("/api/health")
-def health() -> Dict[str, str]:
+def health() -> dict[str, str]:
     return {"status": "ok", "service": "platformops-api"}
 
 
 @app.get("/api/catalog/services")
-def list_catalog() -> List[dict]:
+def list_catalog() -> list[dict]:
     return catalog_cards()
 
 
@@ -335,9 +345,9 @@ def list_catalog() -> List[dict]:
 def get_service_install_schema(
     service_key: str,
     node_id: int,
-    service_id: Optional[int] = None,
+    service_id: int | None = None,
     db: Session = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     node = _get_node(db, node_id)
     service = _get_service(db, service_id) if service_id is not None else None
     return service_install_schema(db, service_key=service_key, node=node, service=service)
@@ -359,14 +369,14 @@ def get_deployment_plan(node_id: int, service_key: str, db: Session = Depends(ge
 @app.get("/api/services/placement/recommendations/{service_key}", response_model=PlacementRecommendationOut)
 def get_placement_recommendations(
     service_key: str,
-    prefer_node_id: Optional[int] = None,
-    avoid_node_ids: Optional[str] = None,
-    anti_affinity_service_key: Optional[str] = None,
+    prefer_node_id: int | None = None,
+    avoid_node_ids: str | None = None,
+    anti_affinity_service_key: str | None = None,
     require_healthy: bool = False,
     spread_subsystem: bool = False,
     db: Session = Depends(get_db),
 ) -> dict:
-    parsed_avoid: List[int] = []
+    parsed_avoid: list[int] = []
     if avoid_node_ids:
         parsed_avoid = [int(value.strip()) for value in avoid_node_ids.split(",") if value.strip()]
     try:
@@ -386,16 +396,16 @@ def get_placement_recommendations(
 @app.post("/api/services/placement/deploy/{service_key}", response_model=PlacementDeployOut)
 def deploy_from_placement(
     service_key: str,
-    prefer_node_id: Optional[int] = None,
-    avoid_node_ids: Optional[str] = None,
-    anti_affinity_service_key: Optional[str] = None,
+    prefer_node_id: int | None = None,
+    avoid_node_ids: str | None = None,
+    anti_affinity_service_key: str | None = None,
     require_healthy: bool = False,
     spread_subsystem: bool = False,
     auto_install_dependencies: bool = True,
     allow_capacity_risk: bool = False,
     db: Session = Depends(get_db),
 ) -> dict:
-    parsed_avoid: List[int] = []
+    parsed_avoid: list[int] = []
     if avoid_node_ids:
         parsed_avoid = [int(value.strip()) for value in avoid_node_ids.split(",") if value.strip()]
     try:
@@ -419,34 +429,48 @@ def observability_pipeline(db: Session = Depends(get_db)) -> dict:
     return observability_pipeline_report(db)
 
 
+import subprocess  # noqa: E402
 
-import subprocess
-import json
 
 @app.post("/api/observability/deploy")
 def deploy_observability():
     result = subprocess.run(
         ["ansible-playbook", "-c", "local", "ops/ansible/playbooks/deploy_observability.yml"],
         cwd="/app",
-        capture_output=True, text=True
+        capture_output=True,
+        text=True,
     )
     return {"success": result.returncode == 0, "output": result.stdout + result.stderr}
+
 
 @app.post("/api/observability/teardown")
 def teardown_observability():
     result = subprocess.run(
         ["ansible-playbook", "-c", "local", "ops/ansible/playbooks/teardown_observability.yml"],
         cwd="/app",
-        capture_output=True, text=True
+        capture_output=True,
+        text=True,
     )
     return {"success": result.returncode == 0, "output": result.stdout + result.stderr}
+
 
 @app.get("/api/observability/status")
 def get_observability_status():
     result = subprocess.run(
-        ["docker", "compose", "-f", "ops/compose/docker-compose.observability.yml", "-p", "platformops-obs", "ps", "--format", "json"],
+        [
+            "docker",
+            "compose",
+            "-f",
+            "ops/compose/docker-compose.observability.yml",
+            "-p",
+            "platformops-obs",
+            "ps",
+            "--format",
+            "json",
+        ],
         cwd="/app",
-        capture_output=True, text=True
+        capture_output=True,
+        text=True,
     )
     containers = []
     for line in result.stdout.strip().splitlines():
@@ -455,9 +479,10 @@ def get_observability_status():
     return {"containers": containers}
 
 
-import urllib.request
-import urllib.parse
-from datetime import datetime, timedelta
+import urllib.parse  # noqa: E402
+import urllib.request  # noqa: E402
+from datetime import datetime, timedelta  # noqa: E402
+
 
 @app.get("/api/diagnostics/logs")
 def get_diagnostics_logs(service: str, start: str = None, end: str = None, limit: int = 100):
@@ -466,14 +491,9 @@ def get_diagnostics_logs(service: str, start: str = None, end: str = None, limit
             start = str(int((datetime.now() - timedelta(hours=1)).timestamp() * 1e9))
         if not end:
             end = str(int(datetime.now().timestamp() * 1e9))
-        
-        query = '{container_name=~".*%s.*"}' % service
-        params = urllib.parse.urlencode({
-            'query': query,
-            'start': start,
-            'end': end,
-            'limit': limit
-        })
+
+        query = f'{{container_name=~".*{service}.*"}}'
+        params = urllib.parse.urlencode({"query": query, "start": start, "end": end, "limit": limit})
         url = f"http://platformops-obs-loki:3100/loki/api/v1/query_range?{params}"
         req = urllib.request.Request(url)
         with urllib.request.urlopen(req) as response:
@@ -481,17 +501,18 @@ def get_diagnostics_logs(service: str, start: str = None, end: str = None, limit
     except Exception as e:
         return {"error": str(e)}
 
+
 @app.get("/api/metrics/node")
 def get_node_metrics():
     try:
         queries = {
             "cpu": '100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)',
-            "memory": '(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100',
-            "disk": '(1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100'
+            "memory": "(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100",
+            "disk": '(1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100',
         }
         results = {}
         for key, q in queries.items():
-            params = urllib.parse.urlencode({'query': q})
+            params = urllib.parse.urlencode({"query": q})
             url = f"http://platformops-obs-prometheus:9090/api/v1/query?{params}"
             req = urllib.request.Request(url)
             with urllib.request.urlopen(req) as response:
@@ -504,24 +525,23 @@ def get_node_metrics():
     except Exception as e:
         return {"error": str(e)}
 
+
 @app.get("/api/metrics/processes")
 def get_process_metrics():
     try:
-        q = 'topk(10, rate(namedprocess_namegroup_cpu_seconds_total[5m]))'
-        params = urllib.parse.urlencode({'query': q})
+        q = "topk(10, rate(namedprocess_namegroup_cpu_seconds_total[5m]))"
+        params = urllib.parse.urlencode({"query": q})
         url = f"http://platformops-obs-prometheus:9090/api/v1/query?{params}"
         req = urllib.request.Request(url)
         with urllib.request.urlopen(req) as response:
             data = json.loads(response.read())
             results = []
             for item in data["data"]["result"]:
-                results.append({
-                    "name": item["metric"].get("groupname", "unknown"),
-                    "cpu": item["value"][1]
-                })
+                results.append({"name": item["metric"].get("groupname", "unknown"), "cpu": item["value"][1]})
             return {"processes": results}
     except Exception as e:
         return {"error": str(e)}
+
 
 @app.get("/api/dashboard/summary", response_model=DashboardSummaryOut)
 def dashboard_summary(db: Session = Depends(get_db)) -> dict:
@@ -537,13 +557,13 @@ def bootstrap_observability(node_id: int, db: Session = Depends(get_db)) -> dict
 
 
 @app.get("/api/nodes/{node_id}/artifacts/inventory", response_model=GeneratedArtifactOut)
-def node_inventory(node_id: int, db: Session = Depends(get_db)) -> Dict[str, str]:
+def node_inventory(node_id: int, db: Session = Depends(get_db)) -> dict[str, str]:
     node = _get_node(db, node_id)
     return {"name": f"{node.name}-inventory.ini", "content_type": "text/ini", "content": generate_inventory(node)}
 
 
 @app.get("/api/nodes/{node_id}/artifacts/compose", response_model=GeneratedArtifactOut)
-def node_compose(node_id: int, db: Session = Depends(get_db)) -> Dict[str, str]:
+def node_compose(node_id: int, db: Session = Depends(get_db)) -> dict[str, str]:
     node = _get_node(db, node_id)
     return {
         "name": f"{node.name}-docker-compose.yml",
@@ -552,16 +572,16 @@ def node_compose(node_id: int, db: Session = Depends(get_db)) -> Dict[str, str]:
     }
 
 
-@app.get("/api/events", response_model=List[OperationalEventOut])
+@app.get("/api/events", response_model=list[OperationalEventOut])
 def get_events(
     limit: int = 100,
-    category: Optional[str] = None,
-    level: Optional[str] = None,
-    node_id: Optional[int] = None,
-    service_id: Optional[int] = None,
-    search: Optional[str] = None,
+    category: str | None = None,
+    level: str | None = None,
+    node_id: int | None = None,
+    service_id: int | None = None,
+    search: str | None = None,
     db: Session = Depends(get_db),
-) -> List[OperationalEvent]:
+) -> list[OperationalEvent]:
     return list_events(
         db,
         limit=limit,
@@ -598,14 +618,14 @@ def create_force_approval(payload: ForceDeleteApprovalCreate, db: Session = Depe
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.get("/api/lifecycle/force-approvals", response_model=List[ForceDeleteApprovalOut])
+@app.get("/api/lifecycle/force-approvals", response_model=list[ForceDeleteApprovalOut])
 def list_force_approvals(
     limit: int = 100,
-    target_type: Optional[str] = None,
-    target_id: Optional[int] = None,
-    status: Optional[str] = None,
+    target_type: str | None = None,
+    target_id: int | None = None,
+    status: str | None = None,
     db: Session = Depends(get_db),
-) -> List[ForceDeleteApproval]:
+) -> list[ForceDeleteApproval]:
     return latest_force_delete_approvals(
         db,
         limit=limit,
@@ -650,23 +670,23 @@ def revoke_force_approval(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.post("/api/policy/scan", response_model=List[PolicyFindingOut])
-def policy_scan(db: Session = Depends(get_db)) -> List[PolicyFinding]:
+@app.post("/api/policy/scan", response_model=list[PolicyFindingOut])
+def policy_scan(db: Session = Depends(get_db)) -> list[PolicyFinding]:
     return run_policy_scan(db)
 
 
-@app.get("/api/policy/findings", response_model=List[PolicyFindingOut])
-def policy_findings(limit: int = 200, db: Session = Depends(get_db)) -> List[PolicyFinding]:
+@app.get("/api/policy/findings", response_model=list[PolicyFindingOut])
+def policy_findings(limit: int = 200, db: Session = Depends(get_db)) -> list[PolicyFinding]:
     return latest_policy_findings(db, limit=limit)
 
 
-@app.post("/api/slo/evaluate", response_model=List[SloReportOut])
-def slo_evaluate(db: Session = Depends(get_db)) -> List[SloReport]:
+@app.post("/api/slo/evaluate", response_model=list[SloReportOut])
+def slo_evaluate(db: Session = Depends(get_db)) -> list[SloReport]:
     return evaluate_slos(db)
 
 
-@app.get("/api/slo/reports", response_model=List[SloReportOut])
-def slo_reports(limit: int = 200, db: Session = Depends(get_db)) -> List[SloReport]:
+@app.get("/api/slo/reports", response_model=list[SloReportOut])
+def slo_reports(limit: int = 200, db: Session = Depends(get_db)) -> list[SloReport]:
     return latest_slo_reports(db, limit=limit)
 
 
@@ -684,8 +704,8 @@ def open_incident(payload: IncidentCreate, db: Session = Depends(get_db)) -> Inc
     )
 
 
-@app.get("/api/incidents", response_model=List[IncidentRecordOut])
-def incidents(limit: int = 100, db: Session = Depends(get_db)) -> List[IncidentRecord]:
+@app.get("/api/incidents", response_model=list[IncidentRecordOut])
+def incidents(limit: int = 100, db: Session = Depends(get_db)) -> list[IncidentRecord]:
     return latest_incidents(db, limit=limit)
 
 
@@ -702,8 +722,8 @@ def incident_runbook(incident_id: int, runbook_key: str, db: Session = Depends(g
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.get("/api/runbooks/executions", response_model=List[RunbookExecutionOut])
-def runbook_executions(limit: int = 100, db: Session = Depends(get_db)) -> List[RunbookExecution]:
+@app.get("/api/runbooks/executions", response_model=list[RunbookExecutionOut])
+def runbook_executions(limit: int = 100, db: Session = Depends(get_db)) -> list[RunbookExecution]:
     return latest_runbook_executions(db, limit=limit)
 
 
@@ -712,8 +732,8 @@ def node_capacity(node_id: int, db: Session = Depends(get_db)) -> CapacityReport
     return generate_capacity_report(db, _get_node(db, node_id))
 
 
-@app.get("/api/capacity/reports", response_model=List[CapacityReportOut])
-def capacity_reports(limit: int = 100, db: Session = Depends(get_db)) -> List[CapacityReport]:
+@app.get("/api/capacity/reports", response_model=list[CapacityReportOut])
+def capacity_reports(limit: int = 100, db: Session = Depends(get_db)) -> list[CapacityReport]:
     return latest_capacity_reports(db, limit=limit)
 
 
@@ -731,8 +751,8 @@ def create_secret(payload: SecretCreate, db: Session = Depends(get_db)) -> Secre
     )
 
 
-@app.get("/api/secrets", response_model=List[SecretRecordOut])
-def secrets(limit: int = 100, db: Session = Depends(get_db)) -> List[SecretRecord]:
+@app.get("/api/secrets", response_model=list[SecretRecordOut])
+def secrets(limit: int = 100, db: Session = Depends(get_db)) -> list[SecretRecord]:
     return latest_secrets(db, limit=limit)
 
 
@@ -756,8 +776,8 @@ def create_maintenance(payload: MaintenanceWindowCreate, db: Session = Depends(g
     )
 
 
-@app.get("/api/maintenance", response_model=List[MaintenanceWindowOut])
-def maintenance_windows(limit: int = 100, db: Session = Depends(get_db)) -> List[MaintenanceWindow]:
+@app.get("/api/maintenance", response_model=list[MaintenanceWindowOut])
+def maintenance_windows(limit: int = 100, db: Session = Depends(get_db)) -> list[MaintenanceWindow]:
     return latest_maintenance_windows(db, limit=limit)
 
 
@@ -771,13 +791,13 @@ def audit_export(export_type: str = "summary", db: Session = Depends(get_db)) ->
     return create_audit_export(db, export_type=export_type)
 
 
-@app.get("/api/audit/exports", response_model=List[AuditExportOut])
-def audit_exports(limit: int = 100, db: Session = Depends(get_db)) -> List[AuditExport]:
+@app.get("/api/audit/exports", response_model=list[AuditExportOut])
+def audit_exports(limit: int = 100, db: Session = Depends(get_db)) -> list[AuditExport]:
     return latest_audit_exports(db, limit=limit)
 
 
-@app.get("/api/clusters", response_model=List[ClusterOut])
-def list_clusters(db: Session = Depends(get_db)) -> List[Cluster]:
+@app.get("/api/clusters", response_model=list[ClusterOut])
+def list_clusters(db: Session = Depends(get_db)) -> list[Cluster]:
     return list(db.scalars(select(Cluster).order_by(Cluster.created_at.desc())).all())
 
 
@@ -821,10 +841,10 @@ def update_cluster(cluster_id: int, payload: ClusterUpdate, db: Session = Depend
 def delete_cluster(
     cluster_id: int,
     force: bool = False,
-    force_reason: Optional[str] = None,
-    force_approval_id: Optional[int] = None,
+    force_reason: str | None = None,
+    force_approval_id: int | None = None,
     db: Session = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     cluster = _get_cluster(db, cluster_id)
     impact = lifecycle_impact(db, "cluster", cluster_id)
     policy = None
@@ -902,8 +922,8 @@ def delete_cluster(
     return {"status": "deleted", "cascaded_nodes": node_count, "cascaded_services": service_count}
 
 
-@app.get("/api/nodes", response_model=List[NodeOut])
-def list_nodes(cluster_id: Optional[int] = None, db: Session = Depends(get_db)) -> List[Node]:
+@app.get("/api/nodes", response_model=list[NodeOut])
+def list_nodes(cluster_id: int | None = None, db: Session = Depends(get_db)) -> list[Node]:
     statement = select(Node).order_by(Node.created_at.desc())
     if cluster_id is not None:
         statement = statement.where(Node.cluster_id == cluster_id)
@@ -984,10 +1004,10 @@ def validate_node_endpoint(node_id: int, db: Session = Depends(get_db)) -> Deplo
 def delete_node(
     node_id: int,
     force: bool = False,
-    force_reason: Optional[str] = None,
-    force_approval_id: Optional[int] = None,
+    force_reason: str | None = None,
+    force_approval_id: int | None = None,
     db: Session = Depends(get_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     node = _get_node(db, node_id)
     impact = lifecycle_impact(db, "node", node_id)
     policy = None
@@ -1061,8 +1081,8 @@ def delete_node(
     return {"status": "deleted", "cascaded_services": service_count}
 
 
-@app.get("/api/services", response_model=List[ServiceOut])
-def list_services(node_id: Optional[int] = None, db: Session = Depends(get_db)) -> List[ServiceInstance]:
+@app.get("/api/services", response_model=list[ServiceOut])
+def list_services(node_id: int | None = None, db: Session = Depends(get_db)) -> list[ServiceInstance]:
     statement = select(ServiceInstance).order_by(ServiceInstance.created_at.desc())
     if node_id is not None:
         statement = statement.where(ServiceInstance.node_id == node_id)
@@ -1130,8 +1150,8 @@ def execute_service_deployment(
 def delete(
     service_id: int,
     force: bool = False,
-    force_reason: Optional[str] = None,
-    force_approval_id: Optional[int] = None,
+    force_reason: str | None = None,
+    force_approval_id: int | None = None,
     db: Session = Depends(get_db),
 ) -> DeploymentJob:
     service = _get_service(db, service_id)
@@ -1217,14 +1237,14 @@ def backup_service(service_id: int, db: Session = Depends(get_db)) -> BackupRun:
     return run_backup(db, _get_service(db, service_id))
 
 
-@app.get("/api/services/{service_id}/releases", response_model=List[ReleaseRecordOut])
-def service_releases(service_id: int, limit: int = 100, db: Session = Depends(get_db)) -> List[ReleaseRecord]:
+@app.get("/api/services/{service_id}/releases", response_model=list[ReleaseRecordOut])
+def service_releases(service_id: int, limit: int = 100, db: Session = Depends(get_db)) -> list[ReleaseRecord]:
     return list_releases(db, _get_service(db, service_id), limit=limit)
 
 
 @app.get("/api/services/{service_id}/releases/safety", response_model=ReleaseSafetyOut)
 def service_release_safety(
-    service_id: int, version: str, image: Optional[str] = None, db: Session = Depends(get_db)
+    service_id: int, version: str, image: str | None = None, db: Session = Depends(get_db)
 ) -> dict:
     return assess_release_safety(db, _get_service(db, service_id), version=version, image=image)
 
@@ -1250,10 +1270,10 @@ def create_release_approval_endpoint(payload: ReleaseApprovalCreate, db: Session
     )
 
 
-@app.get("/api/release-approvals", response_model=List[ReleaseApprovalOut])
+@app.get("/api/release-approvals", response_model=list[ReleaseApprovalOut])
 def list_release_approvals(
-    service_id: Optional[int] = None, limit: int = 100, db: Session = Depends(get_db)
-) -> List[ReleaseApproval]:
+    service_id: int | None = None, limit: int = 100, db: Session = Depends(get_db)
+) -> list[ReleaseApproval]:
     return latest_release_approvals(db, service_id=service_id, limit=limit)
 
 
@@ -1301,13 +1321,13 @@ def rollback_service_release(release_id: int, db: Session = Depends(get_db)) -> 
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.post("/api/monitoring/sweep", response_model=List[MonitoringCheckOut])
-def monitoring_sweep(db: Session = Depends(get_db)) -> List[MonitoringCheck]:
+@app.post("/api/monitoring/sweep", response_model=list[MonitoringCheckOut])
+def monitoring_sweep(db: Session = Depends(get_db)) -> list[MonitoringCheck]:
     return run_monitoring_sweep(db)
 
 
-@app.get("/api/monitoring/checks", response_model=List[MonitoringCheckOut])
-def monitoring_checks(limit: int = 200, db: Session = Depends(get_db)) -> List[MonitoringCheck]:
+@app.get("/api/monitoring/checks", response_model=list[MonitoringCheckOut])
+def monitoring_checks(limit: int = 200, db: Session = Depends(get_db)) -> list[MonitoringCheck]:
     return latest_monitoring_checks(db, limit=limit)
 
 
@@ -1320,7 +1340,7 @@ def get_job(job_id: int, db: Session = Depends(get_db)) -> DeploymentJob:
 
 
 @app.get("/api/jobs/{job_id}/logs")
-def get_job_logs(job_id: int, db: Session = Depends(get_db)) -> Dict[str, str]:
+def get_job_logs(job_id: int, db: Session = Depends(get_db)) -> dict[str, str]:
     job = db.get(DeploymentJob, job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -1328,7 +1348,7 @@ def get_job_logs(job_id: int, db: Session = Depends(get_db)) -> Dict[str, str]:
 
 
 @app.get("/api/services/{service_id}/diagnostics", response_model=DiagnosticsOut)
-def diagnostics(service_id: int, target_service_key: Optional[str] = None, db: Session = Depends(get_db)) -> dict:
+def diagnostics(service_id: int, target_service_key: str | None = None, db: Session = Depends(get_db)) -> dict:
     service = _get_service(db, service_id)
     if not target_service_key or target_service_key == service.service_key:
         return service_diagnostics(db, service, source_service=service)
@@ -1354,7 +1374,7 @@ def diagnostics(service_id: int, target_service_key: Optional[str] = None, db: S
 
 
 @app.get("/api/services/{service_id}/diagnostics/analysis", response_model=DiagnosticsAnalysisOut)
-def diagnostics_analysis(service_id: int, target_service_key: Optional[str] = None, db: Session = Depends(get_db)) -> dict:
+def diagnostics_analysis(service_id: int, target_service_key: str | None = None, db: Session = Depends(get_db)) -> dict:
     service = _get_service(db, service_id)
     if not target_service_key or target_service_key == service.service_key:
         return service_diagnostics_analysis(db, service, source_service=service)
@@ -1379,15 +1399,15 @@ def diagnostics_analysis(service_id: int, target_service_key: Optional[str] = No
     return service_diagnostics_analysis(db, target, source_service=service)
 
 
-@app.get("/api/services/{service_id}/diagnostics/targets", response_model=List[DiagnosticsTargetOut])
-def diagnostics_targets(service_id: int, db: Session = Depends(get_db)) -> List[dict]:
+@app.get("/api/services/{service_id}/diagnostics/targets", response_model=list[DiagnosticsTargetOut])
+def diagnostics_targets(service_id: int, db: Session = Depends(get_db)) -> list[dict]:
     return diagnostics_targets_for_service(db, _get_service(db, service_id))
 
 
 @app.get("/api/services/{service_id}/diagnostics/live", response_model=DiagnosticsLiveOut)
 def diagnostics_live(
     service_id: int,
-    target_service_key: Optional[str] = None,
+    target_service_key: str | None = None,
     tail_lines: int = 150,
     page_size: int = 100,
     cursor: int = 0,
@@ -1417,8 +1437,8 @@ def diagnostics_live(
     )
 
 
-@app.get("/api/services/{service_id}/diagnostics/archives", response_model=List[LogArchiveOut])
-def diagnostics_archives(service_id: int, db: Session = Depends(get_db)) -> List[LogArchive]:
+@app.get("/api/services/{service_id}/diagnostics/archives", response_model=list[LogArchiveOut])
+def diagnostics_archives(service_id: int, db: Session = Depends(get_db)) -> list[LogArchive]:
     return index_log_archives(db, _get_service(db, service_id))
 
 
@@ -1589,7 +1609,7 @@ def apply_config_direct_endpoint(service_id: int, payload: ConfigApply, db: Sess
 @app.post("/api/services/{service_id}/config/migration/prepare")
 def prepare_config_migration_endpoint(
     service_id: int,
-    payload: Dict[str, int],
+    payload: dict[str, int],
     db: Session = Depends(get_db),
 ) -> dict:
     service = _get_service(db, service_id)
@@ -1604,7 +1624,7 @@ def prepare_config_migration_endpoint(
 @app.post("/api/services/{service_id}/config/migration/apply")
 def apply_config_migration_endpoint(
     service_id: int,
-    payload: Dict[str, str],
+    payload: dict[str, str],
     db: Session = Depends(get_db),
 ) -> dict:
     try:
@@ -1622,7 +1642,7 @@ def apply_config_migration_endpoint(
 @app.post("/api/services/{service_id}/config/migration/restore")
 def restore_config_migration_endpoint(
     service_id: int,
-    payload: Dict[str, str],
+    payload: dict[str, str],
     db: Session = Depends(get_db),
 ) -> dict:
     try:
@@ -1632,6 +1652,47 @@ def restore_config_migration_endpoint(
             artifact_id=str(payload.get("artifact_id") or ""),
             apply_mode=str(payload.get("apply_mode") or "reload"),
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/services/{service_id}/config/sync-peer")
+def sync_peer_config_endpoint(
+    service_id: int,
+    payload: ConfigSyncPeer,
+    db: Session = Depends(get_db),
+) -> dict:
+    service = _get_service(db, service_id)
+    try:
+        result = sync_peer_config(
+            db,
+            service,
+            peer_id=payload.peer_id,
+            apply_mode=payload.apply_mode,
+            requested_by=payload.requested_by,
+        )
+        return {
+            "source_service_id": result["source_service_id"],
+            "peer_service_id": result["peer_service_id"],
+            "job": {
+                "id": result["job"].id,
+                "action": result["job"].action,
+                "status": result["job"].status,
+                "command": result["job"].command,
+                "output": result["job"].output or "",
+                "error": result["job"].error or "",
+            },
+            "before_snapshot": {
+                "id": result["before_snapshot"].id,
+                "name": result["before_snapshot"].name,
+                "version": result["before_snapshot"].version,
+            },
+            "after_snapshot": {
+                "id": result["after_snapshot"].id,
+                "name": result["after_snapshot"].name,
+                "version": result["after_snapshot"].version,
+            },
+        }
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -1727,7 +1788,7 @@ def get_node_summary_endpoint(node_id: int, db: Session = Depends(get_db)) -> di
 @app.get("/api/nodes/{node_id}/metrics", response_model=NodeMetricsOut)
 def get_node_metrics_endpoint(node_id: int, window: str = "1h", db: Session = Depends(get_db)) -> dict:
     try:
-        return get_node_metrics(db, node_id, window=window)
+        return orchestrator_get_node_metrics(db, node_id, window=window)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -1775,13 +1836,15 @@ def get_dtrain_overview_endpoint(db: Session = Depends(get_db)) -> dict:
 
 def _query_glitchtip_issues(project_slug: str, window: str) -> list:
     import requests
+
     from .settings import settings
+
     base_url = settings.glitchtip_base_url.rstrip("/")
     token = settings.glitchtip_token
     org = settings.glitchtip_org_slug
     if not base_url or not token or not org or not project_slug:
         return []
-    
+
     stats_period = "24h" if window == "24h" else "7d"
     url = f"{base_url}/api/0/projects/{org}/{project_slug}/issues/"
     headers = {"Authorization": f"Bearer {token}"}
@@ -1792,16 +1855,18 @@ def _query_glitchtip_issues(project_slug: str, window: str) -> list:
             issues = resp.json() or []
             normalized = []
             for issue in issues[:20]:
-                normalized.append({
-                    "id": str(issue.get("id", "")),
-                    "title": issue.get("title", ""),
-                    "level": issue.get("level", "error"),
-                    "count": str(issue.get("count", "0")),
-                    "first_seen": issue.get("firstSeen", ""),
-                    "last_seen": issue.get("lastSeen", ""),
-                    "permalink": issue.get("permalink", ""),
-                    "status": issue.get("status", ""),
-                })
+                normalized.append(
+                    {
+                        "id": str(issue.get("id", "")),
+                        "title": issue.get("title", ""),
+                        "level": issue.get("level", "error"),
+                        "count": str(issue.get("count", "0")),
+                        "first_seen": issue.get("firstSeen", ""),
+                        "last_seen": issue.get("lastSeen", ""),
+                        "permalink": issue.get("permalink", ""),
+                        "status": issue.get("status", ""),
+                    }
+                )
             return normalized
     except Exception as exc:
         print(f"GlitchTip query issues failed: {exc}")
@@ -1811,34 +1876,31 @@ def _query_glitchtip_issues(project_slug: str, window: str) -> list:
 @app.post("/PlatformIO/Monitoring/Health/")
 def monitoring_health(payload: dict = Body(...), db: Session = Depends(get_db)):
     from .settings import settings
+
     service_name = payload.get("service_name", "")
     window = payload.get("window", "24h")
     if not service_name:
         return {"success": False, "error": "service_name required"}
-        
-    service_instance = db.scalar(
-        select(ServiceInstance).where(ServiceInstance.name == service_name)
-    )
+
+    service_instance = db.scalar(select(ServiceInstance).where(ServiceInstance.name == service_name))
     if not service_instance:
         return {"success": False, "error": f"Service not found: {service_name}"}
-        
+
     container_state = service_instance.status
     running = container_state.lower() in ("running", "healthy", "up")
-    
+
     project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
     issues = _query_glitchtip_issues(project_slug, window)
-    
+
     error_count = sum(1 for i in issues if i.get("level") in ("error", "fatal"))
     warning_count = sum(1 for i in issues if i.get("level") == "warning")
-    
+
     health = "ok"
-    if not running:
-        health = "error"
-    elif error_count:
+    if not running or error_count:
         health = "error"
     elif warning_count:
         health = "warn"
-        
+
     return {
         "success": True,
         "health": health,
@@ -1855,6 +1917,7 @@ def monitoring_health(payload: dict = Body(...), db: Session = Depends(get_db)):
 @app.post("/PlatformIO/Monitoring/Issues/")
 def monitoring_issues(payload: dict = Body(...)):
     from .settings import settings
+
     service_name = payload.get("service_name", "")
     window = payload.get("window", "24h")
     if not service_name:
@@ -1867,16 +1930,18 @@ def monitoring_issues(payload: dict = Body(...)):
 @app.post("/PlatformIO/Monitoring/Issues/EventDetails/")
 def monitoring_issue_event_details(payload: dict = Body(...)):
     import requests
+
     from .settings import settings
+
     issue_id = payload.get("issue_id")
     if not issue_id:
         return {"success": False, "error": "issue_id required"}
-        
+
     base_url = settings.glitchtip_base_url.rstrip("/")
     token = settings.glitchtip_token
     if not base_url or not token:
         return {"success": False, "error": "GlitchTip not configured"}
-        
+
     headers = {"Authorization": f"Bearer {token}"}
     url = f"{base_url}/api/0/issues/{issue_id}/events/latest/"
     try:
@@ -1891,17 +1956,19 @@ def monitoring_issue_event_details(payload: dict = Body(...)):
 @app.post("/PlatformIO/Monitoring/IssueAction/")
 def monitoring_issue_action(payload: dict = Body(...)):
     import requests
+
     from .settings import settings
+
     issue_id = payload.get("issue_id")
     action = payload.get("action", "resolved")
     if not issue_id:
         return {"success": False, "error": "issue_id required"}
-        
+
     base_url = settings.glitchtip_base_url.rstrip("/")
     token = settings.glitchtip_token
     if not base_url or not token:
         return {"success": False, "error": "GlitchTip not configured"}
-        
+
     headers = {"Authorization": f"Bearer {token}"}
     url = f"{base_url}/api/0/issues/{issue_id}/"
     status_map = {
@@ -1925,29 +1992,29 @@ def monitoring_issue_action(payload: dict = Body(...)):
 @app.post("/PlatformIO/Monitoring/Performance/")
 def monitoring_performance(payload: dict = Body(...), db: Session = Depends(get_db)):
     import requests
+
     from .settings import settings
+
     service_name = payload.get("service_name", "")
     if not service_name:
         return {"success": False, "error": "service_name required"}
-        
-    service_instance = db.scalar(
-        select(ServiceInstance).where(ServiceInstance.name == service_name)
-    )
+
+    service_instance = db.scalar(select(ServiceInstance).where(ServiceInstance.name == service_name))
     node_ip = service_instance.node.host if (service_instance and service_instance.node) else ""
     project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
-    
+
     base_url = settings.glitchtip_base_url.rstrip("/")
     token = settings.glitchtip_token
     org = settings.glitchtip_org_slug
     if not base_url or not token or not org:
         return {"success": False, "error": "GlitchTip not configured"}
-        
+
     headers = {"Authorization": f"Bearer {token}"}
     url = f"{base_url}/api/0/organizations/{org}/transaction-groups/"
     params = {}
     if node_ip and node_ip != "0.0.0.0":
         params["environment"] = node_ip
-        
+
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=10)
         if resp.status_code == 200:
@@ -1965,18 +2032,20 @@ def monitoring_performance(payload: dict = Body(...), db: Session = Depends(get_
 @app.post("/PlatformIO/Monitoring/Keys/")
 def monitoring_keys(payload: dict = Body(...)):
     import requests
+
     from .settings import settings
+
     service_name = payload.get("service_name", "")
     if not service_name:
         return {"success": False, "error": "service_name required"}
     project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
-    
+
     base_url = settings.glitchtip_base_url.rstrip("/")
     token = settings.glitchtip_token
     org = settings.glitchtip_org_slug
     if not base_url or not token or not org:
         return {"success": False, "error": "GlitchTip not configured"}
-        
+
     headers = {"Authorization": f"Bearer {token}"}
     url = f"{base_url}/api/0/projects/{org}/{project_slug}/keys/"
     try:
@@ -1991,18 +2060,20 @@ def monitoring_keys(payload: dict = Body(...)):
 @app.post("/PlatformIO/Monitoring/Uptime/")
 def monitoring_uptime_list(payload: dict = Body(...)):
     import requests
+
     from .settings import settings
+
     service_name = payload.get("service_name", "")
     if not service_name:
         return {"success": False, "error": "service_name required"}
     project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
-    
+
     base_url = settings.glitchtip_base_url.rstrip("/")
     token = settings.glitchtip_token
     org = settings.glitchtip_org_slug
     if not base_url or not token or not org:
         return {"success": False, "error": "GlitchTip not configured"}
-        
+
     headers = {"Authorization": f"Bearer {token}"}
     try:
         resp = requests.get(f"{base_url}/api/0/organizations/{org}/monitors/", headers=headers, timeout=10)
@@ -2014,10 +2085,17 @@ def monitoring_uptime_list(payload: dict = Body(...)):
                     mon_id = m.get("id")
                     if mon_id:
                         try:
-                            det_resp = requests.get(f"{base_url}/api/0/organizations/{org}/monitors/{mon_id}/", headers=headers, timeout=5)
+                            det_resp = requests.get(
+                                f"{base_url}/api/0/organizations/{org}/monitors/{mon_id}/", headers=headers, timeout=5
+                            )
                             if det_resp.status_code == 200:
                                 m = det_resp.json()
-                            checks_resp = requests.get(f"{base_url}/api/0/organizations/{org}/monitors/{mon_id}/checks/", params={"is_change": "true"}, headers=headers, timeout=5)
+                            checks_resp = requests.get(
+                                f"{base_url}/api/0/organizations/{org}/monitors/{mon_id}/checks/",
+                                params={"is_change": "true"},
+                                headers=headers,
+                                timeout=5,
+                            )
                             if checks_resp.status_code == 200:
                                 m["incidents"] = checks_resp.json() or []
                         except Exception:
@@ -2032,33 +2110,35 @@ def monitoring_uptime_list(payload: dict = Body(...)):
 @app.post("/PlatformIO/Monitoring/Uptime/Add/")
 def monitoring_uptime_add(payload: dict = Body(...)):
     import requests
+
     from .settings import settings
+
     service_name = payload.get("service_name", "")
     name = payload.get("name", "")
     monitor_type = payload.get("monitor_type", "Ping")
     url = payload.get("url", "")
     interval = int(payload.get("interval", 60))
     expected_status = payload.get("expected_status", 200)
-    timeout = payload.get("timeout", 30)
-    expected_body = payload.get("expected_body", "")
-    
+    payload.get("timeout", 30)
+    payload.get("expected_body", "")
+
     if not service_name or not name or not url:
         return {"success": False, "error": "service_name, name, and url required"}
-        
+
     project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
     base_url = settings.glitchtip_base_url.rstrip("/")
     token = settings.glitchtip_token
     org = settings.glitchtip_org_slug
     if not base_url or not token or not org:
         return {"success": False, "error": "GlitchTip not configured"}
-        
+
     headers = {"Authorization": f"Bearer {token}"}
     data = {
         "monitorType": monitor_type,
         "name": name,
         "url": url,
         "expectedStatus": expected_status,
-        "interval": f"00:00:{interval}" if interval < 60 else f"00:{interval//60:02d}:{interval%60:02d}",
+        "interval": f"00:00:{interval}" if interval < 60 else f"00:{interval // 60:02d}:{interval % 60:02d}",
         "project": project_slug,
     }
     try:
@@ -2073,20 +2153,24 @@ def monitoring_uptime_add(payload: dict = Body(...)):
 @app.post("/PlatformIO/Monitoring/Uptime/Delete/")
 def monitoring_uptime_delete(payload: dict = Body(...)):
     import requests
+
     from .settings import settings
+
     monitor_id = payload.get("monitor_id")
     if not monitor_id:
         return {"success": False, "error": "monitor_id required"}
-        
+
     base_url = settings.glitchtip_base_url.rstrip("/")
     token = settings.glitchtip_token
     org = settings.glitchtip_org_slug
     if not base_url or not token or not org:
         return {"success": False, "error": "GlitchTip not configured"}
-        
+
     headers = {"Authorization": f"Bearer {token}"}
     try:
-        resp = requests.delete(f"{base_url}/api/0/organizations/{org}/monitors/{monitor_id}/", headers=headers, timeout=10)
+        resp = requests.delete(
+            f"{base_url}/api/0/organizations/{org}/monitors/{monitor_id}/", headers=headers, timeout=10
+        )
         if resp.status_code in (200, 201, 204):
             return {"success": True}
         return {"success": False, "error": f"GlitchTip returned {resp.status_code}"}
@@ -2098,7 +2182,9 @@ def monitoring_uptime_delete(payload: dict = Body(...)):
 @app.get("/PlatformIO/Monitoring/IntegrationStatus/")
 def monitoring_integration_status():
     import requests
+
     from .settings import settings
+
     base_url = settings.glitchtip_base_url.rstrip("/")
     org = settings.glitchtip_org_slug
     token = settings.glitchtip_token
@@ -2123,47 +2209,189 @@ def monitoring_integration_status():
 
 @app.post("/PlatformIO/Monitoring/PatchObservability/")
 def monitoring_patch_observability(payload: dict = Body(...), db: Session = Depends(get_db)):
-    import sys
     import subprocess
+    import sys
+
     from .settings import settings
+
     service_id = payload.get("service_id")
     if not service_id:
         return {"success": False, "error": "service_id required"}
-        
+
     service = db.get(ServiceInstance, service_id)
     if not service:
         return {"success": False, "error": "Service instance not found"}
-        
+
     patch_script = settings.resolve(settings.ansible_dir) / "playbooks" / "service_runtime_patch.py"
-    project_slug = settings.glitchtip_project_map.get(service.name, service.name.lower())
-    
+    settings.glitchtip_project_map.get(service.name, service.name.lower())
+
     cmd = [
         sys.executable,
         str(patch_script),
-        "--container_name", service.container_name,
-        "--service_type", service.service_key,
-        "--service_name", service.name,
-        "--service_id", str(service.id),
-        "--sentry_dsn", f"http://gt_whEhIEhw5qaoRPxS_bFIM279WeTZQD7zwsP0uyMOrXU8NeWC@54.183.53.93:9008/{service.id}",
-        "--glitchtip_enabled", "true",
-        "--environment", "validation",
-        "--restart", "true"
+        "--container_name",
+        service.container_name,
+        "--service_type",
+        service.service_key,
+        "--service_name",
+        service.name,
+        "--service_id",
+        str(service.id),
+        "--sentry_dsn",
+        f"http://gt_whEhIEhw5qaoRPxS_bFIM279WeTZQD7zwsP0uyMOrXU8NeWC@54.183.53.93:9008/{service.id}",
+        "--glitchtip_enabled",
+        "true",
+        "--environment",
+        "validation",
+        "--restart",
+        "true",
     ]
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        return {
-            "success": res.returncode == 0,
-            "stdout": res.stdout,
-            "stderr": res.stderr
-        }
+        return {"success": res.returncode == 0, "stdout": res.stdout, "stderr": res.stderr}
     except Exception as exc:
         return {"success": False, "error": str(exc)}
 
 
+# --- CLUSTER PAGE EXTRA FEATURES & INTEGRATIONS ---
+
+
+class TestGitRepoRequest(BaseModel):
+    repo_type: str
+    repo_url: str
+    repo_branch: str
+    repo_token: str | None = None
+
+
+class TestRegistryRequest(BaseModel):
+    registry_type: str
+    registry_url: str
+    registry_user: str | None = None
+    registry_password: str | None = None
+
+
+class NodeLaunchRequest(BaseModel):
+    ami_id: str
+    instance_type: str
+    region: str
+
+
+@app.post("/api/clusters/test-repo")
+def test_cluster_repo_connection_endpoint(payload: TestGitRepoRequest) -> dict:
+    try:
+        return test_git_connection(
+            repo_type=payload.repo_type,
+            repo_url=payload.repo_url,
+            repo_branch=payload.repo_branch,
+            repo_token=payload.repo_token,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/clusters/test-registry")
+def test_cluster_registry_connection_endpoint(payload: TestRegistryRequest) -> dict:
+    try:
+        return test_registry_connection(
+            registry_type=payload.registry_type,
+            registry_url=payload.registry_url,
+            registry_user=payload.registry_user,
+            registry_password=payload.registry_password,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/nodes/{node_id}/launch-vm", response_model=JobOut)
+def launch_node_vm_endpoint(node_id: int, payload: NodeLaunchRequest, db: Session = Depends(get_db)) -> dict:
+    node = db.get(Node, node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found.")
+    try:
+        job = launch_node_vm(
+            db, node, ami_id=payload.ami_id, instance_type=payload.instance_type, region=payload.region
+        )
+        return {
+            "id": job.id,
+            "action": job.action,
+            "status": job.status,
+            "command": job.command,
+            "output": job.output or "",
+            "error": job.error or "",
+            "created_at": job.created_at.isoformat() if job.created_at else "",
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "ended_at": job.ended_at.isoformat() if job.ended_at else None,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/nodes/{node_id}/teardown-vm", response_model=JobOut)
+def teardown_node_vm_endpoint(node_id: int, db: Session = Depends(get_db)) -> dict:
+    node = db.get(Node, node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found.")
+    try:
+        job = teardown_node_vm(db, node)
+        return {
+            "id": job.id,
+            "action": job.action,
+            "status": job.status,
+            "command": job.command,
+            "output": job.output or "",
+            "error": job.error or "",
+            "created_at": job.created_at.isoformat() if job.created_at else "",
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "ended_at": job.ended_at.isoformat() if job.ended_at else None,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/nodes/{node_id}/discover")
+def discover_infrastructure_endpoint(node_id: int, db: Session = Depends(get_db)) -> dict:
+    node = db.get(Node, node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found.")
+    try:
+        return discover_infrastructure(db, node)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/nodes/{node_id}/check-port-and-name")
+def check_port_and_name_endpoint(
+    node_id: int, port: int | None = None, name: str | None = None, db: Session = Depends(get_db)
+) -> dict:
+    return check_port_and_name_availability(db, node_id=node_id, port=port, name=name)
+
+
+@app.post("/api/observability/deploy", response_model=JobOut)
+def deploy_observability_endpoint(node_id: int, db: Session = Depends(get_db)) -> dict:
+    node = db.get(Node, node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found.")
+    try:
+        job = deploy_observability_stack(db, node)
+        return {
+            "id": job.id,
+            "action": job.action,
+            "status": job.status,
+            "command": job.command,
+            "output": job.output or "",
+            "error": job.error or "",
+            "created_at": job.created_at.isoformat() if job.created_at else "",
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "ended_at": job.ended_at.isoformat() if job.ended_at else None,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 # Serve frontend SPA if dist folder exists
-import os
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+import os  # noqa: E402
+
+from fastapi.responses import FileResponse  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 dist_path = "/app/dist"
 if os.path.exists(dist_path):

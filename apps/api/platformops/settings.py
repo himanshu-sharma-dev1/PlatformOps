@@ -34,7 +34,7 @@ class Settings(BaseSettings):
         "McpProxy": "mcpproxy",
         "Airflow": "airflow",
         "McpGateway": "mcpgateway",
-        "AirtelChurn": "airtelchurn"
+        "AirtelChurn": "airtelchurn",
     }
 
     model_config = SettingsConfigDict(env_prefix="PLATFORMOPS_", env_file=".env", extra="ignore")

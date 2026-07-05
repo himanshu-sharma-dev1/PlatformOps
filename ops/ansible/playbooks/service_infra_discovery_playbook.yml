@@ -1,0 +1,16 @@
+---
+- name: Discover running containers on node
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Get running containers
+      ansible.builtin.shell: |
+        docker ps --format '{"id":"{{.ID}}","names":"{{.Names}}","image":"{{.Image}}","ports":"{{.Ports}}","status":"{{.Status}}"}' | jq -s '.'
+      register: docker_containers
+      changed_when: false
+      failed_when: false
+
+    - name: Print discovery results
+      ansible.builtin.debug:
+        msg: "{{ docker_containers.stdout | default('[]') }}"

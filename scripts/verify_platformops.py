@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
+
+from sqlalchemy import select
 
 try:
     from datetime import UTC
 except ImportError:
-    UTC = timezone.utc
+    UTC = UTC
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "apps" / "api"))
@@ -34,7 +36,7 @@ from platformops.main import (  # noqa: E402
 from platformops.main import (  # noqa: E402
     update_node as api_update_node,
 )
-from platformops.models import ServiceInstance  # noqa: E402
+from platformops.models import JobStatus, ServiceInstance  # noqa: E402
 from platformops.orchestrator import (  # noqa: E402
     RUNNING_STATUSES,
     apply_config_direct,
@@ -43,6 +45,7 @@ from platformops.orchestrator import (  # noqa: E402
     backfill_service_logs,
     bootstrap_observability_plane,
     capability_coverage_report,
+    check_port_and_name_availability,
     compare_config_snapshots,
     complete_maintenance,
     config_workspace,
@@ -57,9 +60,11 @@ from platformops.orchestrator import (  # noqa: E402
     decide_force_delete_approval,
     decide_release_approval,
     dependency_preflight,
+    deploy_observability_stack,
     deployment_plan,
     detect_drift,
     diagnostics_targets_for_service,
+    discover_infrastructure,
     evaluate_force_delete_policy,
     evaluate_slos,
     execute_deployment_plan,
@@ -87,6 +92,7 @@ from platformops.orchestrator import (  # noqa: E402
     latest_maintenance_windows,
     latest_policy_findings,
     latest_secrets,
+    launch_node_vm,
     lifecycle_audit_report,
     lifecycle_impact,
     list_config_snapshots_page,
@@ -112,6 +118,9 @@ from platformops.orchestrator import (  # noqa: E402
     service_diagnostics_analysis,
     service_install_schema,
     service_live_logs,
+    sync_peer_config,
+    test_git_connection,
+    test_registry_connection,
     update_service_instance,
     validate_force_delete_approval,
     validate_node,
@@ -554,6 +563,18 @@ def main() -> None:
             all(item["action"] == "restored" for item in restored_only["items"]),
             "Config timeline action filter should constrain results",
         )
+
+        # Test sync_peer_config
+        prom_services = db.scalars(
+            select(ServiceInstance).where(ServiceInstance.service_key == "prometheus-core")
+        ).all()
+        if len(prom_services) >= 2:
+            src_prom = prom_services[0]
+            peer_prom = prom_services[1]
+            sync_res = sync_peer_config(db, src_prom, peer_id=peer_prom.id, apply_mode="reload")
+            assert_true(sync_res["source_service_id"] == src_prom.id, "Sync peer source service ID should match")
+            assert_true(sync_res["peer_service_id"] == peer_prom.id, "Sync peer target service ID should match")
+            assert_true(sync_res["job"].status == "success", "Sync peer config job should succeed")
 
         risky_service = db.query(ServiceInstance).filter(ServiceInstance.kind == "infrastructure").first()
         assert_true(risky_service is not None, "Seeded topology should include at least one infrastructure service")
@@ -1099,6 +1120,32 @@ def main() -> None:
         assert_true(
             all(event.level == "warning" for event in warning_events), "Level-filtered events must match warning level"
         )
+
+        # 6. Extra Cluster & Node features tests
+        git_test = test_git_connection("local", str(ROOT), "main")
+        assert_true(git_test["connected"], "Local git check should return connected")
+
+        registry_test = test_registry_connection("local", "localhost")
+        assert_true(registry_test["connected"], "Local registry check should return connected")
+
+        from platformops.models import Node
+
+        node = db.scalar(select(Node).where(Node.name == "local-mac"))
+        assert_true(node is not None, "Node must exist")
+
+        port_check = check_port_and_name_availability(db, node.id, port=9090, name=f"node-{node.id}-prometheus-core")
+        # In seeded data, prometheus-core is running on port 9090, so it should report collision
+        assert_true(not port_check["available"], "Port 9090 and name should collide with running prometheus")
+
+        vm_launch_job = launch_node_vm(db, node, "ami-mock", "t3.medium", "us-west-2")
+        assert_true(vm_launch_job.status == JobStatus.success.value, "Simulated node launch should succeed")
+
+        discovery_res = discover_infrastructure(db, node)
+        assert_true(discovery_res["status"] == "success", "Simulated discovery should report success")
+        assert_true(discovery_res["adopted_count"] >= 0, "Discovery adopted count should be non-negative")
+
+        obs_job = deploy_observability_stack(db, node)
+        assert_true(obs_job.status == JobStatus.success.value, "Simulated observability deploy should succeed")
     finally:
         db.close()
         try:
