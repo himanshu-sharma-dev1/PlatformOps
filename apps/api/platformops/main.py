@@ -37,6 +37,7 @@ from .orchestrator import (
     apply_config,
     apply_config_direct,
     apply_config_migration,
+    add_monitoring_uptime_check,
     assess_release_safety,
     backfill_service_logs,
     bootstrap_observability_plane,
@@ -55,6 +56,7 @@ from .orchestrator import (
     create_service_instance,
     decide_force_delete_approval,
     decide_release_approval,
+    delete_monitoring_uptime_check,
     delete_service,
     dependency_preflight,
     deploy_observability_stack,
@@ -66,6 +68,7 @@ from .orchestrator import (
     discover_infrastructure,
     evaluate_force_delete_policy,
     evaluate_slos,
+    execute_monitoring_issue_action,
     execute_deployment_plan,
     execute_runbook,
     generate_capacity_report,
@@ -77,6 +80,11 @@ from .orchestrator import (
     get_config_timeline_page,
     get_dashboard_summary,
     get_dtrain_overview,
+    get_monitoring_integration_status,
+    get_monitoring_issue_event_details,
+    get_monitoring_keys,
+    get_monitoring_performance,
+    get_monitoring_uptime_list,
     get_node_connection_report,
     get_node_job_history,
     get_node_onboarding_report,
@@ -109,6 +117,8 @@ from .orchestrator import (
     observability_pipeline_report,
     placement_auto_deploy,
     placement_recommendations,
+    patch_service_runtime_observability,
+    query_monitoring_issues,
     prepare_config_migration,
     record_event,
     remediate_node_onboarding,
@@ -1834,49 +1844,8 @@ def get_dtrain_overview_endpoint(db: Session = Depends(get_db)) -> dict:
     return get_dtrain_overview(db)
 
 
-def _query_glitchtip_issues(project_slug: str, window: str) -> list:
-    import requests
-
-    from .settings import settings
-
-    base_url = settings.glitchtip_base_url.rstrip("/")
-    token = settings.glitchtip_token
-    org = settings.glitchtip_org_slug
-    if not base_url or not token or not org or not project_slug:
-        return []
-
-    stats_period = "24h" if window == "24h" else "7d"
-    url = f"{base_url}/api/0/projects/{org}/{project_slug}/issues/"
-    headers = {"Authorization": f"Bearer {token}"}
-    params = {"statsPeriod": stats_period, "query": ""}
-    try:
-        resp = requests.get(url, headers=headers, params=params, timeout=10)
-        if resp.status_code == 200:
-            issues = resp.json() or []
-            normalized = []
-            for issue in issues[:20]:
-                normalized.append(
-                    {
-                        "id": str(issue.get("id", "")),
-                        "title": issue.get("title", ""),
-                        "level": issue.get("level", "error"),
-                        "count": str(issue.get("count", "0")),
-                        "first_seen": issue.get("firstSeen", ""),
-                        "last_seen": issue.get("lastSeen", ""),
-                        "permalink": issue.get("permalink", ""),
-                        "status": issue.get("status", ""),
-                    }
-                )
-            return normalized
-    except Exception as exc:
-        print(f"GlitchTip query issues failed: {exc}")
-    return []
-
-
 @app.post("/PlatformIO/Monitoring/Health/")
 def monitoring_health(payload: dict = Body(...), db: Session = Depends(get_db)):
-    from .settings import settings
-
     service_name = payload.get("service_name", "")
     window = payload.get("window", "24h")
     if not service_name:
@@ -1887,10 +1856,10 @@ def monitoring_health(payload: dict = Body(...), db: Session = Depends(get_db)):
         return {"success": False, "error": f"Service not found: {service_name}"}
 
     container_state = service_instance.status
-    running = container_state.lower() in ("running", "healthy", "up")
+    running = container_state.lower() in RUNNING_STATUSES
 
     project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
-    issues = _query_glitchtip_issues(project_slug, window)
+    issues = query_monitoring_issues(db, service_name, window)
 
     error_count = sum(1 for i in issues if i.get("level") in ("error", "fatal"))
     warning_count = sum(1 for i in issues if i.get("level") == "warning")
@@ -1915,86 +1884,39 @@ def monitoring_health(payload: dict = Body(...), db: Session = Depends(get_db)):
 
 
 @app.post("/PlatformIO/Monitoring/Issues/")
-def monitoring_issues(payload: dict = Body(...)):
-    from .settings import settings
-
+def monitoring_issues(payload: dict = Body(...), db: Session = Depends(get_db)):
     service_name = payload.get("service_name", "")
     window = payload.get("window", "24h")
     if not service_name:
         return {"success": False, "error": "service_name required"}
-    project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
-    issues = _query_glitchtip_issues(project_slug, window)
+    issues = query_monitoring_issues(db, service_name, window)
     return {"success": True, "issues": issues}
 
 
 @app.post("/PlatformIO/Monitoring/Issues/EventDetails/")
 def monitoring_issue_event_details(payload: dict = Body(...)):
-    import requests
-
-    from .settings import settings
-
     issue_id = payload.get("issue_id")
     if not issue_id:
         return {"success": False, "error": "issue_id required"}
-
-    base_url = settings.glitchtip_base_url.rstrip("/")
-    token = settings.glitchtip_token
-    if not base_url or not token:
-        return {"success": False, "error": "GlitchTip not configured"}
-
-    headers = {"Authorization": f"Bearer {token}"}
-    url = f"{base_url}/api/0/issues/{issue_id}/events/latest/"
     try:
-        resp = requests.get(url, headers=headers, timeout=10)
-        if resp.status_code == 200:
-            return {"success": True, "event": resp.json()}
-        return {"success": False, "error": f"GlitchTip returned {resp.status_code}"}
+        event = get_monitoring_issue_event_details(issue_id)
+        return {"success": True, "event": event}
     except Exception as exc:
         return {"success": False, "error": str(exc)}
 
 
 @app.post("/PlatformIO/Monitoring/IssueAction/")
 def monitoring_issue_action(payload: dict = Body(...)):
-    import requests
-
-    from .settings import settings
-
     issue_id = payload.get("issue_id")
     action = payload.get("action", "resolved")
     if not issue_id:
         return {"success": False, "error": "issue_id required"}
-
-    base_url = settings.glitchtip_base_url.rstrip("/")
-    token = settings.glitchtip_token
-    if not base_url or not token:
-        return {"success": False, "error": "GlitchTip not configured"}
-
-    headers = {"Authorization": f"Bearer {token}"}
-    url = f"{base_url}/api/0/issues/{issue_id}/"
-    status_map = {
-        "resolve": "resolved",
-        "resolved": "resolved",
-        "ignore": "ignored",
-        "ignored": "ignored",
-        "unresolve": "unresolved",
-        "unresolved": "unresolved",
-    }
-    status = status_map.get(action.lower(), "resolved")
-    try:
-        resp = requests.put(url, headers=headers, json={"status": status}, timeout=10)
-        if resp.status_code in (200, 201, 204):
-            return {"success": True}
-        return {"success": False, "error": f"GlitchTip returned {resp.status_code}"}
-    except Exception as exc:
-        return {"success": False, "error": str(exc)}
+    success = execute_monitoring_issue_action(issue_id, action)
+    return {"success": success}
 
 
 @app.post("/PlatformIO/Monitoring/Performance/")
 def monitoring_performance(payload: dict = Body(...), db: Session = Depends(get_db)):
-    import requests
-
-    from .settings import settings
-
     service_name = payload.get("service_name", "")
     if not service_name:
         return {"success": False, "error": "service_name required"}
@@ -2003,253 +1925,83 @@ def monitoring_performance(payload: dict = Body(...), db: Session = Depends(get_
     node_ip = service_instance.node.host if (service_instance and service_instance.node) else ""
     project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
 
-    base_url = settings.glitchtip_base_url.rstrip("/")
-    token = settings.glitchtip_token
-    org = settings.glitchtip_org_slug
-    if not base_url or not token or not org:
-        return {"success": False, "error": "GlitchTip not configured"}
-
-    headers = {"Authorization": f"Bearer {token}"}
-    url = f"{base_url}/api/0/organizations/{org}/transaction-groups/"
-    params = {}
-    if node_ip and node_ip != "0.0.0.0":
-        params["environment"] = node_ip
-
     try:
-        resp = requests.get(url, headers=headers, params=params, timeout=10)
-        if resp.status_code == 200:
-            txs = resp.json() or []
-            filtered = []
-            for tx in txs:
-                if (tx.get("projectName") or "").lower() == project_slug.lower():
-                    filtered.append(tx)
-            return {"success": True, "transactions": filtered, "project_slug": project_slug, "node_ip": node_ip}
-        return {"success": False, "error": f"GlitchTip returned {resp.status_code}"}
+        transactions = get_monitoring_performance(service_name, node_ip)
+        return {"success": True, "transactions": transactions, "project_slug": project_slug, "node_ip": node_ip}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
 
 @app.post("/PlatformIO/Monitoring/Keys/")
 def monitoring_keys(payload: dict = Body(...)):
-    import requests
-
-    from .settings import settings
-
     service_name = payload.get("service_name", "")
     if not service_name:
         return {"success": False, "error": "service_name required"}
     project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
-
-    base_url = settings.glitchtip_base_url.rstrip("/")
-    token = settings.glitchtip_token
-    org = settings.glitchtip_org_slug
-    if not base_url or not token or not org:
-        return {"success": False, "error": "GlitchTip not configured"}
-
-    headers = {"Authorization": f"Bearer {token}"}
-    url = f"{base_url}/api/0/projects/{org}/{project_slug}/keys/"
     try:
-        resp = requests.get(url, headers=headers, timeout=10)
-        if resp.status_code == 200:
-            return {"success": True, "keys": resp.json(), "project_slug": project_slug}
-        return {"success": False, "error": f"GlitchTip returned {resp.status_code}"}
+        keys = get_monitoring_keys(service_name)
+        return {"success": True, "keys": keys, "project_slug": project_slug}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
 
 @app.post("/PlatformIO/Monitoring/Uptime/")
-def monitoring_uptime_list(payload: dict = Body(...)):
-    import requests
-
-    from .settings import settings
-
+def monitoring_uptime_list_endpoint(payload: dict = Body(...)):
     service_name = payload.get("service_name", "")
     if not service_name:
         return {"success": False, "error": "service_name required"}
     project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
-
-    base_url = settings.glitchtip_base_url.rstrip("/")
-    token = settings.glitchtip_token
-    org = settings.glitchtip_org_slug
-    if not base_url or not token or not org:
-        return {"success": False, "error": "GlitchTip not configured"}
-
-    headers = {"Authorization": f"Bearer {token}"}
     try:
-        resp = requests.get(f"{base_url}/api/0/organizations/{org}/monitors/", headers=headers, timeout=10)
-        if resp.status_code == 200:
-            monitors = resp.json() or []
-            filtered = []
-            for m in monitors:
-                if (m.get("projectName") or "").lower() == project_slug.lower():
-                    mon_id = m.get("id")
-                    if mon_id:
-                        try:
-                            det_resp = requests.get(
-                                f"{base_url}/api/0/organizations/{org}/monitors/{mon_id}/", headers=headers, timeout=5
-                            )
-                            if det_resp.status_code == 200:
-                                m = det_resp.json()
-                            checks_resp = requests.get(
-                                f"{base_url}/api/0/organizations/{org}/monitors/{mon_id}/checks/",
-                                params={"is_change": "true"},
-                                headers=headers,
-                                timeout=5,
-                            )
-                            if checks_resp.status_code == 200:
-                                m["incidents"] = checks_resp.json() or []
-                        except Exception:
-                            pass
-                    filtered.append(m)
-            return {"success": True, "monitors": filtered, "project_slug": project_slug}
-        return {"success": False, "error": f"GlitchTip returned {resp.status_code}"}
+        monitors = get_monitoring_uptime_list(service_name)
+        return {"success": True, "monitors": monitors, "project_slug": project_slug}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
 
 @app.post("/PlatformIO/Monitoring/Uptime/Add/")
 def monitoring_uptime_add(payload: dict = Body(...)):
-    import requests
-
-    from .settings import settings
-
     service_name = payload.get("service_name", "")
     name = payload.get("name", "")
-    monitor_type = payload.get("monitor_type", "Ping")
     url = payload.get("url", "")
     interval = int(payload.get("interval", 60))
-    expected_status = payload.get("expected_status", 200)
-    payload.get("timeout", 30)
-    payload.get("expected_body", "")
+    expected_status = int(payload.get("expected_status", 200))
 
     if not service_name or not name or not url:
         return {"success": False, "error": "service_name, name, and url required"}
 
-    project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
-    base_url = settings.glitchtip_base_url.rstrip("/")
-    token = settings.glitchtip_token
-    org = settings.glitchtip_org_slug
-    if not base_url or not token or not org:
-        return {"success": False, "error": "GlitchTip not configured"}
-
-    headers = {"Authorization": f"Bearer {token}"}
-    data = {
-        "monitorType": monitor_type,
-        "name": name,
-        "url": url,
-        "expectedStatus": expected_status,
-        "interval": f"00:00:{interval}" if interval < 60 else f"00:{interval // 60:02d}:{interval % 60:02d}",
-        "project": project_slug,
-    }
-    try:
-        resp = requests.post(f"{base_url}/api/0/organizations/{org}/monitors/", headers=headers, json=data, timeout=10)
-        if resp.status_code in (200, 201):
-            return {"success": True, "monitor": resp.json()}
-        return {"success": False, "error": f"GlitchTip returned {resp.status_code}: {resp.text}"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    res = add_monitoring_uptime_check(
+        service_name=service_name,
+        name=name,
+        url=url,
+        interval=interval,
+        expected_status=expected_status,
+    )
+    return res
 
 
 @app.post("/PlatformIO/Monitoring/Uptime/Delete/")
 def monitoring_uptime_delete(payload: dict = Body(...)):
-    import requests
-
-    from .settings import settings
-
     monitor_id = payload.get("monitor_id")
     if not monitor_id:
         return {"success": False, "error": "monitor_id required"}
-
-    base_url = settings.glitchtip_base_url.rstrip("/")
-    token = settings.glitchtip_token
-    org = settings.glitchtip_org_slug
-    if not base_url or not token or not org:
-        return {"success": False, "error": "GlitchTip not configured"}
-
-    headers = {"Authorization": f"Bearer {token}"}
-    try:
-        resp = requests.delete(
-            f"{base_url}/api/0/organizations/{org}/monitors/{monitor_id}/", headers=headers, timeout=10
-        )
-        if resp.status_code in (200, 201, 204):
-            return {"success": True}
-        return {"success": False, "error": f"GlitchTip returned {resp.status_code}"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    success = delete_monitoring_uptime_check(monitor_id)
+    return {"success": success}
 
 
 @app.post("/PlatformIO/Monitoring/IntegrationStatus/")
 @app.get("/PlatformIO/Monitoring/IntegrationStatus/")
 def monitoring_integration_status():
-    import requests
-
-    from .settings import settings
-
-    base_url = settings.glitchtip_base_url.rstrip("/")
-    org = settings.glitchtip_org_slug
-    token = settings.glitchtip_token
-    configured = bool(base_url and org and token)
-    reachable = False
-    error_msg = ""
-    if configured:
-        try:
-            resp = requests.get(f"{base_url}/api/0/", headers={"Authorization": f"Bearer {token}"}, timeout=5)
-            reachable = resp.status_code < 500
-        except Exception as exc:
-            error_msg = str(exc)
-    return {
-        "success": True,
-        "configured": configured,
-        "reachable": reachable,
-        "base_url": base_url,
-        "org": org,
-        "error": error_msg,
-    }
+    res = get_monitoring_integration_status()
+    return res
 
 
 @app.post("/PlatformIO/Monitoring/PatchObservability/")
 def monitoring_patch_observability(payload: dict = Body(...), db: Session = Depends(get_db)):
-    import subprocess
-    import sys
-
-    from .settings import settings
-
     service_id = payload.get("service_id")
     if not service_id:
         return {"success": False, "error": "service_id required"}
-
-    service = db.get(ServiceInstance, service_id)
-    if not service:
-        return {"success": False, "error": "Service instance not found"}
-
-    patch_script = settings.resolve(settings.ansible_dir) / "playbooks" / "service_runtime_patch.py"
-    settings.glitchtip_project_map.get(service.name, service.name.lower())
-
-    cmd = [
-        sys.executable,
-        str(patch_script),
-        "--container_name",
-        service.container_name,
-        "--service_type",
-        service.service_key,
-        "--service_name",
-        service.name,
-        "--service_id",
-        str(service.id),
-        "--sentry_dsn",
-        f"http://gt_whEhIEhw5qaoRPxS_bFIM279WeTZQD7zwsP0uyMOrXU8NeWC@54.183.53.93:9008/{service.id}",
-        "--glitchtip_enabled",
-        "true",
-        "--environment",
-        "validation",
-        "--restart",
-        "true",
-    ]
-    try:
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        return {"success": res.returncode == 0, "stdout": res.stdout, "stderr": res.stderr}
-    except Exception as exc:
-        return {"success": False, "error": str(exc)}
+    res = patch_service_runtime_observability(db, service_id)
+    return res
 
 
 # --- CLUSTER PAGE EXTRA FEATURES & INTEGRATIONS ---
