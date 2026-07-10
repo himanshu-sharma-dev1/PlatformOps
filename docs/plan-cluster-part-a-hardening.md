@@ -1,6 +1,6 @@
 # Part A — Cluster page hardening (analysis → plan → implement)
 
-**Status:** implementing  
+**Status:** complete (A1–A10 implemented + verified)  
 **Parent:** `docs/plan-cluster-page-production.md`  
 **Date:** 2026-07-10
 
@@ -45,3 +45,16 @@
 - Port check reports live host port collisions when docker available  
 - Create cluster walks steps 1→4  
 - FE build green; API health 200  
+- Inventory cleanup dry-run + apply (noise/foreign/stale/duplicates)  
+- Detail tabs: overview / services / events / jobs  
+- Live status via `?via=ssh`  
+- ANSIBLE deploy job path uses detached-safe service_id  
+
+## 4. Rest of Part A (completed)
+
+| Item | Implementation |
+|------|----------------|
+| A9 inventory noise | `POST /api/nodes/{id}/inventory/cleanup` + Clean inventory UI |
+| A7 high-fi tabs | overview/services/events/jobs + node row live counts |
+| A4 remote force | `GET .../live-status?via=ssh` + Live SSH button |
+| A10 deploy safety | deploy_service captures service_id before async callback |

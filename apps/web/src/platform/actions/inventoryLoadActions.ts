@@ -139,10 +139,11 @@ export function createInventoryLoadActions(s: any) {
     }
   },
 
-  async refreshNodeLiveStatus(nodeId) {
+  async refreshNodeLiveStatus(nodeId, opts) {
     if (!nodeId) return null;
     try {
-      const report = await api(`/api/nodes/${nodeId}/live-status`);
+      const via = opts?.via ? `?via=${encodeURIComponent(opts.via)}` : "";
+      const report = await api(`/api/nodes/${nodeId}/live-status${via}`);
       s.setNodeLiveStatus(report);
       const map = { ...(s.serviceLiveById || {}) };
       for (const item of report.items || []) {
@@ -152,6 +153,36 @@ export function createInventoryLoadActions(s: any) {
       return report;
     } catch (e) {
       // Keep last-known; do not invent healthy
+      return null;
+    }
+  },
+
+  async cleanupNodeInventory(nodeId, options) {
+    if (!nodeId) {
+      s.setNotice("Select a node first.");
+      return null;
+    }
+    const dryRun = options?.dryRun !== false;
+    const modes = options?.modes || ["all"];
+    try {
+      s.setNotice(dryRun ? "Previewing inventory cleanup…" : "Cleaning inventory…");
+      const result = await api(`/api/nodes/${nodeId}/inventory/cleanup`, {
+        method: "POST",
+        body: JSON.stringify({
+          modes,
+          dry_run: dryRun,
+          protect_orchestrator: options?.protectOrchestrator !== false,
+        }),
+      });
+      s.setNotice(result.summary || (dryRun ? `Would remove ${result.candidate_count}` : `Removed ${result.removed_count}`));
+      if (!dryRun) {
+        await s.refresh();
+        await s.refreshNodeLiveStatus(nodeId);
+        await s.loadNodeJobHistory(nodeId);
+      }
+      return result;
+    } catch (e) {
+      s.setNotice(e?.message || "Inventory cleanup failed");
       return null;
     }
   },

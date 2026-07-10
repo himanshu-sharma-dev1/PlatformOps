@@ -179,6 +179,161 @@ def _probe_node_ssh_docker(node: Node) -> dict[str, Any]:
     return result
 
 
+def cleanup_node_inventory(
+    db: Session,
+    node_id: int,
+    *,
+    modes: list[str] | None = None,
+    dry_run: bool = True,
+    protect_orchestrator: bool = True,
+) -> dict[str, Any]:
+    """
+    Clean noisy / wrong discover adoptions from DB only (does not stop containers).
+
+    modes:
+      - noise: control-plane / cPlatform stack containers (skip markers)
+      - foreign: glitchtip/signoz/cplatform/foreign SERV* names
+      - stale: docker inspect not_found / unknown with no live container
+      - duplicates: keep one best row per service_key (prefer running, lower id)
+      - all: noise+foreign+stale+duplicates
+    """
+    from .discovery import SKIP_NAME_MARKERS
+    from .service.impl import _docker_inspect_for_node
+
+    node = db.get(Node, node_id)
+    if not node:
+        raise ValueError(f"Node not found: {node_id}")
+
+    selected = {m.strip().lower() for m in (modes or ["all"]) if m and str(m).strip()}
+    if "all" in selected or not selected:
+        selected = {"noise", "foreign", "stale", "duplicates"}
+
+    services = list(
+        db.scalars(
+            select(ServiceInstance).where(
+                ServiceInstance.node_id == node_id,
+                ServiceInstance.status != "deleted",
+            )
+        ).all()
+    )
+
+    # Container-name oriented (do NOT match product image registry iktaraai/*)
+    foreign_name_markers = (
+        "cplatform_",
+        "cplatform-",
+        "signoz",
+        "glitchtip",
+        "serv1025",
+        "serv1029",
+        "serv1003",
+        "serv1004",
+        "serv1026",
+        "serv1028",
+        "serv1031",
+    )
+    # Never treat platform product keys as foreign noise
+    protect_keys = {
+        "ai-orchestrator",
+        "AIOrchestrator",
+        "dtrain-controller",
+        "dtrain-worker",
+        "dtrain-tracker",
+    }
+    candidates: dict[int, dict[str, Any]] = {}
+
+    def mark(svc: ServiceInstance, reason: str) -> None:
+        if protect_orchestrator and svc.service_key in protect_keys:
+            return
+        if svc.service_key in protect_keys and reason.startswith("foreign"):
+            return
+        entry = candidates.setdefault(
+            svc.id,
+            {
+                "service_id": svc.id,
+                "external_id": svc.external_id,
+                "service_key": svc.service_key,
+                "name": svc.name,
+                "container_name": svc.container_name,
+                "status": svc.status,
+                "reasons": [],
+            },
+        )
+        if reason not in entry["reasons"]:
+            entry["reasons"].append(reason)
+
+    # noise / foreign by container name only (not image registry strings)
+    for svc in services:
+        cname = (svc.container_name or "").lower()
+        sname = (svc.name or "").lower()
+        name_hay = f"{cname} {sname}"
+        if "noise" in selected and any(m in cname for m in SKIP_NAME_MARKERS):
+            mark(svc, "noise")
+        if "foreign" in selected and any(m in name_hay for m in foreign_name_markers):
+            mark(svc, "foreign")
+
+    # stale via live inspect
+    if "stale" in selected:
+        for svc in services:
+            if svc.id in candidates:
+                continue
+            _inspect, err, _src = _docker_inspect_for_node(node, svc.container_name or "")
+            if err == "not_found" or (svc.status or "").lower() in {"not_found", "unknown"} and err:
+                if err == "not_found":
+                    mark(svc, "stale_not_found")
+
+    # duplicates: more than one service_key
+    if "duplicates" in selected:
+        by_key: dict[str, list[ServiceInstance]] = {}
+        for svc in services:
+            by_key.setdefault(svc.service_key, []).append(svc)
+        for key, group in by_key.items():
+            if len(group) <= 1:
+                continue
+            # Prefer running + lowest id as keeper
+            def rank(s: ServiceInstance) -> tuple:
+                running = 0 if (s.status or "").lower() in {"running", "healthy"} else 1
+                return (running, s.id)
+
+            ordered = sorted(group, key=rank)
+            for drop in ordered[1:]:
+                mark(drop, f"duplicate_of_{ordered[0].external_id or ordered[0].id}")
+
+    removed: list[dict[str, Any]] = []
+    if not dry_run:
+        for sid, meta in list(candidates.items()):
+            svc = db.get(ServiceInstance, sid)
+            if not svc:
+                continue
+            # Inventory-only remove: mark deleted + detach from active lists
+            svc.status = "deleted"
+            db.delete(svc)
+            removed.append(meta)
+            record_event(
+                db,
+                category="lifecycle",
+                level="warning",
+                message=f"Inventory cleanup removed '{meta.get('name')}' ({','.join(meta.get('reasons') or [])})",
+                node_id=node_id,
+                metadata=meta,
+            )
+        db.commit()
+    else:
+        removed = list(candidates.values())
+
+    return {
+        "node_id": node_id,
+        "dry_run": dry_run,
+        "modes": sorted(selected),
+        "candidate_count": len(candidates),
+        "removed_count": 0 if dry_run else len(removed),
+        "items": removed,
+        "summary": (
+            f"{'Would remove' if dry_run else 'Removed'} {len(removed)} inventory row(s) "
+            f"on node {node.name} (modes={','.join(sorted(selected))})"
+        ),
+    }
+
+
 def get_node_job_history(db: Session, node_id: int, *, limit: int = 12) -> dict[str, Any]:
     node = db.get(Node, node_id)
     if node is None:

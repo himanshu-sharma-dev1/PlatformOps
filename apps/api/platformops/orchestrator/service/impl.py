@@ -429,26 +429,30 @@ def dependency_preflight(db: Session, service: ServiceInstance) -> dict[str, Any
 
 def deploy_service(db: Session, service: ServiceInstance) -> DeploymentJob:
     preflight = dependency_preflight(db, service)
+    service_id = int(service.id)
+    node_id = int(service.node_id)
     if not preflight["ok"]:
         job = create_job(
             db,
             action="deploy-blocked",
             command="dependency-preflight",
-            service_id=service.id,
-            node_id=service.node_id,
+            service_id=service_id,
+            node_id=node_id,
         )
         record_event(
             db,
             category="deployment",
             level="warning",
             message=f"Deployment blocked for {service.name}: {preflight['message']}",
-            service_id=service.id,
-            node_id=service.node_id,
+            service_id=service_id,
+            node_id=node_id,
             metadata=preflight,
         )
         return finish_job(db, job, ok=False, error=preflight["message"])
 
-    node = service.node
+    node = service.node or db.get(Node, node_id)
+    if node is None:
+        raise ValueError(f"Node not found for service {service_id}")
     contract = json.loads(service.config_json or "{}")
     extra_vars = {
         "service_key": service.service_key,
@@ -459,9 +463,9 @@ def deploy_service(db: Session, service: ServiceInstance) -> DeploymentJob:
         "volume_root": node.volume_root,
         "contract": contract,
     }
-    vars_path = write_job_vars("deploy", service.id, extra_vars)
+    vars_path = write_job_vars("deploy", service_id, extra_vars)
     command = f"{_ansible_base_command(node, 'docker_service.yml')} --extra-vars @{vars_path}"
-    job = create_job(db, action="deploy", command=command, service_id=service.id, node_id=node.id)
+    job = create_job(db, action="deploy", command=command, service_id=service_id, node_id=node_id)
 
     if settings.local_mode:
         return finish_job(
@@ -475,16 +479,17 @@ def deploy_service(db: Session, service: ServiceInstance) -> DeploymentJob:
         )
 
     def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
-        bg_service = bg_db.get(ServiceInstance, service.id)
+        bg_service = bg_db.get(ServiceInstance, service_id)
         if bg_service:
             bg_service.status = "running" if ok else "error"
+            bg_db.add(bg_service)
             record_event(
                 bg_db,
                 category="deployment",
                 level="info" if ok else "error",
                 message=f"Deploy finished for {bg_service.name} with status {bg_service.status}",
-                service_id=bg_service.id,
-                node_id=bg_service.node_id,
+                service_id=service_id,
+                node_id=node_id,
                 metadata={"job_id": bg_job.id},
             )
 
@@ -1422,6 +1427,7 @@ def _docker_inspect_local(container_name: str) -> tuple[dict[str, Any] | None, s
 def _docker_inspect_remote(node: Node, container_name: str) -> tuple[dict[str, Any] | None, str | None]:
     """docker inspect over SSH for true remote nodes."""
     import subprocess
+    from pathlib import Path
 
     if not container_name:
         return None, "empty container name"
@@ -1430,6 +1436,12 @@ def _docker_inspect_remote(node: Node, container_name: str) -> tuple[dict[str, A
     key = (node.ssh_key_path or "").strip()
     if not host:
         return None, "missing host"
+    # If PEM is not visible inside the API container, fall back to local docker
+    if key and not Path(key).is_file():
+        local, local_err = _docker_inspect_local(container_name)
+        if local is not None or local_err == "not_found":
+            return local, local_err
+        return None, f"ssh key not found in control plane: {key}"
     # Quote container name for remote shell
     safe_name = container_name.replace("'", "'\"'\"'")
     cmd = [
@@ -1453,28 +1465,45 @@ def _docker_inspect_remote(node: Node, container_name: str) -> tuple[dict[str, A
             combined = (err or out or "remote docker inspect failed").strip()
             if "No such object" in combined or "no such object" in combined.lower():
                 return None, "not_found"
+            # Fallback to local docker when SSH fails but we're on the same host
+            local, local_err = _docker_inspect_local(container_name)
+            if local is not None or local_err == "not_found":
+                return local, local_err
             return None, combined[:400]
         data = json.loads(out)
         if isinstance(data, list) and data:
             return data[0], None
         return None, "empty inspect payload"
     except FileNotFoundError:
-        return None, "ssh client not available"
+        return _docker_inspect_local(container_name)
     except json.JSONDecodeError:
         return None, "invalid inspect JSON from remote"
     except Exception as exc:
+        local, local_err = _docker_inspect_local(container_name)
+        if local is not None or local_err == "not_found":
+            return local, local_err
         return None, str(exc)[:400]
 
 
-def _node_uses_local_docker(node: Node | None) -> bool:
+def _node_uses_local_docker(node: Node | None, *, force_ssh: bool = False) -> bool:
+    """Prefer SSH docker when a key+host are set (production path); localhost stays local."""
     if node is None:
         return True
+    if force_ssh:
+        return False
     host = (node.host or "").strip().lower()
-    return (
-        settings.local_mode
-        or (node.environment or "").lower() == "local"
-        or host in {"localhost", "127.0.0.1", "0.0.0.0", "", "65.2.63.24"}
-    )
+    if host in {"localhost", "127.0.0.1", "0.0.0.0", ""}:
+        return True
+    # Real remote / PEM path: use SSH inspect (works for this host's public IP too)
+    if (node.ssh_key_path or "").strip() or (node.ssh_private_key if hasattr(node, "ssh_private_key") else None):
+        # ssh_key_path is the durable signal for "can use remote path"
+        if (node.ssh_key_path or "").strip():
+            return False
+    if (node.environment or "").lower() == "local" and not (node.ssh_key_path or "").strip():
+        return True
+    if settings.local_mode and not (node.ssh_key_path or "").strip():
+        return True
+    return False
 
 
 def _docker_inspect_for_node(node: Node | None, container_name: str) -> tuple[dict[str, Any] | None, str | None, str]:
@@ -1544,7 +1573,13 @@ def _map_inspect_to_live(
     }
 
 
-def get_service_live_status(db: Session, service: ServiceInstance, *, use_cache: bool = True) -> dict[str, Any]:
+def get_service_live_status(
+    db: Session,
+    service: ServiceInstance,
+    *,
+    use_cache: bool = True,
+    force_ssh: bool = False,
+) -> dict[str, Any]:
     import time
 
     # Ensure node is available for local vs remote decision
@@ -1552,7 +1587,7 @@ def get_service_live_status(db: Session, service: ServiceInstance, *, use_cache:
     if node is None and service.node_id:
         node = db.get(Node, service.node_id)
 
-    cache_key = f"svc:{service.id}:{service.container_name}:{getattr(node, 'host', '')}"
+    cache_key = f"svc:{service.id}:{service.container_name}:{getattr(node, 'host', '')}:{int(force_ssh)}"
     now = time.monotonic()
     if use_cache and cache_key in _LIVE_STATUS_CACHE:
         created, payload = _LIVE_STATUS_CACHE[cache_key]
@@ -1562,7 +1597,18 @@ def get_service_live_status(db: Session, service: ServiceInstance, *, use_cache:
             out["cache_hit"] = True
             return out
 
-    inspect, err, source = _docker_inspect_for_node(node, service.container_name)
+    # Optional force SSH path for verification
+    if force_ssh and node is not None:
+        inspect, err = _docker_inspect_remote(node, service.container_name)
+        source = "docker_inspect_ssh"
+    else:
+        inspect, err, source = _docker_inspect_for_node(node, service.container_name)
+        # If local path fails and SSH is available, fall back to SSH
+        if err and node is not None and (node.ssh_key_path or "").strip() and source == "docker_inspect":
+            inspect2, err2 = _docker_inspect_remote(node, service.container_name)
+            if inspect2 is not None or err2 == "not_found":
+                inspect, err, source = inspect2, err2, "docker_inspect_ssh"
+
     result = _map_inspect_to_live(service, inspect, err, source=source)
     result["cache_hit"] = False
 
@@ -1579,7 +1625,7 @@ def get_service_live_status(db: Session, service: ServiceInstance, *, use_cache:
     return result
 
 
-def get_node_services_live_status(db: Session, node_id: int) -> dict[str, Any]:
+def get_node_services_live_status(db: Session, node_id: int, *, force_ssh: bool = False) -> dict[str, Any]:
     node = db.get(Node, node_id)
     services = list(
         db.scalars(
@@ -1588,9 +1634,12 @@ def get_node_services_live_status(db: Session, node_id: int) -> dict[str, Any]:
             .order_by(ServiceInstance.id)
         ).all()
     )
-    items = [get_service_live_status(db, svc) for svc in services]
+    items = [get_service_live_status(db, svc, force_ssh=force_ssh) for svc in services]
     running = sum(1 for i in items if i.get("running"))
-    source = "docker_inspect" if _node_uses_local_docker(node) else "docker_inspect_ssh"
+    source = "docker_inspect_ssh" if (force_ssh or not _node_uses_local_docker(node)) else "docker_inspect"
+    # Prefer reporting actual source from first item if present
+    if items and items[0].get("source"):
+        source = items[0]["source"]
     return {
         "node_id": node_id,
         "count": len(items),

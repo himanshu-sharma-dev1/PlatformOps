@@ -405,10 +405,35 @@ def discover_infrastructure_endpoint(node_id: int, db: Session = Depends(get_db)
 
 
 @router.get("/api/nodes/{node_id}/live-status", response_model=NodeServicesLiveStatusOut)
-def node_services_live_status_endpoint(node_id: int, db: Session = Depends(get_db)) -> dict:
+def node_services_live_status_endpoint(
+    node_id: int,
+    via: str | None = None,
+    db: Session = Depends(get_db),
+) -> dict:
     _get_node(db, node_id)
+    force_ssh = (via or "").lower() in {"ssh", "remote"}
     try:
-        return get_node_services_live_status(db, node_id)
+        return get_node_services_live_status(db, node_id, force_ssh=force_ssh)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/api/nodes/{node_id}/inventory/cleanup", response_model=NodeInventoryCleanupOut)
+def cleanup_node_inventory_endpoint(
+    node_id: int,
+    payload: NodeInventoryCleanupIn | None = None,
+    db: Session = Depends(get_db),
+) -> dict:
+    _get_node(db, node_id)
+    body = payload or NodeInventoryCleanupIn()
+    try:
+        return cleanup_node_inventory(
+            db,
+            node_id,
+            modes=body.modes,
+            dry_run=body.dry_run,
+            protect_orchestrator=body.protect_orchestrator,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

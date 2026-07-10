@@ -80,6 +80,7 @@ from .monitoring import (
     run_monitoring_sweep,
 )
 from .node import (
+    cleanup_node_inventory,
     get_node_connection_report,
     get_node_job_history,
     get_node_onboarding_report,
@@ -183,6 +184,7 @@ __all__ = [
     "test_git_connection",
     "test_registry_connection",
     "validate_node",
+    "cleanup_node_inventory",
     "get_node_job_history",
     "get_node_summary",
     "get_node_connection_report",

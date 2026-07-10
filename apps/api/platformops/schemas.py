@@ -152,6 +152,22 @@ class NodeServicesLiveStatusOut(BaseModel):
     source: str = "docker_inspect"
 
 
+class NodeInventoryCleanupIn(BaseModel):
+    modes: list[str] = Field(default_factory=lambda: ["all"])
+    dry_run: bool = True
+    protect_orchestrator: bool = True
+
+
+class NodeInventoryCleanupOut(BaseModel):
+    node_id: int
+    dry_run: bool
+    modes: list[str]
+    candidate_count: int
+    removed_count: int
+    items: list[dict[str, Any]]
+    summary: str
+
+
 class PreflightOut(BaseModel):
     ok: bool
     missing: list[str] = Field(default_factory=list)

@@ -17,7 +17,7 @@ from ..settings import settings
 from .common import _ansible_base_command, record_event
 from .ids import allocate_service_external_id
 
-# Containers we never adopt (ops plane noise, not tenant services)
+# Containers we never adopt (ops plane noise / foreign cPlatform plane)
 SKIP_NAME_MARKERS = (
     "platformops-web-api",
     "platformops-postgres",
@@ -26,9 +26,18 @@ SKIP_NAME_MARKERS = (
     "platformops-prometheus",
     "platformops-loki",
     "compose-web-api",
+    "compose-",
     "iktara_cplatform",
-    "cplatform_signoz",
+    "cplatform_",
+    "cplatform-",
+    "signoz",
     "glitchtip",
+    "config-migration",
+    "serv1025",
+    "serv1029",
+    "serv1003",
+    "serv1004",
+    "serv1026",
 )
 
 # Image/name tokens that score a catalog key (higher = better)

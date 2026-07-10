@@ -49,6 +49,9 @@ export function ClustersView() {
   const serviceLiveById = (p.serviceLiveById || {}) as Record<string, any>;
   const nodeLiveStatus = p.nodeLiveStatus as any;
   const refreshNodeLiveStatus = p.refreshNodeLiveStatus as (...a: any[]) => void;
+  const cleanupNodeInventory = p.cleanupNodeInventory as (...a: any[]) => Promise<any>;
+  const [detailTab, setDetailTab] = React.useState("overview" as string);
+  const [cleanupBusy, setCleanupBusy] = React.useState(false);
 
   if (!selectedCluster) {
       return (
@@ -225,15 +228,26 @@ export function ClustersView() {
                 .filter((n) => n.name.toLowerCase().includes(nodeSearchQuery.toLowerCase()))
                 .map((node) => {
                   const isSelected = activeNode?.id === node.id;
-                  const svcCount = services.filter((s) => s.node_id === node.id).length;
+                  const nodeSvcs = services.filter((s) => s.node_id === node.id && (s.status || "") !== "deleted");
+                  const svcCount = nodeSvcs.length;
+                  const liveRunning = isSelected && nodeLiveStatus?.node_id === node.id
+                    ? nodeLiveStatus.running_count
+                    : nodeSvcs.filter((s) => ["running", "healthy"].includes((s.status || "").toLowerCase())).length;
+                  const nstat = ["healthy", "running"].includes((node.status || "").toLowerCase())
+                    ? "ready"
+                    : (node.status || "").toLowerCase() === "unreachable"
+                      ? "unreachable"
+                      : (node.status || "unknown");
                   return (
-                    <div key={node.id} className={`node-row ${isSelected ? "active" : ""}`} onClick={() => selectNode(node)}>
-                      <div className={`nstat ${node.status}`}></div>
+                    <div key={node.id} className={`node-row ${isSelected ? "active" : ""}`} onClick={() => { setDetailTab("overview"); selectNode(node); }}>
+                      <div className={`nstat ${nstat}`}></div>
                       <div className="info">
                         <div className="nm">{node.name}</div>
                         <div className="sub"><span className="cloud">{node.environment.toUpperCase()}</span>{node.host}</div>
                       </div>
-                      <div className="svc-count">{svcCount} svc</div>
+                      <div className="svc-count" title={`${liveRunning} running / ${svcCount} total`}>
+                        {liveRunning}/{svcCount}
+                      </div>
                     </div>
                   );
                 })}
@@ -264,9 +278,33 @@ export function ClustersView() {
                     <button className="btn btn-secondary btn-sm" onClick={() => validateNode(activeNode.id)}>Validate</button>
                     <button className="btn btn-secondary btn-sm" onClick={() => discoverNodeInfra(activeNode.id)}>Discover</button>
                     <button className="btn btn-secondary btn-sm" onClick={() => loadNodeConnection?.(activeNode.id)}>Probe</button>
+                    <button className="btn btn-secondary btn-sm" title="Live status via SSH docker inspect" onClick={() => refreshNodeLiveStatus?.(activeNode.id, { via: "ssh" })}>Live SSH</button>
                     <button className="btn btn-secondary btn-sm" onClick={() => openNodeEdit(activeNode)}>Edit</button>
                     <button className="btn btn-danger btn-sm" onClick={() => requestDelete("node", activeNode.id, activeNode.name)}>Delete</button>
                   </div>
+                </div>
+
+                <div className="detail-tabs" style={{ display: "flex", gap: 6, marginTop: "0.85rem", flexWrap: "wrap" }}>
+                  {["overview", "services", "events", "jobs"].map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      className={`tab ${detailTab === tab ? "active" : ""}`}
+                      style={{
+                        border: "1px solid var(--line)",
+                        borderRadius: 8,
+                        padding: "0.3rem 0.7rem",
+                        background: detailTab === tab ? "var(--navy-50, rgba(30,58,95,0.12))" : "transparent",
+                        fontWeight: detailTab === tab ? 600 : 500,
+                        fontSize: "0.8rem",
+                        cursor: "pointer",
+                        textTransform: "capitalize",
+                      }}
+                      onClick={() => setDetailTab(tab)}
+                    >
+                      {tab}
+                    </button>
+                  ))}
                 </div>
 
                 {nodeConnection && nodeConnection.node_id === activeNode.id && (
@@ -312,6 +350,8 @@ export function ClustersView() {
                 </div>
               </div>
 
+              {detailTab === "overview" && (
+              <>
               {nodeOnboarding && (
                 <div style={{ marginTop: "1rem", border: "1px solid var(--line)", borderRadius: 12, padding: "0.85rem 1rem", background: "var(--bg-elevated)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
@@ -362,67 +402,44 @@ export function ClustersView() {
                   <button type="button" className="btn btn-secondary btn-sm" onClick={() => setActiveView("performance")}>Open Performance</button>
                 </div>
               )}
-
-              <div style={{ marginTop: "1rem", border: "1px solid var(--line)", borderRadius: 12, padding: "1rem", background: "var(--bg-elevated)" }}>
-                <div className="panel-title" style={{ marginBottom: "0.75rem" }}>
-                  <h2>Recent jobs</h2>
-                  <span>{nodeJobHistory ? `${nodeJobHistory.total_jobs} total` : "—"}</span>
-                </div>
-                {nodeJobHistory ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem" }}>
-                    {nodeJobHistory.items.slice(0, 8).map((item) => (
-                      <article key={`node-job-${item.id}`} style={{ border: "1px solid var(--line-2)", borderRadius: 10, padding: "0.7rem 0.85rem" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                            <span className={`pill ${item.status === "success" ? "pill-ok" : item.status === "failed" ? "pill-error" : "pill-warn"}`}>{item.status}</span>
-                            <strong>{item.action}</strong>
-                          </div>
-                          <small style={{ color: "var(--ink-4)" }}>{formatLocalTimestamp(item.created_at)}</small>
-                        </div>
-                        {item.error && <pre style={{ margin: "0.45rem 0 0", fontSize: "0.75rem", color: "var(--err)", whiteSpace: "pre-wrap" }}>{item.error}</pre>}
-                      </article>
-                    ))}
-                    {nodeJobHistory.items.length === 0 && <p style={{ color: "var(--ink-4)" }}>No jobs recorded for this node.</p>}
-                  </div>
-                ) : (
-                  <p style={{ color: "var(--ink-4)" }}>Loading jobs…</p>
-                )}
-              </div>
-
-              
-              {activeNode && (
-                <div style={{ marginTop: "1rem", border: "1px solid var(--line)", borderRadius: 12, padding: "1rem", background: "var(--bg-elevated)" }}>
-                  <div className="panel-title" style={{ marginBottom: "0.75rem" }}>
-                    <h2>Node events</h2>
-                    <span>{events.filter((e) => e.node_id === activeNode.id).length}</span>
-                  </div>
-                  <div className="timeline" style={{ maxHeight: 200, overflow: "auto" }}>
-                    {events.filter((e) => e.node_id === activeNode.id).slice(0, 15).map((ev) => (
-                      <article key={ev.id}>
-                        <span className={`pill ${ev.level === "error" ? "pill-error" : ev.level === "warning" ? "pill-warn" : "pill-ok"}`}>{ev.category || "event"}</span>
-                        <strong style={{ fontSize: "0.85rem" }}>{ev.message}</strong>
-                        <small style={{ color: "var(--ink-4)" }}>{formatLocalTimestamp(ev.created_at)}</small>
-                      </article>
-                    ))}
-                    {events.filter((e) => e.node_id === activeNode.id).length === 0 && (
-                      <p style={{ color: "var(--ink-4)", margin: 0 }}>No node-scoped events yet.</p>
-                    )}
-                  </div>
-                </div>
+              </>
               )}
 
+              {(detailTab === "overview" || detailTab === "services") && (
               <div className="services-section" style={{ marginTop: "1rem" }}>
                 <div className="services-head">
                   <h3>
                     Services{" "}
                     <span className="ct">
                       {nodeLiveStatus && nodeLiveStatus.node_id === activeNode.id
-                        ? `${nodeLiveStatus.running_count} running (live)`
+                        ? `${nodeLiveStatus.running_count} running (live${nodeLiveStatus.source ? ` · ${nodeLiveStatus.source}` : ""})`
                         : `${nodeServices.filter((s) => ["running", "healthy"].includes((s.status || "").toLowerCase())).length} running`}
                     </span>
                   </h3>
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button className="btn btn-secondary btn-sm" onClick={() => refreshNodeLiveStatus?.(activeNode.id)}>Refresh live</button>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={cleanupBusy}
+                      onClick={async () => {
+                        setCleanupBusy(true);
+                        try {
+                          const preview = await cleanupNodeInventory?.(activeNode.id, { dryRun: true, modes: ["all"] });
+                          if (!preview) return;
+                          const n = preview.candidate_count || 0;
+                          if (n === 0) {
+                            return;
+                          }
+                          if (window.confirm(`${preview.summary}\n\nRemove ${n} inventory row(s)? (containers are not stopped)`)) {
+                            await cleanupNodeInventory?.(activeNode.id, { dryRun: false, modes: ["all"] });
+                          }
+                        } finally {
+                          setCleanupBusy(false);
+                        }
+                      }}
+                    >
+                      Clean inventory
+                    </button>
                     <button className="btn btn-primary btn-sm" onClick={() => setCatalogDrawerVisible(true)}>Add service</button>
                   </div>
                 </div>
@@ -494,6 +511,55 @@ export function ClustersView() {
                   )}
                 </div>
               </div>
+              )}
+
+              {detailTab === "events" && (
+                <div style={{ marginTop: "1rem", border: "1px solid var(--line)", borderRadius: 12, padding: "1rem", background: "var(--bg-elevated)" }}>
+                  <div className="panel-title" style={{ marginBottom: "0.75rem" }}>
+                    <h2>Node events</h2>
+                    <span>{events.filter((e) => e.node_id === activeNode.id).length}</span>
+                  </div>
+                  <div className="timeline" style={{ maxHeight: 360, overflow: "auto" }}>
+                    {events.filter((e) => e.node_id === activeNode.id).slice(0, 40).map((ev) => (
+                      <article key={ev.id}>
+                        <span className={`pill ${ev.level === "error" ? "pill-error" : ev.level === "warning" ? "pill-warn" : "pill-ok"}`}>{ev.category || "event"}</span>
+                        <strong style={{ fontSize: "0.85rem" }}>{ev.message}</strong>
+                        <small style={{ color: "var(--ink-4)" }}>{formatLocalTimestamp(ev.created_at)}</small>
+                      </article>
+                    ))}
+                    {events.filter((e) => e.node_id === activeNode.id).length === 0 && (
+                      <p style={{ color: "var(--ink-4)", margin: 0 }}>No node-scoped events yet.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {detailTab === "jobs" && (
+                <div style={{ marginTop: "1rem", border: "1px solid var(--line)", borderRadius: 12, padding: "1rem", background: "var(--bg-elevated)" }}>
+                  <div className="panel-title" style={{ marginBottom: "0.75rem" }}>
+                    <h2>Jobs</h2>
+                    <span>{nodeJobHistory ? `${nodeJobHistory.total_jobs} total` : "—"}</span>
+                  </div>
+                  {nodeJobHistory ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem" }}>
+                      {nodeJobHistory.items.slice(0, 20).map((item) => (
+                        <article key={`tab-job-${item.id}`} style={{ border: "1px solid var(--line-2)", borderRadius: 10, padding: "0.7rem 0.85rem" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                              <span className={`pill ${item.status === "success" ? "pill-ok" : item.status === "failed" ? "pill-error" : "pill-warn"}`}>{item.status}</span>
+                              <strong>{item.action}</strong>
+                            </div>
+                            <small style={{ color: "var(--ink-4)" }}>{formatLocalTimestamp(item.created_at)}</small>
+                          </div>
+                          {item.error && <pre style={{ margin: "0.45rem 0 0", fontSize: "0.75rem", color: "var(--err)", whiteSpace: "pre-wrap" }}>{item.error}</pre>}
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ color: "var(--ink-4)" }}>Loading jobs…</p>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="node-detail" style={{ padding: "3rem", textAlign: "center", justifyContent: "center" }}>
