@@ -1181,6 +1181,7 @@ class NodeConnectionOut(BaseModel):
     last_checked_at: str | None
     validation_job: NodeValidationJobOut | None
     recommendations: list[str]
+    live_probe: dict[str, Any] | None = None
 
 
 class NodeOnboardingCheckOut(BaseModel):
