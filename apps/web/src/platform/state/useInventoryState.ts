@@ -82,6 +82,9 @@ export function useInventoryState() {
     error: "",
     registeredService: null,
   } as any);
+  /** Live docker status by service id (Clusters poll). */
+  const [serviceLiveById, setServiceLiveById] = useState({} as any);
+  const [nodeLiveStatus, setNodeLiveStatus] = useState(null as any);
   return {
     catalog, setCatalog,
     clusters, setClusters,
@@ -110,5 +113,7 @@ export function useInventoryState() {
     onboardingError, setOnboardingError,
     onboardingStatus, setOnboardingStatus,
     catalogOnboarding, setCatalogOnboarding,
+    serviceLiveById, setServiceLiveById,
+    nodeLiveStatus, setNodeLiveStatus,
   };
 }

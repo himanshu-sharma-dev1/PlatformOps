@@ -1,6 +1,6 @@
 # Cluster Page Production Roadmap (cPlatform parity only)
 
-**Status:** implementing — **decisions locked 2026-07-10**; Phases 1–3 partially landed (toast, node facts, SERV IDs, AIOrchestrator bootstrap, full dForm install-schema)  
+**Status:** implementing — Phases 1–5 largely landed; Phase 6 runbook in `docs/runbook-cluster-dtrain.md`  
 **Scope:** **Clusters page only** — full cPlatform cluster list + detail parity, production-ready.  
 **Out of scope for this plan:** Config Manager, Diagnostics, Monitoring, Performance, Users, Placement product, Secrets vault, Releases product, more FE decomposition for its own sake.  
 **Baseline:** Phase 2b FE split done (`state/*` + `actions/*` + thin controller).  

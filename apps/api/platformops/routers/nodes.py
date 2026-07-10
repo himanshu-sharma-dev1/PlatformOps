@@ -404,6 +404,15 @@ def discover_infrastructure_endpoint(node_id: int, db: Session = Depends(get_db)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.get("/api/nodes/{node_id}/live-status", response_model=NodeServicesLiveStatusOut)
+def node_services_live_status_endpoint(node_id: int, db: Session = Depends(get_db)) -> dict:
+    _get_node(db, node_id)
+    try:
+        return get_node_services_live_status(db, node_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get("/api/nodes/{node_id}/check-port-and-name")
 def check_port_and_name_endpoint(
     node_id: int, port: int | None = None, name: str | None = None, db: Session = Depends(get_db)

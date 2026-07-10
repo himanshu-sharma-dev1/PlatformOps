@@ -121,6 +121,36 @@ class ServiceOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ServiceLiveStatusOut(BaseModel):
+    service_id: int
+    external_id: str = ""
+    service_key: str
+    name: str
+    container_name: str
+    image: str = ""
+    db_status: str = ""
+    overall_status: str
+    running: bool = False
+    state: str = ""
+    restart_count: int | None = None
+    started_at: str | None = None
+    exit_code: int | None = None
+    oom_killed: bool = False
+    error: str | None = None
+    checked_at: str = ""
+    source: str = "docker_inspect"
+    stale: bool = False
+    cache_hit: bool = False
+
+
+class NodeServicesLiveStatusOut(BaseModel):
+    node_id: int
+    count: int
+    running_count: int
+    items: list[ServiceLiveStatusOut]
+    checked_at: str = ""
+
+
 class PreflightOut(BaseModel):
     ok: bool
     missing: list[str] = Field(default_factory=list)

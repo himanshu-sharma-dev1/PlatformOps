@@ -1360,3 +1360,138 @@ def check_port_and_name_availability(
                 collisions.append(f"Host port {port} is already bound by service '{svc.name}'.")
 
     return {"available": len(collisions) == 0, "collisions": collisions}
+
+
+# --- Live container status (real docker inspect only; never invent healthy) ---
+
+_LIVE_STATUS_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_LIVE_STATUS_TTL_SECONDS = 5.0
+
+
+def _docker_inspect_local(container_name: str) -> tuple[dict[str, Any] | None, str | None]:
+    import subprocess
+
+    if not container_name:
+        return None, "empty container name"
+    try:
+        proc = subprocess.run(
+            ["docker", "inspect", container_name],
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        if proc.returncode != 0:
+            err = (proc.stderr or proc.stdout or "docker inspect failed").strip()
+            # Not found is not a hard failure of the platform
+            if "No such object" in err or "no such object" in err.lower():
+                return None, "not_found"
+            return None, err[:400]
+        data = json.loads(proc.stdout)
+        if isinstance(data, list) and data:
+            return data[0], None
+        return None, "empty inspect payload"
+    except FileNotFoundError:
+        return None, "docker CLI not available"
+    except Exception as exc:
+        return None, str(exc)
+
+
+def _map_inspect_to_live(service: ServiceInstance, inspect: dict[str, Any] | None, error: str | None) -> dict[str, Any]:
+    now = datetime.utcnow().isoformat() + "Z"
+    base = {
+        "service_id": service.id,
+        "external_id": service.external_id or "",
+        "service_key": service.service_key,
+        "name": service.name,
+        "container_name": service.container_name,
+        "image": service.image,
+        "db_status": service.status,
+        "checked_at": now,
+        "source": "docker_inspect",
+    }
+    if error == "not_found" or inspect is None:
+        overall = "not_found" if error in (None, "not_found") else "error"
+        return {
+            **base,
+            "overall_status": overall,
+            "running": False,
+            "state": overall,
+            "restart_count": None,
+            "started_at": None,
+            "error": error if error not in (None, "not_found") else ("container not found" if error == "not_found" else error),
+            "stale": False,
+        }
+    state = (inspect.get("State") or {}) if isinstance(inspect, dict) else {}
+    status = str(state.get("Status") or "unknown").lower()
+    running = bool(state.get("Running"))
+    if running:
+        overall = "running"
+    elif status in {"exited", "dead"}:
+        overall = "exited"
+    elif status in {"paused", "restarting", "created"}:
+        overall = status
+    else:
+        overall = status or "unknown"
+    cfg = inspect.get("Config") or {}
+    return {
+        **base,
+        "overall_status": overall,
+        "running": running,
+        "state": status,
+        "restart_count": inspect.get("RestartCount"),
+        "started_at": state.get("StartedAt"),
+        "exit_code": state.get("ExitCode"),
+        "oom_killed": bool(state.get("OOMKilled", False)),
+        "image": cfg.get("Image") or service.image,
+        "error": None,
+        "stale": False,
+    }
+
+
+def get_service_live_status(db: Session, service: ServiceInstance, *, use_cache: bool = True) -> dict[str, Any]:
+    import time
+
+    cache_key = f"svc:{service.id}:{service.container_name}"
+    now = time.monotonic()
+    if use_cache and cache_key in _LIVE_STATUS_CACHE:
+        created, payload = _LIVE_STATUS_CACHE[cache_key]
+        if now - created < _LIVE_STATUS_TTL_SECONDS:
+            out = dict(payload)
+            out["stale"] = False
+            out["cache_hit"] = True
+            return out
+
+    inspect, err = _docker_inspect_local(service.container_name)
+    result = _map_inspect_to_live(service, inspect, err)
+    result["cache_hit"] = False
+
+    # Persist honest status on the inventory row when we got a real answer
+    if result.get("overall_status") in {"running", "exited", "dead", "paused", "restarting", "not_found"}:
+        mapped = result["overall_status"]
+        if mapped == "not_found":
+            mapped = "unknown"
+        if service.status != mapped:
+            service.status = mapped
+            db.commit()
+
+    _LIVE_STATUS_CACHE[cache_key] = (now, result)
+    return result
+
+
+def get_node_services_live_status(db: Session, node_id: int) -> dict[str, Any]:
+    services = list(
+        db.scalars(
+            select(ServiceInstance)
+            .where(ServiceInstance.node_id == node_id, ServiceInstance.status != "deleted")
+            .order_by(ServiceInstance.id)
+        ).all()
+    )
+    items = [get_service_live_status(db, svc) for svc in services]
+    running = sum(1 for i in items if i.get("running"))
+    return {
+        "node_id": node_id,
+        "count": len(items),
+        "running_count": running,
+        "items": items,
+        "checked_at": datetime.utcnow().isoformat() + "Z",
+    }

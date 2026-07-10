@@ -123,13 +123,35 @@ export function createInventoryLoadActions(s: any) {
 
   async discoverNodeInfra(nodeId) {
     try {
-      setNotice(`Discovering infrastructure on node ${nodeId}\u2026`);
+      s.setNotice(`Discovering infrastructure on node ${nodeId}\u2026`);
       const result = await api(`/api/nodes/${nodeId}/discover`, { method: "POST" });
-      s.setNotice(result?.summary || result?.message || `Discover finished for node ${nodeId}`);
+      const summary =
+        result?.summary ||
+        result?.message ||
+        `Discover: scanned ${result?.containers_scanned ?? "?"} · adopted ${result?.adopted_count ?? 0}`;
+      s.setNotice(summary);
       await s.refresh();
       await s.loadNodeJobHistory(nodeId);
+      await s.refreshNodeLiveStatus(nodeId);
     } catch (e) {
-      setNotice(e?.message || "Discover failed");
+      s.setNotice(e?.message || "Discover failed");
+    }
+  },
+
+  async refreshNodeLiveStatus(nodeId) {
+    if (!nodeId) return null;
+    try {
+      const report = await api(`/api/nodes/${nodeId}/live-status`);
+      s.setNodeLiveStatus(report);
+      const map = { ...(s.serviceLiveById || {}) };
+      for (const item of report.items || []) {
+        if (item?.service_id != null) map[item.service_id] = item;
+      }
+      s.setServiceLiveById(map);
+      return report;
+    } catch (e) {
+      // Keep last-known; do not invent healthy
+      return null;
     }
   },
 

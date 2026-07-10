@@ -59,10 +59,21 @@ export function createInventoryDeployActions(s: any) {
     const schema = s.catalogOnboarding.installSchema;
     if (schema) {
       schema.fields.forEach((field) => {
-        if (field.key === "name") return;
+        if (field.key === "name" || field.key === "service_name") return;
         const value = s.parseInstallFieldValue(field, s.catalogOnboarding.installFieldValues[field.key]);
         s.assignContractValue(overrides, field.key, value);
       });
+    }
+    // Normalize cPlatform MANUAL/ANSIBLE into install_mode
+    const rawMode =
+      overrides.service_install ||
+      overrides.install_mode ||
+      s.catalogOnboarding.installFieldValues?.service_install ||
+      s.catalogOnboarding.installFieldValues?.install_mode;
+    if (rawMode != null) {
+      const mode = String(rawMode).toLowerCase();
+      overrides.install_mode = mode.includes("manual") ? "manual" : "ansible";
+      overrides.service_install = mode.includes("manual") ? "MANUAL" : "ANSIBLE";
     }
     const trimmedOverrides = s.catalogOnboarding.overridesText.trim();
     if (trimmedOverrides) {
@@ -197,20 +208,36 @@ export function createInventoryDeployActions(s: any) {
       s.setCatalogOnboarding((current) => ({ ...current, creating: false, error: "", registeredService: service }));
       s.setCatalogDrawerVisible(false);
       await s.loadNodeJobHistory(node.id);
+      await s.refreshNodeLiveStatus?.(node.id);
+      const installMode = String(
+        contractOverrides.install_mode ||
+          contractOverrides.service_install ||
+          ""
+      ).toLowerCase();
+      const isManual = installMode.includes("manual");
+      // MANUAL: register only (cPlatform). ANSIBLE: open deploy when requested.
       if (s.catalogOnboarding.nextAction === "config") {
         await s.loadConfig(service, s.configSource);
         s.setActiveView("config");
         s.setCatalogOnboarding((current) => ({ ...current, visible: false }));
-        s.setNotice(`Registered ${service.name} on ${node.name} and opened config manager.`);
+        s.setNotice(`Registered ${service.name}${service.external_id ? ` (${service.external_id})` : ""} on ${node.name} and opened config manager.`);
         return;
       }
-      if (s.catalogOnboarding.nextAction === "deploy") {
+      if (s.catalogOnboarding.nextAction === "deploy" && !isManual) {
         await s.openDeploymentModal(service);
         s.setCatalogOnboarding((current) => ({ ...current, visible: false }));
-        s.setNotice(`Registered ${service.name} on ${node.name} and opened deployment control.`);
+        s.setNotice(`Registered ${service.name}${service.external_id ? ` (${service.external_id})` : ""} on ${node.name} and opened deployment control.`);
         return;
       }
-      s.setNotice(targetService ? `Updated ${service.name} install configuration.` : existing ? `Selected existing ${service.name} on ${node.name}.` : `Registered ${service.name} on ${node.name}.`);
+      s.setCatalogOnboarding((current) => ({ ...current, visible: false }));
+      const modeLabel = isManual ? "MANUAL (registered, no ansible deploy)" : "";
+      s.setNotice(
+        targetService
+          ? `Updated ${service.name} install configuration.`
+          : existing
+            ? `Selected existing ${service.name} on ${node.name}.`
+            : `Registered ${service.name}${service.external_id ? ` (${service.external_id})` : ""} on ${node.name}${modeLabel ? ` · ${modeLabel}` : ""}.`
+      );
     } catch (error) {
       s.setCatalogOnboarding((current) => ({
         ...current,

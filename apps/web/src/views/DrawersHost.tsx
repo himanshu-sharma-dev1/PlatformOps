@@ -283,13 +283,16 @@ export function DrawersHost() {
                     value={catalogOnboarding.nextAction}
                     onChange={(e) => setCatalogOnboarding((current) => ({ ...current, nextAction: e.target.value as "overview" | "config" | "deploy" }))}
                   >
-                    <option value="deploy">Deployment control</option>
-                    <option value="overview">Service overview</option>
+                    <option value="deploy">Deployment control (ANSIBLE)</option>
+                    <option value="overview">Register only (good for MANUAL)</option>
                     {catalogOnboarding.card.configurable && <option value="config">Config manager</option>}
                   </select>
                 </div>
                 <div style={{ fontSize: "0.8rem", color: "var(--ink-4)" }}>
-                  Recommended path: register the card, review dependency plan, then deploy through the Ansible-backed deployment control.
+                  dForm fields below (when loaded). Set <strong>ServiceInstall</strong> to MANUAL to register without Ansible deploy, or ANSIBLE then continue into Deployment control.
+                  {catalogOnboarding.installSchema?.summary ? (
+                    <div style={{ marginTop: 4 }}>{catalogOnboarding.installSchema.summary}</div>
+                  ) : null}
                 </div>
                 <div className="field" style={{ marginTop: "0.75rem" }}>
                   <label>Advanced contract overrides (JSON)</label>

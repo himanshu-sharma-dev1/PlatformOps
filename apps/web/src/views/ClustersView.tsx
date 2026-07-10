@@ -44,6 +44,9 @@ export function ClustersView() {
   const observabilityPipeline = p.observabilityPipeline as any;
   const servicePortsLabel = p.servicePortsLabel as (...a: any[]) => string;
   const formatLocalTimestamp = p.formatLocalTimestamp as (...a: any[]) => string;
+  const serviceLiveById = (p.serviceLiveById || {}) as Record<string, any>;
+  const nodeLiveStatus = p.nodeLiveStatus as any;
+  const refreshNodeLiveStatus = p.refreshNodeLiveStatus as (...a: any[]) => void;
 
   if (!selectedCluster) {
       return (
@@ -374,12 +377,30 @@ export function ClustersView() {
 
               <div className="services-section" style={{ marginTop: "1rem" }}>
                 <div className="services-head">
-                  <h3>Services <span className="ct">{nodeServices.filter((s) => ["running", "healthy"].includes((s.status || "").toLowerCase())).length} running</span></h3>
-                  <button className="btn btn-primary btn-sm" onClick={() => setCatalogDrawerVisible(true)}>Add service</button>
+                  <h3>
+                    Services{" "}
+                    <span className="ct">
+                      {nodeLiveStatus && nodeLiveStatus.node_id === activeNode.id
+                        ? `${nodeLiveStatus.running_count} running (live)`
+                        : `${nodeServices.filter((s) => ["running", "healthy"].includes((s.status || "").toLowerCase())).length} running`}
+                    </span>
+                  </h3>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => refreshNodeLiveStatus?.(activeNode.id)}>Refresh live</button>
+                    <button className="btn btn-primary btn-sm" onClick={() => setCatalogDrawerVisible(true)}>Add service</button>
+                  </div>
                 </div>
                 <div className="service-stack">
-                  {nodeServices.map((service) => (
-                    <div key={service.id} className={`svc-card ${service.status}`}>
+                  {nodeServices.map((service) => {
+                    const live = serviceLiveById[service.id] || serviceLiveById[String(service.id)];
+                    const displayStatus = (live?.overall_status || service.status || "unknown").toLowerCase();
+                    const pillClass = ["healthy", "running"].includes(displayStatus)
+                      ? "pill-ok"
+                      : ["error", "failed", "unhealthy", "exited", "dead", "not_found"].includes(displayStatus)
+                        ? "pill-error"
+                        : "pill-warn";
+                    return (
+                    <div key={service.id} className={`svc-card ${displayStatus}`}>
                       <div className="svc-icon">{(service.name || service.service_key || "?")[0]}</div>
                       <div className="svc-info">
                         <div className="nm" style={{ fontWeight: 600 }}>
@@ -394,16 +415,22 @@ export function ClustersView() {
                           kind {service.kind}
                           {service.service_key ? <> · key <code>{service.service_key}</code></> : null}
                           {service.container_name ? <> · docker <code>{service.container_name}</code></> : null}
-                          {" · "}image <code>{service.image || "—"}</code>
+                          {" · "}image <code>{service.image || live?.image || "—"}</code>
+                          {live?.restart_count != null ? <> · restarts {live.restart_count}</> : null}
                         </div>
                       </div>
                       <div className="svc-ports"><span className="port">{servicePortsLabel(service)}</span></div>
                       <div className="svc-status">
                         <span
-                          className={`pill ${["healthy", "running"].includes((service.status || "").toLowerCase()) ? "pill-ok" : ["error", "failed", "unhealthy", "exited"].includes((service.status || "").toLowerCase()) ? "pill-error" : "pill-warn"}`}
-                          title={`Container runtime status from inventory: ${service.status || "unknown"}`}
+                          className={`pill ${pillClass}`}
+                          title={
+                            live
+                              ? `Live docker: ${live.overall_status}${live.error ? ` — ${live.error}` : ""}${live.cache_hit ? " (cache)" : ""}`
+                              : `Inventory status: ${service.status || "unknown"}`
+                          }
                         >
-                          {service.status || "unknown"}
+                          {displayStatus}
+                          {live ? "" : " · inv"}
                         </span>
                       </div>
                       <div className="svc-acts">
@@ -421,7 +448,8 @@ export function ClustersView() {
                         </button>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                   {nodeServices.length === 0 && (
                     <div className="empty-state">
                       <h3>No services on this node</h3>

@@ -94,6 +94,23 @@ export function usePlatformController(): PlatformApi {
     s.loadNodeMetrics(s.selectedNode.id, s.nodeMetricsWindow).catch(console.error);
   }, [s.selectedNode, s.nodeMetricsWindow]);
 
+  // Clusters live status poll (real docker inspect; ~5s server cache)
+  useEffect(() => {
+    const onClusters = s.activeView === "clusters" || s.activeView === "dashboard";
+    if (!onClusters || !s.selectedNode?.id) return;
+    let cancelled = false;
+    const tick = () => {
+      if (cancelled) return;
+      s.refreshNodeLiveStatus?.(s.selectedNode.id).catch(() => {});
+    };
+    tick();
+    const interval = window.setInterval(tick, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [s.activeView, s.selectedNode?.id]);
+
   useEffect(() => {
     if (!s.selectedService) return;
     s.loadServiceMetrics(s.selectedService.id, s.serviceMetricsWindow).catch(console.error);

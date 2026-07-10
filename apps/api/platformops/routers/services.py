@@ -217,6 +217,14 @@ def delete(
     return deleted
 
 
+@router.get("/api/services/{service_id}/live-status", response_model=ServiceLiveStatusOut)
+def service_live_status_endpoint(service_id: int, db: Session = Depends(get_db)) -> dict:
+    try:
+        return get_service_live_status(db, _get_service(db, service_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.post("/api/services/{service_id}/backup", response_model=BackupRunOut)
 def backup_service(service_id: int, db: Session = Depends(get_db)) -> BackupRun:
     return run_backup(db, _get_service(db, service_id))
