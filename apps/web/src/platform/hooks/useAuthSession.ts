@@ -1,11 +1,3 @@
-/**
- * Domain seam: useAuthSession
- * Related controller fields: authUser, loginForm, handleLogin, handleLogout, authReady
- *
- * Progressive extraction target — currently resolved via full controller.
- */
-import { usePlatformController } from "../usePlatformController";
-
-export function useAuthSession() {
-  return usePlatformController();
-}
+/** Auth domain: session user, login form, invite accept state. */
+export { useAuthState as useAuthSession } from "../state/useAuthState";
+export { createAuthActions } from "../actions/authActions";

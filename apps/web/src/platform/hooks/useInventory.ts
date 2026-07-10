@@ -1,11 +1,3 @@
-/**
- * Domain seam: useInventory
- * Related controller fields: clusters, nodes, services, refresh, selectCluster, selectNode
- *
- * Progressive extraction target — currently resolved via full controller.
- */
-import { usePlatformController } from "../usePlatformController";
-
-export function useInventory() {
-  return usePlatformController();
-}
+/** Inventory domain: clusters, nodes, services, catalog, editors, deploy. */
+export { useInventoryState as useInventory } from "../state/useInventoryState";
+export { createInventoryActions } from "../actions/inventoryActions";

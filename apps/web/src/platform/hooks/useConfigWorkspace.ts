@@ -1,11 +1,3 @@
-/**
- * Domain seam: useConfigWorkspace
- * Related controller fields: config, loadConfig, applyCurrentConfig, configTab
- *
- * Progressive extraction target — currently resolved via full controller.
- */
-import { usePlatformController } from "../usePlatformController";
-
-export function useConfigWorkspace() {
-  return usePlatformController();
-}
+/** Config domain: snapshots, drift, migrate, timeline, peer sync. */
+export { useConfigState as useConfigWorkspace } from "../state/useConfigState";
+export { createConfigActions } from "../actions/configActions";

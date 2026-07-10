@@ -1,6 +1,8 @@
-/**
- * Phase 2 domain hooks.
- * Today the controller is still composed in usePlatformController for call-site stability.
- * These modules document seams and re-export slices for progressive extraction.
- */
-export { usePlatformController as useOpsController } from "../usePlatformController";
+export { useAuthSession } from "./useAuthSession";
+export { useInventory } from "./useInventory";
+export { useConfigWorkspace } from "./useConfigWorkspace";
+export { useDiagnostics } from "./useDiagnostics";
+export { useMonitoring } from "./useMonitoring";
+export { usePerformance } from "./usePerformance";
+export { useSreAdvanced } from "./useSreAdvanced";
+export { useUiChrome } from "./useUiChrome";

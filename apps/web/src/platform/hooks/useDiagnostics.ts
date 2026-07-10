@@ -1,11 +1,3 @@
-/**
- * Domain seam: useDiagnostics
- * Related controller fields: diagnostics, loadDiagnostics, diagnosticsLive, diagTab
- *
- * Progressive extraction target — currently resolved via full controller.
- */
-import { usePlatformController } from "../usePlatformController";
-
-export function useDiagnostics() {
-  return usePlatformController();
-}
+/** Diagnostics domain: live logs, archives, analysis, Log Analyst chat. */
+export { useDiagnosticsState as useDiagnostics } from "../state/useDiagnosticsState";
+export { createDiagnosticsActions } from "../actions/diagnosticsActions";
