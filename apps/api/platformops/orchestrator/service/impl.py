@@ -10,23 +10,23 @@ import yaml
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..catalog import (
+from ...catalog import (
     get_service_contract,
     rendered_contract,
     required_dependencies,
     service_catalog,
 )
-from ..jobs import create_job, finish_job
-from ..models import (
+from ...jobs import create_job, finish_job
+from ...models import (
     DeploymentJob,
     DeploymentPlanRecord,
     JobStatus,
     Node,
     ServiceInstance,
 )
-from ..settings import settings
-from ..tasks import run_job_async
-from .common import (
+from ...settings import settings
+from ...tasks import run_job_async
+from ..common import (
     RUNNING_STATUSES,
     _ansible_base_command,
     _service_contract_for_node,
@@ -336,32 +336,15 @@ def deploy_service(db: Session, service: ServiceInstance) -> DeploymentJob:
     job = create_job(db, action="deploy", command=command, service_id=service.id, node_id=node.id)
 
     if settings.local_mode:
-        service.status = "running"
-        db.commit()
-        rich_output = (
-            f"PLAY [Deploy service container via Docker Compose] ***********************************\n\n"
-            f"TASK [Gathering Facts] ***************************************************************\n"
-            f"ok: [{node.name}]\n\n"
-            f"TASK [Create service directories] ****************************************************\n"
-            f'changed: [{node.name}] => {{"changed": true, "path": "{node.volume_root}/{service.service_key}"}}\n\n'
-            f"TASK [Copy docker-compose templates] *************************************************\n"
-            f'changed: [{node.name}] => {{"changed": true, "dest": "{node.volume_root}/compose/docker-compose.{service.service_key}.yml"}}\n\n'
-            f"TASK [Start container service] *******************************************************\n"
-            f'changed: [{node.name}] => {{"changed": true, "rc": 0, "stdout": "Container {service.container_name} Started"}}\n\n'
-            f"PLAY RECAP ***************************************************************************\n"
-            f"{node.name.ljust(28)}: ok=4    changed=3    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0"
-        )
-        completed = finish_job(db, job, ok=True, output=rich_output)
-        record_event(
+        return finish_job(
             db,
-            category="deployment",
-            level="info",
-            message=f"Deployed {service.name}",
-            service_id=service.id,
-            node_id=node.id,
-            metadata={"mode": "local-simulation", "container": service.container_name},
+            job,
+            ok=False,
+            error=(
+                "Deploy requires a real Ansible target. "
+                "Set PLATFORMOPS_LOCAL_MODE=false and configure SSH inventory for the node."
+            ),
         )
-        return completed
 
     def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
         bg_service = bg_db.get(ServiceInstance, service.id)
@@ -421,19 +404,15 @@ def delete_service(db: Session, service: ServiceInstance) -> DeploymentJob:
     job = create_job(db, action="delete", command=command, service_id=service.id, node_id=node.id)
 
     if settings.local_mode:
-        service.status = "deleted"
-        db.commit()
-        completed = finish_job(db, job, ok=True, output=f"Simulated delete for {service.container_name}.")
-        record_event(
+        return finish_job(
             db,
-            category="lifecycle",
-            level="info",
-            message=f"Deleted {service.name}",
-            service_id=service.id,
-            node_id=node.id,
-            metadata={"mode": "local-simulation"},
+            job,
+            ok=False,
+            error=(
+                "Service delete requires a real Ansible target. "
+                "Set PLATFORMOPS_LOCAL_MODE=false and configure SSH inventory for the node."
+            ),
         )
-        return completed
 
     def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
         bg_service = bg_db.get(ServiceInstance, service.id)
@@ -802,7 +781,7 @@ def placement_recommendations(
     require_healthy: bool = False,
     spread_subsystem: bool = False,
 ) -> dict[str, Any]:
-    from .reports import _project_node_capacity
+    from ..reports import _project_node_capacity
 
     if service_key not in service_catalog():
         raise ValueError(f"Unknown service key: {service_key}")
@@ -936,7 +915,7 @@ def placement_recommendations(
 
 
 def bootstrap_observability_plane(db: Session, node_id: int) -> dict[str, Any]:
-    from .reports import observability_pipeline_report
+    from ..reports import observability_pipeline_report
 
     result = deploy_subsystem(db, node_id, "observability-plane")
     pipeline = observability_pipeline_report(db)

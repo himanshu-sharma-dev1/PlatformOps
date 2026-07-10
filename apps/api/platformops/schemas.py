@@ -631,6 +631,14 @@ class MetricSeriesPointOut(BaseModel):
     value: float
 
 
+class MountedVolumeOut(BaseModel):
+    mount: str
+    fstype: str
+    total_gb: float
+    used_gb: float
+    usage_pct: float
+
+
 class NodeMetricsOut(BaseModel):
     node_id: int
     node_name: str
@@ -643,6 +651,37 @@ class NodeMetricsOut(BaseModel):
     cpu_series: list[MetricSeriesPointOut]
     memory_series: list[MetricSeriesPointOut]
     disk_series: list[MetricSeriesPointOut]
+    mounted_volumes: list[MountedVolumeOut] = []
+    prometheus_reachable: bool | None = None
+    error: str | None = None
+
+
+class ServiceDbMetricsOut(BaseModel):
+    active_connections: int = 0
+    idle_connections: int = 0
+    read_ops: int = 0
+    write_ops: int = 0
+    cache_hit_ratio: float = 0.0
+    transaction_locks: int = 0
+
+
+class ServiceBrokerMetricsOut(BaseModel):
+    ingestion_rate: float = 0.0
+    delivery_rate: float = 0.0
+    queued_ready: int = 0
+    queued_unacked: int = 0
+    consumer_count: int = 0
+
+
+class CustomChartSeriesOut(BaseModel):
+    name: str
+    points: list[MetricSeriesPointOut] = []
+
+
+class CustomChartOut(BaseModel):
+    title: str
+    unit: str = ""
+    series: list[CustomChartSeriesOut] = []
 
 
 class ServiceMetricsOut(BaseModel):
@@ -660,6 +699,11 @@ class ServiceMetricsOut(BaseModel):
     cpu_series: list[MetricSeriesPointOut]
     error_rate_series: list[MetricSeriesPointOut]
     queue_depth_series: list[MetricSeriesPointOut]
+    db_metrics: ServiceDbMetricsOut | None = None
+    broker_metrics: ServiceBrokerMetricsOut | None = None
+    custom_charts: list[CustomChartOut] = []
+    prometheus_reachable: bool | None = None
+    error: str | None = None
 
 
 class ServiceSummaryOut(BaseModel):
@@ -731,6 +775,7 @@ class DashboardObservabilityNodeOut(BaseModel):
 class DashboardSummaryOut(BaseModel):
     clusters: int
     nodes: int
+    node_online_count: int = 0
     services: int
     running_services: int
     open_incidents: int
@@ -738,9 +783,163 @@ class DashboardSummaryOut(BaseModel):
     healthy_observability_nodes: int
     degraded_observability_nodes: int
     blocked_services: int
+    gpu_node_count: int = 0
     attention_services: list[DashboardAttentionServiceOut]
     active_incidents: list[IncidentRecordOut]
     degraded_observability: list[DashboardObservabilityNodeOut]
+
+
+class IngestionStatsOut(BaseModel):
+    loki_reachable: bool
+    ingestion_rate: float
+    ingestion_rate_display: str
+    error_count_current_hour: int
+    error_count_previous_hour: int
+    error_delta_pct: float
+    archive_size_bytes: int
+
+
+class DiagnosticsFileLogLineOut(BaseModel):
+    timestamp: str
+    level: str
+    message: str
+    source: str
+
+
+class DiagnosticsFileTailOut(BaseModel):
+    lines: list[DiagnosticsFileLogLineOut] = []
+    source: str = "file_live"
+    log_path: str = ""
+    node: str = ""
+    total_lines: int = 0
+    error: str | None = None
+
+
+class DiagnosticsFileHistoryOut(BaseModel):
+    lines: list[DiagnosticsFileLogLineOut] = []
+    source: str = "file_history"
+    log_path: str = ""
+    page: int = 1
+    page_size: int = 50
+    total_count: int = 0
+    total_pages: int = 1
+    next_cursor: str | None = None
+    error: str | None = None
+
+
+class LogArchiveViewOut(BaseModel):
+    archive_id: int
+    filename: str
+    lines: list[str] = []
+    total_lines: int = 0
+    truncated: bool = False
+    error: str | None = None
+
+
+class LogArchiveDownloadOut(BaseModel):
+    archive_id: int | None = None
+    filename: str = ""
+    content_type: str = "text/plain"
+    ready: bool = False
+    error: str | None = None
+
+
+class LogArchiveBulkDownloadRequest(BaseModel):
+    archive_ids: list[int]
+
+
+class LogArchiveBulkDownloadOut(BaseModel):
+    zip_filename: str = ""
+    files: list[dict[str, Any]] = []
+    file_count: int = 0
+    ready: bool = False
+    error: str | None = None
+
+
+class DiagnosticsChatRequest(BaseModel):
+    question: str
+    window: str = "current"
+    history: list[dict[str, Any]] | None = None
+
+
+class DiagnosticsChatOut(BaseModel):
+    success: bool
+    answer: str = ""
+    evidence: list[dict[str, Any]] = []
+    chart_data: list[float | int] = []
+    suggestions: list[str] = []
+    error: str | None = None
+    provider: str | None = None
+
+
+class UserOut(BaseModel):
+    user_id: str
+    user_name: str = ""
+    user_email: str
+    user_role: str
+    user_number: str = ""
+    status: str
+    login_count: int = 0
+    last_login: str = "—"
+    last_login_ts: int | str = 0
+    created_at: str = ""
+    session_info: dict[str, Any] = {}
+    invite_token: str = ""
+    invite_link: str = ""
+
+
+class UserCreate(BaseModel):
+    user_name: str
+    user_email: str
+    password: str
+    user_role: str = "Operational"
+    user_number: str = ""
+
+
+class UserUpdate(BaseModel):
+    user_name: str | None = None
+    user_role: str | None = None
+    user_number: str | None = None
+    password: str | None = None
+    status: str | None = None
+
+
+class UserInviteCreate(BaseModel):
+    user_name: str
+    user_email: str
+    user_role: str = "Operational"
+    user_number: str = ""
+    permissions: list[str] = []
+
+
+class UserInviteResend(BaseModel):
+    emails: list[str]
+
+
+class UserInviteRevoke(BaseModel):
+    user_email: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class LoginOut(BaseModel):
+    token: str
+    expires_at: str
+    user: UserOut
+
+
+class InviteAcceptRequest(BaseModel):
+    password: str
+
+
+class LastVisitedUpdate(BaseModel):
+    view: str | None = None
+    cluster_name: str | None = None
+    node_name: str | None = None
+    service_name: str | None = None
 
 
 class ClusterOperationItemOut(BaseModel):

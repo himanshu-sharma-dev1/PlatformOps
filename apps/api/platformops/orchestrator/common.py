@@ -157,14 +157,6 @@ def test_registry_connection(
     if registry_type == "local":
         return {"connected": True, "message": "Local registry connection ok."}
 
-    # Simulate/Verify connection via docker login command or raw socket check
-    # To avoid blocking local execution, if settings.local_mode is active we skip actual auth checks
-    if settings.local_mode:
-        return {
-            "connected": True,
-            "message": f"Simulated container registry check successful for user '{registry_user}'.",
-        }
-
     url = registry_url.strip() or "registry-1.docker.io"
     # Basic ping check
     host = url.replace("https://", "").replace("http://", "").split("/")[0].split(":")[0]

@@ -7,14 +7,14 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..catalog import (
+from ...catalog import (
     get_service_contract,
     observability_catalog,
     required_dependencies,
     service_catalog,
 )
-from ..jobs import create_job, finish_job
-from ..models import (
+from ...jobs import create_job, finish_job
+from ...models import (
     AuditExport,
     CapacityReport,
     Cluster,
@@ -33,7 +33,7 @@ from ..models import (
     ServiceInstance,
     SloReport,
 )
-from .common import (
+from ..common import (
     RUNNING_STATUSES,
     record_event,
 )
@@ -443,7 +443,7 @@ def run_policy_scan(db: Session) -> list[PolicyFinding]:
     services = list(db.scalars(select(ServiceInstance).order_by(ServiceInstance.service_key)).all())
     for service in services:
         contract = json.loads(service.config_json or "{}")
-        from .service import dependency_preflight
+        from ..service import dependency_preflight
 
         dependencies = dependency_preflight(db, service)
         if not dependencies["ok"]:
@@ -621,27 +621,35 @@ def execute_runbook(
         runbook_key=runbook_key,
         status=JobStatus.running.value,
         steps_json=json.dumps(
-            [{"order": index + 1, "step": step, "status": "success"} for index, step in enumerate(steps)]
+            [{"order": index + 1, "step": step, "status": "pending"} for index, step in enumerate(steps)]
         ),
-        output=f"Simulated runbook {runbook_key} completed {len(steps)} steps.",
+        output="",
     )
     db.add(execution)
     db.commit()
     db.refresh(execution)
-    execution.status = JobStatus.success.value
+    # Runbooks are orchestration templates only — do not invent success without real automation
+    execution.status = JobStatus.failed.value
     execution.completed_at = datetime.utcnow()
+    execution.output = (
+        f"Runbook '{runbook_key}' is recorded but not auto-executed. "
+        "Wire steps to real Ansible/jobs before marking success."
+    )
+    execution.steps_json = json.dumps(
+        [{"order": index + 1, "step": step, "status": "skipped"} for index, step in enumerate(steps)]
+    )
     if incident:
-        incident.remediation = f"Runbook {runbook_key} executed successfully."
+        incident.remediation = f"Runbook {runbook_key} listed (not auto-executed)."
     db.commit()
     db.refresh(execution)
     record_event(
         db,
         category="runbook",
-        level="info",
-        message=f"Executed runbook {runbook_key}",
+        level="warning",
+        message=f"Runbook {runbook_key} recorded without auto-execution",
         service_id=execution.service_id,
         node_id=execution.node_id,
-        metadata={"runbook_execution_id": execution.id},
+        metadata={"runbook_execution_id": execution.id, "status": execution.status},
     )
     return execution
 
@@ -651,26 +659,64 @@ def latest_runbook_executions(db: Session, *, limit: int = 100) -> list[RunbookE
 
 
 def evaluate_slos(db: Session) -> list[SloReport]:
-    services = list(db.scalars(select(ServiceInstance).order_by(ServiceInstance.service_key)).all())
+    """Evaluate SLOs from real Prometheus availability only — never invent percentages."""
     reports: list[SloReport] = []
+    try:
+        from ..monitoring import _prom_query
+    except Exception:
+        _prom_query = None  # type: ignore[assignment]
+
+    services = list(db.scalars(select(ServiceInstance).order_by(ServiceInstance.service_key)).all())
     for service in services:
         contract = json.loads(service.config_json or "{}")
-        from .service import dependency_preflight
+        target = "99.90" if service.kind == "app" else "99.50"
+        observed: str | None = None
+        status = "unknown"
+        detail_parts = [
+            f"status={service.status}",
+            f"subsystem={contract.get('subsystem', 'uncategorized')}",
+        ]
 
-        dependency_state = dependency_preflight(db, service)
-        is_ready = service.status in RUNNING_STATUSES and dependency_state["ok"]
-        observed = "99.95" if is_ready else "97.50"
+        if _prom_query is not None and service.container_name:
+            # Real up metric for the container name when cAdvisor/container exporter is present
+            query = (
+                f'avg_over_time(up{{container_name="{service.container_name}"}}[1h]) * 100'
+            )
+            ok, value = _prom_query(query)
+            if not ok:
+                # Fallback: name label variants
+                ok, value = _prom_query(
+                    f'avg_over_time(up{{name="{service.container_name}"}}[1h]) * 100'
+                )
+            if ok and value is not None:
+                try:
+                    pct = float(value)
+                    observed = f"{pct:.2f}"
+                    status = "passing" if pct >= float(target) else "burning"
+                    detail_parts.append("source=prometheus")
+                except (TypeError, ValueError):
+                    detail_parts.append("source=prometheus-unparsed")
+            else:
+                detail_parts.append("source=prometheus-unavailable")
+        else:
+            detail_parts.append("source=unavailable")
+
+        if observed is None:
+            # Do not invent availability — skip synthetic report rows
+            continue
+
         report = SloReport(
             service_id=service.id,
             node_id=service.node_id,
             name=f"{service.service_key}-availability",
-            target="99.90" if service.kind == "app" else "99.50",
+            target=target,
             observed=observed,
-            status="passing" if float(observed) >= (99.90 if service.kind == "app" else 99.50) else "burning",
-            detail=f"status={service.status}; dependencies_ok={dependency_state['ok']}; subsystem={contract.get('subsystem', 'uncategorized')}",
+            status=status,
+            detail="; ".join(detail_parts),
         )
         db.add(report)
         reports.append(report)
+
     db.commit()
     for report in reports:
         db.refresh(report)
@@ -678,7 +724,7 @@ def evaluate_slos(db: Session) -> list[SloReport]:
         db,
         category="slo",
         level="warning" if any(report.status == "burning" for report in reports) else "info",
-        message=f"SLO evaluation completed for {len(reports)} services",
+        message=f"SLO evaluation completed for {len(reports)} services with real metrics",
         metadata={"reports": len(reports)},
     )
     return reports
@@ -800,22 +846,87 @@ def observability_pipeline_report(db: Session) -> dict[str, Any]:
 
 
 def generate_capacity_report(db: Session, node: Node) -> CapacityReport:
+    """Capacity from real node facts + Prometheus when available; never invent hardware."""
     services = list(db.scalars(select(ServiceInstance).where(ServiceInstance.node_id == node.id)).all())
     running = [service for service in services if service.status in RUNNING_STATUSES]
     infra_count = sum(1 for service in running if service.kind == "infrastructure")
     app_count = sum(1 for service in running if service.kind == "app")
     helper_count = sum(1 for service in running if service.kind == "helper")
-    memory_reserved = infra_count * 768 + app_count * 512 + helper_count * 256
-    storage_reserved = infra_count * 8 + app_count * 2 + helper_count
-    cpu_reserved = round(infra_count * 0.35 + app_count * 0.25 + helper_count * 0.15, 2)
-    status = "risk" if memory_reserved > 24576 or storage_reserved > 256 else "ok"
-    detail = {
-        "running": len(running),
-        "infrastructure": infra_count,
-        "applications": app_count,
-        "helpers": helper_count,
-        "assumption": "local simulation estimates; remote mode can replace this with node facts and cgroup metrics",
-    }
+
+    facts: dict[str, Any] = {}
+    try:
+        facts = json.loads(node.facts_json or "{}")
+    except Exception:
+        facts = {}
+
+    # Prefer real measured metrics from Prometheus when exporters are up
+    cpu_pct = None
+    mem_pct = None
+    disk_pct = None
+    try:
+        from ..monitoring import _prom_query
+
+        ok, val = _prom_query('100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)')
+        if ok and val is not None:
+            cpu_pct = float(val)
+        ok, val = _prom_query(
+            "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100"
+        )
+        if ok and val is not None:
+            mem_pct = float(val)
+        ok, val = _prom_query(
+            '(1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100'
+        )
+        if ok and val is not None:
+            disk_pct = float(val)
+    except Exception:
+        pass
+
+    vcpus = facts.get("vcpus") or facts.get("vcpu") or facts.get("cpu_cores")
+    memory_gb = facts.get("memory_gb") or facts.get("memory")
+    storage_gb = facts.get("storage_gb") or facts.get("disk_gb")
+
+    # Without real facts or prom, mark unknown rather than inventing capacity
+    if cpu_pct is None and mem_pct is None and not vcpus and not memory_gb:
+        status = "unknown"
+        cpu_reserved = "0"
+        memory_reserved = 0
+        storage_reserved = 0
+        detail = {
+            "running": len(running),
+            "infrastructure": infra_count,
+            "applications": app_count,
+            "helpers": helper_count,
+            "source": "unavailable",
+            "message": "No node facts or Prometheus capacity metrics available.",
+        }
+    else:
+        # Use real utilization when present; else facts inventory only
+        if mem_pct is not None and mem_pct > 85:
+            status = "risk"
+        elif disk_pct is not None and disk_pct > 90:
+            status = "risk"
+        elif cpu_pct is not None and cpu_pct > 90:
+            status = "risk"
+        else:
+            status = "ok"
+        cpu_reserved = f"{cpu_pct:.2f}" if cpu_pct is not None else "0"
+        memory_reserved = int(float(memory_gb) * 1024) if memory_gb else 0
+        storage_reserved = int(storage_gb) if storage_gb else 0
+        detail = {
+            "running": len(running),
+            "infrastructure": infra_count,
+            "applications": app_count,
+            "helpers": helper_count,
+            "source": "prometheus+facts" if cpu_pct is not None else "facts",
+            "cpu_percent": cpu_pct,
+            "memory_percent": mem_pct,
+            "disk_percent": disk_pct,
+            "vcpus": vcpus,
+            "memory_gb": memory_gb,
+            "storage_gb": storage_gb,
+        }
+
     report = CapacityReport(
         node_id=node.id,
         status=status,

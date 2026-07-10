@@ -197,6 +197,56 @@ def compare_config_snapshots(
     }
 
 
+def _read_remote_config_content(service: ServiceInstance) -> tuple[str | None, str | None]:
+    """Return (content, error). Prefers remote file via SSH/Ansible when available."""
+    import subprocess
+    from pathlib import Path
+
+    contract = json.loads(service.config_json or "{}")
+    config_path = contract.get("config_path") or contract.get("config_file") or ""
+    if not config_path:
+        # Common volume layout
+        volume_root = getattr(service.node, "volume_root", None) or "/tmp/platformops"
+        config_path = f"{volume_root.rstrip('/')}/config/{service.service_key}/config.yaml"
+
+    node = service.node
+    is_local = (
+        settings.local_mode
+        or (node and (node.environment or "").lower() == "local")
+        or (node and (node.host or "") in {"localhost", "127.0.0.1", ""})
+    )
+    if is_local:
+        path = Path(config_path)
+        if path.is_file():
+            try:
+                return path.read_text(encoding="utf-8", errors="replace"), None
+            except Exception as exc:
+                return None, str(exc)
+        return None, f"Config file not found on local path: {config_path}"
+
+    try:
+        inventory = node.host
+        user = node.ssh_user or "ubuntu"
+        key_arg = ["--private-key", node.ssh_key_path] if node.ssh_key_path else []
+        cmd = ["ansible", inventory, "-m", "shell", "-a", f"cat {config_path}", "-u", user, *key_arg]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=str(settings.project_root))
+        if proc.returncode != 0:
+            return None, (proc.stderr or proc.stdout or "remote cat failed")[:500]
+        lines = []
+        for line in proc.stdout.splitlines():
+            if line.startswith(inventory) or "SUCCESS" in line or "CHANGED" in line:
+                continue
+            if line.strip().startswith(">>"):
+                continue
+            lines.append(line)
+        content = "\n".join(lines).strip()
+        if not content:
+            return None, "Empty remote config or unreadable path"
+        return content, None
+    except Exception as exc:
+        return None, str(exc)
+
+
 def detect_drift(db: Session, service: ServiceInstance) -> DriftReport:
     latest_snapshot = db.scalar(
         select(ConfigSnapshot)
@@ -204,8 +254,21 @@ def detect_drift(db: Session, service: ServiceInstance) -> DriftReport:
         .order_by(ConfigSnapshot.version.desc())
         .limit(1)
     )
-    current = current_config(service)
     differences: list[dict[str, Any]] = []
+    remote_content, remote_err = _read_remote_config_content(service)
+    # Prefer remote live file; fall back to DB current_config only for comparison baseline content
+    live_content = remote_content if remote_content is not None else current_config(service)
+
+    if remote_err and remote_content is None:
+        differences.append(
+            {
+                "field": "_remote_read",
+                "expected": "readable remote config",
+                "actual": remote_err,
+                "severity": "error",
+            }
+        )
+
     if latest_snapshot is None:
         differences.append(
             {
@@ -215,19 +278,39 @@ def detect_drift(db: Session, service: ServiceInstance) -> DriftReport:
                 "severity": "warning",
             }
         )
-    elif latest_snapshot.content != current:
-        expected = yaml.safe_load(latest_snapshot.content) or {}
-        actual = yaml.safe_load(current) or {}
-        for key in sorted(set(expected) | set(actual)):
-            if expected.get(key) != actual.get(key):
+    elif (latest_snapshot.content or "").strip() != (live_content or "").strip():
+        try:
+            expected = yaml.safe_load(latest_snapshot.content) or {}
+            actual = yaml.safe_load(live_content) or {}
+            if isinstance(expected, dict) and isinstance(actual, dict):
+                for key in sorted(set(expected) | set(actual)):
+                    if expected.get(key) != actual.get(key):
+                        differences.append(
+                            {
+                                "field": key,
+                                "expected": expected.get(key),
+                                "actual": actual.get(key),
+                                "severity": "warning",
+                            }
+                        )
+            else:
                 differences.append(
                     {
-                        "field": key,
-                        "expected": expected.get(key),
-                        "actual": actual.get(key),
+                        "field": "_content",
+                        "expected": "matches snapshot",
+                        "actual": "differs",
                         "severity": "warning",
                     }
                 )
+        except Exception:
+            differences.append(
+                {
+                    "field": "_content",
+                    "expected": "matches snapshot",
+                    "actual": "differs (unparseable)",
+                    "severity": "warning",
+                }
+            )
 
     report = DriftReport(
         service_id=service.id,
@@ -245,7 +328,7 @@ def detect_drift(db: Session, service: ServiceInstance) -> DriftReport:
         message=f"Drift check for {service.name}: {report.status}",
         service_id=service.id,
         node_id=service.node_id,
-        metadata={"differences": len(differences)},
+        metadata={"differences": len(differences), "remote_error": remote_err},
     )
     return report
 
@@ -703,51 +786,56 @@ def restore_config_snapshot(db: Session, service: ServiceInstance, snapshot: Con
 
         return run_job_async(db, job, cwd=settings.project_root, on_complete=on_complete)
 
-    from .service import write_job_vars
-
-    vars_path = write_job_vars(
-        "restore",
-        service.id,
-        {
-            "container_name": service.container_name,
-            "snapshot_version": snapshot.version,
-            "snapshot_content": snapshot.content,
-        },
-    )
-    command = f"{_ansible_base_command(service.node, 'docker_service.yml')} --extra-vars @{vars_path}"
-    job = create_job(db, action="restore-config", command=command, service_id=service.id, node_id=service.node_id)
-
-    record_event(
+    job = create_job(
         db,
-        category="config",
-        level="info",
-        message=f"Restored config snapshot {snapshot.name} for {service.name}",
+        action="restore-config",
+        command=f"restore-snapshot-{snapshot.version}",
         service_id=service.id,
         node_id=service.node_id,
-        metadata={
-            "action": "restored",
-            "actor": "platform-operator",
-            "snapshot_id": snapshot.id,
-            "version": snapshot.version,
-        },
     )
-    return finish_job(db, job, ok=True, output=f"Simulated config restore from {snapshot.name}.")
+    return finish_job(
+        db,
+        job,
+        ok=False,
+        error=(
+            "Config restore requires a real node target. "
+            "Set PLATFORMOPS_LOCAL_MODE=false and configure SSH/Ansible for the service node."
+        ),
+    )
 
 
-def validate_config(content: str) -> dict[str, Any]:
+def validate_config(content: str, service: ServiceInstance | None = None) -> dict[str, Any]:
     try:
         parsed = yaml.safe_load(content)
+        if parsed is None:
+            return {"ok": False, "message": "Config content is empty."}
         if not isinstance(parsed, dict):
             return {"ok": False, "message": "Root element of config must be a YAML dictionary."}
-        if "service_key" not in parsed:
-            return {"ok": False, "message": "Config must contain service_key field."}
+        # Soft schema check against install schema when service known
+        if service is not None:
+            try:
+                from ..catalog import get_service_contract
+
+                contract = get_service_contract(service.service_key) or {}
+                # Prefer install schema fields if present on contract
+                fields = contract.get("install_fields") or contract.get("fields") or []
+                required_keys = [
+                    f.get("key") or f.get("name")
+                    for f in fields
+                    if isinstance(f, dict) and f.get("required") and (f.get("key") or f.get("name"))
+                ]
+                missing = [k for k in required_keys if k not in parsed and k not in (parsed.get("environment") or {})]
+                if missing:
+                    return {"ok": False, "message": f"Missing required config keys: {', '.join(missing)}"}
+            except Exception:
+                pass
         return {"ok": True, "message": "YAML validated successfully."}
     except Exception as exc:
         return {"ok": False, "message": f"YAML syntax error: {exc}"}
 
 
 def apply_config(db: Session, service: ServiceInstance, *, content: str, apply_mode: str) -> DeploymentJob:
-    validation = validate_config(content)
+    validation = validate_config(content, service=service)
     if not validation["ok"]:
         job = create_job(
             db, action="apply-config-blocked", command="validate-yaml", service_id=service.id, node_id=service.node_id
@@ -791,17 +879,19 @@ def apply_config(db: Session, service: ServiceInstance, *, content: str, apply_m
 
         return run_job_async(db, job, cwd=settings.project_root, on_complete=on_complete)
 
-    from .service import write_job_vars
-
-    vars_path = write_job_vars(
-        "config",
-        service.id,
-        {
-            "container_name": service.container_name,
-            "apply_mode": apply_mode,
-            "config_content": content,
-        },
+    job = create_job(
+        db,
+        action="apply-config",
+        command="apply-config-blocked-local-mode",
+        service_id=service.id,
+        node_id=service.node_id,
     )
-    command = f"{_ansible_base_command(service.node, 'config_apply.yml')} --extra-vars @{vars_path}"
-    job = create_job(db, action="apply-config", command=command, service_id=service.id, node_id=service.node_id)
-    return finish_job(db, job, ok=True, output="Configuration validated and simulated apply completed.")
+    return finish_job(
+        db,
+        job,
+        ok=False,
+        error=(
+            "Config apply requires a real node target. "
+            "Set PLATFORMOPS_LOCAL_MODE=false and configure SSH/Ansible for the service node."
+        ),
+    )

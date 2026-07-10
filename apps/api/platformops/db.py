@@ -29,6 +29,35 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 def init_db() -> None:
     settings.resolve(settings.runtime_dir).mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(bind=engine)
+    _migrate_sqlite_schema()
+
+
+def _migrate_sqlite_schema() -> None:
+    """Add columns introduced after initial create_all for existing SQLite volumes."""
+    url = _database_url()
+    if not url.startswith("sqlite:///"):
+        return
+    from sqlalchemy import text
+
+    migrations: list[tuple[str, str, str]] = [
+        ("clusters", "repo_type", "ALTER TABLE clusters ADD COLUMN repo_type VARCHAR(40) DEFAULT 'github'"),
+        ("clusters", "repo_url", "ALTER TABLE clusters ADD COLUMN repo_url VARCHAR(512) DEFAULT ''"),
+        ("clusters", "repo_branch", "ALTER TABLE clusters ADD COLUMN repo_branch VARCHAR(120) DEFAULT 'main'"),
+        ("clusters", "repo_token", "ALTER TABLE clusters ADD COLUMN repo_token VARCHAR(512) DEFAULT ''"),
+        ("clusters", "registry_type", "ALTER TABLE clusters ADD COLUMN registry_type VARCHAR(40) DEFAULT 'dockerhub'"),
+        ("clusters", "registry_url", "ALTER TABLE clusters ADD COLUMN registry_url VARCHAR(512) DEFAULT ''"),
+        ("clusters", "registry_user", "ALTER TABLE clusters ADD COLUMN registry_user VARCHAR(120) DEFAULT ''"),
+        ("clusters", "registry_password", "ALTER TABLE clusters ADD COLUMN registry_password VARCHAR(512) DEFAULT ''"),
+    ]
+    with engine.begin() as conn:
+        for table, column, ddl in migrations:
+            try:
+                rows = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
+                existing = {r[1] for r in rows}
+                if column not in existing:
+                    conn.execute(text(ddl))
+            except Exception:
+                pass
 
 
 def get_db() -> Generator[Session, None, None]:

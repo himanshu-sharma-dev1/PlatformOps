@@ -10,79 +10,70 @@ interface LayoutProps {
   serviceContext?: string | null;
 }
 
-export function Layout({ children, activeView, onViewChange, clusterContext, nodeContext, serviceContext }: LayoutProps) {
-  // Determine grouping based on view
-  let groupName = "Platform";
-  let viewName = "Dashboard";
-  if (activeView === "config") {
-    groupName = "Platform";
-    viewName = "Config Manager";
-  } else if (activeView === "monitoring") {
-    groupName = "Platform";
-    viewName = "Services";
-  } else if (activeView === "diagnostics") {
-    groupName = "Observability";
-    viewName = "Diagnostics";
-  } else if (activeView === "node-metrics") {
-    groupName = "Observability";
-    viewName = "Node Metrics";
-  } else if (activeView === "observability-stack") {
-    groupName = "Observability";
-    viewName = "Observability Stack";
-  }
+const VIEW_META: Record<string, { group: string; title: string }> = {
+  clusters: { group: "Platform", title: "Clusters" },
+  config: { group: "Platform", title: "Config Manager" },
+  users: { group: "Platform", title: "Users" },
+  monitoring: { group: "Observability", title: "Monitoring" },
+  performance: { group: "Observability", title: "Performance" },
+  diagnostics: { group: "Observability", title: "Diagnostics" },
+  observability: { group: "Observability", title: "Observability stack" },
+  topology: { group: "Advanced", title: "Topology" },
+  policy: { group: "Advanced", title: "Policy" },
+  audit: { group: "Advanced", title: "Audit" },
+  reliability: { group: "Advanced", title: "Reliability" },
+};
+
+export function Layout({
+  children,
+  activeView,
+  onViewChange,
+  clusterContext,
+  nodeContext,
+  serviceContext,
+}: LayoutProps) {
+  const view = activeView === "dashboard" ? "clusters" : activeView;
+  const meta = VIEW_META[view] || VIEW_META.clusters;
 
   return (
     <div className="app-container">
-      <Sidebar activeView={activeView === "dashboard" ? "clusters" : activeView} onViewChange={onViewChange} />
+      <Sidebar activeView={view} onViewChange={onViewChange} />
       <div className="main-wrapper">
         <header className="topbar">
           <div className="crumb">
-            PlatformOps
+            <button type="button" className="crumb-root" onClick={() => onViewChange("clusters")}>
+              PlatformOps
+            </button>
             <span className="sep">/</span>
-            <span>{groupName}</span>
+            <span className="crumb-group">{meta.group}</span>
             <span className="sep">/</span>
-            <span 
-              className="link" 
-              onClick={() => {
-                onViewChange(activeView === "config" || activeView === "diagnostics" || activeView === "monitoring" ? activeView : "clusters");
-              }}
-            >
-              {viewName}
-            </span>
-            {clusterContext && (
+            <button type="button" className="crumb-link" onClick={() => onViewChange(view)}>
+              {meta.title}
+            </button>
+            {clusterContext ? (
               <>
                 <span className="sep">/</span>
-                <span>{clusterContext}</span>
+                <span className="crumb-ctx">{clusterContext}</span>
               </>
-            )}
-            {nodeContext && (
+            ) : null}
+            {nodeContext ? (
               <>
                 <span className="sep">/</span>
-                <span>{nodeContext}</span>
+                <span className="crumb-ctx">{nodeContext}</span>
               </>
-            )}
-            {serviceContext && (
+            ) : null}
+            {serviceContext ? (
               <>
                 <span className="sep">/</span>
-                <span>{serviceContext}</span>
+                <span className="crumb-ctx">{serviceContext}</span>
               </>
-            )}
+            ) : null}
           </div>
           <div className="topbar-right">
-            <button className="icon-btn" title="Search">
-              <svg className="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-            </button>
-            <button className="icon-btn" title="Notifications">
-              <svg className="ic" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
-            </button>
-            <button className="icon-btn" title="Help">
-              <svg className="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01"/></svg>
-            </button>
+            <span className="env-pill">Live</span>
           </div>
         </header>
-        <main className="content-area">
-          {children}
-        </main>
+        <main className="content-area">{children}</main>
       </div>
     </div>
   );

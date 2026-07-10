@@ -356,3 +356,52 @@ class ReleaseApproval(Base):
     approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class UserInfo(Base):
+    """cPlatform-parity operator account (UserInfo)."""
+
+    __tablename__ = "user_info"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    user_email: Mapped[str] = mapped_column(String(200), unique=True, index=True)
+    user_name: Mapped[str] = mapped_column(String(120), default="")
+    user_role: Mapped[str] = mapped_column(String(50), default="Operational")
+    user_number: Mapped[str] = mapped_column(String(32), default="")
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # active|pending|disabled
+    password_hash: Mapped[str] = mapped_column(String(255), default="")
+    login_count: Mapped[int] = mapped_column(Integer, default=0)
+    session_info: Mapped[str] = mapped_column(Text, default="{}")
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class InviteToken(Base):
+    """cPlatform InviteToken for pending operators."""
+
+    __tablename__ = "invite_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_name: Mapped[str] = mapped_column(String(120), default="")
+    user_email: Mapped[str] = mapped_column(String(200), index=True)
+    user_role: Mapped[str] = mapped_column(String(50), default="Operational")
+    user_number: Mapped[str] = mapped_column(String(32), default="")
+    permissions: Mapped[str] = mapped_column(Text, default="[]")
+    invited_by: Mapped[str] = mapped_column(String(160), default="")
+    is_used: Mapped[int] = mapped_column(Integer, default=0)
+    is_revoked: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class AuthSession(Base):
+    """Bearer session for PlatformOps multiuser auth."""
+
+    __tablename__ = "auth_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_id: Mapped[str] = mapped_column(String(16), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

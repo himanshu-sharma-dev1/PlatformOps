@@ -74,10 +74,20 @@ services:
     user: root
     ports:
       - "9002:8000"
+    env_file:
+      - ../../.env
     environment:
       - PLATFORMOPS_DATABASE_URL=sqlite:////app/data/platformops.db
       - PLATFORMOPS_LOCAL_MODE=false
-      - PLATFORMOPS_GLITCHTIP_BASE_URL=http://glitchtip-web:8000
+      - PLATFORMOPS_GLITCHTIP_BASE_URL=http://cplatform_glitchtip_web:8000
+      - PLATFORMOPS_PROMETHEUS_BASE_URL=http://platformops-prometheus:9090
+      - PLATFORMOPS_LOKI_BASE_URL=http://platformops-loki:3100
+      - PLATFORMOPS_LOKI_WRITE_URL=http://platformops-loki:3100
+      - PLATFORMOPS_PUBLIC_BASE_URL=http://localhost:9002
+      - PLATFORMOPS_BOOTSTRAP_ADMIN_EMAIL=admin
+      - PLATFORMOPS_BOOTSTRAP_ADMIN_PASSWORD=admin
+      - PLATFORMOPS_BOOTSTRAP_ADMIN_NAME=admin
+      # LLM keys: set PLATFORMOPS_LLM_* / PLATFORMOPS_GROQ_* in repo-root .env (not committed)
     volumes:
       - platformops-data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock

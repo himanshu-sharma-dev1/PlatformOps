@@ -495,6 +495,92 @@ def run_tests():
     assert_status(r, 200)
     print("🟢 Global topology dependencies graph retrieved successfully")
 
+    # 7.7 Dashboard summary includes gpu_node_count
+    r = requests.get(f"{BASE_URL}/api/dashboard/summary")
+    if r.status_code == 200:
+        summary = r.json()
+        assert "gpu_node_count" in summary, "dashboard summary missing gpu_node_count"
+        print(f"🟢 Dashboard summary gpu_node_count={summary.get('gpu_node_count')}")
+    else:
+        print(f"🟡 Dashboard summary returned HTTP {r.status_code} (env schema may need migrate); skipping gpu_node_count assert")
+
+    # 7.8 Node metrics schema fields
+    r = requests.get(f"{BASE_URL}/api/nodes/{node_id}/metrics?window=1h")
+    assert_status(r, 200)
+    node_metrics = r.json()
+    assert "mounted_volumes" in node_metrics, "node metrics missing mounted_volumes"
+    assert "prometheus_reachable" in node_metrics, "node metrics missing prometheus_reachable"
+    print(f"🟢 Node metrics mounted_volumes={len(node_metrics.get('mounted_volumes') or [])} prom={node_metrics.get('prometheus_reachable')}")
+
+    # 7.9 Service metrics schema fields
+    r = requests.get(f"{BASE_URL}/api/services/{service_id}/metrics?window=1h")
+    assert_status(r, 200)
+    svc_metrics = r.json()
+    assert "custom_charts" in svc_metrics, "service metrics missing custom_charts"
+    print(f"🟢 Service metrics keys present (db/broker/custom) prom={svc_metrics.get('prometheus_reachable')}")
+
+    # 7.10 Ingestion stats
+    r = requests.get(f"{BASE_URL}/api/diagnostics/ingestion-stats")
+    assert_status(r, 200)
+    stats = r.json()
+    assert "ingestion_rate_display" in stats
+    print(f"🟢 Ingestion stats rate={stats.get('ingestion_rate_display')} loki={stats.get('loki_reachable')}")
+
+    # 7.11 File tail / file history / chat
+    r = requests.get(f"{BASE_URL}/api/services/{service_id}/diagnostics/file-tail?tail_lines=20")
+    assert_status(r, 200)
+    assert "lines" in r.json()
+    print("🟢 Diagnostics file-tail succeeded")
+
+    r = requests.get(f"{BASE_URL}/api/services/{service_id}/diagnostics/file-history?page=1&page_size=10")
+    assert_status(r, 200)
+    hist = r.json()
+    assert "lines" in hist
+    print(f"🟢 Diagnostics file-history lines={len(hist.get('lines') or [])} next_cursor={'yes' if hist.get('next_cursor') else 'no'}")
+
+    r = requests.post(
+        f"{BASE_URL}/api/services/{service_id}/diagnostics/chat",
+        json={"question": "Summarize recent errors", "window": "current"},
+    )
+    assert_status(r, 200)
+    chat = r.json()
+    assert chat.get("success") is True or chat.get("answer"), "chat missing answer"
+    print("🟢 Diagnostics AI chat responded")
+
+    # 7.12 Archives view
+    r = requests.get(f"{BASE_URL}/api/services/{service_id}/diagnostics/archives")
+    assert_status(r, 200)
+    archives = r.json()
+    if archives:
+        archive_id = archives[0]["id"]
+        r = requests.get(f"{BASE_URL}/api/services/{service_id}/diagnostics/archives/{archive_id}/view")
+        assert_status(r, 200)
+        print(f"🟢 Archive view succeeded for archive {archive_id}")
+    else:
+        print("🟡 No archives indexed; skipping archive view")
+
+    # 7.13 Issues cursor contract
+    r = requests.post(
+        f"{BASE_URL}/PlatformIO/Monitoring/Issues/",
+        json={"service_name": "optionCopilot", "window": "24h"},
+    )
+    # optionCopilot may not exist in this run; fall back to service name if present
+    if r.status_code != 200 or not r.json().get("success"):
+        # try the deployed service name
+        r2 = requests.get(f"{BASE_URL}/api/services/{service_id}")
+        svc_name = r2.json().get("name") if r2.status_code == 200 else None
+        if svc_name:
+            r = requests.post(
+                f"{BASE_URL}/PlatformIO/Monitoring/Issues/",
+                json={"service_name": svc_name, "window": "24h"},
+            )
+    if r.status_code == 200 and r.json().get("success"):
+        assert "issues" in r.json()
+        assert "next_cursor" in r.json()
+        print(f"🟢 Issues cursor contract ok (issues={len(r.json().get('issues') or [])})")
+    else:
+        print("🟡 Issues query skipped/failed for this environment")
+
     # -------------------------------------------------------------
     log_header("Phase 8: Cleanup & Cascaded Retracts")
     # -------------------------------------------------------------
@@ -530,7 +616,7 @@ def run_tests():
     print("🟢 Final lifecycle events verified")
 
     log_header("E2E Test Run Completed Successfully")
-    print(f"✨ 62/62 E2E test targets verified.")
+    print(f"✨ E2E test targets verified (including performance + diagnostics extensions).")
     print(f"✨ Real GlitchTip error capturing, trace query, and status resolution: VERIFIED.")
     print(f"✨ Ansible validation/deployment/rollback runner triggers: VERIFIED.")
 

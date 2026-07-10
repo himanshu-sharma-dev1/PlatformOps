@@ -30,38 +30,15 @@ def validate_node(db: Session, node: Node) -> DeploymentJob:
     job = create_job(db, action="validate-node", command=command, node_id=node.id)
 
     if settings.local_mode:
-        node.status = "healthy"
-        node.facts_json = json.dumps(
-            {
-                "hostname": socket.gethostname(),
-                "checked_at": datetime.utcnow().isoformat() + "Z",
-                "mode": "local-simulation",
-                "docker": "expected",
-                "ansible": "command-recorded",
-            }
+        return finish_job(
+            db,
+            job,
+            ok=False,
+            error=(
+                "Node validation requires a real Ansible target. "
+                "Set PLATFORMOPS_LOCAL_MODE=false and configure SSH inventory for the node."
+            ),
         )
-        db.commit()
-        rich_output = (
-            f"PLAY [Validate PlatformOps node prerequisites] **************************************\n\n"
-            f"TASK [Gathering Facts] ***************************************************************\n"
-            f"ok: [{node.name}]\n\n"
-            f"TASK [Check Docker CLI] **************************************************************\n"
-            f'ok: [{node.name}] => {{"changed": false, "rc": 0, "stdout": "Docker version 24.0.7, build afdd53b"}}\n\n'
-            f"TASK [Check Docker daemon] ***********************************************************\n"
-            f'ok: [{node.name}] => {{"changed": false, "rc": 0, "stdout": "Server Version: 24.0.7"}}\n\n'
-            f"TASK [Print validation summary] ******************************************************\n"
-            f"ok: [{node.name}] => {{\n"
-            f'    "msg": {{\n'
-            f'        "docker_cli": "Docker version 24.0.7, build afdd53b",\n'
-            f'        "docker_ready": true,\n'
-            f'        "node": "{node.name}",\n'
-            f'        "os": "Ubuntu 22.04"\n'
-            f"    }}\n"
-            f"}}\n\n"
-            f"PLAY RECAP ***************************************************************************\n"
-            f"{node.name.ljust(28)}: ok=4    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0"
-        )
-        return finish_job(db, job, ok=True, output=rich_output)
 
     def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
         bg_node = bg_db.get(Node, node.id)
@@ -83,6 +60,7 @@ def validate_node(db: Session, node: Node) -> DeploymentJob:
                 except Exception:
                     pass
                 bg_node.facts_json = json.dumps(facts)
+            bg_db.commit()
 
     return run_job_async(db, job, cwd=settings.project_root, on_complete=on_complete)
 
@@ -559,22 +537,21 @@ def launch_node_vm(db: Session, node: Node, ami_id: str, instance_type: str, reg
             bg_db.commit()
 
     if settings.local_mode:
-        node.status = "healthy"
-        facts = {
-            "provider": "aws-simulated",
-            "instance_type": instance_type,
-            "region": region,
-            "ami_id": ami_id,
-            "vcpus": 4,
-            "memory_gb": 16,
-            "storage_gb": 100,
-            "gpu_exporter": "enabled" if "gpu" in instance_type.lower() else "disabled",
-            "provisioned_at": datetime.utcnow().isoformat() + "Z",
-        }
-        node.facts_json = json.dumps(facts)
-        db.commit()
         return finish_job(
-            db, job, ok=True, output="Terraform apply completed successfully.\nOutputs: instance_ip = 54.183.53.93"
+            db,
+            job,
+            ok=False,
+            output="",
+            error="VM launch requires real Terraform (set PLATFORMOPS_LOCAL_MODE=false and configure ops/terraform/aws).",
+        )
+
+    if not tf_dir.exists():
+        return finish_job(
+            db,
+            job,
+            ok=False,
+            output="",
+            error=f"Terraform directory not found: {tf_dir}",
         )
 
     return run_job_async(db, job, cwd=str(tf_dir), on_complete=on_complete)
@@ -595,8 +572,21 @@ def teardown_node_vm(db: Session, node: Node) -> DeploymentJob:
             bg_db.commit()
 
     if settings.local_mode:
-        db.delete(node)
-        db.commit()
-        return finish_job(db, job, ok=True, output="Terraform destroy completed successfully.")
+        return finish_job(
+            db,
+            job,
+            ok=False,
+            output="",
+            error="VM teardown requires real Terraform (set PLATFORMOPS_LOCAL_MODE=false).",
+        )
+
+    if not tf_dir.exists():
+        return finish_job(
+            db,
+            job,
+            ok=False,
+            output="",
+            error=f"Terraform directory not found: {tf_dir}",
+        )
 
     return run_job_async(db, job, cwd=str(tf_dir), on_complete=on_complete)

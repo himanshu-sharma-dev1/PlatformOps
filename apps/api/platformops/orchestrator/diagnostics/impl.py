@@ -1,19 +1,22 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+import re
+from datetime import datetime, timedelta
 from typing import Any
+
+import requests
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..catalog import (
+from ...catalog import (
     get_service_contract,
     observability_catalog,
     required_dependencies,
 )
-from ..jobs import create_job, finish_job
-from ..models import (
+from ...jobs import create_job, finish_job
+from ...models import (
     ConfigSnapshot,
     DeploymentJob,
     DriftReport,
@@ -27,9 +30,9 @@ from ..models import (
     ServiceInstance,
     SloReport,
 )
-from ..settings import settings
-from ..tasks import run_job_async
-from .common import (
+from ...settings import settings
+from ...tasks import run_job_async
+from ..common import (
     RUNNING_STATUSES,
     _ansible_base_command,
     _service_display_name,
@@ -46,7 +49,7 @@ def _diagnostics_target_label(kind: str) -> str:
 
 
 def diagnostics_targets_for_service(db: Session, service: ServiceInstance) -> list[dict[str, Any]]:
-    from .service import _service_by_key
+    from ..service import _service_by_key
 
     required = required_dependencies(service.service_key)
     targets: list[dict[str, Any]] = [
@@ -89,7 +92,7 @@ def service_diagnostics(
     *,
     source_service: ServiceInstance | None = None,
 ) -> dict[str, Any]:
-    from .service import _service_by_key
+    from ..service import _service_by_key
 
     source = source_service or service
     contract = json.loads(service.config_json or "{}")
@@ -245,16 +248,6 @@ def service_live_logs(
             }
         )
 
-    if not lines:
-        lines = [
-            {
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-                "level": "INFO",
-                "message": f"No historical events yet for {service.name}. Waiting for diagnostics signal.",
-                "source": "diagnostics",
-            }
-        ]
-
     next_cursor = safe_cursor + len(events)
     has_more_history = next_cursor < total_available
     source_state = "streaming" if service.status in RUNNING_STATUSES else "snapshot"
@@ -275,6 +268,104 @@ def service_live_logs(
         "lines": lines,
         "generated_at": datetime.utcnow().isoformat() + "Z",
     }
+
+
+def service_container_history(
+    db: Session,
+    service: ServiceInstance,
+    *,
+    page: int = 1,
+    page_size: int = 100,
+    cursor: str = "",
+) -> dict[str, Any]:
+    """Query Loki for historical container stdout/stderr by container_name label."""
+    import base64
+    import time
+
+    loki_url = settings.loki_base_url.rstrip("/")
+    container = service.container_name or service.service_key
+    selector = "{" + f'container_name="{container}"' + "}"
+    # Also try docker name label variants
+    alt_selector = "{" + f'name="{container}"' + "}"
+
+    cache_key = f"ctrhist:{service.id}:{page}:{page_size}:{cursor or ''}"
+    now_ts = time.time()
+    cached = _LOKI_PAGE_CACHE.get(cache_key)
+    if cached and (now_ts - cached[0]) < _LOKI_PAGE_CACHE_TTL_S:
+        return cached[1]
+
+    lines: list[dict[str, Any]] = []
+    total_count = 0
+    next_cursor = None
+    loki_reachable = False
+    used_selector = selector
+
+    try:
+        for sel in (selector, alt_selector, "{" + f'service_name=~".*{service.service_key}.*"' + "}"):
+            count_resp = requests.get(
+                f"{loki_url}/loki/api/v1/query",
+                params={"query": f"count_over_time({sel}[720h])"},
+                timeout=5,
+            )
+            if count_resp.status_code == 200:
+                loki_reachable = True
+                result = count_resp.json().get("data", {}).get("result") or []
+                if result:
+                    total_count = int(float(result[0].get("value", [0, 0])[1]))
+                    used_selector = sel
+                    break
+    except Exception:
+        pass
+
+    total_pages = max(1, (total_count + page_size - 1) // page_size) if total_count else 1
+
+    if loki_reachable:
+        try:
+            end_ns = str(int(time.time()) * 1_000_000_000)
+            params = {
+                "query": used_selector,
+                "limit": str(page_size),
+                "direction": "backward",
+                "end": end_ns,
+            }
+            if cursor:
+                try:
+                    cursor_data = json.loads(base64.b64decode(cursor))
+                    params["end"] = str(cursor_data.get("anchor_ts_ns", end_ns))
+                except Exception:
+                    pass
+            resp = requests.get(f"{loki_url}/loki/api/v1/query_range", params=params, timeout=10)
+            if resp.status_code == 200:
+                last_ts_ns = None
+                for stream in resp.json().get("data", {}).get("result") or []:
+                    for ts_ns, msg in stream.get("values") or []:
+                        last_ts_ns = ts_ns
+                        lines.append({
+                            "timestamp": datetime.utcfromtimestamp(int(ts_ns) / 1e9).strftime("%Y-%m-%dT%H:%M:%S"),
+                            "level": _detect_log_level(msg),
+                            "message": msg,
+                            "source": "container_history",
+                        })
+                if lines and last_ts_ns is not None:
+                    payload = {"anchor_ts_ns": int(last_ts_ns) - 1, "direction": "older", "page": page + 1}
+                    next_cursor = base64.b64encode(json.dumps(payload).encode()).decode()
+        except Exception:
+            pass
+
+    result = {
+        "lines": lines,
+        "source": "container_history",
+        "container_name": container,
+        "page": page,
+        "page_size": page_size,
+        "total_count": total_count,
+        "total_pages": total_pages,
+        "next_cursor": next_cursor,
+        "loki_reachable": loki_reachable,
+        "error": None if (loki_reachable or lines) else "No container history from Loki",
+    }
+    _LOKI_PAGE_CACHE[cache_key] = (now_ts, result)
+    return result
 
 
 def _recommended_runbook_for_diagnostics_context(
@@ -301,7 +392,7 @@ def service_diagnostics_analysis(
     *,
     source_service: ServiceInstance | None = None,
 ) -> dict[str, Any]:
-    from .monitoring import get_service_metrics
+    from ..monitoring import get_service_metrics
 
     source = source_service or service
     diagnostics = service_diagnostics(db, service, source_service=source)
@@ -1149,10 +1240,10 @@ def index_log_archives(db: Session, service: ServiceInstance) -> list[LogArchive
         archive = LogArchive(
             service_id=service.id,
             path=f"{path.rstrip('/')}/{service.service_key}-{index}.log",
-            size_bytes=2048 * index if settings.local_mode else 0,
-            line_count=150 * index if settings.local_mode else 0,
-            readable="yes" if settings.local_mode else "unknown",
-            reason="simulated local archive index" if settings.local_mode else "requires remote sudo scan",
+            size_bytes=0,
+            line_count=0,
+            readable="unknown",
+            reason="indexed path only; sizes require remote scan",
         )
         db.add(archive)
         archives.append(archive)
@@ -1204,7 +1295,7 @@ def backfill_service_logs(db: Session, service: ServiceInstance) -> dict[str, An
 
 
 def deploy_observability_stack(db: Session, node: Node) -> DeploymentJob:
-    from .common import _ansible_base_command
+    from ..common import _ansible_base_command
 
     command = f"{_ansible_base_command(node, 'observability_stack.yml')}"
     job = create_job(db, action="deploy-observability", command=command, node_id=node.id)
@@ -1217,3 +1308,641 @@ def deploy_observability_stack(db: Session, node: Node) -> DeploymentJob:
         )
 
     return run_job_async(db, job, cwd=settings.project_root)
+
+
+# Simple in-process page cache for Loki file-history (45s TTL, DDR D3)
+_LOKI_PAGE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_LOKI_PAGE_CACHE_TTL_S = 45.0
+
+
+def _service_log_path(db: Session, service: "ServiceInstance", log_path: str = "") -> str:
+    """Resolve a log file path from the request or service contract."""
+    if log_path:
+        return log_path
+    contract = json.loads(service.config_json or "{}")
+    paths = contract.get("log_paths") or []
+    if paths:
+        return paths[0]
+    # Fall back to first target's container log convention
+    return f"/var/log/{service.service_key}/app.log"
+
+
+def _archive_filename(archive: LogArchive) -> str:
+    path = getattr(archive, "path", "") or ""
+    return path.rsplit("/", 1)[-1] if path else f"archive-{archive.id}.log"
+
+
+def get_ingestion_stats() -> dict:
+    """Query Loki for live ingestion rate, hourly error rate, and projected archive size."""
+    try:
+        from ...settings import settings
+        loki_url = settings.loki_base_url
+    except Exception:
+        loki_url = "http://localhost:9021"
+
+    ingestion_rate = 0.0
+    error_count_current = 0
+    error_count_previous = 0
+    archive_size_bytes = 0
+    loki_reachable = False
+
+    # Query 1: Live ingestion rate
+    try:
+        resp = requests.get(
+            f"{loki_url}/loki/api/v1/query",
+            params={"query": 'sum(rate({service_name=~".+"}[1h]))'},
+            timeout=5,
+        )
+        if resp.status_code == 200:
+            loki_reachable = True
+            data = resp.json()
+            result = data.get("data", {}).get("result", [])
+            if result:
+                ingestion_rate = float(result[0].get("value", [0, 0])[1])
+    except Exception:
+        pass
+
+    # Query 2: Current hour error count
+    try:
+        resp = requests.get(
+            f"{loki_url}/loki/api/v1/query",
+            params={"query": 'sum(count_over_time({service_name=~".+"} |~ "(?i)error|exception|fail|fatal|crit"[1h]))'},
+            timeout=5,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            result = data.get("data", {}).get("result", [])
+            if result:
+                error_count_current = int(float(result[0].get("value", [0, 0])[1]))
+    except Exception:
+        pass
+
+    # Query 3: Previous hour error count for delta
+    try:
+        resp = requests.get(
+            f"{loki_url}/loki/api/v1/query",
+            params={"query": 'sum(count_over_time({service_name=~".+"} |~ "(?i)error|exception|fail|fatal|crit"[1h] offset 1h))'},
+            timeout=5,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            result = data.get("data", {}).get("result", [])
+            if result:
+                error_count_previous = int(float(result[0].get("value", [0, 0])[1]))
+    except Exception:
+        pass
+
+    # Compute delta
+    if error_count_previous > 0:
+        error_delta_pct = round(((error_count_current - error_count_previous) / error_count_previous) * 100, 1)
+    else:
+        error_delta_pct = 0.0 if error_count_current == 0 else 100.0
+
+    # Format ingestion rate for display (blank-style zeros when Loki unreachable)
+    if not loki_reachable:
+        rate_display = ""
+    elif ingestion_rate >= 1000:
+        rate_display = f"{ingestion_rate / 1000:.1f}K/s"
+    else:
+        rate_display = f"{ingestion_rate:.0f}/s"
+
+    return {
+        "loki_reachable": loki_reachable,
+        "ingestion_rate": ingestion_rate if loki_reachable else 0.0,
+        "ingestion_rate_display": rate_display,
+        "error_count_current_hour": error_count_current if loki_reachable else 0,
+        "error_count_previous_hour": error_count_previous if loki_reachable else 0,
+        "error_delta_pct": error_delta_pct if loki_reachable else 0.0,
+        # No projected/fake size — only real measured value if set above (currently 0)
+        "archive_size_bytes": archive_size_bytes,
+    }
+
+
+def service_file_tail(db: Session, service: "ServiceInstance", log_path: str = "", tail_lines: int = 100) -> dict:
+    """Tail a log file on the remote node via Ansible ad-hoc or local simulation."""
+    node = service.node
+    if not node:
+        return {"lines": [], "source": "file_live", "error": "Service has no assigned node", "log_path": log_path or "", "node": "", "total_lines": 0}
+
+    log_path = _service_log_path(db, service, log_path)
+    service_name = service.name
+    node_label = getattr(node, "host", None) or getattr(node, "name", None) or str(node.id)
+
+    # Real remote tail when not in local_mode
+    if not settings.local_mode and node.environment != "local":
+        try:
+            import subprocess
+
+            inventory = node.host
+            user = node.ssh_user or "ubuntu"
+            key_arg = ["--private-key", node.ssh_key_path] if node.ssh_key_path else []
+            cmd = [
+                "ansible",
+                inventory,
+                "-m",
+                "shell",
+                "-a",
+                f"tail -n {int(tail_lines)} {log_path}",
+                "-u",
+                user,
+                *key_arg,
+            ]
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=str(settings.project_root))
+            if proc.returncode == 0 and proc.stdout:
+                raw_lines = [ln for ln in proc.stdout.splitlines() if ln.strip() and not ln.startswith(inventory)]
+                lines = []
+                now = datetime.utcnow()
+                for i, msg in enumerate(raw_lines[-tail_lines:]):
+                    # Strip ansible host prefix if present
+                    if " | " in msg and msg.split(" | ", 1)[0].strip() in (inventory, "CHANGED", "SUCCESS"):
+                        continue
+                    if ">>" in msg:
+                        msg = msg.split(">>", 1)[-1].strip()
+                    lines.append({
+                        "timestamp": (now - timedelta(seconds=(len(raw_lines) - i))).strftime("%Y-%m-%dT%H:%M:%S"),
+                        "level": _detect_log_level(msg),
+                        "message": msg,
+                        "source": f"file:{log_path}",
+                    })
+                if lines:
+                    return {
+                        "lines": lines,
+                        "source": "file_live",
+                        "log_path": log_path,
+                        "node": node_label,
+                        "total_lines": len(lines),
+                    }
+        except Exception as exc:
+            return {
+                "lines": [],
+                "source": "file_live",
+                "log_path": log_path,
+                "node": node_label,
+                "total_lines": 0,
+                "error": f"SSH/Ansible tail failed: {exc}",
+            }
+
+    # Local host: try real file tail if path exists
+    from pathlib import Path
+
+    path = Path(log_path)
+    if path.is_file():
+        try:
+            # Efficient-ish: read last N lines
+            with path.open("r", errors="replace") as fh:
+                content = fh.readlines()
+            selected = content[-int(tail_lines):]
+            now = datetime.utcnow()
+            lines = []
+            for i, msg in enumerate(selected):
+                msg = msg.rstrip("\n")
+                lines.append({
+                    "timestamp": (now - timedelta(seconds=(len(selected) - i))).strftime("%Y-%m-%dT%H:%M:%S"),
+                    "level": _detect_log_level(msg),
+                    "message": msg,
+                    "source": f"file:{log_path}",
+                })
+            return {
+                "lines": lines,
+                "source": "file_live",
+                "log_path": log_path,
+                "node": node_label,
+                "total_lines": len(lines),
+            }
+        except Exception as exc:
+            return {
+                "lines": [],
+                "source": "file_live",
+                "log_path": log_path,
+                "node": node_label,
+                "total_lines": 0,
+                "error": str(exc),
+            }
+
+    return {
+        "lines": [],
+        "source": "file_live",
+        "log_path": log_path,
+        "node": node_label,
+        "total_lines": 0,
+        "error": "Log file not available on this host and remote tail was not used",
+    }
+
+
+def service_file_history(
+    db: Session,
+    service: "ServiceInstance",
+    log_path: str = "",
+    page: int = 1,
+    page_size: int = 50,
+    cursor: str = "",
+) -> dict:
+    """Query Loki for historical file-based logs using file labels and cursor pagination."""
+    import base64
+    import time
+
+    try:
+        from ...settings import settings as _settings
+
+        loki_url = _settings.loki_base_url
+    except Exception:
+        loki_url = "http://localhost:9021"
+
+    log_path = _service_log_path(db, service, log_path)
+    cache_key = f"{service.id}:{log_path}:{page}:{page_size}:{cursor or ''}"
+    now_ts = time.time()
+    cached = _LOKI_PAGE_CACHE.get(cache_key)
+    if cached and (now_ts - cached[0]) < _LOKI_PAGE_CACHE_TTL_S:
+        return cached[1]
+
+    # Prune expired cache entries opportunistically
+    expired = [k for k, (ts, _) in _LOKI_PAGE_CACHE.items() if now_ts - ts >= _LOKI_PAGE_CACHE_TTL_S]
+    for k in expired:
+        _LOKI_PAGE_CACHE.pop(k, None)
+
+    basename = log_path.split("/")[-1]
+    selector = "{" + f'filename=~".*{re.escape(basename)}.*"' + "}"
+
+    lines: list[dict[str, Any]] = []
+    total_count = 0
+    next_cursor = None
+    loki_reachable = False
+
+    try:
+        count_resp = requests.get(
+            f"{loki_url}/loki/api/v1/query",
+            params={"query": f"count_over_time({selector}[720h])"},
+            timeout=5,
+        )
+        if count_resp.status_code == 200:
+            loki_reachable = True
+            result = count_resp.json().get("data", {}).get("result", [])
+            if result:
+                total_count = int(float(result[0].get("value", [0, 0])[1]))
+    except Exception:
+        pass
+
+    total_pages = max(1, (total_count + page_size - 1) // page_size) if total_count else 1
+
+    if loki_reachable:
+        try:
+            end_ns = str(int(time.time()) * 1_000_000_000)
+            params = {
+                "query": selector,
+                "limit": str(page_size),
+                "direction": "backward",
+                "end": end_ns,
+            }
+            if cursor:
+                try:
+                    cursor_data = json.loads(base64.b64decode(cursor))
+                    params["end"] = str(cursor_data.get("anchor_ts_ns", end_ns))
+                except Exception:
+                    pass
+
+            resp = requests.get(
+                f"{loki_url}/loki/api/v1/query_range",
+                params=params,
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                streams = resp.json().get("data", {}).get("result", [])
+                last_ts_ns = None
+                for stream in streams:
+                    for ts_ns, msg in stream.get("values", []):
+                        last_ts_ns = ts_ns
+                        lines.append({
+                            "timestamp": datetime.utcfromtimestamp(int(ts_ns) / 1e9).strftime("%Y-%m-%dT%H:%M:%S"),
+                            "level": _detect_log_level(msg),
+                            "message": msg,
+                            "source": "file_history",
+                        })
+                if lines and last_ts_ns is not None:
+                    cursor_payload = {
+                        "anchor_ts_ns": int(last_ts_ns) - 1,
+                        "direction": "older",
+                        "page": page + 1,
+                    }
+                    next_cursor = base64.b64encode(json.dumps(cursor_payload).encode()).decode()
+        except Exception:
+            pass
+
+    payload = {
+        "lines": lines,
+        "source": "file_history",
+        "log_path": log_path,
+        "page": page,
+        "page_size": page_size,
+        "total_count": total_count,
+        "total_pages": total_pages,
+        "next_cursor": next_cursor,
+        "error": None if (loki_reachable or lines) else "No file history from Loki",
+    }
+    _LOKI_PAGE_CACHE[cache_key] = (now_ts, payload)
+    return payload
+
+
+def _detect_log_level(message: str) -> str:
+    """Detect log level from a raw log message string."""
+    msg_upper = message.upper()
+    if any(kw in msg_upper for kw in ["ERROR", "ERR ", "CRITICAL", "FATAL"]):
+        return "ERROR"
+    if any(kw in msg_upper for kw in ["WARN", "WARNING"]):
+        return "WARN"
+    if "DEBUG" in msg_upper:
+        return "DEBUG"
+    return "INFO"
+
+
+def view_log_archive(db: Session, service: "ServiceInstance", archive_id: int, max_lines: int = 300) -> dict:
+    """Preview the first N lines of a log archive file."""
+    from pathlib import Path
+
+    archive = db.scalar(
+        select(LogArchive).where(LogArchive.id == archive_id, LogArchive.service_id == service.id)
+    )
+    if not archive:
+        return {"archive_id": archive_id, "filename": "", "error": "Archive not found", "lines": [], "total_lines": 0, "truncated": False}
+
+    filename = _archive_filename(archive)
+    path = Path(archive.path)
+
+    # Prefer real file content when the path exists on disk
+    if path.is_file():
+        try:
+            with path.open("r", errors="replace") as fh:
+                lines = []
+                for i, line in enumerate(fh):
+                    if i >= max_lines:
+                        break
+                    lines.append(line.rstrip("\n"))
+            return {
+                "archive_id": archive_id,
+                "filename": filename,
+                "lines": lines,
+                "total_lines": len(lines),
+                "truncated": len(lines) >= max_lines,
+            }
+        except Exception as exc:
+            return {
+                "archive_id": archive_id,
+                "filename": filename,
+                "error": str(exc),
+                "lines": [],
+                "total_lines": 0,
+                "truncated": False,
+            }
+
+    return {
+        "archive_id": archive_id,
+        "filename": filename,
+        "lines": [],
+        "total_lines": 0,
+        "truncated": False,
+        "error": f"Archive file not available on disk: {archive.path}",
+    }
+
+
+def download_log_archive(db: Session, service: "ServiceInstance", archive_id: int) -> dict:
+    """Prepare a single log archive file for download (metadata + optional path)."""
+    from pathlib import Path
+
+    archive = db.scalar(
+        select(LogArchive).where(LogArchive.id == archive_id, LogArchive.service_id == service.id)
+    )
+    if not archive:
+        return {"error": "Archive not found", "ready": False}
+
+    filename = _archive_filename(archive)
+    path = Path(archive.path)
+    content_type = "application/gzip" if filename.endswith(".gz") else "text/plain"
+    if not path.is_file():
+        return {
+            "archive_id": archive_id,
+            "filename": filename,
+            "path": None,
+            "content_type": content_type,
+            "ready": False,
+            "error": f"Archive file not available on disk: {archive.path}",
+            "content": None,
+        }
+    return {
+        "archive_id": archive_id,
+        "filename": filename,
+        "path": str(path),
+        "content_type": content_type,
+        "ready": True,
+        "content": None,
+    }
+
+
+def bulk_download_log_archives(db: Session, service: "ServiceInstance", archive_ids: list) -> dict:
+    """Prepare multiple log archive files as a ZIP bundle for download."""
+    from pathlib import Path
+
+    archives = []
+    for aid in archive_ids:
+        archive = db.scalar(
+            select(LogArchive).where(LogArchive.id == aid, LogArchive.service_id == service.id)
+        )
+        if not archive:
+            continue
+        path = Path(archive.path)
+        if not path.is_file():
+            continue
+        archives.append({
+            "archive_id": aid,
+            "filename": _archive_filename(archive),
+            "path": str(path),
+            "content": None,
+        })
+
+    if not archives:
+        return {
+            "error": "No readable archive files on disk for the selected ids",
+            "files": [],
+            "file_count": 0,
+            "ready": False,
+            "zip_filename": "",
+        }
+
+    zip_filename = f"{service.name}_logs_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.zip"
+    return {
+        "zip_filename": zip_filename,
+        "files": archives,
+        "file_count": len(archives),
+        "ready": True,
+    }
+
+
+def service_log_analytics_chat(db: Session, service: "ServiceInstance", question: str, window: str = "current", history: list = None) -> dict:
+    """cPlatform-style log analytics chat (Iktara Log Analyst).
+
+    Gathers real diagnostics + live logs, calls Groq/Mistral, returns
+    {success, answer, evidence, chart_data, suggestions}. Never invents success.
+    """
+    from ..llm import execute_llm_request, is_llm_configured, llm_status, safe_json_loads
+    from ...settings import settings
+
+    service_name = service.name
+    max_logs = int(getattr(settings, "llm_max_logs", 80) or 80)
+
+    diag = service_diagnostics(db, service, source_service=service)
+    analysis = {}
+    try:
+        analysis = service_diagnostics_analysis(db, service, source_service=service) or {}
+    except Exception:
+        analysis = {}
+    live_logs_data = service_live_logs(db, service, tail_lines=min(100, max_logs))
+    log_lines = live_logs_data.get("lines", []) or []
+
+    formatted_logs = []
+    for line in log_lines[-max_logs:]:
+        msg = line.get("message", "") or ""
+        if len(msg) > 500:
+            msg = msg[:500] + "... [truncated]"
+        formatted_logs.append({
+            "t": line.get("timestamp", ""),
+            "lvl": line.get("level", "INFO"),
+            "msg": msg,
+        })
+
+    issue_groups = []
+    for insight in (analysis.get("insights") or [])[:5]:
+        issue_groups.append({
+            "category": insight.get("insight_id") or insight.get("title") or "issue",
+            "severity": insight.get("severity") or "warning",
+            "brief": insight.get("summary") or insight.get("title") or "",
+            "count": 1,
+            "evidence": (insight.get("evidence_refs") or [])[:2],
+        })
+
+    evidence_context = {
+        "service": {
+            "service_id": service.id,
+            "service_name": service_name,
+            "service_key": getattr(service, "service_key", ""),
+            "status": getattr(service, "status", "unknown"),
+            "container_name": getattr(service, "container_name", ""),
+        },
+        "live_status": {
+            "overall_status": getattr(service, "status", "unknown"),
+            "readiness": (diag.get("readiness") if isinstance(diag, dict) else {}) or {},
+        },
+        "issue_groups": issue_groups,
+        "diagnostics_overview": analysis.get("overview") or analysis.get("summary") or "",
+        "overall_severity": analysis.get("overall_severity") or "",
+        "recent_logs": formatted_logs,
+        "window": window or "current",
+    }
+
+    if not is_llm_configured():
+        status = llm_status()
+        return {
+            "success": False,
+            "answer": "",
+            "evidence": formatted_logs[-4:],
+            "chart_data": [],
+            "suggestions": [
+                "Configure PLATFORMOPS_LLM_PROVIDER and API keys",
+                "Check live logs for errors",
+                "Run diagnostics analysis",
+            ],
+            "error": f"LLM is not configured (provider={status.get('provider')}, has_key={status.get('has_api_key')})",
+            "provider": status.get("provider"),
+        }
+
+    system_prompt = (
+        "You are Iktara Log Analyst, an advanced operations AI diagnostics chatbot. "
+        "Return strict JSON ONLY matching the requested schema. "
+        "You are in a multi-turn conversation. You must focus entirely on answering the user's LATEST question "
+        "located at the end of the prompt under the 'QUESTION:' block. "
+        "Ignore any previous questions or instructions in the chat history; they are for reference only. "
+        "If the user's question is conversational (e.g., greetings, asking your name, or asking about your capabilities), "
+        "answer it directly and warmly in the 'answer' field, and ignore the diagnostic logs for that answer. "
+        "If the question is diagnostic, answer it precisely using the provided system state, structured issue groups, and logs. "
+        "Do not invent facts not present in the evidence. "
+        "In your markdown answer, write concise paragraphs, lists, or bold key items. "
+        "If referring to logs/errors, quote specific lines or timestamps using <span class=\"cited\">HH:MM:SS</span>. "
+        "Provide up to 4 specific log lines as a JSON array in 'evidence' matching the actual logs. "
+        "Generate a list of 10-30 numeric integer values for a mini error-rate bar chart in 'chart_data' that visually reflects "
+        "the problem described in logs (use zeros if no errors). "
+        "List 3 relevant natural language follow-up suggestions in 'suggestions'."
+    )
+    schema = {
+        "answer": "string (markdown allowed, highly formatted, explaining root cause and answering user question specifically)",
+        "evidence": [
+            {"t": "string (timestamp HH:MM:SS)", "lvl": "INFO|WARN|ERR|DEBUG", "msg": "string"}
+        ],
+        "chart_data": [12, 18, 14, 22, 16],
+        "suggestions": ["string"],
+    }
+    user_prompt_str = (
+        f"Here is the context data for the service diagnostics:\n"
+        f"{json.dumps(evidence_context, indent=2, default=str)}\n\n"
+        f"Please analyze the context and logs above, and return strict JSON matching this schema:\n"
+        f"{json.dumps(schema, indent=2)}\n\n"
+        f"CRITICAL INSTRUCTION:\n"
+        f"Answering the following question is your primary directive. Address it directly and thoroughly.\n"
+        f"QUESTION: {question}"
+    )
+    messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
+    if history:
+        for item in history[-12:]:
+            role = item.get("role")
+            content = item.get("content")
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": str(content)[:4000]})
+    messages.append({"role": "user", "content": user_prompt_str})
+
+    content = execute_llm_request(
+        messages,
+        response_format={"type": "json_object"},
+        temperature=0.3,
+    )
+    if not content:
+        return {
+            "success": False,
+            "answer": "",
+            "evidence": formatted_logs[-4:],
+            "chart_data": [],
+            "suggestions": [
+                "Retry the question",
+                "Check LLM API key / network",
+                "Inspect raw live logs",
+            ],
+            "error": "LLM request failed or returned empty content",
+            "provider": llm_status().get("provider"),
+        }
+
+    try:
+        parsed = safe_json_loads(content)
+        chart = parsed.get("chart_data") or []
+        if not isinstance(chart, list):
+            chart = []
+        chart = [int(x) if isinstance(x, (int, float)) else 0 for x in chart][:30]
+        evidence = parsed.get("evidence") or []
+        if not isinstance(evidence, list):
+            evidence = []
+        suggestions = parsed.get("suggestions") or []
+        if not isinstance(suggestions, list):
+            suggestions = []
+        return {
+            "success": True,
+            "answer": parsed.get("answer") or "No response generated.",
+            "evidence": evidence[:8],
+            "chart_data": chart,
+            "suggestions": [str(s) for s in suggestions[:6]],
+            "error": None,
+            "provider": llm_status().get("provider"),
+        }
+    except Exception as exc:
+        return {
+            "success": False,
+            "answer": "",
+            "evidence": formatted_logs[-4:],
+            "chart_data": [],
+            "suggestions": [],
+            "error": f"Failed to parse LLM JSON: {exc}",
+            "provider": llm_status().get("provider"),
+        }
