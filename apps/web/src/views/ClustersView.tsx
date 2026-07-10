@@ -26,13 +26,12 @@ export function ClustersView() {
   const openClusterEdit = p.openClusterEdit as (...a: any[]) => void;
   const selectCluster = p.selectCluster as (...a: any[]) => void;
   const selectNode = p.selectNode as (...a: any[]) => void;
+  const openNodeCreate = p.openNodeCreate as (...a: any[]) => void;
   const openNodeEdit = p.openNodeEdit as (...a: any[]) => void;
   const openDeploymentModal = p.openDeploymentModal as (...a: any[]) => void;
   const requestDelete = p.requestDelete as (...a: any[]) => void;
   const validateNode = p.validateNode as (...a: any[]) => void;
   const discoverNodeInfra = p.discoverNodeInfra as (...a: any[]) => void;
-  const launchNodeVm = p.launchNodeVm as (...a: any[]) => void;
-  const teardownNodeVm = p.teardownNodeVm as (...a: any[]) => void;
   const setStepperDrawerVisible = p.setStepperDrawerVisible as (...a: any[]) => void;
   const setCatalogDrawerVisible = p.setCatalogDrawerVisible as (...a: any[]) => void;
   const loadDiagnostics = p.loadDiagnostics as (...a: any[]) => void;
@@ -166,7 +165,8 @@ export function ClustersView() {
           <div className="actions">
             <button className="btn btn-secondary" onClick={() => setSelectedCluster(null)}>All clusters</button>
             <button className="btn btn-secondary" onClick={() => openClusterEdit(selectedCluster)}>Cluster settings</button>
-            <button className="btn btn-primary" onClick={() => setStepperDrawerVisible(true)}>Provision node</button>
+            <button className="btn btn-secondary" onClick={() => requestDelete("cluster", selectedCluster.id, selectedCluster.name)}>Delete cluster</button>
+            <button className="btn btn-primary" onClick={() => { openNodeCreate(); setStepperDrawerVisible(true); }}>Provision node</button>
           </div>
         </div>
 
@@ -237,7 +237,7 @@ export function ClustersView() {
               )}
             </div>
             <div className="node-list-foot">
-              <button className="btn btn-secondary btn-sm" onClick={() => setStepperDrawerVisible(true)}>
+              <button className="btn btn-secondary btn-sm" onClick={() => { openNodeCreate(); setStepperDrawerVisible(true); }}>
                 <svg className="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
                 Provision node
               </button>
@@ -252,14 +252,12 @@ export function ClustersView() {
                     <div className="title">{activeNode.name}</div>
                     <div className="subtitle">
                       <span className="cloud-tag">{activeNode.environment.toUpperCase()}</span>
-                      <span>IP: {activeNode.host} · Volume: <code>{activeNode.volume_root}</code></span>
+                      <span>IP: {activeNode.host} · Net: <code>{activeNode.docker_network}</code> · Volume: <code>{activeNode.volume_root}</code></span>
                     </div>
                   </div>
                   <div className="actions">
                     <button className="btn btn-secondary btn-sm" onClick={() => validateNode(activeNode.id)}>Validate</button>
                     <button className="btn btn-secondary btn-sm" onClick={() => discoverNodeInfra(activeNode.id)}>Discover</button>
-                    <button className="btn btn-secondary btn-sm" onClick={() => launchNodeVm(activeNode.id)}>Launch VM</button>
-                    <button className="btn btn-secondary btn-sm" onClick={() => teardownNodeVm(activeNode.id)}>Teardown VM</button>
                     <button className="btn btn-secondary btn-sm" onClick={() => openNodeEdit(activeNode)}>Edit</button>
                     <button className="btn btn-danger btn-sm" onClick={() => requestDelete("node", activeNode.id, activeNode.name)}>Delete</button>
                   </div>
@@ -382,11 +380,19 @@ export function ClustersView() {
                 <div className="service-stack">
                   {nodeServices.map((service) => (
                     <div key={service.id} className={`svc-card ${service.status}`}>
-                      <div className="svc-icon">{service.name[0]}</div>
+                      <div className="svc-icon">{(service.name || service.service_key || "?")[0]}</div>
                       <div className="svc-info">
-                        <div className="nm" style={{ fontWeight: 600 }}>{service.name}</div>
+                        <div className="nm" style={{ fontWeight: 600 }}>
+                          {service.name}
+                          {service.external_id ? (
+                            <span style={{ marginLeft: 8, fontFamily: "var(--mono)", fontSize: "0.72rem", color: "var(--ink-4)", fontWeight: 500 }}>
+                              {service.external_id}
+                            </span>
+                          ) : null}
+                        </div>
                         <div className="meta">
                           kind {service.kind}
+                          {service.service_key ? <> · key <code>{service.service_key}</code></> : null}
                           {service.container_name ? <> · docker <code>{service.container_name}</code></> : null}
                           {" · "}image <code>{service.image || "—"}</code>
                         </div>

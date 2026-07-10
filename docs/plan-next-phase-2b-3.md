@@ -1,6 +1,9 @@
 # Next plan: Phase 2b → 3 → 4 → 5
 
-**As of:** post-`19dcd1a` (views extracted, thin `PlatformProvider`, fat `usePlatformController` ~5.3k)  
+> **Superseded for “what next”:** see **`docs/plan-next-cplatform-production.md`**.  
+> Phase 2b is **done** (`cdf41b8`). Next work is **cPlatform production readiness only** (Clusters → Config → Diagnostics → Performance/Monitoring → multiuser polish → happy-path runbook). PlatformOps-only product orphans (Secrets vault panel, Placement product UI, DTrain panel, etc.) are **out of scope**.
+
+**As of:** post-`cdf41b8` (decomposition done; older rows below are historical)  
 **Login:** `admin` / `admin`  
 **Out of scope unless asked:** changing product nav IA; secrets rotation policy beyond env loading
 

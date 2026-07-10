@@ -162,7 +162,7 @@ export function createInventoryEditorActions(s: any) {
             ssh_user: "ubuntu",
             host: current.draft.host === "localhost" ? "ec2-public-host" : current.draft.host,
             volume_root: current.draft.volume_root.startsWith("/tmp/") ? "/platformops" : current.draft.volume_root,
-            docker_network: current.draft.docker_network === "platformops-net" ? "platformops-net-aws" : current.draft.docker_network
+            docker_network: current.draft.docker_network?.includes("platformops") ? "platformops_prod_network" : current.draft.docker_network
           }
         };
       }
@@ -173,9 +173,10 @@ export function createInventoryEditorActions(s: any) {
             ...current.draft,
             environment: "aws",
             ssh_user: "ubuntu",
-            host: current.draft.host === "localhost" ? "ec2-gpu-host" : current.draft.host,
+            host: current.draft.host === "localhost" || !current.draft.host ? "ec2-gpu-host" : current.draft.host,
             volume_root: current.draft.volume_root.startsWith("/tmp/") ? "/platformops-gpu" : current.draft.volume_root,
-            docker_network: current.draft.docker_network === "platformops-net" ? "platformops-net-gpu" : current.draft.docker_network
+            docker_network: "platformops_prod_network",
+            gpu: current.draft.gpu === "none" ? "nvidia" : current.draft.gpu,
           }
         };
       }
@@ -185,12 +186,36 @@ export function createInventoryEditorActions(s: any) {
           ...current.draft,
           environment: "local",
           ssh_user: "ubuntu",
-          host: current.draft.host.includes("ec2") ? "localhost" : current.draft.host,
           volume_root: current.draft.volume_root.startsWith("/platformops") ? "/tmp/platformops" : current.draft.volume_root,
-          docker_network: current.draft.docker_network.includes("aws") ? "platformops-net" : current.draft.docker_network
+          docker_network: "platformops_prod_network",
         }
       };
     });
+  },
+
+  _nodeFactsPayload(draft) {
+    return {
+      cpu_cores: Number(draft.cpu_cores) || 0,
+      memory_gb: Number(draft.memory_gb) || 0,
+      storage_gb: Number(draft.storage_gb) || 0,
+      gpu: String(draft.gpu ?? "none"),
+      os: String(draft.os ?? "linux"),
+    };
+  },
+
+  _parseNodeFacts(node) {
+    try {
+      const raw = typeof node?.facts_json === "string" ? JSON.parse(node.facts_json || "{}") : (node?.facts_json || {});
+      return {
+        cpu_cores: raw.cpu_cores ?? raw.vcpu ?? 4,
+        memory_gb: raw.memory_gb ?? raw.memory ?? 16,
+        storage_gb: raw.storage_gb ?? raw.storage ?? 100,
+        gpu: raw.gpu ?? "none",
+        os: raw.os ?? "linux",
+      };
+    } catch {
+      return { cpu_cores: 4, memory_gb: 16, storage_gb: 100, gpu: "none", os: "linux" };
+    }
   },
 
   openNodeCreate() {
@@ -202,14 +227,19 @@ export function createInventoryEditorActions(s: any) {
       draft: {
         cluster_id: baseClusterId,
         name: "",
-        host: "localhost",
+        host: "",
         ssh_user: "ubuntu",
         ssh_key_path: "",
         ssh_private_key: "",
         environment: "local",
         volume_root: "/tmp/platformops",
-        docker_network: "platformops-net",
-        status: "healthy"
+        docker_network: "platformops_prod_network",
+        status: "unknown",
+        cpu_cores: 4,
+        memory_gb: 16,
+        storage_gb: 100,
+        gpu: "none",
+        os: "linux",
       },
       error: ""
     });
@@ -217,6 +247,21 @@ export function createInventoryEditorActions(s: any) {
   },
 
   openNodeEdit(node) {
+    const facts = s._parseNodeFacts ? s._parseNodeFacts(node) : {
+      cpu_cores: 4, memory_gb: 16, storage_gb: 100, gpu: "none", os: "linux",
+    };
+    // Prefer methods from this factory when available
+    let parsed = facts;
+    try {
+      const raw = typeof node?.facts_json === "string" ? JSON.parse(node.facts_json || "{}") : (node?.facts_json || {});
+      parsed = {
+        cpu_cores: raw.cpu_cores ?? raw.vcpu ?? 4,
+        memory_gb: raw.memory_gb ?? raw.memory ?? 16,
+        storage_gb: raw.storage_gb ?? raw.storage ?? 100,
+        gpu: raw.gpu ?? "none",
+        os: raw.os ?? "linux",
+      };
+    } catch { /* keep defaults */ }
     s.setNodeEditor({
       visible: true,
       mode: "edit",
@@ -230,12 +275,13 @@ export function createInventoryEditorActions(s: any) {
         ssh_private_key: "",
         environment: node.environment,
         volume_root: node.volume_root,
-        docker_network: node.docker_network,
-        status: node.status
+        docker_network: node.docker_network || "platformops_prod_network",
+        status: node.status,
+        ...parsed,
       },
       error: ""
     });
-    s.setNodePreset(node.environment === "aws" ? node.docker_network.includes("gpu") ? "aws-gpu" : "aws-general" : "local-default");
+    s.setNodePreset(node.environment === "aws" ? String(node.docker_network || "").includes("gpu") ? "aws-gpu" : "aws-general" : "local-default");
   },
 
   async saveNodeEditor() {
@@ -250,19 +296,31 @@ export function createInventoryEditorActions(s: any) {
         s.setNodeEditor((current) => ({ ...current, error: "Node name is required." }));
         return null;
       }
+      if (!String(draft.host || "").trim()) {
+        s.setNodeEditor((current) => ({ ...current, error: "SSH host/IP is required." }));
+        return null;
+      }
+      const facts = {
+        cpu_cores: Number(draft.cpu_cores) || 0,
+        memory_gb: Number(draft.memory_gb) || 0,
+        storage_gb: Number(draft.storage_gb) || 0,
+        gpu: String(draft.gpu ?? "none"),
+        os: String(draft.os ?? "linux"),
+      };
       if (s.nodeEditor.mode === "create") {
         const created = await api("/api/nodes", {
           method: "POST",
           body: JSON.stringify({
             cluster_id: draft.cluster_id,
             name,
-            host: draft.host.trim() || "localhost",
+            host: draft.host.trim(),
             ssh_user: draft.ssh_user.trim() || "ubuntu",
             ssh_key_path: draft.ssh_key_path.trim(),
             ssh_private_key: draft.ssh_private_key.trim() || void 0,
             environment: draft.environment.trim() || "local",
             volume_root: draft.volume_root.trim() || "/tmp/platformops",
-            docker_network: draft.docker_network.trim() || "platformops-net"
+            docker_network: draft.docker_network.trim() || "platformops_prod_network",
+            facts,
           })
         });
         s.setNodeEditor((current) => ({ ...current, visible: false, error: "" }));
@@ -277,14 +335,15 @@ export function createInventoryEditorActions(s: any) {
         body: JSON.stringify({
           cluster_id: draft.cluster_id,
           name,
-          host: draft.host.trim() || "localhost",
+          host: draft.host.trim(),
           ssh_user: draft.ssh_user.trim() || "ubuntu",
           ssh_key_path: draft.ssh_key_path.trim(),
           ssh_private_key: draft.ssh_private_key.trim() || void 0,
           environment: draft.environment.trim() || "local",
           volume_root: draft.volume_root.trim() || "/tmp/platformops",
-          docker_network: draft.docker_network.trim() || "platformops-net",
-          status: draft.status.trim() || "unknown"
+          docker_network: draft.docker_network.trim() || "platformops_prod_network",
+          status: draft.status.trim() || "unknown",
+          facts,
         })
       });
       s.setNodeEditor((current) => ({ ...current, visible: false, error: "" }));
@@ -300,10 +359,9 @@ export function createInventoryEditorActions(s: any) {
 
   async requestDelete(type, id, name, options) {
     try {
-      setNotice(`Assessing deletion impact for ${name}...`);
-      const impact = await api(
-        `/api/${type === "service" ? "s.services" : type === "node" ? "s.nodes" : "s.clusters"}/${id}/lifecycle-impact`
-      );
+      s.setNotice(`Assessing deletion impact for ${name}...`);
+      const segment = type === "service" ? "services" : type === "node" ? "nodes" : "clusters";
+      const impact = await api(`/api/${segment}/${id}/lifecycle-impact`);
       s.setDeleteModal({
         visible: true,
         targetType: type,
@@ -318,8 +376,9 @@ export function createInventoryEditorActions(s: any) {
         decisionNote: "",
         approvalStatus: "none"
       });
+      s.setNotice("");
     } catch (error) {
-      setNotice(`Failed to load deletion safety assessment: ${error.message}`);
+      s.setNotice(`Failed to load deletion safety assessment: ${error.message}`);
     }
   },
 

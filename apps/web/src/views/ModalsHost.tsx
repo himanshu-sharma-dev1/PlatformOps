@@ -217,7 +217,30 @@ export function ModalsHost() {
               </div>
               <div className="field">
                 <label>Docker Network</label>
-                <input className="input" value={nodeEditor.draft.docker_network} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, docker_network: e.target.value } }))} />
+                <input className="input" value={nodeEditor.draft.docker_network} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, docker_network: e.target.value } }))} placeholder="platformops_prod_network" />
+              </div>
+              <h4 style={{ margin: "0.35rem 0 0", fontSize: "0.9rem" }}>Hardware profile (stored in facts)</h4>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.65rem" }}>
+                <div className="field">
+                  <label>vCPU cores</label>
+                  <input type="number" className="input" value={nodeEditor.draft.cpu_cores ?? ""} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, cpu_cores: e.target.value } }))} />
+                </div>
+                <div className="field">
+                  <label>Memory (GB)</label>
+                  <input type="number" className="input" value={nodeEditor.draft.memory_gb ?? ""} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, memory_gb: e.target.value } }))} />
+                </div>
+                <div className="field">
+                  <label>Storage (GB)</label>
+                  <input type="number" className="input" value={nodeEditor.draft.storage_gb ?? ""} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, storage_gb: e.target.value } }))} />
+                </div>
+                <div className="field">
+                  <label>GPU</label>
+                  <input className="input" value={nodeEditor.draft.gpu ?? "none"} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, gpu: e.target.value } }))} placeholder="none / nvidia / count" />
+                </div>
+              </div>
+              <div className="field">
+                <label>OS</label>
+                <input className="input" value={nodeEditor.draft.os ?? "linux"} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, os: e.target.value } }))} />
               </div>
             </div>
             {nodeEditor.error && <p style={{ color: "var(--err)", fontSize: "0.8rem", margin: 0 }}>{nodeEditor.error}</p>}

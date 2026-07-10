@@ -42,10 +42,20 @@ function AuthenticatedShell() {
       serviceContext={p.selectedService?.name}
     >
       <main style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-        {p.notice ? (
-          <section className="notice" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>{p.notice}</span>
-            <button style={{ background: "transparent", border: "none", color: "inherit", cursor: "pointer", fontSize: "0.75rem" }} onClick={() => p.setNotice("")}>Dismiss</button>
+        {(p.toast?.message || p.notice) ? (
+          <section
+            className={`toast-bar toast-${p.toast?.kind || "ok"}`}
+            role="status"
+            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem" }}
+          >
+            <span>{p.toast?.message || p.notice}</span>
+            <button
+              type="button"
+              className="toast-dismiss"
+              onClick={() => (typeof p.dismissToast === "function" ? p.dismissToast() : p.setNotice(""))}
+            >
+              Dismiss
+            </button>
           </section>
         ) : null}
 

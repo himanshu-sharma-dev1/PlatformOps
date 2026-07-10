@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -60,7 +60,8 @@ class NodeCreate(BaseModel):
     ssh_private_key: str | None = None
     environment: str = "local"
     volume_root: str = "/tmp/platformops"
-    docker_network: str = "platformops-net"
+    docker_network: str = "platformops_prod_network"
+    facts: dict[str, Any] = Field(default_factory=dict)
 
 
 class NodeUpdate(BaseModel):
@@ -74,6 +75,7 @@ class NodeUpdate(BaseModel):
     volume_root: str | None = None
     docker_network: str | None = None
     status: str | None = None
+    facts: dict[str, Any] | None = None
 
 
 class NodeOut(BaseModel):
@@ -97,6 +99,7 @@ class ServiceCreate(BaseModel):
     service_key: str
     name: str | None = None
     contract_overrides: dict[str, Any] = Field(default_factory=dict)
+    install_mode: str | None = None  # manual | ansible
 
 
 class ServiceUpdate(BaseModel):
@@ -106,6 +109,7 @@ class ServiceUpdate(BaseModel):
 
 class ServiceOut(BaseModel):
     id: int
+    external_id: str = ""
     node_id: int
     service_key: str
     name: str

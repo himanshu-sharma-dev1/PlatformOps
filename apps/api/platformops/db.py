@@ -48,6 +48,7 @@ def _migrate_sqlite_schema() -> None:
         ("clusters", "registry_url", "ALTER TABLE clusters ADD COLUMN registry_url VARCHAR(512) DEFAULT ''"),
         ("clusters", "registry_user", "ALTER TABLE clusters ADD COLUMN registry_user VARCHAR(120) DEFAULT ''"),
         ("clusters", "registry_password", "ALTER TABLE clusters ADD COLUMN registry_password VARCHAR(512) DEFAULT ''"),
+        ("service_instances", "external_id", "ALTER TABLE service_instances ADD COLUMN external_id VARCHAR(40) DEFAULT ''"),
     ]
     with engine.begin() as conn:
         for table, column, ddl in migrations:
@@ -58,6 +59,22 @@ def _migrate_sqlite_schema() -> None:
                     conn.execute(text(ddl))
             except Exception:
                 pass
+        # Backfill SERV#### for rows missing external_id (cPlatform SERVICE_BASE_IDX = 1000)
+        try:
+            rows = conn.execute(
+                text(
+                    "SELECT id FROM service_instances "
+                    "WHERE external_id IS NULL OR external_id = '' ORDER BY id"
+                )
+            ).fetchall()
+            for (sid,) in rows:
+                external = f"SERV{1000 + int(sid)}"
+                conn.execute(
+                    text("UPDATE service_instances SET external_id = :ext WHERE id = :id"),
+                    {"ext": external, "id": sid},
+                )
+        except Exception:
+            pass
 
 
 def get_db() -> Generator[Session, None, None]:

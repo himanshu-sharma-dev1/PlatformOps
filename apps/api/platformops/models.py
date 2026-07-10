@@ -76,6 +76,8 @@ class ServiceInstance(Base):
     __tablename__ = "service_instances"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # cPlatform-compatible public id (SERV1001…); allocated to avoid clashes with discover
+    external_id: Mapped[str] = mapped_column(String(40), default="", index=True)
     node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"))
     service_key: Mapped[str] = mapped_column(String(120))
     name: Mapped[str] = mapped_column(String(160))

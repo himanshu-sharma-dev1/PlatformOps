@@ -3837,6 +3837,47 @@ a {
   animation: pulse 2s infinite;
 }
 
+/* cPlatform-style typed toast (ok / err / warn) */
+.toast-bar {
+  padding: var(--s-2.5) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  font-weight: 600;
+  margin-bottom: var(--s-4);
+  font-size: 12.5px;
+  box-shadow: var(--shadow-2, 0 8px 24px rgba(0,0,0,0.12));
+  animation: toast-in 0.18s ease-out;
+}
+.toast-bar.toast-ok {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.35);
+  color: var(--ok, #15803d);
+}
+.toast-bar.toast-err {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: var(--err, #b91c1c);
+}
+.toast-bar.toast-warn {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #b45309;
+}
+.toast-dismiss {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.75rem;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+.toast-dismiss:hover { opacity: 1; text-decoration: underline; }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Incident / Confirmation Modals overlay */
 .modal-overlay {
   position: fixed;

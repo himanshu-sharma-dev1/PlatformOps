@@ -1,0 +1,9 @@
+{
+  "ServiceConfig": {
+     "group_con": "form-group",
+     "e_type": "staticRow",
+     "e_display": true,
+     "e_name": "static_data",
+     "row_Schema": []
+  }
+}

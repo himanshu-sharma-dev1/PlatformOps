@@ -70,11 +70,37 @@ def _save_ssh_private_key(node_id: int, private_key_content: str) -> str:
     return str(key_file)
 
 
+def _facts_json_from_payload(facts: dict | None) -> str:
+    import json as _json
+
+    base = {
+        "cpu_cores": 0,
+        "memory_gb": 0,
+        "storage_gb": 0,
+        "gpu": "none",
+        "os": "linux",
+    }
+    if isinstance(facts, dict):
+        for key in base:
+            if key in facts and facts[key] is not None:
+                base[key] = facts[key]
+        # allow extra keys from operator
+        for key, value in facts.items():
+            if key not in base:
+                base[key] = value
+    return _json.dumps(base)
+
+
 @router.post("/api/nodes", response_model=NodeOut)
 def create_node(payload: NodeCreate, db: Session = Depends(get_db)) -> Node:
     _get_cluster(db, payload.cluster_id)
     private_key = payload.ssh_private_key
-    node_data = payload.model_dump(exclude={"ssh_private_key"})
+    node_data = payload.model_dump(exclude={"ssh_private_key", "facts"})
+    if not node_data.get("docker_network"):
+        node_data["docker_network"] = "platformops_prod_network"
+    node_data["facts_json"] = _facts_json_from_payload(payload.facts)
+    if not node_data.get("status"):
+        node_data["status"] = "unknown"
     node = Node(**node_data)
     db.add(node)
     db.commit()
@@ -86,7 +112,58 @@ def create_node(payload: NodeCreate, db: Session = Depends(get_db)) -> Node:
         db.commit()
         db.refresh(node)
 
+    record_event(
+        db,
+        category="lifecycle",
+        level="info",
+        message=f"Created node '{node.name}'",
+        node_id=node.id,
+        metadata={"node_id": node.id, "host": node.host, "docker_network": node.docker_network},
+    )
+
+    # cPlatform parity: bootstrap AIOrchestrator on first node of a cluster
+    try:
+        _bootstrap_ai_orchestrator_if_needed(db, node)
+    except Exception as exc:
+        record_event(
+            db,
+            category="lifecycle",
+            level="warning",
+            message=f"AIOrchestrator bootstrap skipped: {exc}",
+            node_id=node.id,
+            metadata={"error": str(exc)},
+        )
+
+    db.refresh(node)
     return node
+
+
+def _bootstrap_ai_orchestrator_if_needed(db: Session, node: Node) -> None:
+    """Register AIOrchestrator on first node if cluster has none (cPlatform primary bootstrap)."""
+    from ..orchestrator.service.impl import create_service_instance
+
+    cluster_nodes = list(db.scalars(select(Node).where(Node.cluster_id == node.cluster_id)).all())
+    node_ids = [n.id for n in cluster_nodes]
+    if not node_ids:
+        return
+    existing = db.scalar(
+        select(ServiceInstance).where(
+            ServiceInstance.node_id.in_(node_ids),
+            ServiceInstance.service_key.in_(["ai-orchestrator", "AIOrchestrator", "cplatform"]),
+        )
+    )
+    if existing:
+        return
+    # Only auto-bootstrap when this is the first (or only) node
+    if len(cluster_nodes) > 1 and node.id != min(node_ids):
+        return
+    create_service_instance(
+        db,
+        node=node,
+        service_key="ai-orchestrator",
+        name="AIOrchestrator",
+        contract_overrides={"install_mode": "manual", "adopted": False, "bootstrap": True},
+    )
 
 
 @router.put("/api/nodes/{node_id}", response_model=NodeOut)
@@ -99,9 +176,21 @@ def update_node(node_id: int, payload: NodeUpdate, db: Session = Depends(get_db)
         _get_cluster(db, updates["cluster_id"])
 
     private_key = updates.pop("ssh_private_key", None)
+    facts = updates.pop("facts", None)
     if private_key is not None:
         key_path = _save_ssh_private_key(node.id, private_key)
         node.ssh_key_path = key_path
+    if facts is not None:
+        import json as _json
+
+        try:
+            current = _json.loads(node.facts_json or "{}")
+        except Exception:
+            current = {}
+        if not isinstance(current, dict):
+            current = {}
+        current.update(facts)
+        node.facts_json = _json.dumps(current)
 
     for key, value in updates.items():
         setattr(node, key, value)

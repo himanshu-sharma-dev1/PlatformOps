@@ -43,29 +43,68 @@ def create_service_instance(
     name: str | None = None,
     contract_overrides: dict[str, Any] | None = None,
 ) -> ServiceInstance:
+    from ..ids import allocate_service_external_id
+
+    # Normalize cPlatform aliases
+    key = service_key
+    alias_map = {
+        "AIOrchestrator": "ai-orchestrator",
+        "cplatform": "ai-orchestrator",
+        "TrainingServer": "dtrain-controller",
+        "dTrain": "dtrain-controller",
+    }
+    key = alias_map.get(key, key)
+
     contract = _service_contract_for_node(
-        service_key,
+        key,
         node_id=node.id,
         volume_root=node.volume_root,
         overrides=contract_overrides,
     )
     if not contract:
-        raise ValueError(f"Unknown service key: {service_key}")
+        # Soft contract for AIOrchestrator / dForm-only types not yet in services.yaml
+        if key in {"ai-orchestrator"} or service_key in alias_map:
+            contract = {
+                "display_name": name or "AIOrchestrator",
+                "name": "AIOrchestrator",
+                "kind": "app",
+                "container_name": f"node-{node.id}-ai-orchestrator",
+                "image": "",
+                "service_key": "ai-orchestrator",
+            }
+        else:
+            raise ValueError(f"Unknown service key: {service_key}")
 
     existing = db.scalar(
-        select(ServiceInstance).where(ServiceInstance.node_id == node.id, ServiceInstance.service_key == service_key)
+        select(ServiceInstance).where(ServiceInstance.node_id == node.id, ServiceInstance.service_key == key)
     )
     if existing:
+        if not existing.external_id:
+            existing.external_id = allocate_service_external_id(db)
+            db.commit()
+            db.refresh(existing)
         return existing
 
+    merged = dict(contract)
+    if contract_overrides:
+        merged.update(contract_overrides)
+    install_mode = str(merged.get("install_mode") or merged.get("service_install") or "ansible").lower()
+    if install_mode in {"manual", "ansible"}:
+        merged["install_mode"] = install_mode
+
+    external_id = allocate_service_external_id(db)
+    status = "registered" if install_mode == "manual" else "created"
+
     service = ServiceInstance(
+        external_id=external_id,
         node_id=node.id,
-        service_key=service_key,
-        name=name or contract.get("display_name") or contract.get("name") or service_key,
+        service_key=key,
+        name=name or contract.get("display_name") or contract.get("name") or key,
         kind=contract.get("kind", "app"),
-        container_name=contract.get("container_name", f"node-{node.id}-{service_key}"),
+        container_name=contract.get("container_name", f"node-{node.id}-{key}"),
         image=contract.get("image", ""),
-        config_json=json.dumps(contract),
+        status=status,
+        config_json=json.dumps(merged),
     )
     db.add(service)
     db.commit()
@@ -74,10 +113,16 @@ def create_service_instance(
         db,
         category="catalog",
         level="info",
-        message=f"Registered service card {service.name}",
+        message=f"Registered service card {service.name} ({service.external_id})",
         service_id=service.id,
         node_id=node.id,
-        metadata={"service_key": service.service_key, "kind": service.kind, "overrides": contract_overrides or {}},
+        metadata={
+            "service_key": service.service_key,
+            "kind": service.kind,
+            "external_id": service.external_id,
+            "install_mode": install_mode,
+            "overrides": contract_overrides or {},
+        },
     )
     return service
 
@@ -142,14 +187,87 @@ def service_install_schema(
     node: Node,
     service: ServiceInstance | None = None,
 ) -> dict[str, Any]:
-    if service_key not in service_catalog():
+    from ..dform import dform_install_schema_for_key, list_dform_service_types, resolve_dform_type
+
+    # Allow dForm-only types (e.g. AIOrchestrator) even if not yet in services.yaml
+    in_catalog = service_key in service_catalog()
+    dform_type = resolve_dform_type(service_key)
+    if not in_catalog and not dform_type:
         raise ValueError(f"Unknown service key: {service_key}")
-    contract = (
-        json.loads(service.config_json or "{}")
-        if service
-        else rendered_contract(service_key, node_id=node.id, volume_root=node.volume_root)
-    )
+
+    contract = {}
+    if service:
+        try:
+            contract = json.loads(service.config_json or "{}")
+        except Exception:
+            contract = {}
+    elif in_catalog:
+        contract = rendered_contract(service_key, node_id=node.id, volume_root=node.volume_root) or {}
     contract_defaults = copy.deepcopy(contract)
+
+    # Prefer full dForm field set when available
+    dform_pack = dform_install_schema_for_key(service_key)
+    if dform_pack and dform_pack.get("fields"):
+        fields = list(dform_pack["fields"])
+        # Overlay current service values when editing
+        if service:
+            cfg = contract if isinstance(contract, dict) else {}
+            for field in fields:
+                key = field.get("key")
+                if key == "service_name" and service.name:
+                    field["value"] = service.name
+                elif key in cfg:
+                    field["value"] = cfg.get(key)
+                elif key == "name" and service.name:
+                    field["value"] = service.name
+        # Ensure install_mode is always present
+        if not any(f.get("key") in {"service_install", "install_mode"} for f in fields):
+            fields.insert(
+                0,
+                {
+                    "key": "install_mode",
+                    "label": "Install mode",
+                    "field_type": "select",
+                    "required": True,
+                    "value": "ANSIBLE",
+                    "options": ["MANUAL", "ANSIBLE"],
+                    "section": "Install",
+                    "schema_source": "dform",
+                },
+            )
+        # Shape must match ServiceInstallSchemaOut (response_model)
+        clean_fields: list[dict[str, Any]] = []
+        for field in fields:
+            clean_fields.append(
+                {
+                    "key": str(field.get("key") or ""),
+                    "label": str(field.get("label") or field.get("key") or ""),
+                    "field_type": str(field.get("field_type") or "text"),
+                    "required": bool(field.get("required")),
+                    "value": field.get("value"),
+                    "help_text": str(field.get("help_text") or ""),
+                    "options": [str(o) for o in (field.get("options") or [])],
+                    "section": str(field.get("section") or "Service parameters"),
+                }
+            )
+        display_name = (
+            (service.name if service else None)
+            or contract.get("display_name")
+            or contract.get("name")
+            or dform_pack.get("dform_type")
+            or service_key
+        )
+        return {
+            "service_key": service_key,
+            "name": display_name,
+            "kind": contract.get("kind") or ("app" if service_key == "ai-orchestrator" else "app"),
+            "configurable": True,
+            "exposure_supported": bool(contract.get("kind") == "infrastructure"),
+            "fields": clean_fields,
+            "defaults": contract_defaults if isinstance(contract_defaults, dict) else {},
+            "summary": f"dForm schema ({dform_pack.get('dform_type')}) · {len(clean_fields)} fields",
+        }
+
     fields: list[dict[str, Any]] = [
         {
             "key": "name",
@@ -159,7 +277,17 @@ def service_install_schema(
             "value": service.name if service else "",
             "help_text": "Used as the service display and runtime name. Must remain unique within the cluster.",
             "section": "Identity",
-        }
+        },
+        {
+            "key": "install_mode",
+            "label": "Install mode",
+            "field_type": "select",
+            "required": True,
+            "value": "ansible",
+            "options": ["manual", "ansible"],
+            "section": "Install",
+            "schema_source": "catalog",
+        },
     ]
     fields.append(
         {

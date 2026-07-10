@@ -1,0 +1,5414 @@
+{
+  "addPath": "ServiceConfig row_Schema",
+  "ANS": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DeployStatus": {
+        "f_display_name": "DeployStatus",
+        "f_name": "deploy_status",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": false,
+        "f_width": 3,
+        "v_default": "NOT DEPLOYED",
+        "v_options": [
+          "NOT DEPLOYED",
+          "DEPLOYED"
+        ],
+        "a_onChange": "changeDeployColor(event)",
+        "b_name": [],
+        "b_rows": [],
+        "f_add_visible": "edit",
+        "f_disabled": true,
+        "f_color": {
+          "NOT DEPLOYED": "#CDD0CB",
+          "DEPLOYED": "#A4F6A5"
+        }
+      },
+      "ServiceDebug": {
+        "f_display_name": "ServiceDebug",
+        "f_name": "service_debug",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "DISABLE",
+        "v_options": [
+          "DISABLE",
+          "INFO",
+          "DEBUG"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVersion": {
+        "f_display_name": "ServiceVersion",
+        "f_name": "service_version",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2.0.0",
+        "v_options": [
+          "2.0.1",
+          "2.0.0",
+          "1.0.0",
+          "1.1.0"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "NoOfCores": {
+        "f_display_name": "NoOfCores",
+        "f_name": "no_of_cores",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "1",
+        "v_min": 1,
+        "v_max": 32,
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "GpuFlag": {
+        "f_display_name": "GpuFlag",
+        "f_name": "gpu_flag",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Disable",
+        "v_options": [
+          "Enable",
+          "Disable"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "TimeZone": {
+        "f_display_name": "TimeZone",
+        "f_name": "time_zone",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Asia/Kolkata",
+        "v_options": [
+          "US/Eastern",
+          "US/Central",
+          "US/Pacific",
+          "Europe/London",
+          "UTC",
+          "America/New_York",
+          "Europe/Belgrade",
+          "Asia/Kolkata"
+        ],
+        "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Text2SqlFlag": {
+        "f_display_name": "Text2SqlFlag",
+        "f_name": "text2sql_flag",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Disable",
+        "v_options": [
+          "Enable",
+          "Disable"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "TrainingServer": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "V_CPU": {
+        "f_display_name": "V_CPU",
+        "f_name": "v_cpu",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 2,
+        "v_min": 2,
+        "v_max": 32,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Max_Memory": {
+        "f_display_name": "Max_Memory",
+        "f_name": "max_memory",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 4,
+        "v_min": 4,
+        "v_max": 128,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DeployStatus": {
+        "f_display_name": "DeployStatus",
+        "f_name": "deploy_status",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "NOT DEPLOYED",
+        "v_options": [
+          "NOT DEPLOYED",
+          "DEPLOYED"
+        ],
+        "a_onChange": "changeDeployColor(event)",
+        "b_name": [],
+        "b_rows": [],
+        "f_add_visible": "edit",
+        "f_disabled": true,
+        "f_color": {
+          "NOT DEPLOYED": "#CDD0CB",
+          "DEPLOYED": "#A4F6A5"
+        }
+      },
+      "ServiceDebug": {
+        "f_display_name": "ServiceDebug",
+        "f_name": "service_debug",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "DISABLE",
+        "v_options": [
+          "DISABLE",
+          "INFO",
+          "DEBUG"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVersion": {
+        "f_display_name": "ServiceVersion",
+        "f_name": "service_version",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2.0.0",
+        "v_options": [
+          "2.0.1",
+          "2.0.0",
+          "1.0.0",
+          "1.1.0"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "CPU_Priority": {
+        "f_display_name": "CPU_Priority",
+        "f_name": "priority",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Medium",
+        "v_options": [
+          "Low",
+          "Medium",
+          "High",
+          "VeryHigh"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "TimeZone": {
+        "f_display_name": "TimeZone",
+        "f_name": "time_zone",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Asia/Kolkata",
+        "v_options": [
+          "US/Eastern",
+          "US/Central",
+          "US/Pacific",
+          "Europe/London",
+          "UTC",
+          "America/New_York",
+          "Europe/Belgrade",
+          "Asia/Kolkata"
+        ],
+        "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "AIOrchestrator": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "AIOrchestratorPort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 80,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DeployStatus": {
+        "f_display_name": "DeployStatus",
+        "f_name": "deploy_status",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "NOT DEPLOYED",
+        "v_options": [
+          "NOT DEPLOYED",
+          "DEPLOYED"
+        ],
+        "a_onChange": "changeDeployColor(event)",
+        "b_name": [],
+        "b_rows": [],
+        "f_add_visible": "edit",
+        "f_disabled": true,
+        "f_color": {
+          "NOT DEPLOYED": "#CDD0CB",
+          "DEPLOYED": "#A4F6A5"
+        }
+      },
+      "ServiceDebug": {
+        "f_display_name": "ServiceDebug",
+        "f_name": "service_debug",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "DISABLE",
+        "v_options": [
+          "DISABLE",
+          "INFO",
+          "DEBUG"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVersion": {
+        "f_display_name": "ServiceVersion",
+        "f_name": "service_version",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2.0.0",
+        "v_options": [
+          "2.0.1",
+          "2.0.0",
+          "1.0.0",
+          "1.1.0"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "TimeZone": {
+        "f_display_name": "TimeZone",
+        "f_name": "time_zone",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Asia/Kolkata",
+        "v_options": [
+          "US/Eastern",
+          "US/Central",
+          "US/Pacific",
+          "Europe/London",
+          "UTC",
+          "America/New_York",
+          "Europe/Belgrade",
+          "Asia/Kolkata"
+        ],
+        "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "EmailUserName": {
+        "f_display_name": "EmailUserName",
+        "f_name": "email_username",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "EmailPassword": {
+        "f_display_name": "EmailPassword",
+        "f_name": "email_password",
+        "f_type": "password",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "EmailHost": {
+        "f_display_name": "EmailHost",
+        "f_name": "email_host",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "EmailPort": {
+        "f_display_name": "EmailPort",
+        "f_name": "email_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 34,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "EmailAgent": {
+        "f_display_name": "EmailAgent",
+        "f_name": "email_agent",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DataflowAgentFlag": {
+        "f_display_name": "DataflowAgentFlag",
+        "f_name": "dataflow_agent_flag",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Disable",
+        "v_options": ["Disable", "Enable"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "OrchestratorUrl": {
+        "f_display_name": "OrchestratorUrl",
+        "f_name": "orchestrator_url",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "LlmHost": {
+        "f_display_name": "LlmHost",
+        "f_name": "llm_host",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "LlmPort": {
+        "f_display_name": "LlmPort",
+        "f_name": "llm_port",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": true,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "McpUrl": {
+        "f_display_name": "McpUrl",
+        "f_name": "mcp_url",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": true,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "LlmModel": {
+        "f_display_name": "LlmModel",
+        "f_name": "llm_model",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "llama3.1",
+        "v_options": [
+          "llama3.1",
+          "qwen3:8b"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Text2SQLUrl": {
+        "f_display_name": "Text2SQLUrl",
+        "f_name": "text2sql_url",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": true,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "RAG": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "V_CPU": {
+        "f_display_name": "V_CPU",
+        "f_name": "v_cpu",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 2,
+        "v_min": 2,
+        "v_max": 32,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Max_Memory": {
+        "f_display_name": "Max_Memory",
+        "f_name": "max_memory",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 4,
+        "v_min": 4,
+        "v_max": 128,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "TimeZone": {
+        "f_display_name": "TimeZone",
+        "f_name": "time_zone",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Asia/Kolkata",
+        "v_options": [
+          "US/Eastern",
+          "US/Central",
+          "US/Pacific",
+          "Europe/London",
+          "UTC",
+          "America/New_York",
+          "Europe/Belgrade",
+          "Asia/Kolkata"
+        ],
+        "a_onSelect": "onSelectDemo(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DeployStatus": {
+        "f_display_name": "DeployStatus",
+        "f_name": "deploy_status",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "NOT DEPLOYED",
+        "v_options": [
+          "NOT DEPLOYED",
+          "DEPLOYED"
+        ],
+        "a_onChange": "changeDeployColor(event)",
+        "b_name": [],
+        "b_rows": [],
+        "f_add_visible": "edit",
+        "f_disabled": true,
+        "f_color": {
+          "NOT DEPLOYED": "#CDD0CB",
+          "DEPLOYED": "#A4F6A5"
+        }
+      },
+      "ServiceDebug": {
+        "f_display_name": "ServiceDebug",
+        "f_name": "service_debug",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "DISABLE",
+        "v_options": [
+          "DISABLE",
+          "INFO",
+          "DEBUG"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVersion": {
+        "f_display_name": "ServiceVersion",
+        "f_name": "service_version",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2.0.0",
+        "v_options": [
+          "2.0.1",
+          "2.0.0",
+          "1.0.0",
+          "1.1.0"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "CPU_Priority": {
+        "f_display_name": "CPU_Priority",
+        "f_name": "priority",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Medium",
+        "v_options": [
+          "Low",
+          "Medium",
+          "High",
+          "VeryHigh"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "LlmModel": {
+        "f_display_name": "LlmModel",
+        "f_name": "llm_model",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "llama3.1",
+        "v_options": [
+          "llama3.1"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "EmbeddedModel": {
+        "f_display_name": "EmbeddedModel",
+        "f_name": "embed_model",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "nomic-embed-text",
+        "v_options": [
+          "znbang/bge:small-en-v1.5-q8_0",
+          "nomic-embed-text"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "VectorStore": {
+        "f_display_name": "VectorStore",
+        "f_name": "vector_store",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "postgres",
+        "v_options": [
+          "postgres",
+          "milvus"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Doc_Source": {
+        "f_display_name": "Doc_Source",
+        "f_name": "get_page_source",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "true",
+        "v_options": [
+          "true",
+          "false"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "AiUserResponse": {
+        "f_display_name": "AiUserResponse",
+        "f_name": "ai_user_response",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 12,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Tool_Description": {
+        "f_display_name": "Tool_Description",
+        "f_name": "tool_description",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 12,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "Text2CLK": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9007,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "TimeZone": {
+        "f_display_name": "TimeZone",
+        "f_name": "time_zone",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Asia/Kolkata",
+        "v_options": [
+          "US/Eastern",
+          "US/Central",
+          "US/Pacific",
+          "Europe/London",
+          "UTC",
+          "America/New_York",
+          "Europe/Belgrade",
+          "Asia/Kolkata"
+        ],
+        "a_onSelect": "onSelectDemo(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DeployStatus": {
+        "f_display_name": "DeployStatus",
+        "f_name": "deploy_status",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "NOT DEPLOYED",
+        "v_options": [
+          "NOT DEPLOYED",
+          "DEPLOYED"
+        ],
+        "a_onChange": "changeDeployColor(event)",
+        "b_name": [],
+        "b_rows": [],
+        "f_add_visible": "edit",
+        "f_disabled": true,
+        "f_color": {
+          "NOT DEPLOYED": "#CDD0CB",
+          "DEPLOYED": "#A4F6A5"
+        }
+      },
+      "ServiceDebug": {
+        "f_display_name": "ServiceDebug",
+        "f_name": "service_debug",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "DISABLE",
+        "v_options": [
+          "DISABLE",
+          "INFO",
+          "DEBUG"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVersion": {
+        "f_display_name": "ServiceVersion",
+        "f_name": "service_version",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "1.0.0",
+        "v_options": [
+          "1.0.0"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "sql_llm": {
+        "f_display_name": "Sql_LLM",
+        "f_name": "sql_llm",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "qwen2.5-coder:7b-instruct",
+        "v_options": [
+          "llama3.1",
+          "qwen2.5-coder:7b-instruct",
+          "qwen3:latest"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "reasoning_llm": {
+        "f_display_name": "Reasoning_LLM",
+        "f_name": "reasoning_llm",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "qwen3:latest",
+        "v_options": [
+          "llama3.1",
+          "qwen2.5-coder:7b-instruct",
+          "qwen3:latest"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "non_resoning_llm": {
+        "f_display_name": "Non_Reasoning_LLM",
+        "f_name": "non_resoning_llm",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "llama3.1",
+        "v_options": [
+          "llama3.1",
+          "qwen2.5-coder:7b-instruct",
+          "qwen3:latest"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "AiUserResponse": {
+        "f_display_name": "AiUserResponse",
+        "f_name": "ai_user_response",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 12,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Tool_Description": {
+        "f_display_name": "Tool_Description",
+        "f_name": "tool_description",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 12,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "Text2SQL": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "V_CPU": {
+        "f_display_name": "V_CPU",
+        "f_name": "v_cpu",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 2,
+        "v_min": 2,
+        "v_max": 32,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Max_Memory": {
+        "f_display_name": "Max_Memory",
+        "f_name": "max_memory",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 4,
+        "v_min": 4,
+        "v_max": 128,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DeployStatus": {
+        "f_display_name": "DeployStatus",
+        "f_name": "deploy_status",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "NOT DEPLOYED",
+        "v_options": [
+          "NOT DEPLOYED",
+          "DEPLOYED"
+        ],
+        "a_onChange": "changeDeployColor(event)",
+        "b_name": [],
+        "b_rows": [],
+        "f_add_visible": "edit",
+        "f_disabled": true,
+        "f_color": {
+          "NOT DEPLOYED": "#CDD0CB",
+          "DEPLOYED": "#A4F6A5"
+        }
+      },
+      "ServiceDebug": {
+        "f_display_name": "ServiceDebug",
+        "f_name": "service_debug",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "DISABLE",
+        "v_options": [
+          "DISABLE",
+          "INFO",
+          "DEBUG"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVersion": {
+        "f_display_name": "ServiceVersion",
+        "f_name": "service_version",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2.0.0",
+        "v_options": [
+          "2.0.1",
+          "2.0.0",
+          "1.0.0",
+          "1.1.0"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "CPU_Priority": {
+        "f_display_name": "CPU_Priority",
+        "f_name": "priority",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Medium",
+        "v_options": [
+          "Low",
+          "Medium",
+          "High",
+          "VeryHigh"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "TimeZone": {
+        "f_display_name": "TimeZone",
+        "f_name": "time_zone",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Asia/Kolkata",
+        "v_options": [
+          "US/Eastern",
+          "US/Central",
+          "US/Pacific",
+          "Europe/London",
+          "UTC",
+          "America/New_York",
+          "Europe/Belgrade",
+          "Asia/Kolkata"
+        ],
+        "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Text2SqlLlmModel": {
+        "f_display_name": "Text2SqlLlmModel",
+        "f_name": "text2sql_llm_model",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "llama3.1",
+        "v_options": [
+          "gpt-oss",
+          "anindya/prem1b-sql-ollama-fp116"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Text2SqlLlmMdModel": {
+        "f_display_name": "Text2SqlLlmMdModel",
+        "f_name": "text2sql_llm_md_model",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "llama3.1",
+        "v_options": [
+          "llama3.1",
+          "qwen3:8b"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceDbIp": {
+        "f_display_name": "ServiceDBIP",
+        "f_name": "service_db_ip",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "127.0.0.1",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceDbPort": {
+        "f_display_name": "ServiceDBPort",
+        "f_name": "service_db_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 3306,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceDbUsername": {
+        "f_display_name": "ServiceDBUsername",
+        "f_name": "service_db_username",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "root",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceDbPassword": {
+        "f_display_name": "ServiceDBPassword",
+        "f_name": "service_db_password",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "root",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceDbDatabase": {
+        "f_display_name": "ServiceDBDatabase",
+        "f_name": "service_db_database",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "iotserver",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DbType": {
+        "f_display_name": "DBType",
+        "f_name": "db_type",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "sql",
+        "v_options": [
+          "sql",
+          "POSTGRES"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "OpsType": {
+        "f_display_name": "OpsType",
+        "f_name": "ops_type",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "SinglePass",
+        "v_options": [
+          "SinglePass",
+          "ScopedPass"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "McpGatewayUrl": {
+        "f_display_name": "MCPGatewayURL",
+        "f_name": "mcp_gateway_url",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "http://127.0.0.1:9001",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "McpServerUrl": {
+        "f_display_name": "MCPServerURL",
+        "f_name": "mcp_server_url",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "http://127.0.0.1:9000",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "InferenceServer": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "V_CPU": {
+        "f_display_name": "V_CPU",
+        "f_name": "v_cpu",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 2,
+        "v_min": 2,
+        "v_max": 32,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Max_Memory": {
+        "f_display_name": "Max_Memory",
+        "f_name": "max_memory",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 4,
+        "v_min": 4,
+        "v_max": 128,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DeployStatus": {
+        "f_display_name": "DeployStatus",
+        "f_name": "deploy_status",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "NOT DEPLOYED",
+        "v_options": [
+          "NOT DEPLOYED",
+          "DEPLOYED"
+        ],
+        "a_onChange": "changeDeployColor(event)",
+        "b_name": [],
+        "b_rows": [],
+        "f_add_visible": "edit",
+        "f_disabled": true,
+        "f_color": {
+          "NOT DEPLOYED": "#CDD0CB",
+          "DEPLOYED": "#A4F6A5"
+        }
+      },
+      "ServiceDebug": {
+        "f_display_name": "ServiceDebug",
+        "f_name": "service_debug",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "DISABLE",
+        "v_options": [
+          "DISABLE",
+          "INFO",
+          "DEBUG"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVersion": {
+        "f_display_name": "ServiceVersion",
+        "f_name": "service_version",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2.0.0",
+        "v_options": [
+          "2.0.1",
+          "2.0.0",
+          "1.0.0",
+          "1.1.0"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "CPU_Priority": {
+        "f_display_name": "CPU_Priority",
+        "f_name": "priority",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Medium",
+        "v_options": [
+          "Low",
+          "Medium",
+          "High",
+          "VeryHigh"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "NoOfCores": {
+        "f_display_name": "NoOfCores",
+        "f_name": "no_of_cores",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "1",
+        "v_min": 1,
+        "v_max": 32,
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "GpuFlag": {
+        "f_display_name": "GpuFlag",
+        "f_name": "gpu_flag",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Disable",
+        "v_options": [
+          "Enable",
+          "Disable"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "TimeZone": {
+        "f_display_name": "TimeZone",
+        "f_name": "time_zone",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Asia/Kolkata",
+        "v_options": [
+          "US/Eastern",
+          "US/Central",
+          "US/Pacific",
+          "Europe/London",
+          "UTC",
+          "America/New_York",
+          "Europe/Belgrade",
+          "Asia/Kolkata"
+        ],
+        "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "MCPServer": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "V_CPU": {
+        "f_display_name": "V_CPU",
+        "f_name": "v_cpu",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 2,
+        "v_min": 2,
+        "v_max": 32,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Max_Memory": {
+        "f_display_name": "Max_Memory",
+        "f_name": "max_memory",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 4,
+        "v_min": 4,
+        "v_max": 128,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DeployStatus": {
+        "f_display_name": "DeployStatus",
+        "f_name": "deploy_status",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "NOT DEPLOYED",
+        "v_options": [
+          "NOT DEPLOYED",
+          "DEPLOYED"
+        ],
+        "a_onChange": "changeDeployColor(event)",
+        "b_name": [],
+        "b_rows": [],
+        "f_add_visible": "edit",
+        "f_disabled": true,
+        "f_color": {
+          "NOT DEPLOYED": "#CDD0CB",
+          "DEPLOYED": "#A4F6A5"
+        }
+      },
+      "ServiceDebug": {
+        "f_display_name": "ServiceDebug",
+        "f_name": "service_debug",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "DISABLE",
+        "v_options": [
+          "DISABLE",
+          "INFO",
+          "DEBUG"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVersion": {
+        "f_display_name": "ServiceVersion",
+        "f_name": "service_version",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2.0.0",
+        "v_options": [
+          "2.0.1",
+          "2.0.0",
+          "1.0.0",
+          "1.1.0"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "CPU_Priority": {
+        "f_display_name": "CPU_Priority",
+        "f_name": "priority",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Medium",
+        "v_options": [
+          "Low",
+          "Medium",
+          "High",
+          "VeryHigh"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "NoOfCores": {
+        "f_display_name": "NoOfCores",
+        "f_name": "no_of_cores",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "1",
+        "v_min": 1,
+        "v_max": 32,
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "GpuFlag": {
+        "f_display_name": "GpuFlag",
+        "f_name": "gpu_flag",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Disable",
+        "v_options": [
+          "Enable",
+          "Disable"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "TimeZone": {
+        "f_display_name": "TimeZone",
+        "f_name": "time_zone",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Asia/Kolkata",
+        "v_options": [
+          "US/Eastern",
+          "US/Central",
+          "US/Pacific",
+          "Europe/London",
+          "UTC",
+          "America/New_York",
+          "Europe/Belgrade",
+          "Asia/Kolkata"
+        ],
+        "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "ASR": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "V_CPU": {
+        "f_display_name": "V_CPU",
+        "f_name": "v_cpu",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 2,
+        "v_min": 2,
+        "v_max": 32,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Max_Memory": {
+        "f_display_name": "Max_Memory",
+        "f_name": "max_memory",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 4,
+        "v_min": 4,
+        "v_max": 128,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DeployStatus": {
+        "f_display_name": "DeployStatus",
+        "f_name": "deploy_status",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "NOT DEPLOYED",
+        "v_options": [
+          "NOT DEPLOYED",
+          "DEPLOYED"
+        ],
+        "a_onChange": "changeDeployColor(event)",
+        "b_name": [],
+        "b_rows": [],
+        "f_add_visible": "edit",
+        "f_disabled": true,
+        "f_color": {
+          "NOT DEPLOYED": "#CDD0CB",
+          "DEPLOYED": "#A4F6A5"
+        }
+      },
+      "ServiceDebug": {
+        "f_display_name": "ServiceDebug",
+        "f_name": "service_debug",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "DISABLE",
+        "v_options": [
+          "DISABLE",
+          "INFO",
+          "DEBUG"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVersion": {
+        "f_display_name": "ServiceVersion",
+        "f_name": "service_version",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2.0.0",
+        "v_options": [
+          "2.0.1",
+          "2.0.0",
+          "1.0.0",
+          "1.1.0"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "CPU_Priority": {
+        "f_display_name": "CPU_Priority",
+        "f_name": "priority",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Medium",
+        "v_options": [
+          "Low",
+          "Medium",
+          "High",
+          "VeryHigh"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "NoOfCores": {
+        "f_display_name": "NoOfCores",
+        "f_name": "no_of_cores",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "1",
+        "v_min": 1,
+        "v_max": 32,
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "GpuFlag": {
+        "f_display_name": "GpuFlag",
+        "f_name": "gpu_flag",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Disable",
+        "v_options": [
+          "Enable",
+          "Disable"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "TimeZone": {
+        "f_display_name": "TimeZone",
+        "f_name": "time_zone",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Asia/Kolkata",
+        "v_options": [
+          "US/Eastern",
+          "US/Central",
+          "US/Pacific",
+          "Europe/London",
+          "UTC",
+          "America/New_York",
+          "Europe/Belgrade",
+          "Asia/Kolkata"
+        ],
+        "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "DataJam": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DeployStatus": {
+        "f_display_name": "DeployStatus",
+        "f_name": "deploy_status",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "NOT DEPLOYED",
+        "v_options": [
+          "NOT DEPLOYED",
+          "DEPLOYED"
+        ],
+        "a_onChange": "changeDeployColor(event)",
+        "b_name": [],
+        "b_rows": [],
+        "f_add_visible": "edit",
+        "f_disabled": true,
+        "f_color": {
+          "NOT DEPLOYED": "#CDD0CB",
+          "DEPLOYED": "#A4F6A5"
+        }
+      },
+      "ServiceDebug": {
+        "f_display_name": "ServiceDebug",
+        "f_name": "service_debug",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "DISABLE",
+        "v_options": [
+          "DISABLE",
+          "INFO",
+          "DEBUG"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVersion": {
+        "f_display_name": "ServiceVersion",
+        "f_name": "service_version",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2.0.0",
+        "v_options": [
+          "2.0.1",
+          "2.0.0",
+          "1.0.0",
+          "1.1.0"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "NoOfCores": {
+        "f_display_name": "NoOfCores",
+        "f_name": "no_of_cores",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "1",
+        "v_min": 1,
+        "v_max": 32,
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "GpuFlag": {
+        "f_display_name": "GpuFlag",
+        "f_name": "gpu_flag",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Disable",
+        "v_options": [
+          "Enable",
+          "Disable"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "TimeZone": {
+        "f_display_name": "TimeZone",
+        "f_name": "time_zone",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Asia/Kolkata",
+        "v_options": [
+          "US/Eastern",
+          "US/Central",
+          "US/Pacific",
+          "Europe/London",
+          "UTC",
+          "America/New_York",
+          "Europe/Belgrade",
+          "Asia/Kolkata"
+        ],
+        "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "optionCopilot": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "Service_Port",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "InferenceFlag": {
+        "f_display_name": "InferenceFlag",
+        "f_name": "inference_flag",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "No",
+        "v_options": [
+          "Yes",
+          "No"
+        ],
+        "b_name": [],
+        "b_rows": []
+      },
+      "InferenceServerInfo": {
+        "f_display_name": "InferenceServer",
+        "f_name": "inference_server",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": null,
+        "v_options": [],
+        "a_onRefresh": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ModelName": {
+        "f_display_name": "ModelName",
+        "f_name": "model_name",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": null,
+        "v_options": [],
+        "a_onRefresh": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "LastIngestedDate": {
+        "f_display_name": "LastIngestedDate",
+        "f_name": "last_ingested_date",
+        "f_type": "date",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": null,
+        "v_options": [],
+        "a_onRefresh": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DeployStatus": {
+        "f_display_name": "DeployStatus",
+        "f_name": "deploy_status",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "NOT DEPLOYED",
+        "v_options": [
+          "NOT DEPLOYED",
+          "DEPLOYED"
+        ],
+        "a_onChange": "changeDeployColor(event)",
+        "b_name": [],
+        "b_rows": [],
+        "f_add_visible": "edit",
+        "f_disabled": true,
+        "f_color": {
+          "NOT DEPLOYED": "#CDD0CB",
+          "DEPLOYED": "#A4F6A5"
+        }
+      },
+      "ServiceDebug": {
+        "f_display_name": "ServiceDebug",
+        "f_name": "service_debug",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "DISABLE",
+        "v_options": [
+          "DISABLE",
+          "INFO",
+          "DEBUG"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVersion": {
+        "f_display_name": "ServiceVersion",
+        "f_name": "service_version",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2.0.0",
+        "v_options": [
+          "2.0.1",
+          "2.0.0",
+          "1.0.0",
+          "1.1.0"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "NoOfCores": {
+        "f_display_name": "NoOfCores",
+        "f_name": "no_of_cores",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "1",
+        "v_min": 1,
+        "v_max": 32,
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "GpuFlag": {
+        "f_display_name": "GpuFlag",
+        "f_name": "gpu_flag",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Disable",
+        "v_options": [
+          "Enable",
+          "Disable"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "TimeZone": {
+        "f_display_name": "TimeZone",
+        "f_name": "time_zone",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Asia/Kolkata",
+        "v_options": [
+          "US/Eastern",
+          "US/Central",
+          "US/Pacific",
+          "Europe/London",
+          "UTC",
+          "America/New_York",
+          "Europe/Belgrade",
+          "Asia/Kolkata"
+        ],
+        "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "TTS": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "V_CPU": {
+        "f_display_name": "V_CPU",
+        "f_name": "v_cpu",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 2,
+        "v_min": 2,
+        "v_max": 32,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Max_Memory": {
+        "f_display_name": "Max_Memory",
+        "f_name": "max_memory",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 4,
+        "v_min": 4,
+        "v_max": 128,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DeployStatus": {
+        "f_display_name": "DeployStatus",
+        "f_name": "deploy_status",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "NOT DEPLOYED",
+        "v_options": [
+          "NOT DEPLOYED",
+          "DEPLOYED"
+        ],
+        "a_onChange": "changeDeployColor(event)",
+        "b_name": [],
+        "b_rows": [],
+        "f_add_visible": "edit",
+        "f_color": {
+          "NOT DEPLOYED": "#CDD0CB",
+          "DEPLOYED": "#A4F6A5"
+        }
+      },
+      "ServiceDebug": {
+        "f_display_name": "ServiceDebug",
+        "f_name": "service_debug",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "DISABLE",
+        "v_options": [
+          "DISABLE",
+          "INFO",
+          "DEBUG"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVersion": {
+        "f_display_name": "ServiceVersion",
+        "f_name": "service_version",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2.0.0",
+        "v_options": [
+          "2.0.1",
+          "2.0.0",
+          "1.0.0",
+          "1.1.0"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "CPU_Priority": {
+        "f_display_name": "CPU_Priority",
+        "f_name": "priority",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Medium",
+        "v_options": [
+          "Low",
+          "Medium",
+          "High",
+          "VeryHigh"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "LoadModel": {
+        "f_display_name": "LoadModel",
+        "f_name": "load_model",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "tacotron2_ddc_ph",
+        "v_options": [
+          "fast_pitch",
+          "glow_tts",
+          "tacotron2_ddc",
+          "tacotron2_ddc_ph",
+          "vits_ljspeech",
+          "vits_vctk",
+          "your_tts"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "CPU": {
+        "f_display_name": "CPU",
+        "f_name": "num_cpu",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": true,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "v_min": 1,
+        "v_max": 5,
+        "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "gpu": {
+        "f_display_name": "GPU",
+        "f_name": "num_gpu",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": true,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "v_min": 0,
+        "v_max": 5,
+        "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "TimeZone": {
+        "f_display_name": "TimeZone",
+        "f_name": "time_zone",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Asia/Kolkata",
+        "v_options": [
+          "US/Eastern",
+          "US/Central",
+          "US/Pacific",
+          "Europe/London",
+          "UTC",
+          "America/New_York",
+          "Europe/Belgrade",
+          "Asia/Kolkata"
+        ],
+        "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "ConvCall": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "V_CPU": {
+        "f_display_name": "V_CPU",
+        "f_name": "v_cpu",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 2,
+        "v_min": 2,
+        "v_max": 32,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Max_Memory": {
+        "f_display_name": "Max_Memory",
+        "f_name": "max_memory",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 4,
+        "v_min": 4,
+        "v_max": 128,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DeployStatus": {
+        "f_display_name": "DeployStatus",
+        "f_name": "deploy_status",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "NOT DEPLOYED",
+        "v_options": [
+          "NOT DEPLOYED",
+          "DEPLOYED"
+        ],
+        "a_onChange": "changeDeployColor(event)",
+        "b_name": [],
+        "b_rows": [],
+        "f_add_visible": "edit",
+        "f_color": {
+          "NOT DEPLOYED": "#CDD0CB",
+          "DEPLOYED": "#A4F6A5"
+        }
+      },
+      "ServiceDebug": {
+        "f_display_name": "ServiceDebug",
+        "f_name": "service_debug",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "DISABLE",
+        "v_options": [
+          "DISABLE",
+          "INFO",
+          "DEBUG"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVersion": {
+        "f_display_name": "ServiceVersion",
+        "f_name": "service_version",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2.0.0",
+        "v_options": [
+          "2.0.1",
+          "2.0.0",
+          "1.0.0",
+          "1.1.0"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "CPU_Priority": {
+        "f_display_name": "CPU_Priority",
+        "f_name": "priority",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Medium",
+        "v_options": [
+          "Low",
+          "Medium",
+          "High",
+          "VeryHigh"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "TimeZone": {
+        "f_display_name": "TimeZone",
+        "f_name": "time_zone",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Asia/Kolkata",
+        "v_options": [
+          "US/Eastern",
+          "US/Central",
+          "US/Pacific",
+          "Europe/London",
+          "UTC",
+          "America/New_York",
+          "Europe/Belgrade",
+          "Asia/Kolkata"
+        ],
+        "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "provider": {
+        "f_display_name": "provider",
+        "f_name": "provider",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "telecmi",
+        "v_options": [
+          "telecmi",
+          "vonage"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "ConvForm": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "V_CPU": {
+        "f_display_name": "V_CPU",
+        "f_name": "v_cpu",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 2,
+        "v_min": 2,
+        "v_max": 32,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Max_Memory": {
+        "f_display_name": "Max_Memory",
+        "f_name": "max_memory",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 4,
+        "v_min": 4,
+        "v_max": 128,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DeployStatus": {
+        "f_display_name": "DeployStatus",
+        "f_name": "deploy_status",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "NOT DEPLOYED",
+        "v_options": [
+          "NOT DEPLOYED",
+          "DEPLOYED"
+        ],
+        "a_onChange": "changeDeployColor(event)",
+        "b_name": [],
+        "b_rows": [],
+        "f_add_visible": "edit",
+        "f_disabled": true,
+        "f_color": {
+          "NOT DEPLOYED": "#CDD0CB",
+          "DEPLOYED": "#A4F6A5"
+        }
+      },
+      "ServiceDebug": {
+        "f_display_name": "ServiceDebug",
+        "f_name": "service_debug",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "DISABLE",
+        "v_options": [
+          "DISABLE",
+          "INFO",
+          "DEBUG"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVersion": {
+        "f_display_name": "ServiceVersion",
+        "f_name": "service_version",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2.0.0",
+        "v_options": [
+          "2.0.1",
+          "2.0.0",
+          "1.0.0",
+          "1.1.0"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "CPU_Priority": {
+        "f_display_name": "CPU_Priority",
+        "f_name": "priority",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Medium",
+        "v_options": [
+          "Low",
+          "Medium",
+          "High",
+          "VeryHigh"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "LlmModel": {
+        "f_display_name": "LlmModel",
+        "f_name": "llm_model",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "llama3.1",
+        "v_options": [
+          "llama3.1"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "LlmIp": {
+        "f_display_name": "LlmIp",
+        "f_name": "llm_ip",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 34,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "LlmPort": {
+        "f_display_name": "LlmPort",
+        "f_name": "llm_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 11010,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "EmbeddedModel": {
+        "f_display_name": "EmbeddedModel",
+        "f_name": "embed_model",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "znbang/bge:small-en-v1.5-q8_0",
+        "v_options": [
+          "znbang/bge:small-en-v1.5-q8_0",
+          "nomic-embed-text"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "MCPUrl": {
+        "f_display_name": "MCPUrl",
+        "f_name": "mcp_url",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "TimeZone": {
+        "f_display_name": "TimeZone",
+        "f_name": "time_zone",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Asia/Kolkata",
+        "v_options": [
+          "US/Eastern",
+          "US/Central",
+          "US/Pacific",
+          "Europe/London",
+          "UTC",
+          "America/New_York",
+          "Europe/Belgrade",
+          "Asia/Kolkata"
+        ],
+        "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "McpProxy": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "V_CPU": {
+        "f_display_name": "V_CPU",
+        "f_name": "v_cpu",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 2,
+        "v_min": 2,
+        "v_max": 32,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Max_Memory": {
+        "f_display_name": "Max_Memory",
+        "f_name": "max_memory",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 4,
+        "v_min": 4,
+        "v_max": 128,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "TimeZone": {
+        "f_display_name": "TimeZone",
+        "f_name": "time_zone",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Asia/Kolkata",
+        "v_options": [
+          "US/Eastern",
+          "US/Central",
+          "US/Pacific",
+          "Europe/London",
+          "UTC",
+          "America/New_York",
+          "Europe/Belgrade",
+          "Asia/Kolkata"
+        ],
+        "a_onSelect": "onSelectDemo(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DeployStatus": {
+        "f_display_name": "DeployStatus",
+        "f_name": "deploy_status",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "NOT DEPLOYED",
+        "v_options": [
+          "NOT DEPLOYED",
+          "DEPLOYED"
+        ],
+        "a_onChange": "changeDeployColor(event)",
+        "b_name": [],
+        "b_rows": [],
+        "f_add_visible": "edit",
+        "f_disabled": true,
+        "f_color": {
+          "NOT DEPLOYED": "#CDD0CB",
+          "DEPLOYED": "#A4F6A5"
+        }
+      },
+      "ServiceDebug": {
+        "f_display_name": "ServiceDebug",
+        "f_name": "service_debug",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "DISABLE",
+        "v_options": [
+          "DISABLE",
+          "INFO",
+          "DEBUG"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVersion": {
+        "f_display_name": "ServiceVersion",
+        "f_name": "service_version",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "1.0.0",
+        "v_options": [
+          "1.0.0"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "CPU_Priority": {
+        "f_display_name": "CPU_Priority",
+        "f_name": "priority",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Medium",
+        "v_options": [
+          "Low",
+          "Medium",
+          "High",
+          "VeryHigh"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "LlmModel": {
+        "f_display_name": "LlmModel",
+        "f_name": "llm_model",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "llama3.1",
+        "v_options": [
+          "llama3.1"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "ProxyDataJam": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "V_CPU": {
+        "f_display_name": "V_CPU",
+        "f_name": "v_cpu",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 2,
+        "v_min": 2,
+        "v_max": 32,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Max_Memory": {
+        "f_display_name": "Max_Memory",
+        "f_name": "max_memory",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 4,
+        "v_min": 4,
+        "v_max": 128,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "TimeZone": {
+        "f_display_name": "TimeZone",
+        "f_name": "time_zone",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Asia/Kolkata",
+        "v_options": [
+          "US/Eastern",
+          "US/Central",
+          "US/Pacific",
+          "Europe/London",
+          "UTC",
+          "America/New_York",
+          "Europe/Belgrade",
+          "Asia/Kolkata"
+        ],
+        "a_onSelect": "onSelectDemo(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DeployStatus": {
+        "f_display_name": "DeployStatus",
+        "f_name": "deploy_status",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "NOT DEPLOYED",
+        "v_options": [
+          "NOT DEPLOYED",
+          "DEPLOYED"
+        ],
+        "a_onChange": "changeDeployColor(event)",
+        "b_name": [],
+        "b_rows": [],
+        "f_add_visible": "edit",
+        "f_disabled": true,
+        "f_color": {
+          "NOT DEPLOYED": "#CDD0CB",
+          "DEPLOYED": "#A4F6A5"
+        }
+      },
+      "ServiceDebug": {
+        "f_display_name": "ServiceDebug",
+        "f_name": "service_debug",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "DISABLE",
+        "v_options": [
+          "DISABLE",
+          "INFO",
+          "DEBUG"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVersion": {
+        "f_display_name": "ServiceVersion",
+        "f_name": "service_version",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "1.0.0",
+        "v_options": [
+          "1.0.0"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "CPU_Priority": {
+        "f_display_name": "CPU_Priority",
+        "f_name": "priority",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Medium",
+        "v_options": [
+          "Low",
+          "Medium",
+          "High",
+          "VeryHigh"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "LlmModel": {
+        "f_display_name": "LlmModel",
+        "f_name": "llm_model",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "llama3.1",
+        "v_options": [
+          "llama3.1"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "Airflow": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "V_CPU": {
+        "f_display_name": "V_CPU",
+        "f_name": "v_cpu",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 2,
+        "v_min": 2,
+        "v_max": 32,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Max_Memory": {
+        "f_display_name": "Max_Memory",
+        "f_name": "max_memory",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 4,
+        "v_min": 4,
+        "v_max": 128,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "TimeZone": {
+        "f_display_name": "TimeZone",
+        "f_name": "time_zone",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Asia/Kolkata",
+        "v_options": [
+          "US/Eastern",
+          "US/Central",
+          "US/Pacific",
+          "Europe/London",
+          "UTC",
+          "America/New_York",
+          "Europe/Belgrade",
+          "Asia/Kolkata"
+        ],
+        "a_onSelect": "onSelectDemo(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DeployStatus": {
+        "f_display_name": "DeployStatus",
+        "f_name": "deploy_status",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "NOT DEPLOYED",
+        "v_options": [
+          "NOT DEPLOYED",
+          "DEPLOYED"
+        ],
+        "a_onChange": "changeDeployColor(event)",
+        "b_name": [],
+        "b_rows": [],
+        "f_add_visible": "edit",
+        "f_disabled": true,
+        "f_color": {
+          "NOT DEPLOYED": "#CDD0CB",
+          "DEPLOYED": "#A4F6A5"
+        }
+      },
+      "ServiceDebug": {
+        "f_display_name": "ServiceDebug",
+        "f_name": "service_debug",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "DISABLE",
+        "v_options": [
+          "DISABLE",
+          "INFO",
+          "DEBUG"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVersion": {
+        "f_display_name": "ServiceVersion",
+        "f_name": "service_version",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "1.0.0",
+        "v_options": [
+          "1.0.0"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "CPU_Priority": {
+        "f_display_name": "CPU_Priority",
+        "f_name": "priority",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Medium",
+        "v_options": [
+          "Low",
+          "Medium",
+          "High",
+          "VeryHigh"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "AirtelChurn": {
+  "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "V_CPU": {
+        "f_display_name": "V_CPU",
+        "f_name": "v_cpu",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 2,
+        "v_min": 2,
+        "v_max": 32,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "Max_Memory": {
+        "f_display_name": "Max_Memory",
+        "f_name": "max_memory",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 4,
+        "v_min": 4,
+        "v_max": 128,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "TimeZone": {
+        "f_display_name": "TimeZone",
+        "f_name": "time_zone",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Asia/Kolkata",
+        "v_options": [
+          "US/Eastern",
+          "US/Central",
+          "US/Pacific",
+          "Europe/London",
+          "UTC",
+          "America/New_York",
+          "Europe/Belgrade",
+          "Asia/Kolkata"
+        ],
+        "a_onSelect": "onSelectDemo(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DeployStatus": {
+        "f_display_name": "DeployStatus",
+        "f_name": "deploy_status",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "NOT DEPLOYED",
+        "v_options": [
+          "NOT DEPLOYED",
+          "DEPLOYED"
+        ],
+        "a_onChange": "changeDeployColor(event)",
+        "b_name": [],
+        "b_rows": [],
+        "f_add_visible": "edit",
+        "f_disabled": true,
+        "f_color": {
+          "NOT DEPLOYED": "#CDD0CB",
+          "DEPLOYED": "#A4F6A5"
+        }
+      },
+      "ServiceDebug": {
+        "f_display_name": "ServiceDebug",
+        "f_name": "service_debug",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "DISABLE",
+        "v_options": [
+          "DISABLE",
+          "INFO",
+          "DEBUG"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVersion": {
+        "f_display_name": "ServiceVersion",
+        "f_name": "service_version",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "1.0.0",
+        "v_options": [
+          "1.0.0"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "CPU_Priority": {
+        "f_display_name": "CPU_Priority",
+        "f_name": "priority",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Medium",
+        "v_options": [
+          "Low",
+          "Medium",
+          "High",
+          "VeryHigh"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+},
+  "InfraRabbitMQ": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "RabbitMQUser": {
+        "f_display_name": "RabbitMQUser",
+        "f_name": "RABBITMQ_DEFAULT_USER",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "admin"
+      },
+      "RabbitMQPassword": {
+        "f_display_name": "RabbitMQPassword",
+        "f_name": "RABBITMQ_DEFAULT_PASS",
+        "f_type": "password",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "admin"
+      }
+    }
+  },
+  "InfraPostgreSQLCore": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DbUser": {
+        "f_display_name": "DbUser",
+        "f_name": "POSTGRES_USER",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "postgres"
+      },
+      "DbPassword": {
+        "f_display_name": "DbPassword",
+        "f_name": "POSTGRES_PASSWORD",
+        "f_type": "password",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "postgres"
+      },
+      "DbName": {
+        "f_display_name": "DbName",
+        "f_name": "POSTGRES_DB",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "postgres"
+      }
+    }
+  },
+  "InfraRedisCore": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "InfraAirflowPostgreSQL": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "DbUser": {
+        "f_display_name": "DbUser",
+        "f_name": "POSTGRES_USER",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "airflow"
+      },
+      "DbPassword": {
+        "f_display_name": "DbPassword",
+        "f_name": "POSTGRES_PASSWORD",
+        "f_type": "password",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "airflow"
+      }
+    }
+  },
+  "InfraAirflowRedis": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "RedisPassword": {
+        "f_display_name": "RedisPassword",
+        "f_name": "REDIS_PASSWORD",
+        "f_type": "password",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": ""
+      }
+    }
+  },
+  "InfraAirflowScheduler": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 8080,
+        "v_min": 1000,
+        "v_max": 65535,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "InfraAirflowWorker": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 8080,
+        "v_min": 1000,
+        "v_max": 65535,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "InfraAirflowDagProcessor": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 8080,
+        "v_min": 1000,
+        "v_max": 65535,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "InfraAirflowTriggerer": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 8080,
+        "v_min": 1000,
+        "v_max": 65535,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "InfraClickHouse": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ClickHouseUser": {
+        "f_display_name": "ClickHouseUser",
+        "f_name": "CLICKHOUSE_USER",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "default"
+      },
+      "ClickHousePassword": {
+        "f_display_name": "ClickHousePassword",
+        "f_name": "CLICKHOUSE_PASSWORD",
+        "f_type": "password",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": ""
+      }
+    }
+  },
+  "InfraNiFi": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "InfraMilvus": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "InfraEtcd": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "InfraMinio": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "MinioAccessKey": {
+        "f_display_name": "MinioAccessKey",
+        "f_name": "MINIO_ROOT_USER",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "minioadmin"
+      },
+      "MinioSecretKey": {
+        "f_display_name": "MinioSecretKey",
+        "f_name": "MINIO_ROOT_PASSWORD",
+        "f_type": "password",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "minioadmin"
+      }
+    }
+  },
+  "InfraNodeExporter": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "InfraDcgmExporter": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "InfraProcessExporter": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    }
+  },
+  "InfraPrometheus": {
+    "properties": {
+      "ServiceName": {
+        "f_display_name": "ServiceName",
+        "f_name": "service_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServicePort": {
+        "f_display_name": "ServicePort",
+        "f_name": "service_port",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 9000,
+        "v_min": 9000,
+        "v_max": 9011,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceVolume": {
+        "f_display_name": "ServiceVolume",
+        "f_name": "service_volume",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "/tmp",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ServiceInstall": {
+        "f_display_name": "ServiceInstall",
+        "f_name": "service_install",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "MANUAL",
+        "v_options": [
+          "MANUAL",
+          "ANSIBLE"
+        ],
+        "a_onChange": "InstallService(event)",
+        "b_name": [],
+        "b_rows": []
+      },
+      "ScrapeInterval": {
+        "f_display_name": "ScrapeInterval",
+        "f_name": "SCRAPE_INTERVAL",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "15s"
+      }
+    }
+  }
+}

@@ -1366,20 +1366,32 @@ def lifecycle_impact(db: Session, target_type: str, target_id: int) -> dict[str,
             "airflow-redis",
             "dtrain-tracker",
         }
+        # cPlatform: cannot delete AIOrchestrator while other services exist
+        ORCHESTRATOR_KEYS = {"ai-orchestrator", "AIOrchestrator", "cplatform"}
+        is_orchestrator = service.service_key in ORCHESTRATOR_KEYS
+        sibling_count = len(active_services) if is_orchestrator else 0
         is_protected = service.service_key in PROTECTED_INFRA_KEYS
 
+        if is_orchestrator and sibling_count > 0:
+            warnings.append(
+                "Cannot delete AIOrchestrator while other services exist. "
+                "Delete all other services first (cPlatform parity)."
+            )
+            dependents.append(f"{sibling_count} other service(s) on node")
         if is_protected:
             warnings.append(
                 f"Critical infrastructure card '{service.name}' is protected because multiple services depend on it."
             )
-        if dependents:
+        if dependents and not (is_orchestrator and sibling_count > 0):
             warnings.append(f"Deletes blocked by active dependents: {', '.join(dependents)}")
 
-        can_delete_without_force = not is_protected and not dependents
+        can_delete_without_force = not is_protected and not dependents and not (is_orchestrator and sibling_count > 0)
         severity = "safe" if can_delete_without_force else "blocked"
 
         if not can_delete_without_force:
-            if is_protected:
+            if is_orchestrator and sibling_count > 0:
+                recommended_action = "Delete all other services first, then remove AIOrchestrator."
+            elif is_protected:
                 recommended_action = "Protected infrastructure. Use Force Delete only if absolutely necessary."
             else:
                 recommended_action = "Active dependents exist. Use Force Delete to override and proceed."

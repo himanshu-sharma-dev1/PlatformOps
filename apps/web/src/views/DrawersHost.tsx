@@ -443,15 +443,19 @@ export function DrawersHost() {
                   <h3>Step 2: Hardware Profile</h3>
                   <div className="field">
                     <label>vCPU Cores</label>
-                    <input type="number" className="input" defaultValue={16} />
+                    <input type="number" className="input" value={nodeEditor.draft.cpu_cores ?? 4} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, cpu_cores: e.target.value } }))} />
                   </div>
                   <div className="field">
                     <label>RAM (GB)</label>
-                    <input type="number" className="input" defaultValue={128} />
+                    <input type="number" className="input" value={nodeEditor.draft.memory_gb ?? 16} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, memory_gb: e.target.value } }))} />
                   </div>
                   <div className="field">
                     <label>Disk SSD Size (GB)</label>
-                    <input type="number" className="input" defaultValue={500} />
+                    <input type="number" className="input" value={nodeEditor.draft.storage_gb ?? 100} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, storage_gb: e.target.value } }))} />
+                  </div>
+                  <div className="field">
+                    <label>GPU</label>
+                    <input type="text" className="input" value={nodeEditor.draft.gpu ?? "none"} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, gpu: e.target.value } }))} />
                   </div>
                 </div>
               )}
@@ -461,7 +465,7 @@ export function DrawersHost() {
                   <h3>Step 3: Configuration</h3>
                   <div className="field">
                     <label>SSH Host/IP</label>
-                    <input type="text" className="input" value={nodeEditor.draft.host} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, host: e.target.value } }))} />
+                    <input type="text" className="input" value={nodeEditor.draft.host} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, host: e.target.value } }))} placeholder="e.g. 65.2.63.24" />
                   </div>
                   <div className="field">
                     <label>SSH Username</label>
@@ -469,7 +473,17 @@ export function DrawersHost() {
                   </div>
                   <div className="field">
                     <label>SSH Private Key Path</label>
-                    <input type="text" className="input" placeholder="e.g. ~/.ssh/id_rsa" value={nodeEditor.draft.ssh_key_path} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, ssh_key_path: e.target.value } }))} />
+                    <input type="text" className="input" placeholder="e.g. /home/ubuntu/NODE1001.pem" value={nodeEditor.draft.ssh_key_path} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, ssh_key_path: e.target.value } }))} />
+                  </div>
+                  <div className="field">
+                    <label>Or paste PEM private key</label>
+                    <textarea
+                      className="input"
+                      style={{ minHeight: 90, fontFamily: "var(--mono)", fontSize: "0.75rem" }}
+                      value={nodeEditor.draft.ssh_private_key || ""}
+                      onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, ssh_private_key: e.target.value } }))}
+                      placeholder="-----BEGIN RSA PRIVATE KEY-----"
+                    />
                   </div>
                 </div>
               )}
@@ -503,8 +517,11 @@ export function DrawersHost() {
                   <h3>Step 6: Review &amp; Launch</h3>
                   <div style={{ background: "rgba(0,0,0,0.2)", padding: "1rem", borderRadius: "10px", fontSize: "0.85rem" }}>
                     <div><strong>Node name:</strong> {nodeEditor.draft.name || "N/A"}</div>
-                    <div><strong>Host IP:</strong> {nodeEditor.draft.host}</div>
+                    <div><strong>Host IP:</strong> {nodeEditor.draft.host || "—"}</div>
                     <div><strong>SSH User:</strong> {nodeEditor.draft.ssh_user}</div>
+                    <div><strong>Key:</strong> {nodeEditor.draft.ssh_key_path || (nodeEditor.draft.ssh_private_key ? "(pasted PEM)" : "—")}</div>
+                    <div><strong>vCPU / Mem / Disk:</strong> {nodeEditor.draft.cpu_cores ?? "—"} / {nodeEditor.draft.memory_gb ?? "—"} GB / {nodeEditor.draft.storage_gb ?? "—"} GB</div>
+                    <div><strong>GPU:</strong> {nodeEditor.draft.gpu || "none"}</div>
                     <div><strong>Volume Root:</strong> {nodeEditor.draft.volume_root}</div>
                     <div><strong>Docker Net:</strong> {nodeEditor.draft.docker_network}</div>
                   </div>

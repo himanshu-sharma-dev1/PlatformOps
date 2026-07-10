@@ -1,10 +1,82 @@
 // @ts-nocheck
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+/** cPlatform-style toast: kind + auto-dismiss. setNotice stays compatible. */
 export function useUiState() {
   const [liveStatusTick, setLiveStatusTick] = useState(0 as any);
   const [uptimeFormVisible, setUptimeFormVisible] = useState(false as any);
   const [uptimeForm, setUptimeForm] = useState({ name: "", monitor_type: "Ping", url: "", interval: 60, expected_status: 200 } as any);
-  const [notice, setNotice] = useState("" as any);
+  const [notice, setNoticeRaw] = useState("" as any);
+  const [toast, setToast] = useState(null as any);
+  const toastTimer = useRef(null as any);
+
+  const dismissToast = useCallback(() => {
+    if (toastTimer.current) {
+      clearTimeout(toastTimer.current);
+      toastTimer.current = null;
+    }
+    setToast(null);
+    setNoticeRaw("");
+  }, []);
+
+  const showToast = useCallback((message: string, kind: "ok" | "err" | "warn" = "ok", ttlMs = 3200) => {
+    const msg = String(message || "").trim();
+    if (!msg) {
+      dismissToast();
+      return;
+    }
+    if (toastTimer.current) {
+      clearTimeout(toastTimer.current);
+      toastTimer.current = null;
+    }
+    const entry = { message: msg, kind, id: Date.now() };
+    setToast(entry);
+    setNoticeRaw(msg);
+    if (ttlMs > 0) {
+      toastTimer.current = setTimeout(() => {
+        setToast((current) => (current && current.id === entry.id ? null : current));
+        setNoticeRaw((current) => (current === msg ? "" : current));
+        toastTimer.current = null;
+      }, ttlMs);
+    }
+  }, [dismissToast]);
+
+  const setNotice = useCallback((messageOrUpdater: any) => {
+    if (typeof messageOrUpdater === "function") {
+      setNoticeRaw((prev) => {
+        const next = messageOrUpdater(prev);
+        const msg = String(next || "").trim();
+        if (!msg) {
+          setToast(null);
+          return "";
+        }
+        const kind = /fail|error|denied|blocked|invalid|not found|refused/i.test(msg)
+          ? "err"
+          : /warn|assessing|loading|discovering|running|queued|…|pending/i.test(msg)
+            ? "warn"
+            : "ok";
+        setToast({ message: msg, kind, id: Date.now() });
+        return msg;
+      });
+      return;
+    }
+    const msg = String(messageOrUpdater || "").trim();
+    if (!msg) {
+      dismissToast();
+      return;
+    }
+    const kind = /fail|error|denied|blocked|invalid|not found|refused/i.test(msg)
+      ? "err"
+      : /warn|assessing|loading|discovering|running|queued|…|pending/i.test(msg)
+        ? "warn"
+        : "ok";
+    showToast(msg, kind as any);
+  }, [dismissToast, showToast]);
+
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
+
   const [eventCategoryFilter, setEventCategoryFilter] = useState("all" as any);
   const [eventLevelFilter, setEventLevelFilter] = useState("all" as any);
   const [eventSearch, setEventSearch] = useState("" as any);
@@ -76,6 +148,8 @@ export function useUiState() {
     uptimeFormVisible, setUptimeFormVisible,
     uptimeForm, setUptimeForm,
     notice, setNotice,
+    toast, setToast,
+    showToast, dismissToast,
     eventCategoryFilter, setEventCategoryFilter,
     eventLevelFilter, setEventLevelFilter,
     eventSearch, setEventSearch,

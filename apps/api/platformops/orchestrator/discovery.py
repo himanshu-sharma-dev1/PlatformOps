@@ -257,9 +257,16 @@ def discover_infrastructure(db: Session, node: Node) -> dict:
         except Exception:
             contract = {}
 
+        from .ids import allocate_service_external_id
+
         kind = contract.get("kind") or "infrastructure"
         display = contract.get("display_name") or contract.get("name") or names
+        external_id = allocate_service_external_id(
+            db,
+            discovered_names=[c.get("names") or c.get("Names") or "" for c in scanned],
+        )
         svc = ServiceInstance(
+            external_id=external_id,
             node_id=node.id,
             service_key=service_key,
             name=f"Adopted {display}",
@@ -267,7 +274,14 @@ def discover_infrastructure(db: Session, node: Node) -> dict:
             container_name=names,
             image=image,
             status="running" if "up" in status.lower() else "unknown",
-            config_json=json.dumps({"adopted": True, "ports": ports, "discovery_id": cid}),
+            config_json=json.dumps(
+                {
+                    "adopted": True,
+                    "ports": ports,
+                    "discovery_id": cid,
+                    "install_mode": "manual",
+                }
+            ),
         )
         db.add(svc)
         db.commit()

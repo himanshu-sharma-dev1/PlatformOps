@@ -1,4 +1,21 @@
 services:
+
+  ai-orchestrator:
+    display_name: AIOrchestrator
+    kind: app
+    image: ""
+    container_name: node-{node_id}-ai-orchestrator
+    subsystem: control-plane
+    ports: []
+    environment: {}
+    volumes:
+      - "{volume_root}/ai-orchestrator/logs:/app/logs"
+    config_files: []
+    log_paths:
+      - "{volume_root}/ai-orchestrator/logs"
+    tags: [control-plane, orchestrator, platform]
+    notes: "cPlatform AIOrchestrator parity — MANUAL register by default; protect delete while siblings exist."
+
   postgres-core:
     display_name: PostgreSQL Core
     kind: infrastructure
