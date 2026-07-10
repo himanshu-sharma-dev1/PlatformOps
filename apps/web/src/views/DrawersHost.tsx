@@ -1,11 +1,592 @@
+// @ts-nocheck
 import React from "react";
+import { GlassCard } from "../components/GlassCard";
 import { usePlatform } from "../platform/usePlatform";
 
-/** Page module — delegates to platform controller (renderDrawers). */
+/** DrawersHost — Phase 1 extracted page JSX. */
 export function DrawersHost() {
-  const p = usePlatform();
-  if (typeof (p as any).renderDrawers !== "function") {
-    return <div className="notice">View {'DrawersHost'} is unavailable.</div>;
-  }
-  return <>{(p as any).renderDrawers()}</>;
+  const p = usePlatform() as any;
+  const applyNodePreset = p.applyNodePreset;
+  const catalog = p.catalog;
+  const catalogDrawerVisible = p.catalogDrawerVisible;
+  const catalogOnboarding = p.catalogOnboarding;
+  const config = p.config;
+  const configSource = p.configSource;
+  const confirmCatalogOnboarding = p.confirmCatalogOnboarding;
+  const installSchemaValues = p.installSchemaValues;
+  const job = p.job;
+  const loadConfig = p.loadConfig;
+  const loadInstallSchemaFor = p.loadInstallSchemaFor;
+  const loadServiceSummary = p.loadServiceSummary;
+  const nodeEditor = p.nodeEditor;
+  const nodePreset = p.nodePreset;
+  const nodes = p.nodes;
+  const onboardingError = p.onboardingError;
+  const onboardingOutput = p.onboardingOutput;
+  const onboardingStatus = p.onboardingStatus;
+  const openCatalogOnboarding = p.openCatalogOnboarding;
+  const openDeploymentModal = p.openDeploymentModal;
+  const plan = p.plan;
+  const pollOnboardingJob = p.pollOnboardingJob;
+  const saveNodeEditor = p.saveNodeEditor;
+  const selectedCluster = p.selectedCluster;
+  const setActiveView = p.setActiveView;
+  const setCatalogDrawerVisible = p.setCatalogDrawerVisible;
+  const setCatalogOnboarding = p.setCatalogOnboarding;
+  const setNodeEditor = p.setNodeEditor;
+  const setNotice = p.setNotice;
+  const setOnboardingError = p.setOnboardingError;
+  const setOnboardingJobId = p.setOnboardingJobId;
+  const setOnboardingOutput = p.setOnboardingOutput;
+  const setOnboardingStatus = p.setOnboardingStatus;
+  const setStepperDrawerVisible = p.setStepperDrawerVisible;
+  const setStepperStep = p.setStepperStep;
+  const stepperDrawerVisible = p.stepperDrawerVisible;
+  const stepperStep = p.stepperStep;
+
+
+  return (
+    <>
+      {/* SERVICE CATALOG DRAWER */}
+      {catalogDrawerVisible && (
+        <>
+          <div className="drawer-backdrop" style={{ display: "block" }} onClick={() => setCatalogDrawerVisible(false)}></div>
+          <aside className="drawer wide" style={{ display: "flex", flexDirection: "column", gap: "1rem", padding: "1.5rem", right: 0 }}>
+            <div className="drawer-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h2 style={{ fontSize: "1.5rem", fontFamily: "var(--display)" }}>Service catalog</h2>
+                <div className="sub" style={{ fontSize: "0.85rem", color: "var(--ink-4)" }}>Choose a service card to onboard it onto a node, then continue into config or deployment control.</div>
+              </div>
+              <button className="icon-btn" onClick={() => setCatalogDrawerVisible(false)}><svg className="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+            </div>
+
+            <div className="catalog-list" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", overflowY: "auto", flex: 1 }}>
+              {catalog.map((card) => (
+                <div 
+                  key={card.service_key} 
+                  className="catalog-item"
+                  onClick={() => openCatalogOnboarding(card)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "1rem",
+                    padding: "1rem",
+                    background: "rgba(255,255,255,0.02)",
+                    border: "1px solid var(--line)",
+                    borderRadius: "12px",
+                    cursor: "pointer",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  <div className="ico" style={{ width: "40px", height: "40px", borderRadius: "8px", background: "var(--navy-100)", color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
+                    {card.name[0]}
+                  </div>
+                  <div className="info" style={{ flex: 1 }}>
+                    <div className="nm" style={{ fontWeight: 600 }}>{card.name}</div>
+                    <div className="desc" style={{ fontSize: "0.8rem", color: "var(--ink-4)", marginTop: "2px" }}>{card.description || card.image}</div>
+                    <div className="tags" style={{ display: "flex", gap: "0.25rem", marginTop: "4px" }}>
+                      <span className="tag" style={{ fontSize: "0.7rem", scale: "0.9" }}>{card.subsystem}</span>
+                      <span className="tag" style={{ fontSize: "0.7rem", scale: "0.9" }}>{card.kind}</span>
+                      {card.configurable && <span className="tag" style={{ fontSize: "0.7rem", scale: "0.9" }}>config</span>}
+                      {card.dependencies.length > 0 && <span className="tag" style={{ fontSize: "0.7rem", scale: "0.9" }}>{card.dependencies.length} deps</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </aside>
+        </>
+      )}
+
+      {catalogOnboarding.visible && catalogOnboarding.card && (
+        <div className="modal-overlay" style={{ display: "flex", zIndex: 110 }}>
+          <GlassCard className="modal" style={{ padding: "1.5rem", maxWidth: "640px", width: "100%", display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <div>
+              <h3 style={{ marginBottom: "0.25rem" }}>{catalogOnboarding.mode === "edit" ? "Configure Service Card" : "Onboard Service Card"}</h3>
+              <p style={{ margin: 0, fontSize: "0.9rem" }}>
+                {catalogOnboarding.mode === "edit" ? "Update" : "Register"} <strong>{catalogOnboarding.card.name}</strong> on a node, then continue into the right operator workflow.
+              </p>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: "0.85rem" }}>
+              <div style={{ border: "1px solid var(--line)", borderRadius: "12px", padding: "0.95rem", background: "rgba(255,255,255,0.03)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+                  <strong>{catalogOnboarding.card.name}</strong>
+                  <div className="tags">
+                    <span>{catalogOnboarding.card.kind}</span>
+                    <span>{catalogOnboarding.card.subsystem}</span>
+                  </div>
+                </div>
+                <div style={{ color: "var(--ink-3)", fontSize: "0.84rem", marginTop: "0.35rem" }}>
+                  {catalogOnboarding.card.description || catalogOnboarding.card.image}
+                </div>
+                <div style={{ color: "var(--ink-4)", fontSize: "0.8rem", marginTop: "0.4rem" }}>
+                  Image <code>{catalogOnboarding.card.image}</code>
+                </div>
+                <div style={{ marginTop: "0.6rem" }}>
+                  <small style={{ color: "var(--ink-4)" }}>Dependencies</small>
+                  <div className="tags" style={{ marginTop: "0.25rem" }}>
+                    {catalogOnboarding.card.dependencies.length > 0
+                      ? catalogOnboarding.card.dependencies.map((item) => <span key={`catalog-onboard-dep-${item}`}>{item}</span>)
+                      : <span>standalone</span>}
+                  </div>
+                </div>
+                {catalogOnboarding.card.tags.length > 0 && (
+                  <div style={{ marginTop: "0.6rem" }}>
+                    <small style={{ color: "var(--ink-4)" }}>Traits</small>
+                    <div className="tags" style={{ marginTop: "0.25rem" }}>
+                      {catalogOnboarding.card.tags.map((item) => <span key={`catalog-onboard-tag-${item}`}>{item}</span>)}
+                      {catalogOnboarding.card.configurable && <span>config-manager</span>}
+                      {catalogOnboarding.card.log_paths.length > 0 && <span>{catalogOnboarding.card.log_paths.length} log path(s)</span>}
+                    </div>
+                  </div>
+                )}
+                <div style={{ marginTop: "0.7rem", padding: "0.75rem", borderRadius: "10px", border: "1px solid var(--line-2)" }}>
+                  <small style={{ color: "var(--ink-4)" }}>Service defaults & install preview</small>
+                  <div className="tags" style={{ marginTop: "0.35rem" }}>
+                    <span>{catalogOnboarding.card.ports.length} published port(s)</span>
+                    <span>{catalogOnboarding.card.volumes.length} volume mount(s)</span>
+                    <span>{catalogOnboarding.card.config_files.length} config file(s)</span>
+                    <span>{Object.keys(catalogOnboarding.card.env || {}).length} env default(s)</span>
+                  </div>
+                  {Object.keys(catalogOnboarding.card.env || {}).length > 0 && (
+                    <div style={{ marginTop: "0.45rem" }}>
+                      <small style={{ color: "var(--ink-4)" }}>Environment defaults</small>
+                      <div className="tags" style={{ marginTop: "0.25rem" }}>
+                        {Object.entries(catalogOnboarding.card.env).slice(0, 6).map(([key, value]) => (
+                          <span key={`catalog-env-${key}`}>{key}={String(value)}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {catalogOnboarding.card.config_files.length > 0 && (
+                    <div style={{ marginTop: "0.45rem" }}>
+                      <small style={{ color: "var(--ink-4)" }}>Config files</small>
+                      <div className="tags" style={{ marginTop: "0.25rem" }}>
+                        {catalogOnboarding.card.config_files.slice(0, 4).map((item) => <span key={`catalog-config-${item}`}>{item}</span>)}
+                      </div>
+                    </div>
+                  )}
+                  {catalogOnboarding.card.command && (
+                    <pre style={{ margin: "0.45rem 0 0", padding: "0.6rem", borderRadius: "8px", background: "rgba(15, 23, 42, 0.92)", color: "#e2e8f0", overflowX: "auto", fontSize: "0.72rem" }}>
+                      <code>{catalogOnboarding.card.command}</code>
+                    </pre>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ border: "1px solid var(--line)", borderRadius: "12px", padding: "0.95rem", background: "rgba(255,255,255,0.03)" }}>
+                <div className="field">
+                  <label>Target node</label>
+                  <select
+                    value={catalogOnboarding.nodeId}
+                    disabled={catalogOnboarding.mode === "edit"}
+                    onChange={async (e) => {
+                      const nextNodeId = Number(e.target.value);
+                      setCatalogOnboarding((current) => ({ ...current, nodeId: nextNodeId, error: "" }));
+                      if (catalogOnboarding.card) {
+                        try {
+                          const schema = await loadInstallSchemaFor(catalogOnboarding.card, nextNodeId);
+                          setCatalogOnboarding((current) => ({
+                            ...current,
+                            installSchema: schema,
+                            installFieldValues: installSchemaValues(schema),
+                          }));
+                        } catch (error: any) {
+                          setCatalogOnboarding((current) => ({ ...current, error: error.message || "Failed to load install schema." }));
+                        }
+                      }
+                    }}
+                  >
+                    {(selectedCluster
+                      ? nodes.filter((item) => item.cluster_id === selectedCluster.id)
+                      : nodes
+                    ).map((node) => (
+                      <option key={`catalog-node-${node.id}`} value={node.id}>
+                        {node.name} · {node.environment} · {node.host}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Service display name</label>
+                  <input
+                    className="input"
+                    value={catalogOnboarding.customName}
+                    placeholder="Leave blank to use catalog name"
+                    onChange={(e) => setCatalogOnboarding((current) => ({ ...current, customName: e.target.value }))}
+                  />
+                </div>
+                {catalogOnboarding.installSchema && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "0.75rem" }}>
+                    {Array.from(new Set(catalogOnboarding.installSchema.fields.map((field) => field.section))).map((section) => (
+                      <div key={`install-section-${section}`} style={{ border: "1px solid var(--line-2)", borderRadius: "10px", padding: "0.75rem" }}>
+                        <strong style={{ display: "block", marginBottom: "0.55rem", fontSize: "0.85rem", color: "var(--ink-3)" }}>{section}</strong>
+                        <div style={{ display: "grid", gap: "0.6rem" }}>
+                          {(catalogOnboarding.installSchema?.fields ?? [])
+                            .filter((field) => field.section === section && field.key !== "name")
+                            .map((field) => (
+                              <label key={`install-field-${field.key}`} className="field" style={{ margin: 0 }}>
+                                <span>{field.label}{field.required ? " *" : ""}</span>
+                                {field.field_type === "boolean" ? (
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(catalogOnboarding.installFieldValues[field.key])}
+                                    onChange={(e) => setCatalogOnboarding((current) => ({
+                                      ...current,
+                                      installFieldValues: { ...current.installFieldValues, [field.key]: e.target.checked },
+                                    }))}
+                                  />
+                                ) : field.field_type === "select" ? (
+                                  <select
+                                    value={String(catalogOnboarding.installFieldValues[field.key] ?? "")}
+                                    onChange={(e) => setCatalogOnboarding((current) => ({
+                                      ...current,
+                                      installFieldValues: { ...current.installFieldValues, [field.key]: e.target.value },
+                                    }))}
+                                  >
+                                    <option value="">Select...</option>
+                                    {field.options.map((option) => <option key={`${field.key}-${option}`} value={option}>{option}</option>)}
+                                  </select>
+                                ) : field.field_type === "list" ? (
+                                  <textarea
+                                    className="input"
+                                    style={{ minHeight: "72px", fontFamily: "var(--mono)", fontSize: "0.76rem" }}
+                                    value={String(catalogOnboarding.installFieldValues[field.key] ?? "")}
+                                    onChange={(e) => setCatalogOnboarding((current) => ({
+                                      ...current,
+                                      installFieldValues: { ...current.installFieldValues, [field.key]: e.target.value },
+                                    }))}
+                                  />
+                                ) : (
+                                  <input
+                                    className="input"
+                                    type={field.field_type === "number" ? "number" : "text"}
+                                    value={String(catalogOnboarding.installFieldValues[field.key] ?? "")}
+                                    onChange={(e) => setCatalogOnboarding((current) => ({
+                                      ...current,
+                                      installFieldValues: { ...current.installFieldValues, [field.key]: e.target.value },
+                                    }))}
+                                  />
+                                )}
+                                {field.help_text && <small style={{ color: "var(--ink-4)" }}>{field.help_text}</small>}
+                              </label>
+                            ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="field">
+                  <label>Continue into</label>
+                  <select
+                    value={catalogOnboarding.nextAction}
+                    onChange={(e) => setCatalogOnboarding((current) => ({ ...current, nextAction: e.target.value as "overview" | "config" | "deploy" }))}
+                  >
+                    <option value="deploy">Deployment control</option>
+                    <option value="overview">Service overview</option>
+                    {catalogOnboarding.card.configurable && <option value="config">Config manager</option>}
+                  </select>
+                </div>
+                <div style={{ fontSize: "0.8rem", color: "var(--ink-4)" }}>
+                  Recommended path: register the card, review dependency plan, then deploy through the Ansible-backed deployment control.
+                </div>
+                <div className="field" style={{ marginTop: "0.75rem" }}>
+                  <label>Advanced contract overrides (JSON)</label>
+                  <textarea
+                    className="input"
+                    style={{ minHeight: "96px", fontFamily: "var(--mono)", fontSize: "0.78rem" }}
+                    value={catalogOnboarding.overridesText}
+                    onChange={(e) => setCatalogOnboarding((current) => ({ ...current, overridesText: e.target.value }))}
+                    placeholder='{"ports":["8090:8080"],"config_files":["/path/to/config.yaml"]}'
+                  />
+                  <div style={{ marginTop: "0.35rem", color: "var(--ink-4)", fontSize: "0.78rem" }}>
+                    Optional overrides are merged after the typed fields and reused by deployment/config workflows.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {catalogOnboarding.registeredService && (
+              <div style={{ border: "1px solid var(--line)", borderRadius: "12px", padding: "0.95rem", background: "rgba(255,255,255,0.03)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+                  <strong>Registration summary</strong>
+                  <span className="pill pill-ok">service card registered</span>
+                </div>
+                <div style={{ marginTop: "0.35rem", color: "var(--ink-3)", fontSize: "0.85rem" }}>
+                  {catalogOnboarding.registeredService.name} is now registered on{" "}
+                  {nodes.find((node) => node.id === catalogOnboarding.nodeId)?.name ?? `node-${catalogOnboarding.nodeId}`}.
+                </div>
+                <div className="tags" style={{ marginTop: "0.45rem" }}>
+                  <span>{catalogOnboarding.registeredService.service_key}</span>
+                  <span>{catalogOnboarding.registeredService.kind}</span>
+                  <span><code>{catalogOnboarding.registeredService.container_name}</code></span>
+                  <span>{catalogOnboarding.card.dependencies.length} dependencies</span>
+                </div>
+                <div style={{ marginTop: "0.7rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.7rem" }}>
+                  <div style={{ padding: "0.75rem", borderRadius: "10px", border: "1px solid var(--line-2)" }}>
+                    <small style={{ color: "var(--ink-4)" }}>Install review</small>
+                    <div className="tags" style={{ marginTop: "0.35rem" }}>
+                      <span>{catalogOnboarding.card.ports.length} published port(s)</span>
+                      <span>{catalogOnboarding.card.volumes.length} volume mount(s)</span>
+                      <span>{catalogOnboarding.card.config_files.length} config file(s)</span>
+                      <span>{catalogOnboarding.card.log_paths.length} log path(s)</span>
+                    </div>
+                    {catalogOnboarding.card.command && (
+                      <pre style={{ margin: "0.45rem 0 0", padding: "0.6rem", borderRadius: "8px", background: "rgba(15, 23, 42, 0.92)", color: "#e2e8f0", overflowX: "auto", fontSize: "0.72rem" }}>
+                        <code>{catalogOnboarding.card.command}</code>
+                      </pre>
+                    )}
+                  </div>
+                  <div style={{ padding: "0.75rem", borderRadius: "10px", border: "1px solid var(--line-2)" }}>
+                    <small style={{ color: "var(--ink-4)" }}>Recommended next move</small>
+                    <div style={{ marginTop: "0.35rem", color: "var(--ink-3)", fontSize: "0.84rem" }}>
+                      {catalogOnboarding.card.dependencies.length > 0
+                        ? "Open deployment control to review dependency-first rollout and Ansible execution order."
+                        : catalogOnboarding.card.configurable
+                        ? "Open config manager to review defaults before the first deploy."
+                        : "You can go straight to deployment control for the first rollout."}
+                    </div>
+                    {catalogOnboarding.card.health_command && (
+                      <div style={{ marginTop: "0.45rem", color: "var(--ink-4)", fontSize: "0.78rem" }}>
+                        Health check: <code>{catalogOnboarding.card.health_command}</code>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div style={{ marginTop: "0.7rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={async () => {
+                      await loadServiceSummary(catalogOnboarding.registeredService!.id);
+                      setCatalogOnboarding((current) => ({ ...current, visible: false, registeredService: null }));
+                      setNotice(`Reviewed ${catalogOnboarding.registeredService!.name} in service overview.`);
+                    }}
+                  >
+                    Stay in overview
+                  </button>
+                  {catalogOnboarding.card.configurable && (
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={async () => {
+                        await loadConfig(catalogOnboarding.registeredService!, configSource);
+                        setActiveView("config");
+                        setCatalogOnboarding((current) => ({ ...current, visible: false, registeredService: null }));
+                        setNotice(`Opened config manager for ${catalogOnboarding.registeredService!.name}.`);
+                      }}
+                    >
+                      Open config
+                    </button>
+                  )}
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={async () => {
+                      const service = catalogOnboarding.registeredService!;
+                      setCatalogOnboarding((current) => ({ ...current, visible: false, registeredService: null }));
+                      await openDeploymentModal(service);
+                    }}
+                  >
+                    Open deployment control
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {catalogOnboarding.error && <p style={{ color: "var(--err)", fontSize: "0.82rem", margin: 0 }}>{catalogOnboarding.error}</p>}
+            <div className="modal-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", flexWrap: "wrap" }}>
+              <button className="btn btn-secondary btn-sm" onClick={() => setCatalogOnboarding((current) => ({ ...current, visible: false, error: "", registeredService: null }))}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={confirmCatalogOnboarding} disabled={catalogOnboarding.creating}>
+                {catalogOnboarding.creating ? "Saving..." : catalogOnboarding.mode === "edit" ? "Save configuration" : "Register Service Card"}
+              </button>
+            </div>
+          </GlassCard>
+        </div>
+      )}
+
+      {/* NODE PROVISIONING STEPPER DRAWER */}
+      {stepperDrawerVisible && (
+        <>
+          <div className="drawer-backdrop" style={{ display: "block" }} onClick={() => setStepperDrawerVisible(false)}></div>
+          <aside className="drawer" style={{ display: "flex", flexDirection: "column", gap: "1rem", padding: "1.5rem", right: 0 }}>
+            <div className="drawer-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2 style={{ fontSize: "1.5rem", fontFamily: "var(--display)" }}>Provision new node</h2>
+              <button className="icon-btn" onClick={() => setStepperDrawerVisible(false)}><svg className="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+            </div>
+
+            <div className="stepper" style={{ display: "flex", gap: "0.25rem", margin: "1rem 0" }}>
+              {[1, 2, 3, 4, 5, 6].map(num => (
+                <div key={num} className={`step ${stepperStep === num ? "active" : ""}`} style={{ flex: 1, height: "4px", background: stepperStep >= num ? "var(--navy)" : "var(--line)" }}></div>
+              ))}
+            </div>
+
+            <div className="drawer-body" style={{ flex: 1, overflowY: "auto" }}>
+              {stepperStep === 1 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <h3>Step 1: Cloud Provider</h3>
+                  <div className="field">
+                    <label>Node name</label>
+                    <input type="text" className="input" placeholder="e.g. aws-node-mumbai" value={nodeEditor.draft.name} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, name: e.target.value } }))} />
+                  </div>
+                  <div className="field">
+                    <label>Cloud Provider</label>
+                    <select value={nodePreset} onChange={(e) => applyNodePreset(e.target.value as any)}>
+                      <option value="local-default">Local default (standalone)</option>
+                      <option value="aws-general">Amazon Web Services (EC2)</option>
+                      <option value="aws-gpu">AWS Accelerated GPU</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {stepperStep === 2 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <h3>Step 2: Hardware Profile</h3>
+                  <div className="field">
+                    <label>vCPU Cores</label>
+                    <input type="number" className="input" defaultValue={16} />
+                  </div>
+                  <div className="field">
+                    <label>RAM (GB)</label>
+                    <input type="number" className="input" defaultValue={128} />
+                  </div>
+                  <div className="field">
+                    <label>Disk SSD Size (GB)</label>
+                    <input type="number" className="input" defaultValue={500} />
+                  </div>
+                </div>
+              )}
+
+              {stepperStep === 3 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <h3>Step 3: Configuration</h3>
+                  <div className="field">
+                    <label>SSH Host/IP</label>
+                    <input type="text" className="input" value={nodeEditor.draft.host} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, host: e.target.value } }))} />
+                  </div>
+                  <div className="field">
+                    <label>SSH Username</label>
+                    <input type="text" className="input" value={nodeEditor.draft.ssh_user} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, ssh_user: e.target.value } }))} />
+                  </div>
+                  <div className="field">
+                    <label>SSH Private Key Path</label>
+                    <input type="text" className="input" placeholder="e.g. ~/.ssh/id_rsa" value={nodeEditor.draft.ssh_key_path} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, ssh_key_path: e.target.value } }))} />
+                  </div>
+                </div>
+              )}
+
+              {stepperStep === 4 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <h3>Step 4: Network & Storage</h3>
+                  <div className="field">
+                    <label>Docker Network namespace</label>
+                    <input type="text" className="input" value={nodeEditor.draft.docker_network} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, docker_network: e.target.value } }))} />
+                  </div>
+                  <div className="field">
+                    <label>Volume Root Directory</label>
+                    <input type="text" className="input" value={nodeEditor.draft.volume_root} onChange={(e) => setNodeEditor(prev => ({ ...prev, draft: { ...prev.draft, volume_root: e.target.value } }))} />
+                  </div>
+                </div>
+              )}
+
+              {stepperStep === 5 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <h3>Step 5: Firewall policies</h3>
+                  <div className="field">
+                    <label>Allowed ingress ports</label>
+                    <input type="text" className="input" defaultValue="22, 80, 443, 8080" />
+                  </div>
+                </div>
+              )}
+
+              {stepperStep === 6 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <h3>Step 6: Review &amp; Launch</h3>
+                  <div style={{ background: "rgba(0,0,0,0.2)", padding: "1rem", borderRadius: "10px", fontSize: "0.85rem" }}>
+                    <div><strong>Node name:</strong> {nodeEditor.draft.name || "N/A"}</div>
+                    <div><strong>Host IP:</strong> {nodeEditor.draft.host}</div>
+                    <div><strong>SSH User:</strong> {nodeEditor.draft.ssh_user}</div>
+                    <div><strong>Volume Root:</strong> {nodeEditor.draft.volume_root}</div>
+                    <div><strong>Docker Net:</strong> {nodeEditor.draft.docker_network}</div>
+                  </div>
+                </div>
+              )}
+
+              {stepperStep === 7 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <h3>Step 7: Playbook Validation Console</h3>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                    <span className={`pill ${onboardingStatus === "success" ? "pill-ok" : onboardingStatus === "failed" ? "pill-error" : "pill-warn"}`}>
+                      {onboardingStatus === "success" ? "Onboarding Successful" : onboardingStatus === "failed" ? "Onboarding Failed" : "Executing Ansible Playbook..."}
+                    </span>
+                    {onboardingStatus !== "success" && onboardingStatus !== "failed" && (
+                      <div className="spinner-micro"></div>
+                    )}
+                  </div>
+                  
+                  <p style={{ fontSize: "0.85rem", color: "var(--ink-3)" }}>
+                    Streaming Ansible orchestration logs below:
+                  </p>
+
+                  <pre style={{
+                    margin: 0,
+                    padding: "1rem",
+                    borderRadius: "10px",
+                    background: "#010307",
+                    color: onboardingStatus === "failed" ? "var(--err)" : "#34d399",
+                    overflowX: "auto",
+                    fontSize: "0.75rem",
+                    fontFamily: "var(--mono)",
+                    border: onboardingStatus === "failed" ? "1px solid var(--err-bg)" : "1px solid var(--navy-500)",
+                    boxShadow: "0 0 15px rgba(99, 102, 241, 0.15)",
+                    whiteSpace: "pre-wrap",
+                    textAlign: "left",
+                    maxHeight: "300px",
+                    overflowY: "auto"
+                  }}>
+                    <code>{onboardingOutput || onboardingError || "Initializing host connection via SSH..."}</code>
+                  </pre>
+                </div>
+              )}
+            </div>
+
+            <div className="drawer-foot" style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--line)", paddingTop: "1rem" }}>
+              <button className="btn btn-secondary" disabled={stepperStep === 1 || stepperStep === 7} onClick={() => setStepperStep(prev => prev - 1)}>Back</button>
+              {stepperStep < 6 ? (
+                <button className="btn btn-primary" onClick={() => setStepperStep(prev => prev + 1)}>Next</button>
+              ) : stepperStep === 6 ? (
+                <button className="btn btn-primary" onClick={async () => {
+                  const createdNode = await saveNodeEditor();
+                  if (createdNode) {
+                    setOnboardingStatus("running");
+                    setOnboardingOutput("Initializing host connection via SSH...");
+                    setOnboardingError("");
+                    setStepperStep(7);
+                    try {
+                      const job = await api<{ id: number; status: string; output: string; error: string }>("/api/nodes/" + createdNode.id + "/validate", {
+                        method: "POST",
+                      });
+                      setOnboardingJobId(job.id);
+                      setOnboardingStatus(job.status);
+                      setOnboardingOutput(job.output || "");
+                      setOnboardingError(job.error || "");
+                      pollOnboardingJob(createdNode.id, job.id);
+                    } catch (err: any) {
+                      setOnboardingStatus("failed");
+                      setOnboardingError(err.message || "Failed to trigger node validation.");
+                    }
+                  }
+                }}>Launch Node</button>
+              ) : (
+                <button className="btn btn-primary" onClick={() => {
+                  setStepperDrawerVisible(false);
+                  setStepperStep(1);
+                }}>Finish</button>
+              )}
+            </div>
+          </aside>
+        </>
+      )}
+    </>
+  );
+
 }
