@@ -18,6 +18,7 @@ export function useInventoryState() {
     visible: false,
     mode: "create",
     clusterId: null,
+    step: 1,
     draft: {
       name: "",
       region: "local",

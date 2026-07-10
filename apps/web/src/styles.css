@@ -1072,7 +1072,37 @@ a {
 .svc-card.installing { border-left: 3px solid var(--info); }
 .svc-card.configuring { border-left: 3px solid var(--warn); }
 .svc-card.running, .svc-card.healthy { border-left: 3px solid var(--ok); }
+.svc-card.exited, .svc-card.dead, .svc-card.not_found { border-left: 3px solid var(--err); }
 .svc-card.stopped { border-left: 3px solid var(--muted); }
+
+/* Part A: denser cluster detail chrome (cPlatform-inspired) */
+.cluster-split {
+  min-height: 520px;
+}
+.node-detail {
+  min-height: 480px;
+}
+.connection-banner .pill {
+  text-transform: none;
+  letter-spacing: 0;
+}
+.node-row .svc-count {
+  font-variant-numeric: tabular-nums;
+  min-width: 3.2rem;
+  text-align: right;
+}
+.spec-sheet {
+  margin-top: 0.85rem;
+}
+.cluster-tabs .tab.done {
+  opacity: 0.85;
+}
+.svc-card .nm {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+}
 
 .svc-icon {
   width: 36px;

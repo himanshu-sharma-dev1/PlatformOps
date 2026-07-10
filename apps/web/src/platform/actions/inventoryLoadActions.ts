@@ -30,6 +30,7 @@ export function createInventoryLoadActions(s: any) {
   },
 
   async loadNodeConnection(nodeId) {
+    // (Part A) always refresh live probe when opening connection
     try {
       const connection = await api(`/api/nodes/${nodeId}/connection`);
       s.setNodeConnection(connection);

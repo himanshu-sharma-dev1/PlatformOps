@@ -38,6 +38,8 @@ export function ClustersView() {
   const loadConfig = p.loadConfig as (...a: any[]) => void;
   const nodeOnboarding = p.nodeOnboarding as any;
   const loadNodeOnboarding = p.loadNodeOnboarding as (...a: any[]) => void;
+  const nodeConnection = p.nodeConnection as any;
+  const loadNodeConnection = p.loadNodeConnection as (...a: any[]) => void;
   const nodeMetrics = p.nodeMetrics as any;
   const nodeJobHistory = p.nodeJobHistory as any;
   const events = (p.events || []) as any[];
@@ -261,10 +263,44 @@ export function ClustersView() {
                   <div className="actions">
                     <button className="btn btn-secondary btn-sm" onClick={() => validateNode(activeNode.id)}>Validate</button>
                     <button className="btn btn-secondary btn-sm" onClick={() => discoverNodeInfra(activeNode.id)}>Discover</button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => loadNodeConnection?.(activeNode.id)}>Probe</button>
                     <button className="btn btn-secondary btn-sm" onClick={() => openNodeEdit(activeNode)}>Edit</button>
                     <button className="btn btn-danger btn-sm" onClick={() => requestDelete("node", activeNode.id, activeNode.name)}>Delete</button>
                   </div>
                 </div>
+
+                {nodeConnection && nodeConnection.node_id === activeNode.id && (
+                  <div className="connection-banner" style={{
+                    marginTop: "0.75rem",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "0.5rem 1rem",
+                    alignItems: "center",
+                    padding: "0.55rem 0.75rem",
+                    borderRadius: 10,
+                    border: "1px solid var(--line)",
+                    background: "var(--bg-elevated, rgba(255,255,255,0.03))",
+                    fontSize: "0.82rem",
+                  }}>
+                    <span className={`pill ${
+                      ["validated", "ssh-ok"].includes(nodeConnection.connection_state)
+                        ? "pill-ok"
+                        : nodeConnection.connection_state === "unreachable"
+                          ? "pill-error"
+                          : "pill-warn"
+                    }`}>
+                      {nodeConnection.connection_state}
+                    </span>
+                    {nodeConnection.live_probe && (
+                      <span style={{ color: "var(--ink-3)" }}>
+                        probe: ssh={String(nodeConnection.live_probe.ssh_ok)} · docker={String(nodeConnection.live_probe.docker_ok)}
+                      </span>
+                    )}
+                    {(nodeConnection.recommendations || []).slice(0, 1).map((r: string, i: number) => (
+                      <span key={i} style={{ color: "var(--ink-4)" }}>{r}</span>
+                    ))}
+                  </div>
+                )}
 
                 <div className="spec-sheet">
                   <div className="spec-cell"><div className="l">vCPU</div><div className="v">{vcpu}{typeof vcpu === "number" ? <span className="unit"> cores</span> : null}</div></div>

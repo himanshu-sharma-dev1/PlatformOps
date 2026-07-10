@@ -1338,6 +1338,8 @@ def check_port_and_name_availability(
     db: Session, node_id: int, port: int | None = None, name: str | None = None
 ) -> dict:
     collisions = []
+    live_checked = False
+    live_ports: list[int] = []
 
     if name:
         existing_name = db.scalar(
@@ -1355,11 +1357,32 @@ def check_port_and_name_availability(
             select(ServiceInstance).where(ServiceInstance.node_id == node_id, ServiceInstance.status != "deleted")
         )
         for svc in active_services:
-            cfg = json.loads(svc.config_json or "{}")
-            if cfg.get("port") == port:
-                collisions.append(f"Host port {port} is already bound by service '{svc.name}'.")
+            try:
+                cfg = json.loads(svc.config_json or "{}")
+            except Exception:
+                cfg = {}
+            for key in ("port", "host_port", "service_port", "published_port"):
+                if cfg.get(key) == port or str(cfg.get(key) or "") == str(port):
+                    collisions.append(f"Host port {port} is already bound by service '{svc.name}' (inventory).")
+                    break
 
-    return {"available": len(collisions) == 0, "collisions": collisions}
+        # Live docker published ports (Part A)
+        node = db.get(Node, node_id)
+        try:
+            live = _live_host_ports_for_node(node)
+            live_checked = True
+            live_ports = sorted(live)
+            if int(port) in live:
+                collisions.append(f"Host port {port} is currently published by a running container on the node.")
+        except Exception:
+            live_checked = False
+
+    return {
+        "available": len(collisions) == 0,
+        "collisions": collisions,
+        "live_checked": live_checked,
+        "live_host_ports_sample": live_ports[:40],
+    }
 
 
 # --- Live container status (real docker inspect only; never invent healthy) ---
@@ -1396,7 +1419,80 @@ def _docker_inspect_local(container_name: str) -> tuple[dict[str, Any] | None, s
         return None, str(exc)
 
 
-def _map_inspect_to_live(service: ServiceInstance, inspect: dict[str, Any] | None, error: str | None) -> dict[str, Any]:
+def _docker_inspect_remote(node: Node, container_name: str) -> tuple[dict[str, Any] | None, str | None]:
+    """docker inspect over SSH for true remote nodes."""
+    import subprocess
+
+    if not container_name:
+        return None, "empty container name"
+    host = (node.host or "").strip()
+    user = (node.ssh_user or "ubuntu").strip()
+    key = (node.ssh_key_path or "").strip()
+    if not host:
+        return None, "missing host"
+    # Quote container name for remote shell
+    safe_name = container_name.replace("'", "'\"'\"'")
+    cmd = [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "ConnectTimeout=8",
+    ]
+    if key:
+        cmd.extend(["-i", key])
+    cmd.append(f"{user}@{host}")
+    cmd.append(f"docker inspect '{safe_name}'")
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        out = proc.stdout or ""
+        err = (proc.stderr or "").strip()
+        if proc.returncode != 0:
+            combined = (err or out or "remote docker inspect failed").strip()
+            if "No such object" in combined or "no such object" in combined.lower():
+                return None, "not_found"
+            return None, combined[:400]
+        data = json.loads(out)
+        if isinstance(data, list) and data:
+            return data[0], None
+        return None, "empty inspect payload"
+    except FileNotFoundError:
+        return None, "ssh client not available"
+    except json.JSONDecodeError:
+        return None, "invalid inspect JSON from remote"
+    except Exception as exc:
+        return None, str(exc)[:400]
+
+
+def _node_uses_local_docker(node: Node | None) -> bool:
+    if node is None:
+        return True
+    host = (node.host or "").strip().lower()
+    return (
+        settings.local_mode
+        or (node.environment or "").lower() == "local"
+        or host in {"localhost", "127.0.0.1", "0.0.0.0", "", "65.2.63.24"}
+    )
+
+
+def _docker_inspect_for_node(node: Node | None, container_name: str) -> tuple[dict[str, Any] | None, str | None, str]:
+    """Return (inspect, error, source). Prefer local for this host; SSH for remote."""
+    if node is None or _node_uses_local_docker(node):
+        data, err = _docker_inspect_local(container_name)
+        return data, err, "docker_inspect"
+    data, err = _docker_inspect_remote(node, container_name)
+    return data, err, "docker_inspect_ssh"
+
+
+def _map_inspect_to_live(
+    service: ServiceInstance,
+    inspect: dict[str, Any] | None,
+    error: str | None,
+    *,
+    source: str = "docker_inspect",
+) -> dict[str, Any]:
     now = datetime.utcnow().isoformat() + "Z"
     base = {
         "service_id": service.id,
@@ -1407,7 +1503,7 @@ def _map_inspect_to_live(service: ServiceInstance, inspect: dict[str, Any] | Non
         "image": service.image,
         "db_status": service.status,
         "checked_at": now,
-        "source": "docker_inspect",
+        "source": source,
     }
     if error == "not_found" or inspect is None:
         overall = "not_found" if error in (None, "not_found") else "error"
@@ -1451,7 +1547,12 @@ def _map_inspect_to_live(service: ServiceInstance, inspect: dict[str, Any] | Non
 def get_service_live_status(db: Session, service: ServiceInstance, *, use_cache: bool = True) -> dict[str, Any]:
     import time
 
-    cache_key = f"svc:{service.id}:{service.container_name}"
+    # Ensure node is available for local vs remote decision
+    node = service.node
+    if node is None and service.node_id:
+        node = db.get(Node, service.node_id)
+
+    cache_key = f"svc:{service.id}:{service.container_name}:{getattr(node, 'host', '')}"
     now = time.monotonic()
     if use_cache and cache_key in _LIVE_STATUS_CACHE:
         created, payload = _LIVE_STATUS_CACHE[cache_key]
@@ -1461,8 +1562,8 @@ def get_service_live_status(db: Session, service: ServiceInstance, *, use_cache:
             out["cache_hit"] = True
             return out
 
-    inspect, err = _docker_inspect_local(service.container_name)
-    result = _map_inspect_to_live(service, inspect, err)
+    inspect, err, source = _docker_inspect_for_node(node, service.container_name)
+    result = _map_inspect_to_live(service, inspect, err, source=source)
     result["cache_hit"] = False
 
     # Persist honest status on the inventory row when we got a real answer
@@ -1479,6 +1580,7 @@ def get_service_live_status(db: Session, service: ServiceInstance, *, use_cache:
 
 
 def get_node_services_live_status(db: Session, node_id: int) -> dict[str, Any]:
+    node = db.get(Node, node_id)
     services = list(
         db.scalars(
             select(ServiceInstance)
@@ -1488,10 +1590,56 @@ def get_node_services_live_status(db: Session, node_id: int) -> dict[str, Any]:
     )
     items = [get_service_live_status(db, svc) for svc in services]
     running = sum(1 for i in items if i.get("running"))
+    source = "docker_inspect" if _node_uses_local_docker(node) else "docker_inspect_ssh"
     return {
         "node_id": node_id,
         "count": len(items),
         "running_count": running,
         "items": items,
         "checked_at": datetime.utcnow().isoformat() + "Z",
+        "source": source,
     }
+
+
+def _live_host_ports_for_node(node: Node | None) -> set[int]:
+    """Parse published host ports from docker ps (local or remote)."""
+    import re
+    import subprocess
+
+    ports: set[int] = set()
+    if node is None:
+        return ports
+    try:
+        if _node_uses_local_docker(node):
+            proc = subprocess.run(
+                ["docker", "ps", "--format", "{{.Ports}}"],
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            text = proc.stdout or ""
+        else:
+            host = (node.host or "").strip()
+            user = (node.ssh_user or "ubuntu").strip()
+            key = (node.ssh_key_path or "").strip()
+            cmd = ["ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=8"]
+            if key:
+                cmd.extend(["-i", key])
+            cmd.append(f"{user}@{host}")
+            cmd.append("docker ps --format '{{.Ports}}'")
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            text = proc.stdout or ""
+        # Match 0.0.0.0:8080-> or :::8080-> or 127.0.0.1:5432->
+        for match in re.finditer(r"(?:0\.0\.0\.0|127\.0\.0\.1|\[::\]|::):(\d+)->", text):
+            try:
+                ports.add(int(match.group(1)))
+            except ValueError:
+                continue
+        for match in re.finditer(r":(\d+)->", text):
+            try:
+                ports.add(int(match.group(1)))
+            except ValueError:
+                continue
+    except Exception:
+        return ports
+    return ports

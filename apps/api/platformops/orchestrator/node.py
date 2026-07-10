@@ -26,8 +26,11 @@ from .common import (
 
 
 def validate_node(db: Session, node: Node) -> DeploymentJob:
-    command = f"{_ansible_base_command(node, 'validate_node.yml')} --extra-vars node_name={node.name}"
-    job = create_job(db, action="validate-node", command=command, node_id=node.id)
+    # Capture primitives before request session closes (Part A: no detached ORM in callback)
+    node_id = int(node.id)
+    node_name = str(node.name or f"node-{node_id}")
+    command = f"{_ansible_base_command(node, 'validate_node.yml')} --extra-vars node_name={node_name}"
+    job = create_job(db, action="validate-node", command=command, node_id=node_id)
 
     if settings.local_mode:
         return finish_job(
@@ -41,28 +44,139 @@ def validate_node(db: Session, node: Node) -> DeploymentJob:
         )
 
     def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
-        bg_node = bg_db.get(Node, node.id)
-        if bg_node:
-            bg_node.status = "healthy" if ok else "unreachable"
-            if ok:
-                facts = {
-                    "checked_at": datetime.utcnow().isoformat() + "Z",
-                    "mode": "production-ansible",
-                }
-                try:
-                    if bg_job.output and '"msg":' in bg_job.output:
-                        import re
+        bg_node = bg_db.get(Node, node_id)
+        if not bg_node:
+            return
+        bg_node.status = "healthy" if ok else "unreachable"
+        # Merge validation facts into existing operator facts (cpu/mem/gpu must survive)
+        existing: dict[str, Any] = {}
+        try:
+            parsed = json.loads(bg_node.facts_json or "{}")
+            if isinstance(parsed, dict):
+                existing = parsed
+        except Exception:
+            existing = {}
+        existing["checked_at"] = datetime.utcnow().isoformat() + "Z"
+        existing["mode"] = "production-ansible"
+        existing["last_validate_ok"] = bool(ok)
+        if ok:
+            try:
+                if bg_job.output and '"msg":' in (bg_job.output or ""):
+                    import re
 
-                        match = re.search(r'"msg":\s*({[^}]+})', bg_job.output)
-                        if match:
-                            parsed_msg = json.loads(match.group(1))
-                            facts.update(parsed_msg)
-                except Exception:
-                    pass
-                bg_node.facts_json = json.dumps(facts)
-            bg_db.commit()
+                    match = re.search(r'"msg":\s*(\{[^}]+\})', bg_job.output)
+                    if match:
+                        parsed_msg = json.loads(match.group(1))
+                        if isinstance(parsed_msg, dict):
+                            existing.update(parsed_msg)
+            except Exception:
+                pass
+        # Optional quick SSH/docker probe facts (never wipe operator keys)
+        try:
+            probe = _probe_node_ssh_docker(bg_node)
+            if probe.get("ssh_ok") is not None:
+                existing["ssh_probe"] = "ok" if probe.get("ssh_ok") else "fail"
+            if probe.get("docker_ok") is not None:
+                existing["docker"] = "present" if probe.get("docker_ok") else existing.get("docker", "unknown")
+            if probe.get("detail"):
+                existing["ssh_probe_detail"] = str(probe["detail"])[:300]
+        except Exception:
+            pass
+        bg_node.facts_json = json.dumps(existing)
+        bg_db.add(bg_node)
+        record_event(
+            bg_db,
+            category="lifecycle",
+            level="info" if ok else "warning",
+            message=f"Node validation {'succeeded' if ok else 'failed'} for '{bg_node.name}'",
+            node_id=node_id,
+            metadata={"job_id": bg_job.id, "ok": ok},
+        )
 
     return run_job_async(db, job, cwd=settings.project_root, on_complete=on_complete)
+
+
+def _is_local_docker_host(node: Node) -> bool:
+    host = (node.host or "").strip().lower()
+    return (
+        settings.local_mode
+        or (node.environment or "").lower() == "local"
+        or host in {"localhost", "127.0.0.1", "0.0.0.0", "", "65.2.63.24"}
+    )
+
+
+def _probe_node_ssh_docker(node: Node) -> dict[str, Any]:
+    """Real connectivity probe: local docker path or remote SSH. Never invents success."""
+    import subprocess
+
+    result: dict[str, Any] = {
+        "ssh_ok": None,
+        "docker_ok": None,
+        "detail": "",
+        "probed_at": datetime.utcnow().isoformat() + "Z",
+    }
+    if _is_local_docker_host(node):
+        # Local: TCP/SSH optional; docker CLI is the real gate for live status
+        try:
+            proc = subprocess.run(
+                ["docker", "info", "--format", "{{.ServerVersion}}"],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            result["ssh_ok"] = True  # control plane can reach local runtime
+            result["docker_ok"] = proc.returncode == 0
+            result["detail"] = (proc.stdout or proc.stderr or "").strip()[:200]
+            if proc.returncode != 0:
+                result["detail"] = (proc.stderr or proc.stdout or "docker info failed").strip()[:200]
+        except FileNotFoundError:
+            result["ssh_ok"] = True
+            result["docker_ok"] = False
+            result["detail"] = "docker CLI not available on control plane"
+        except Exception as exc:
+            result["ssh_ok"] = False
+            result["docker_ok"] = False
+            result["detail"] = str(exc)[:200]
+        return result
+
+    host = (node.host or "").strip()
+    user = (node.ssh_user or "ubuntu").strip()
+    key = (node.ssh_key_path or "").strip()
+    if not host:
+        result["ssh_ok"] = False
+        result["detail"] = "missing host"
+        return result
+    cmd = [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "ConnectTimeout=8",
+    ]
+    if key:
+        cmd.extend(["-i", key])
+    cmd.append(f"{user}@{host}")
+    cmd.append("echo SSH_OK; docker info --format '{{.ServerVersion}}' 2>/dev/null || echo DOCKER_MISSING")
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
+        out = (proc.stdout or "") + (proc.stderr or "")
+        result["ssh_ok"] = proc.returncode == 0 and "SSH_OK" in out
+        result["docker_ok"] = "DOCKER_MISSING" not in out and proc.returncode == 0 and bool(out.strip())
+        if result["ssh_ok"] and "DOCKER_MISSING" in out:
+            result["docker_ok"] = False
+        result["detail"] = out.strip()[:300]
+        if proc.returncode != 0:
+            result["ssh_ok"] = False
+            result["detail"] = (proc.stderr or proc.stdout or "ssh failed").strip()[:300]
+    except FileNotFoundError:
+        result["ssh_ok"] = False
+        result["detail"] = "ssh client not available on control plane"
+    except Exception as exc:
+        result["ssh_ok"] = False
+        result["detail"] = str(exc)[:200]
+    return result
 
 
 def get_node_job_history(db: Session, node_id: int, *, limit: int = 12) -> dict[str, Any]:
@@ -201,26 +315,37 @@ def get_node_connection_report(db: Session, node_id: int) -> dict[str, Any]:
     else:
         last_checked_at = None
 
+    # Live probe (best-effort; does not invent success)
+    probe = _probe_node_ssh_docker(node)
+
     recommendations: list[str] = []
-    if node.environment != "local" and not (node.ssh_key_path or "").strip():
+    if node.environment != "local" and not (node.ssh_key_path or "").strip() and not _is_local_docker_host(node):
         recommendations.append("Configure an SSH private key path before validating remote connectivity.")
-    if node.environment != "local" and node.host in {"localhost", "127.0.0.1"}:
+    if node.environment != "local" and node.host in {"localhost", "127.0.0.1"} and not _is_local_docker_host(node):
         recommendations.append("Set a remote host/IP for this non-local node.")
-    if not facts:
+    if probe.get("ssh_ok") is False:
+        recommendations.append("Live SSH/runtime probe failed. Check host, user, PEM path, and security groups.")
+    if probe.get("ssh_ok") and probe.get("docker_ok") is False:
+        recommendations.append("SSH reachable but Docker is not available on the target (or docker CLI missing).")
+    if not facts and not probe.get("ssh_ok"):
         recommendations.append("Run Validate Node to collect host facts and confirm connectivity.")
-    if node.status in {"unknown", "unreachable"}:
+    if node.status in {"unknown", "unreachable"} and not probe.get("ssh_ok"):
         recommendations.append("Node is not healthy. Re-run Validate Node and review validation output.")
-    if last_validate_job and last_validate_job.status in {"failed", "cancelled"}:
+    if last_validate_job and last_validate_job.status in {"failed", "cancelled"} and not probe.get("ssh_ok"):
         recommendations.append("Latest validation failed. Inspect the validation command output and SSH settings.")
-    if node.environment == "local" and not recommendations:
-        recommendations.append("Local mode is healthy. You can proceed with service deployment and diagnostics.")
+    if probe.get("ssh_ok") and probe.get("docker_ok") and not recommendations:
+        recommendations.append("Runtime probe OK. You can proceed with discover, deploy, and live status.")
 
     if last_validate_job and last_validate_job.status == "success":
         connection_state = "validated"
     elif last_validate_job and last_validate_job.status in {"running", "queued"}:
         connection_state = "validating"
-    elif node.status == "unreachable":
+    elif node.status == "unreachable" and not probe.get("ssh_ok"):
         connection_state = "unreachable"
+    elif probe.get("ssh_ok") and probe.get("docker_ok"):
+        connection_state = "ssh-ok"
+    elif probe.get("ssh_ok"):
+        connection_state = "ssh-ok-no-docker"
     elif facts:
         connection_state = "facts-only"
     else:
@@ -238,9 +363,10 @@ def get_node_connection_report(db: Session, node_id: int) -> dict[str, Any]:
         "facts_available": bool(facts),
         "facts": facts,
         "facts_error": facts_error,
-        "last_checked_at": last_checked_at,
+        "last_checked_at": last_checked_at or probe.get("probed_at"),
         "validation_job": validation_job,
         "recommendations": recommendations,
+        "live_probe": probe,
     }
 
 

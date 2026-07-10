@@ -7,6 +7,7 @@ export function createInventoryEditorActions(s: any) {
       visible: true,
       mode: "create",
       clusterId: null,
+      step: 1,
       draft: {
         name: "",
         region: "local",
@@ -29,6 +30,7 @@ export function createInventoryEditorActions(s: any) {
       visible: true,
       mode: "edit",
       clusterId: cluster.id,
+      step: 1,
       draft: {
         name: cluster.name,
         region: cluster.region,
@@ -46,12 +48,31 @@ export function createInventoryEditorActions(s: any) {
     });
   },
 
+  setClusterEditorStep(step) {
+    const next = Math.max(1, Math.min(4, Number(step) || 1));
+    s.setClusterEditor((current) => ({ ...current, step: next, error: "" }));
+  },
+
+  advanceClusterEditorStep() {
+    const step = s.clusterEditor.step || 1;
+    const draft = s.clusterEditor.draft || {};
+    if (step === 1) {
+      if (!String(draft.name || "").trim()) {
+        s.setClusterEditor((c) => ({ ...c, error: "Cluster name is required." }));
+        return;
+      }
+    }
+    if (step < 4) {
+      s.setClusterEditor((c) => ({ ...c, step: step + 1, error: "" }));
+    }
+  },
+
   async saveClusterEditor() {
     try {
       const draft = s.clusterEditor.draft;
       const name = draft.name.trim();
       if (!name) {
-        s.setClusterEditor((current) => ({ ...current, error: "Cluster name is required." }));
+        s.setClusterEditor((current) => ({ ...current, error: "Cluster name is required.", step: 1 }));
         return;
       }
       if (s.clusterEditor.mode === "create") {

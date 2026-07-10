@@ -72,102 +72,160 @@ export function ModalsHost() {
         </div>
       )}
 
-      {/* CLUSTER EDITOR MODAL */}
-      {clusterEditor.visible && (
+      {/* CLUSTER EDITOR MODAL — true 4-step wizard (cPlatform parity) */}
+      {clusterEditor.visible && (() => {
+        const step = clusterEditor.step || 1;
+        const setStep = p.setClusterEditorStep || ((n: number) => setClusterEditor((prev: any) => ({ ...prev, step: n, error: "" })));
+        const advance = p.advanceClusterEditorStep || (() => setClusterEditor((prev: any) => ({ ...prev, step: Math.min(4, (prev.step || 1) + 1), error: "" })));
+        const labels = ["Identity", "Repository", "Registry", "Review"];
+        return (
         <div className="modal-overlay" style={{ display: "flex", zIndex: 100 }}>
           <GlassCard className="modal" style={{ padding: "1.5rem", maxWidth: "640px", width: "100%", display: "flex", flexDirection: "column", gap: "1rem", maxHeight: "90vh", overflowY: "auto" }}>
             <h3>{clusterEditor.mode === "create" ? "Create Cluster" : "Cluster settings"}</h3>
-            <div className="cluster-tabs" style={{ marginBottom: 0 }}>
-              <div className="tab active">1. Identity</div>
-              <div className="tab active">2. Repository</div>
-              <div className="tab active">3. Registry</div>
-              <div className="tab active">4. Review</div>
+            <div className="cluster-tabs" style={{ marginBottom: 0, display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {labels.map((label, idx) => {
+                const n = idx + 1;
+                const active = step === n;
+                const done = step > n;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    className={`tab ${active ? "active" : ""} ${done ? "done" : ""}`}
+                    style={{
+                      border: "1px solid var(--line)",
+                      borderRadius: 8,
+                      padding: "0.35rem 0.65rem",
+                      background: active ? "var(--navy-50, rgba(30,58,95,0.12))" : "transparent",
+                      color: active ? "var(--navy-700, var(--ink))" : "var(--ink-4)",
+                      fontWeight: active ? 600 : 500,
+                      cursor: "pointer",
+                      fontSize: "0.8rem",
+                    }}
+                    onClick={() => setStep(n)}
+                  >
+                    {n}. {label}
+                  </button>
+                );
+              })}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-                <div className="field">
-                  <label>Cluster name</label>
-                  <input className="input" value={clusterEditor.draft.name} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, name: e.target.value } }))} placeholder="e.g. prod-mumbai-1" />
-                </div>
-                <div className="field">
-                  <label>Region</label>
-                  <input className="input" value={clusterEditor.draft.region} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, region: e.target.value } }))} placeholder="e.g. ap-south-1" />
-                </div>
-              </div>
-              <div className="field">
-                <label>Environment</label>
-                <select value={clusterEditor.draft.environment} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, environment: e.target.value } }))}>
-                  <option value="development">Development</option>
-                  <option value="staging">Staging</option>
-                  <option value="production">Production</option>
-                  <option value="standalone">Standalone</option>
-                  <option value="edge">Edge</option>
-                </select>
-              </div>
+              {step === 1 && (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                    <div className="field">
+                      <label>Cluster name</label>
+                      <input className="input" value={clusterEditor.draft.name} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, name: e.target.value } }))} placeholder="e.g. prod-mumbai-1" />
+                    </div>
+                    <div className="field">
+                      <label>Region</label>
+                      <input className="input" value={clusterEditor.draft.region} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, region: e.target.value } }))} placeholder="e.g. ap-south-1" />
+                    </div>
+                  </div>
+                  <div className="field">
+                    <label>Environment</label>
+                    <select value={clusterEditor.draft.environment} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, environment: e.target.value } }))}>
+                      <option value="development">Development</option>
+                      <option value="staging">Staging</option>
+                      <option value="production">Production</option>
+                      <option value="standalone">Standalone</option>
+                      <option value="edge">Edge</option>
+                    </select>
+                  </div>
+                </>
+              )}
 
-              <h4 style={{ margin: "0.5rem 0 0", fontSize: "0.95rem" }}>Code repository</h4>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-                <div className="field">
-                  <label>Repo type</label>
-                  <select value={clusterEditor.draft.repo_type} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, repo_type: e.target.value } }))}>
-                    <option value="github">GitHub</option>
-                    <option value="gitlab">GitLab</option>
-                    <option value="local">Local path</option>
-                  </select>
-                </div>
-                <div className="field">
-                  <label>Branch</label>
-                  <input className="input" value={clusterEditor.draft.repo_branch} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, repo_branch: e.target.value } }))} />
-                </div>
-              </div>
-              <div className="field">
-                <label>Repository URL</label>
-                <input className="input" value={clusterEditor.draft.repo_url} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, repo_url: e.target.value } }))} placeholder="https://github.com/org/repo.git" />
-              </div>
-              <div className="field">
-                <label>Access token {clusterEditor.mode === "edit" ? "(leave blank to keep)" : ""}</label>
-                <input className="input" type="password" value={clusterEditor.draft.repo_token} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, repo_token: e.target.value } }))} placeholder={clusterEditor.mode === "edit" ? "••••••••" : "optional"} />
-              </div>
-              <div>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={testClusterRepoConnection}>Test repository connection</button>
-              </div>
+              {step === 2 && (
+                <>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem" }}>Code repository</h4>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                    <div className="field">
+                      <label>Repo type</label>
+                      <select value={clusterEditor.draft.repo_type} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, repo_type: e.target.value } }))}>
+                        <option value="github">GitHub</option>
+                        <option value="gitlab">GitLab</option>
+                        <option value="local">Local path</option>
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label>Branch</label>
+                      <input className="input" value={clusterEditor.draft.repo_branch} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, repo_branch: e.target.value } }))} />
+                    </div>
+                  </div>
+                  <div className="field">
+                    <label>Repository URL</label>
+                    <input className="input" value={clusterEditor.draft.repo_url} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, repo_url: e.target.value } }))} placeholder="https://github.com/org/repo.git" />
+                  </div>
+                  <div className="field">
+                    <label>Access token {clusterEditor.mode === "edit" ? "(leave blank to keep)" : ""}</label>
+                    <input className="input" type="password" value={clusterEditor.draft.repo_token} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, repo_token: e.target.value } }))} placeholder={clusterEditor.mode === "edit" ? "••••••••" : "optional"} />
+                  </div>
+                  <div>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={testClusterRepoConnection}>Test repository connection</button>
+                  </div>
+                </>
+              )}
 
-              <h4 style={{ margin: "0.5rem 0 0", fontSize: "0.95rem" }}>Container registry</h4>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-                <div className="field">
-                  <label>Registry type</label>
-                  <select value={clusterEditor.draft.registry_type} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, registry_type: e.target.value } }))}>
-                    <option value="dockerhub">Docker Hub</option>
-                    <option value="ecr">ECR</option>
-                    <option value="gcr">GCR</option>
-                    <option value="local">Local registry</option>
-                  </select>
+              {step === 3 && (
+                <>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem" }}>Container registry</h4>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                    <div className="field">
+                      <label>Registry type</label>
+                      <select value={clusterEditor.draft.registry_type} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, registry_type: e.target.value } }))}>
+                        <option value="dockerhub">Docker Hub</option>
+                        <option value="ecr">ECR</option>
+                        <option value="gcr">GCR</option>
+                        <option value="local">Local registry</option>
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label>Username</label>
+                      <input className="input" value={clusterEditor.draft.registry_user} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, registry_user: e.target.value } }))} />
+                    </div>
+                  </div>
+                  <div className="field">
+                    <label>Registry URL</label>
+                    <input className="input" value={clusterEditor.draft.registry_url} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, registry_url: e.target.value } }))} placeholder="registry-1.docker.io" />
+                  </div>
+                  <div className="field">
+                    <label>Password / access key {clusterEditor.mode === "edit" ? "(leave blank to keep)" : ""}</label>
+                    <input className="input" type="password" value={clusterEditor.draft.registry_password} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, registry_password: e.target.value } }))} placeholder={clusterEditor.mode === "edit" ? "••••••••" : ""} />
+                  </div>
+                  <div>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={testClusterRegistryConnection}>Test registry connection</button>
+                  </div>
+                </>
+              )}
+
+              {step === 4 && (
+                <div style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "1rem", background: "rgba(0,0,0,0.12)", fontSize: "0.88rem", display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div><strong>Name:</strong> {clusterEditor.draft.name || "—"}</div>
+                  <div><strong>Region / env:</strong> {clusterEditor.draft.region || "—"} · {clusterEditor.draft.environment}</div>
+                  <div><strong>Repo:</strong> {clusterEditor.draft.repo_type} · {clusterEditor.draft.repo_url || "(none)"} @ {clusterEditor.draft.repo_branch}</div>
+                  <div><strong>Registry:</strong> {clusterEditor.draft.registry_type} · {clusterEditor.draft.registry_url || "(default)"}</div>
+                  <p style={{ margin: "0.5rem 0 0", color: "var(--ink-4)", fontSize: "0.8rem" }}>
+                    Confirm and {clusterEditor.mode === "create" ? "create" : "save"}. Secrets blank on edit keep existing values.
+                  </p>
                 </div>
-                <div className="field">
-                  <label>Username</label>
-                  <input className="input" value={clusterEditor.draft.registry_user} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, registry_user: e.target.value } }))} />
-                </div>
-              </div>
-              <div className="field">
-                <label>Registry URL</label>
-                <input className="input" value={clusterEditor.draft.registry_url} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, registry_url: e.target.value } }))} placeholder="registry-1.docker.io" />
-              </div>
-              <div className="field">
-                <label>Password / access key {clusterEditor.mode === "edit" ? "(leave blank to keep)" : ""}</label>
-                <input className="input" type="password" value={clusterEditor.draft.registry_password} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, registry_password: e.target.value } }))} placeholder={clusterEditor.mode === "edit" ? "••••••••" : ""} />
-              </div>
-              <div>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={testClusterRegistryConnection}>Test registry connection</button>
-              </div>
+              )}
             </div>
             {clusterEditor.error && <p style={{ color: "var(--err)", fontSize: "0.8rem", margin: 0 }}>{clusterEditor.error}</p>}
-            <div className="modal-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+            <div className="modal-actions" style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
               <button className="btn btn-secondary btn-sm" onClick={() => setClusterEditor((prev) => ({ ...prev, visible: false }))}>Cancel</button>
-              <button className="btn btn-primary btn-sm" onClick={saveClusterEditor}>{clusterEditor.mode === "create" ? "Create cluster" : "Save settings"}</button>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button className="btn btn-secondary btn-sm" disabled={step <= 1} onClick={() => setStep(step - 1)}>Back</button>
+                {step < 4 ? (
+                  <button className="btn btn-primary btn-sm" onClick={advance}>Next</button>
+                ) : (
+                  <button className="btn btn-primary btn-sm" onClick={saveClusterEditor}>{clusterEditor.mode === "create" ? "Create cluster" : "Save settings"}</button>
+                )}
+              </div>
             </div>
           </GlassCard>
         </div>
-      )}
+        );
+      })()}
 
       {/* NODE EDITOR MODAL */}
       {nodeEditor.visible && (

@@ -149,6 +149,7 @@ class NodeServicesLiveStatusOut(BaseModel):
     running_count: int
     items: list[ServiceLiveStatusOut]
     checked_at: str = ""
+    source: str = "docker_inspect"
 
 
 class PreflightOut(BaseModel):

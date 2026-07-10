@@ -390,14 +390,37 @@ export function createSreActions(s: any) {
 
   async validateNode(nodeId) {
     try {
-      setNotice(`Running configuration validation for node ${nodeId}...`);
+      s.setNotice(`Running configuration validation for node ${nodeId}...`);
       const result = await api(`/api/nodes/${nodeId}/validate`, { method: "POST" });
       s.setJob(result);
-      s.setNotice(`Node validation job triggered: ${result.status}`);
+      s.setNotice(`Node validation job #${result.id}: ${result.status}`);
       await s.refresh();
       await s.loadNodeJobHistory(nodeId);
+      // Poll job briefly then refresh connection (facts merge + probe)
+      if (result?.id) {
+        for (let i = 0; i < 20; i++) {
+          await new Promise((r) => setTimeout(r, 1500));
+          try {
+            const job2 = await api(`/api/jobs/${result.id}`);
+            s.setJob(job2);
+            if (job2.status === "success" || job2.status === "failed" || job2.status === "cancelled") {
+              s.setNotice(
+                job2.status === "success"
+                  ? `Node validation succeeded (job #${job2.id})`
+                  : `Node validation ${job2.status}${job2.error ? `: ${String(job2.error).slice(0, 160)}` : ""}`
+              );
+              break;
+            }
+          } catch {
+            break;
+          }
+        }
+      }
+      await s.loadNodeConnection?.(nodeId);
+      await s.loadNodeOnboarding?.(nodeId);
+      await s.refresh();
     } catch (error) {
-      setNotice(`Validation failed: ${error.message}`);
+      s.setNotice(`Validation failed: ${error.message}`);
     }
   }
   };
