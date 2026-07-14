@@ -75,15 +75,29 @@ def create_service_instance(
         else:
             raise ValueError(f"Unknown service key: {service_key}")
 
-    existing = db.scalar(
-        select(ServiceInstance).where(ServiceInstance.node_id == node.id, ServiceInstance.service_key == key)
-    )
-    if existing:
-        if not existing.external_id:
-            existing.external_id = allocate_service_external_id(db)
-            db.commit()
-            db.refresh(existing)
-        return existing
+    # multi_instance from catalog discovery meta (not hard-coded service list)
+    multi = False
+    try:
+        from ..discovery import _catalog_allows_multi_instance
+
+        multi = _catalog_allows_multi_instance(key)
+    except Exception:
+        multi = (contract.get("kind") or "") == "infrastructure"
+
+    if not multi:
+        existing = db.scalar(
+            select(ServiceInstance).where(
+                ServiceInstance.node_id == node.id,
+                ServiceInstance.service_key == key,
+                ServiceInstance.status != "deleted",
+            )
+        )
+        if existing:
+            if not existing.external_id:
+                existing.external_id = allocate_service_external_id(db)
+                db.commit()
+                db.refresh(existing)
+            return existing
 
     merged = dict(contract)
     if contract_overrides:
@@ -453,12 +467,57 @@ def deploy_service(db: Session, service: ServiceInstance) -> DeploymentJob:
     node = service.node or db.get(Node, node_id)
     if node is None:
         raise ValueError(f"Node not found for service {service_id}")
-    contract = json.loads(service.config_json or "{}")
+    # Merge catalog + instance so adopted services get valid ports/volumes for Ansible
+    try:
+        from ..config import _merged_service_contract
+        from ..discovery import normalize_docker_ports
+
+        contract = dict(_merged_service_contract(service) or {})
+    except Exception:
+        contract = json.loads(service.config_json or "{}")
+        if not isinstance(contract, dict):
+            contract = {}
+        try:
+            from ..discovery import normalize_docker_ports
+        except Exception:
+            normalize_docker_ports = None  # type: ignore
+    # Normalize docker-ps style ports ("9006->8000/tcp") into published_ports ("9006:8000")
+    if normalize_docker_ports is not None:
+        ports = contract.get("ports")
+        normalized = normalize_docker_ports(ports)
+        if normalized:
+            contract["ports"] = normalized
+        elif not isinstance(ports, list) or not ports:
+            # Prefer catalog ports when instance ports unusable
+            try:
+                catalog = rendered_contract(
+                    service.service_key, node_id=node.id, volume_root=node.volume_root or "/tmp/platformops"
+                ) or {}
+                catalog_ports = normalize_docker_ports(catalog.get("ports"))
+                if catalog_ports:
+                    contract["ports"] = catalog_ports
+            except Exception:
+                pass
+    # Ensure volumes/image present for adopted cards
+    if not contract.get("volumes"):
+        try:
+            catalog = rendered_contract(
+                service.service_key, node_id=node.id, volume_root=node.volume_root or "/tmp/platformops"
+            ) or {}
+            if catalog.get("volumes"):
+                contract["volumes"] = catalog["volumes"]
+            if catalog.get("environment") and not contract.get("environment"):
+                contract["environment"] = catalog["environment"]
+            if catalog.get("command") and not contract.get("command"):
+                contract["command"] = catalog["command"]
+        except Exception:
+            pass
+    image = service.image or contract.get("image") or ""
     extra_vars = {
         "service_key": service.service_key,
         "service_name": service.name,
         "container_name": service.container_name,
-        "image": service.image,
+        "image": image,
         "docker_network": node.docker_network,
         "volume_root": node.volume_root,
         "contract": contract,
@@ -1486,24 +1545,18 @@ def _docker_inspect_remote(node: Node, container_name: str) -> tuple[dict[str, A
 
 
 def _node_uses_local_docker(node: Node | None, *, force_ssh: bool = False) -> bool:
-    """Prefer SSH docker when a key+host are set (production path); localhost stays local."""
+    """connection_mode auto|local|ssh — no hardcoded public IPs."""
     if node is None:
         return True
     if force_ssh:
         return False
-    host = (node.host or "").strip().lower()
-    if host in {"localhost", "127.0.0.1", "0.0.0.0", ""}:
-        return True
-    # Real remote / PEM path: use SSH inspect (works for this host's public IP too)
-    if (node.ssh_key_path or "").strip() or (node.ssh_private_key if hasattr(node, "ssh_private_key") else None):
-        # ssh_key_path is the durable signal for "can use remote path"
-        if (node.ssh_key_path or "").strip():
-            return False
-    if (node.environment or "").lower() == "local" and not (node.ssh_key_path or "").strip():
-        return True
-    if settings.local_mode and not (node.ssh_key_path or "").strip():
-        return True
-    return False
+    try:
+        from ..discovery import resolve_connection_mode
+
+        return resolve_connection_mode(node) == "local"
+    except Exception:
+        host = (node.host or "").strip().lower()
+        return host in {"localhost", "127.0.0.1", "0.0.0.0", ""}
 
 
 def _docker_inspect_for_node(node: Node | None, container_name: str) -> tuple[dict[str, Any] | None, str | None, str]:

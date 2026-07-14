@@ -40,6 +40,16 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || status_error "missing_command:$1"
 }
 
+# Prefer plain docker when already root or sudo is missing (API container).
+maybe_sudo() {
+  if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+    sudo "$@"
+  else
+    "$@"
+  fi
+}
+
+
 to_lower() {
   echo "$1" | tr '[:upper:]' '[:lower:]'
 }
@@ -311,7 +321,7 @@ EOF
 rollback_from_backup() {
   local reason="$1"
   if [[ -n "${BACKUP_PATH:-}" && -f "$BACKUP_PATH" ]]; then
-    if sudo docker cp "$BACKUP_PATH" "${CONTAINER_NAME}:${RESOLVED_CONFIG_PATH}" >/dev/null 2>&1; then
+    if maybe_sudo docker cp "$BACKUP_PATH" "${CONTAINER_NAME}:${RESOLVED_CONFIG_PATH}" >/dev/null 2>&1; then
       ROLLED_BACK="true"
     else
       ROLLED_BACK="rollback_failed"
@@ -477,32 +487,32 @@ if [[ -z "$NODE_VOLUME" ]]; then
   BACKUP_ROOT="/tmp/config_migration_backup"
 fi
 BACKUP_PATH="${BACKUP_ROOT}/${SERVICE_SAFE}/${TS}_${ARTIFACT_SAFE}.yaml"
-sudo mkdir -p "$(dirname "$BACKUP_PATH")"
+maybe_sudo mkdir -p "$(dirname "$BACKUP_PATH")"
 
-if ! sudo docker cp "${CONTAINER_NAME}:${RESOLVED_CONFIG_PATH}" "$BACKUP_PATH" >/dev/null 2>&1; then
+if ! maybe_sudo docker cp "${CONTAINER_NAME}:${RESOLVED_CONFIG_PATH}" "$BACKUP_PATH" >/dev/null 2>&1; then
   status_error "backup_failed:${CONTAINER_NAME}:${RESOLVED_CONFIG_PATH}"
 fi
 
 TMP_CONFIG_IN_CONTAINER="/tmp/migrated_config_${TS}.yaml"
-if ! sudo docker cp "$CONFIG_YAML_FILE" "${CONTAINER_NAME}:${TMP_CONFIG_IN_CONTAINER}" >/dev/null 2>&1; then
+if ! maybe_sudo docker cp "$CONFIG_YAML_FILE" "${CONTAINER_NAME}:${TMP_CONFIG_IN_CONTAINER}" >/dev/null 2>&1; then
   rollback_from_backup "copy_new_config_failed"
 fi
 
-if ! sudo docker exec "$CONTAINER_NAME" sh -lc "cp '$TMP_CONFIG_IN_CONTAINER' '$RESOLVED_CONFIG_PATH' && rm -f '$TMP_CONFIG_IN_CONTAINER'" >/dev/null 2>&1; then
+if ! maybe_sudo docker exec "$CONTAINER_NAME" sh -lc "cp '$TMP_CONFIG_IN_CONTAINER' '$RESOLVED_CONFIG_PATH' && rm -f '$TMP_CONFIG_IN_CONTAINER'" >/dev/null 2>&1; then
   rollback_from_backup "replace_config_failed"
 fi
 
-if ! sudo docker exec "$CONTAINER_NAME" sh -lc "[ -s '$RESOLVED_CONFIG_PATH' ]" >/dev/null 2>&1; then
+if ! maybe_sudo docker exec "$CONTAINER_NAME" sh -lc "[ -s '$RESOLVED_CONFIG_PATH' ]" >/dev/null 2>&1; then
   rollback_from_backup "empty_config_after_replace"
 fi
 
 if [[ "$APPLY_MODE" == "restart" ]]; then
-  if ! sudo docker restart "$CONTAINER_NAME" >/dev/null 2>&1; then
+  if ! maybe_sudo docker restart "$CONTAINER_NAME" >/dev/null 2>&1; then
     rollback_from_backup "restart_failed"
   fi
   APPLY_ACTION="restart"
 else
-  if ! sudo docker exec "$CONTAINER_NAME" sh -lc "kill -HUP 1" >/dev/null 2>&1; then
+  if ! maybe_sudo docker exec "$CONTAINER_NAME" sh -lc "kill -HUP 1" >/dev/null 2>&1; then
     rollback_from_backup "reload_failed"
   fi
   APPLY_ACTION="reload"

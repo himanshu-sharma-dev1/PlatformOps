@@ -198,53 +198,59 @@ def compare_config_snapshots(
 
 
 def _read_remote_config_content(service: ServiceInstance) -> tuple[str | None, str | None]:
-    """Return (content, error). Prefers remote file via SSH/Ansible when available."""
+    """Return (content, error). Host path first, then docker exec into container."""
     import subprocess
     from pathlib import Path
 
-    contract = json.loads(service.config_json or "{}")
-    config_path = contract.get("config_path") or contract.get("config_file") or ""
-    if not config_path:
-        # Common volume layout
-        volume_root = getattr(service.node, "volume_root", None) or "/tmp/platformops"
-        config_path = f"{volume_root.rstrip('/')}/config/{service.service_key}/config.yaml"
+    contract = _merged_service_contract(service)
+    config_files = list(contract.get("config_files") or [])
+    runtime_path = str(contract.get("runtime_config_path") or contract.get("config_path") or "")
+    candidates: list[str] = []
+    for p in config_files:
+        if p:
+            candidates.append(str(p))
+    if runtime_path:
+        candidates.append(runtime_path)
+    volume_root = getattr(service.node, "volume_root", None) or "/tmp/platformops"
+    if not candidates:
+        candidates.append(f"{volume_root.rstrip('/')}/config/{service.service_key}/config.yaml")
 
-    node = service.node
-    is_local = (
-        settings.local_mode
-        or (node and (node.environment or "").lower() == "local")
-        or (node and (node.host or "") in {"localhost", "127.0.0.1", ""})
-    )
-    if is_local:
+    # 1) Host filesystem (volume mounts)
+    for config_path in candidates:
+        if config_path.startswith("/app/"):
+            continue
         path = Path(config_path)
         if path.is_file():
             try:
                 return path.read_text(encoding="utf-8", errors="replace"), None
             except Exception as exc:
                 return None, str(exc)
-        return None, f"Config file not found on local path: {config_path}"
 
-    try:
-        inventory = node.host
-        user = node.ssh_user or "ubuntu"
-        key_arg = ["--private-key", node.ssh_key_path] if node.ssh_key_path else []
-        cmd = ["ansible", inventory, "-m", "shell", "-a", f"cat {config_path}", "-u", user, *key_arg]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=str(settings.project_root))
-        if proc.returncode != 0:
-            return None, (proc.stderr or proc.stdout or "remote cat failed")[:500]
-        lines = []
-        for line in proc.stdout.splitlines():
-            if line.startswith(inventory) or "SUCCESS" in line or "CHANGED" in line:
+    # 2) docker exec into container (works for control plane with docker.sock)
+    container = (service.container_name or "").strip()
+    if container:
+        in_container_paths = [p for p in candidates if p.startswith("/app/")]
+        if not in_container_paths and config_files:
+            # map host volume .../config/file -> /app/config/file when standard mount
+            for p in config_files:
+                name = Path(p).name
+                in_container_paths.append(f"/app/config/{name}")
+        if not in_container_paths:
+            in_container_paths = ["/app/config/dtrain_config.yaml", "/app/config/config.yaml"]
+        for cpath in in_container_paths:
+            try:
+                proc = subprocess.run(
+                    ["docker", "exec", container, "cat", cpath],
+                    capture_output=True,
+                    text=True,
+                    timeout=20,
+                )
+                if proc.returncode == 0 and (proc.stdout or "").strip():
+                    return proc.stdout, None
+            except Exception:
                 continue
-            if line.strip().startswith(">>"):
-                continue
-            lines.append(line)
-        content = "\n".join(lines).strip()
-        if not content:
-            return None, "Empty remote config or unreadable path"
-        return content, None
-    except Exception as exc:
-        return None, str(exc)
+
+    return None, f"Config file not found (tried host paths + docker exec on {container or 'n/a'})"
 
 
 def detect_drift(db: Session, service: ServiceInstance) -> DriftReport:
@@ -333,10 +339,54 @@ def detect_drift(db: Session, service: ServiceInstance) -> DriftReport:
     return report
 
 
+def _merged_service_contract(service: ServiceInstance) -> dict[str, Any]:
+    """Merge catalog contract with instance config_json (adopted rows often lack config_files)."""
+    from ..catalog import get_service_contract, rendered_contract
+
+    node = service.node
+    catalog = {}
+    try:
+        if node is not None:
+            catalog = rendered_contract(
+                service.service_key,
+                node_id=node.id,
+                volume_root=node.volume_root or "/tmp/platformops",
+            ) or {}
+        else:
+            catalog = dict(get_service_contract(service.service_key) or {})
+    except Exception:
+        catalog = dict(get_service_contract(service.service_key) or {})
+    instance: dict[str, Any] = {}
+    try:
+        instance = json.loads(service.config_json or "{}")
+        if not isinstance(instance, dict):
+            instance = {}
+    except Exception:
+        instance = {}
+    merged = dict(catalog)
+    for k, v in instance.items():
+        if v is None or v == "" or v == [] or v == {}:
+            continue
+        if isinstance(v, dict) and isinstance(merged.get(k), dict):
+            merged[k] = {**merged[k], **v}
+        else:
+            merged[k] = v
+    # Ensure config_files from catalog when instance empty
+    if not merged.get("config_files") and catalog.get("config_files"):
+        merged["config_files"] = catalog["config_files"]
+    if not merged.get("runtime_config_path") and catalog.get("runtime_config_path"):
+        merged["runtime_config_path"] = catalog["runtime_config_path"]
+    return merged
+
+
 def current_config(service: ServiceInstance) -> str:
-    contract = json.loads(service.config_json or "{}")
+    contract = _merged_service_contract(service)
     if contract.get("rendered_config_content"):
         return str(contract.get("rendered_config_content"))
+    # Prefer real file on disk / in container
+    remote_content, remote_err = _read_remote_config_content(service)
+    if remote_content is not None and remote_content.strip():
+        return remote_content
     rendered = {
         "service": service.name,
         "service_key": service.service_key,
@@ -347,16 +397,22 @@ def current_config(service: ServiceInstance) -> str:
         "volumes": contract.get("volumes", []),
         "healthcheck": contract.get("healthcheck", {}),
     }
+    if remote_err:
+        rendered["_config_read_note"] = remote_err
     return yaml.safe_dump(rendered, sort_keys=False)
 
 
 def config_capabilities_for_service(service: ServiceInstance) -> dict[str, Any]:
-    contract = json.loads(service.config_json or "{}")
+    contract = _merged_service_contract(service)
     config_files = contract.get("config_files") or []
     kind = contract.get("kind", service.kind)
-    config_path = config_files[0] if config_files else ""
-    has_config_surface = bool(config_files or contract.get("environment") or contract.get("command"))
-    restart_required = kind in {"infrastructure", "helper"}
+    config_path = (
+        config_files[0]
+        if config_files
+        else (contract.get("runtime_config_path") or contract.get("config_path") or "")
+    )
+    has_config_surface = bool(config_files or contract.get("runtime_config_path") or contract.get("environment") or contract.get("command"))
+    restart_required = kind in {"infrastructure", "helper"} or service.service_key.startswith("dtrain")
     disabled_reason = ""
     if not has_config_surface:
         disabled_reason = "No editable runtime config surface is defined for this service card."
@@ -378,7 +434,7 @@ def config_workspace(db: Session, service: ServiceInstance, *, source: str = "li
     active_checkpoint = snapshots[0] if snapshots else None
     content = current_config(service)
     content_source = "live"
-    message = "Loaded live rendered service config."
+    message = "Loaded live service config."
     if source == "latest_snapshot":
         latest = snapshots[0] if snapshots else None
         if latest is not None:
@@ -387,7 +443,7 @@ def config_workspace(db: Session, service: ServiceInstance, *, source: str = "li
             message = f"Loaded checkpoint {latest.name} (v{latest.version})."
         else:
             content_source = "live_fallback"
-            message = "No snapshots found; fell back to live rendered config."
+            message = "No snapshots found; fell back to live config."
     elif source != "live":
         raise ValueError("Invalid config source. Use 'live' or 'latest_snapshot'.")
 
@@ -409,6 +465,7 @@ def config_workspace(db: Session, service: ServiceInstance, *, source: str = "li
             .order_by(ServiceInstance.created_at.desc())
         ).all()
     )
+    cfg_path = capabilities.get("config_path") or f"/runtime/{service.service_key}/config.yaml"
     return {
         "service_id": service.id,
         "content": content,
@@ -418,9 +475,9 @@ def config_workspace(db: Session, service: ServiceInstance, *, source: str = "li
         "snapshot_count": len(snapshots),
         "active_checkpoint": active_checkpoint,
         "drift_state": drift_state,
-        "config_source_label": "Latest checkpoint" if content_source == "latest_snapshot" else "Live rendered config",
-        "config_path": capabilities.get("config_path") or f"/runtime/{service.service_key}/config.yaml",
-        "file_label": f"{service.container_name}/config.yaml",
+        "config_source_label": "Latest checkpoint" if content_source == "latest_snapshot" else "Live config",
+        "config_path": cfg_path,
+        "file_label": f"{service.container_name}/{Path(str(cfg_path)).name}",
         "config_capabilities": capabilities,
         "runtime_target": {
             "container_name": service.container_name,
@@ -835,18 +892,108 @@ def validate_config(content: str, service: ServiceInstance | None = None) -> dic
 
 
 def apply_config(db: Session, service: ServiceInstance, *, content: str, apply_mode: str) -> DeploymentJob:
+    import subprocess
+    from pathlib import Path
+
     validation = validate_config(content, service=service)
+    service_id = int(service.id)
+    node_id = int(service.node_id) if service.node_id else None
     if not validation["ok"]:
         job = create_job(
-            db, action="apply-config-blocked", command="validate-yaml", service_id=service.id, node_id=service.node_id
+            db, action="apply-config-blocked", command="validate-yaml", service_id=service_id, node_id=node_id
         )
         return finish_job(db, job, ok=False, error=validation["message"])
 
     # Write config to a temporary yaml file under data/runtime/
     runtime_dir = settings.resolve(settings.runtime_dir)
     runtime_dir.mkdir(parents=True, exist_ok=True)
-    temp_yaml = runtime_dir / f"config-apply-{service.id}-{int(datetime.utcnow().timestamp())}.yml"
+    temp_yaml = runtime_dir / f"config-apply-{service_id}-{int(datetime.utcnow().timestamp())}.yml"
     temp_yaml.write_text(content, encoding="utf-8")
+
+    # Always try host path + docker cp so apply works without relying on LOCAL_MODE alone
+    contract = _merged_service_contract(service)
+    host_paths = [str(p) for p in (contract.get("config_files") or []) if p and not str(p).startswith("/app/")]
+    runtime_in_container = str(contract.get("runtime_config_path") or "")
+    wrote_host = False
+    write_log: list[str] = []
+    for hp in host_paths:
+        try:
+            path = Path(hp)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+            wrote_host = True
+            write_log.append(f"wrote_host:{hp}")
+        except Exception as exc:
+            write_log.append(f"host_fail:{hp}:{exc}")
+
+    container = (service.container_name or "").strip()
+    if container:
+        targets = []
+        if runtime_in_container:
+            targets.append(runtime_in_container)
+        for hp in host_paths:
+            targets.append(f"/app/config/{Path(hp).name}")
+        if not targets:
+            targets = ["/app/config/dtrain_config.yaml"]
+        for target in targets:
+            try:
+                # ensure dir exists then docker cp
+                subprocess.run(
+                    ["docker", "exec", container, "mkdir", "-p", str(Path(target).parent)],
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+                proc = subprocess.run(
+                    ["docker", "cp", str(temp_yaml), f"{container}:{target}"],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if proc.returncode == 0:
+                    write_log.append(f"docker_cp:{target}")
+                    if apply_mode in {"restart", "reload"}:
+                        subprocess.run(
+                            ["docker", "restart", container],
+                            capture_output=True,
+                            text=True,
+                            timeout=60,
+                        )
+                        write_log.append(f"restarted:{container}")
+                    break
+                write_log.append(f"docker_cp_fail:{target}:{(proc.stderr or proc.stdout or '')[:120]}")
+            except Exception as exc:
+                write_log.append(f"docker_exc:{exc}")
+
+    # Prefer direct host/docker write when it already succeeded (API shares host docker socket).
+    # Do not mark failure solely because the ansible helper script is unavailable (e.g. no sudo).
+    wrote_ok = any(x.startswith("wrote_host:") or x.startswith("docker_cp:") for x in write_log)
+    if wrote_ok:
+        job = create_job(
+            db,
+            action="apply-config",
+            command=f"direct-config-apply mode={apply_mode} log={';'.join(write_log)}",
+            service_id=service_id,
+            node_id=node_id,
+        )
+        with contextlib.suppress(Exception):
+            cfg = json.loads(service.config_json or "{}")
+            if not isinstance(cfg, dict):
+                cfg = {}
+            cfg["rendered_config_content"] = content
+            service.config_json = json.dumps(cfg)
+            db.add(service)
+            db.commit()
+        record_event(
+            db,
+            category="config",
+            level="info",
+            message=f"Applied configuration change to {service.name} ({apply_mode})",
+            service_id=service_id,
+            node_id=node_id,
+            metadata={"write_log": write_log, "apply_mode": apply_mode, "path": "direct"},
+        )
+        return finish_job(db, job, ok=True, output=";".join(write_log))
 
     if not settings.local_mode:
         script_path = settings.resolve(settings.ansible_dir) / "playbooks" / "service_config_apply.sh"
@@ -857,14 +1004,19 @@ def apply_config(db: Session, service: ServiceInstance, *, content: str, apply_m
             f"--service-name {service.service_key} "
             f"--apply-mode {apply_mode}"
         )
-        job = create_job(db, action="apply-config", command=command, service_id=service.id, node_id=service.node_id)
+        job = create_job(db, action="apply-config", command=command, service_id=service_id, node_id=node_id)
 
         def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
-            bg_service = bg_db.get(ServiceInstance, service.id)
+            bg_service = bg_db.get(ServiceInstance, service_id)
             if bg_service:
                 if ok:
                     with contextlib.suppress(Exception):
-                        bg_service.config_json = json.dumps(yaml.safe_load(content))
+                        cfg = json.loads(bg_service.config_json or "{}")
+                        if not isinstance(cfg, dict):
+                            cfg = {}
+                        cfg["rendered_config_content"] = content
+                        bg_service.config_json = json.dumps(cfg)
+                        bg_db.add(bg_service)
                 record_event(
                     bg_db,
                     category="config",
@@ -872,26 +1024,28 @@ def apply_config(db: Session, service: ServiceInstance, *, content: str, apply_m
                     message=f"Applied configuration change to {bg_service.name} ({apply_mode})"
                     if ok
                     else f"Configuration apply failed for {bg_service.name}",
-                    service_id=bg_service.id,
-                    node_id=bg_service.node_id,
-                    metadata={"job_id": bg_job.id},
+                    service_id=service_id,
+                    node_id=node_id,
+                    metadata={"job_id": bg_job.id, "write_log": write_log},
                 )
 
         return run_job_async(db, job, cwd=settings.project_root, on_complete=on_complete)
 
+    # Fallback when neither direct write nor ansible path applied
     job = create_job(
         db,
         action="apply-config",
-        command="apply-config-blocked-local-mode",
-        service_id=service.id,
-        node_id=service.node_id,
+        command=f"direct-config-apply mode={apply_mode} log={';'.join(write_log)}",
+        service_id=service_id,
+        node_id=node_id,
     )
     return finish_job(
         db,
         job,
         ok=False,
         error=(
-            "Config apply requires a real node target. "
-            "Set PLATFORMOPS_LOCAL_MODE=false and configure SSH/Ansible for the service node."
+            "Config apply could not write host path or docker container. "
+            f"log={';'.join(write_log) or 'empty'}"
         ),
+        output="\n".join(write_log),
     )

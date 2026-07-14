@@ -9,8 +9,8 @@ import yaml
 from .settings import settings
 
 
-def _read_yaml(path: Path) -> dict[str, Any]:
-    resolved = settings.resolve(path)
+def _read_yaml(path: Path | str) -> dict[str, Any]:
+    resolved = path if isinstance(path, Path) and path.is_absolute() else settings.resolve(Path(path))
     if not resolved.exists():
         return {}
     with resolved.open("r", encoding="utf-8") as handle:

@@ -287,40 +287,54 @@ export function createInventoryDeployActions(s: any) {
 
   async executeDeploymentModal() {
     if (!s.deploymentModal.serviceId) {
-      setDeploymentModal((current) => ({ ...current, error: "No service selected for deployment." }));
+      s.setDeploymentModal((current) => ({ ...current, error: "No service selected for deployment." }));
       return;
     }
     const service = s.services.find((item) => item.id === s.deploymentModal.serviceId);
     if (!service) {
-      setDeploymentModal((current) => ({ ...current, error: "Selected service is no longer available." }));
+      s.setDeploymentModal((current) => ({ ...current, error: "Selected service is no longer available." }));
       return;
     }
     s.setDeploymentModal((current) => ({ ...current, executing: true, error: "" }));
     try {
-      const result = await api(`/api/services/${service.id}/deployment/execute`, {
-        method: "POST",
-        body: JSON.stringify({ auto_install_dependencies: s.deploymentModal.autoInstallDependencies })
-      });
-      s.setPlan(result.plan);
+      // Prefer full execute plan; fall back to plain deploy if execute fails
+      let result;
+      try {
+        result = await api(`/api/services/${service.id}/deployment/execute`, {
+          method: "POST",
+          body: JSON.stringify({ auto_install_dependencies: s.deploymentModal.autoInstallDependencies })
+        });
+      } catch (execErr) {
+        const job2 = await api(`/api/services/${service.id}/deploy`, { method: "POST" });
+        result = {
+          summary: `Deploy job #${job2.id}: ${job2.status}`,
+          plan: s.plan,
+          preflight_after: s.deploymentModal.preflight,
+          target_job: job2,
+        };
+      }
+      s.setPlan(result.plan || s.plan);
       s.setDeploymentModal((current) => ({
         ...current,
         executing: false,
-        preflight: result.preflight_after,
+        preflight: result.preflight_after || current.preflight,
         result
       }));
       if (result.target_job) {
         s.setJob(result.target_job);
       }
-      s.setNotice(result.summary);
+      s.setNotice(result.summary || "Deployment started");
       await s.refresh();
       await s.loadNodeJobHistory(service.node_id);
       await s.loadServiceSummary(service.id);
+      await s.refreshNodeLiveStatus?.(service.node_id);
     } catch (error) {
-      setDeploymentModal((current) => ({
+      s.setDeploymentModal((current) => ({
         ...current,
         executing: false,
         error: error.message || "Deployment execution failed."
       }));
+      s.setNotice(error.message || "Deployment execution failed.");
     }
   },
 
@@ -358,7 +372,7 @@ export function createInventoryDeployActions(s: any) {
 
   async openDependencyTarget(serviceKey, mode) {
     if (!s.selectedService) {
-      setNotice("Select a service first.");
+      s.setNotice("Select a service first.");
       return;
     }
     const nodeId = s.selectedService.node_id;
@@ -372,7 +386,7 @@ export function createInventoryDeployActions(s: any) {
       await s.refresh();
     }
     if (!target) {
-      setNotice(`Dependency card ${serviceKey} is not installed on this node.`);
+      s.setNotice(`Dependency card ${serviceKey} is not installed on this node.`);
       return;
     }
     if (mode === "config") {
@@ -395,12 +409,12 @@ export function createInventoryDeployActions(s: any) {
 
   async ensureMissingDependencyCards() {
     if (!s.selectedService || !s.diagnostics?.readiness.dependency_targets) {
-      setNotice("Load diagnostics first to evaluate dependency cards.");
+      s.setNotice("Load diagnostics first to evaluate dependency cards.");
       return;
     }
     const missingTargets = s.diagnostics.readiness.dependency_targets.filter((target) => !target.on_node);
     if (missingTargets.length === 0) {
-      setNotice("All dependency cards are already present on this node.");
+      s.setNotice("All dependency cards are already present on this node.");
       return;
     }
     for (const target of missingTargets) {

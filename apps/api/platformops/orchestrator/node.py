@@ -97,12 +97,10 @@ def validate_node(db: Session, node: Node) -> DeploymentJob:
 
 
 def _is_local_docker_host(node: Node) -> bool:
-    host = (node.host or "").strip().lower()
-    return (
-        settings.local_mode
-        or (node.environment or "").lower() == "local"
-        or host in {"localhost", "127.0.0.1", "0.0.0.0", "", "65.2.63.24"}
-    )
+    """Use connection_mode auto|local|ssh — never hardcode public IPs."""
+    from .discovery import resolve_connection_mode
+
+    return resolve_connection_mode(node) == "local"
 
 
 def _probe_node_ssh_docker(node: Node) -> dict[str, Any]:
@@ -114,6 +112,7 @@ def _probe_node_ssh_docker(node: Node) -> dict[str, Any]:
         "docker_ok": None,
         "detail": "",
         "probed_at": datetime.utcnow().isoformat() + "Z",
+        "connection_mode": "local" if _is_local_docker_host(node) else "ssh",
     }
     if _is_local_docker_host(node):
         # Local: TCP/SSH optional; docker CLI is the real gate for live status
@@ -146,6 +145,27 @@ def _probe_node_ssh_docker(node: Node) -> dict[str, Any]:
         result["ssh_ok"] = False
         result["detail"] = "missing host"
         return result
+    # If PEM not mounted into control plane, fall back to local docker (honest)
+    from pathlib import Path
+
+    if key and not Path(key).is_file():
+        try:
+            proc = subprocess.run(
+                ["docker", "info", "--format", "{{.ServerVersion}}"],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            result["ssh_ok"] = True
+            result["docker_ok"] = proc.returncode == 0
+            result["detail"] = f"ssh key not in control plane; local docker probe: {(proc.stdout or proc.stderr or '').strip()[:160]}"
+            result["connection_mode"] = "local-fallback"
+            return result
+        except Exception as exc:
+            result["ssh_ok"] = False
+            result["docker_ok"] = False
+            result["detail"] = f"ssh key missing and local docker failed: {exc}"
+            return result
     cmd = [
         "ssh",
         "-o",
@@ -168,6 +188,22 @@ def _probe_node_ssh_docker(node: Node) -> dict[str, Any]:
             result["docker_ok"] = False
         result["detail"] = out.strip()[:300]
         if proc.returncode != 0:
+            # Fall back to local docker if SSH auth fails (shared host)
+            try:
+                local = subprocess.run(
+                    ["docker", "info", "--format", "{{.ServerVersion}}"],
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+                if local.returncode == 0:
+                    result["ssh_ok"] = True
+                    result["docker_ok"] = True
+                    result["detail"] = f"ssh failed, local docker ok: {(local.stdout or '').strip()[:80]}"
+                    result["connection_mode"] = "local-fallback"
+                    return result
+            except Exception:
+                pass
             result["ssh_ok"] = False
             result["detail"] = (proc.stderr or proc.stdout or "ssh failed").strip()[:300]
     except FileNotFoundError:
@@ -188,25 +224,37 @@ def cleanup_node_inventory(
     protect_orchestrator: bool = True,
 ) -> dict[str, Any]:
     """
-    Clean noisy / wrong discover adoptions from DB only (does not stop containers).
+    Clean inventory by re-scoring against catalog policy (no name denylists).
 
     modes:
-      - noise: control-plane / cPlatform stack containers (skip markers)
-      - foreign: glitchtip/signoz/cplatform/foreign SERV* names
-      - stale: docker inspect not_found / unknown with no live container
-      - duplicates: keep one best row per service_key (prefer running, lower id)
-      - all: noise+foreign+stale+duplicates
+      - weak: catalog re-score below min_adopt_score for claimed service_key
+      - stale: docker inspect not_found
+      - duplicates: keep best row per service_key when multi_instance is false
+      - all: weak+stale+duplicates
+    Legacy modes noise/foreign map to weak.
     """
-    from .discovery import SKIP_NAME_MARKERS
+    from .discovery import (
+        _catalog_allows_multi_instance,
+        load_discovery_policy,
+        score_container_against_catalog,
+    )
     from .service.impl import _docker_inspect_for_node
+    from ..catalog import get_service_contract
 
     node = db.get(Node, node_id)
     if not node:
         raise ValueError(f"Node not found: {node_id}")
 
     selected = {m.strip().lower() for m in (modes or ["all"]) if m and str(m).strip()}
+    if "noise" in selected or "foreign" in selected:
+        selected.add("weak")
+        selected.discard("noise")
+        selected.discard("foreign")
     if "all" in selected or not selected:
-        selected = {"noise", "foreign", "stale", "duplicates"}
+        selected = {"weak", "stale", "duplicates"}
+
+    policy = load_discovery_policy()
+    min_score = int(policy.get("min_adopt_score", 30))
 
     services = list(
         db.scalars(
@@ -217,34 +265,12 @@ def cleanup_node_inventory(
         ).all()
     )
 
-    # Container-name oriented (do NOT match product image registry iktaraai/*)
-    foreign_name_markers = (
-        "cplatform_",
-        "cplatform-",
-        "signoz",
-        "glitchtip",
-        "serv1025",
-        "serv1029",
-        "serv1003",
-        "serv1004",
-        "serv1026",
-        "serv1028",
-        "serv1031",
-    )
-    # Never treat platform product keys as foreign noise
-    protect_keys = {
-        "ai-orchestrator",
-        "AIOrchestrator",
-        "dtrain-controller",
-        "dtrain-worker",
-        "dtrain-tracker",
-    }
     candidates: dict[int, dict[str, Any]] = {}
 
-    def mark(svc: ServiceInstance, reason: str) -> None:
-        if protect_orchestrator and svc.service_key in protect_keys:
-            return
-        if svc.service_key in protect_keys and reason.startswith("foreign"):
+    def mark(svc: ServiceInstance, reason: str, extra: dict | None = None) -> None:
+        contract = get_service_contract(svc.service_key) or {}
+        meta = contract.get("discovery") if isinstance(contract.get("discovery"), dict) else {}
+        if protect_orchestrator and meta.get("protected"):
             return
         entry = candidates.setdefault(
             svc.id,
@@ -260,28 +286,33 @@ def cleanup_node_inventory(
         )
         if reason not in entry["reasons"]:
             entry["reasons"].append(reason)
+        if extra:
+            entry.update(extra)
 
-    # noise / foreign by container name only (not image registry strings)
-    for svc in services:
-        cname = (svc.container_name or "").lower()
-        sname = (svc.name or "").lower()
-        name_hay = f"{cname} {sname}"
-        if "noise" in selected and any(m in cname for m in SKIP_NAME_MARKERS):
-            mark(svc, "noise")
-        if "foreign" in selected and any(m in name_hay for m in foreign_name_markers):
-            mark(svc, "foreign")
+    if "weak" in selected:
+        for svc in services:
+            score, basis = score_container_against_catalog(
+                svc.container_name or "",
+                svc.image or "",
+                service_key=svc.service_key,
+                networks=[],
+                labels={},
+                node_network=node.docker_network,
+                policy=policy,
+            )
+            key_min = min_score
+            meta = (get_service_contract(svc.service_key) or {}).get("discovery") or {}
+            if isinstance(meta, dict) and meta.get("min_score") is not None:
+                key_min = int(meta["min_score"])
+            if score < key_min:
+                mark(svc, "weak_score", {"score": score, "match_basis": basis, "min_score": key_min})
 
-    # stale via live inspect
     if "stale" in selected:
         for svc in services:
-            if svc.id in candidates:
-                continue
             _inspect, err, _src = _docker_inspect_for_node(node, svc.container_name or "")
-            if err == "not_found" or (svc.status or "").lower() in {"not_found", "unknown"} and err:
-                if err == "not_found":
-                    mark(svc, "stale_not_found")
+            if err == "not_found":
+                mark(svc, "stale_not_found")
 
-    # duplicates: more than one service_key
     if "duplicates" in selected:
         by_key: dict[str, list[ServiceInstance]] = {}
         for svc in services:
@@ -289,10 +320,21 @@ def cleanup_node_inventory(
         for key, group in by_key.items():
             if len(group) <= 1:
                 continue
-            # Prefer running + lowest id as keeper
+            if _catalog_allows_multi_instance(key):
+                continue
+
             def rank(s: ServiceInstance) -> tuple:
+                sc, _ = score_container_against_catalog(
+                    s.container_name or "",
+                    s.image or "",
+                    service_key=s.service_key,
+                    networks=[],
+                    labels={},
+                    node_network=node.docker_network,
+                    policy=policy,
+                )
                 running = 0 if (s.status or "").lower() in {"running", "healthy"} else 1
-                return (running, s.id)
+                return (-sc, running, s.id)
 
             ordered = sorted(group, key=rank)
             for drop in ordered[1:]:
@@ -304,8 +346,6 @@ def cleanup_node_inventory(
             svc = db.get(ServiceInstance, sid)
             if not svc:
                 continue
-            # Inventory-only remove: mark deleted + detach from active lists
-            svc.status = "deleted"
             db.delete(svc)
             removed.append(meta)
             record_event(
@@ -329,9 +369,11 @@ def cleanup_node_inventory(
         "items": removed,
         "summary": (
             f"{'Would remove' if dry_run else 'Removed'} {len(removed)} inventory row(s) "
-            f"on node {node.name} (modes={','.join(sorted(selected))})"
+            f"on node {node.name} (modes={','.join(sorted(selected))}, min_score={min_score})"
         ),
+        "policy": {"min_adopt_score": min_score},
     }
+
 
 
 def get_node_job_history(db: Session, node_id: int, *, limit: int = 12) -> dict[str, Any]:

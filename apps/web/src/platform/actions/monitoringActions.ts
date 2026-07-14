@@ -118,7 +118,7 @@ export function createMonitoringActions(s: any) {
 
   async runAddMonitor(serviceName) {
     if (!s.uptimeForm.name || !s.uptimeForm.url) {
-      setNotice("Name and URL are required to add monitor");
+      s.setNotice("Name and URL are required to add monitor");
       return;
     }
     try {
@@ -136,15 +136,16 @@ export function createMonitoringActions(s: any) {
       });
       const data = await res.json();
       if (data.success) {
-        setNotice("Uptime monitor added successfully");
+        s.setNotice("Uptime monitor added successfully");
         s.setUptimeFormVisible(false);
         s.setUptimeForm({ name: "", monitor_type: "Ping", url: "", interval: 60, expected_status: 200 });
         await s.loadGlitchTipDataForService(serviceName);
       } else {
-        setNotice(`Failed to add monitor: ${data.error}`);
+        s.setNotice(`Failed to add monitor: ${data.error}`);
       }
     } catch (e) {
       console.error("Failed to add monitor:", e);
+      s.setNotice(e?.message || "Failed to add monitor");
     }
   },
 
@@ -169,7 +170,7 @@ export function createMonitoringActions(s: any) {
   },
 
   async runPatchObservability(serviceId, serviceName) {
-    setNotice("Running Sentry Observability Injection Patch...");
+    s.setNotice("Running Sentry Observability Injection Patch...");
     try {
       const res = await fetch("/PlatformIO/Monitoring/PatchObservability/", {
         method: "POST",
@@ -178,13 +179,14 @@ export function createMonitoringActions(s: any) {
       });
       const data = await res.json();
       if (data.success) {
-        setNotice("Sentry SDK injected and container restarted successfully.");
+        s.setNotice("Sentry SDK injected and container restarted successfully.");
         await s.loadGlitchTipDataForService(serviceName);
       } else {
-        setNotice(`Observability patch failed: ${data.error}`);
+        s.setNotice(`Observability patch failed: ${data.error}`);
       }
     } catch (e) {
       console.error("Failed to run observability patch:", e);
+      s.setNotice(e?.message || "Observability patch failed");
     }
   },
 

@@ -89,11 +89,11 @@ export function createInventoryLoadActions(s: any) {
 
   async runOnboardingRemediation(action) {
     if (!s.selectedNode) {
-      setNotice("Select a node first.");
+      s.setNotice("Select a node first.");
       return;
     }
     try {
-      setOnboardingActionBusy(action);
+      s.setOnboardingActionBusy(action);
       const result = await api(`/api/nodes/${s.selectedNode.id}/onboarding-remediate`, {
         method: "POST",
         body: JSON.stringify({ action })
@@ -116,9 +116,9 @@ export function createInventoryLoadActions(s: any) {
         await s.loadNodeJobHistory(s.selectedNode.id);
       }
     } catch (error) {
-      setNotice(`Onboarding remediation failed: ${error.message}`);
+      s.setNotice(`Onboarding remediation failed: ${error.message}`);
     } finally {
-      setOnboardingActionBusy("");
+      s.setOnboardingActionBusy("");
     }
   },
 
@@ -189,14 +189,14 @@ export function createInventoryLoadActions(s: any) {
 
   async launchNodeVm(nodeId) {
     try {
-      setNotice(`Launching VM for node ${nodeId}\u2026`);
+      s.setNotice(`Launching VM for node ${nodeId}\u2026`);
       const job2 = await api(`/api/nodes/${nodeId}/launch-vm`, { method: "POST" });
       s.setJob(job2);
       s.setNotice(`Launch VM job #${job2.id}: ${job2.status}${job2.error ? ` \u2014 ${job2.error}` : ""}`);
       await s.refresh();
       await s.loadNodeJobHistory(nodeId);
     } catch (e) {
-      setNotice(e?.message || "Launch VM failed");
+      s.setNotice(e?.message || "Launch VM failed");
     }
   },
 

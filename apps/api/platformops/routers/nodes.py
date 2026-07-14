@@ -98,7 +98,11 @@ def create_node(payload: NodeCreate, db: Session = Depends(get_db)) -> Node:
     node_data = payload.model_dump(exclude={"ssh_private_key", "facts"})
     if not node_data.get("docker_network"):
         node_data["docker_network"] = "platformops_prod_network"
-    node_data["facts_json"] = _facts_json_from_payload(payload.facts)
+    facts = dict(payload.facts or {})
+    # connection_mode: auto|local|ssh (stored in facts; no hardcoded hosts)
+    if "connection_mode" not in facts:
+        facts["connection_mode"] = "auto"
+    node_data["facts_json"] = _facts_json_from_payload(facts)
     if not node_data.get("status"):
         node_data["status"] = "unknown"
     node = Node(**node_data)

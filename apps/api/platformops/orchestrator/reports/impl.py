@@ -1063,13 +1063,29 @@ def get_service_capabilities(db: Session, service_id: int) -> dict[str, Any]:
     service = db.get(ServiceInstance, service_id)
     if not service:
         raise ValueError(f"Service instance not found: {service_id}")
-    contract = json.loads(service.config_json or "{}")
-    is_infra = service.kind == "infrastructure"
-    log_paths = contract.get("log_paths", [])
+    instance_contract = json.loads(service.config_json or "{}")
+    if not isinstance(instance_contract, dict):
+        instance_contract = {}
+    # Merge catalog so adopted services inherit config_files / log_paths
+    try:
+        catalog_contract = get_service_contract(service.service_key) or {}
+    except Exception:
+        catalog_contract = {}
+    if not isinstance(catalog_contract, dict):
+        catalog_contract = {}
+    contract = {**catalog_contract, **instance_contract}
+    # Prefer non-empty lists from either side for capability checks
+    config_files = instance_contract.get("config_files") or catalog_contract.get("config_files") or []
+    log_paths = instance_contract.get("log_paths") or catalog_contract.get("log_paths") or []
+    environment = instance_contract.get("environment") or catalog_contract.get("environment")
+    command = instance_contract.get("command") or catalog_contract.get("command")
+    runtime_config_path = instance_contract.get("runtime_config_path") or catalog_contract.get("runtime_config_path")
+    is_infra = service.kind == "infrastructure" or str(contract.get("kind") or "") == "infrastructure"
     diagnostics = is_infra or len(log_paths) > 0
-    config = bool(contract.get("config_files") or contract.get("environment") or contract.get("command"))
-    backup = "backup" in contract
-    requires_sudo = is_infra and any(tag in contract.get("tags", []) for tag in ["infra", "stateful", "database"])
+    config = bool(config_files or environment or command or runtime_config_path)
+    backup = "backup" in contract or bool(contract.get("backup_enabled"))
+    tags = contract.get("tags") or []
+    requires_sudo = is_infra and any(tag in tags for tag in ["infra", "stateful", "database"])
     return {
         "service_id": service.id,
         "service_key": service.service_key,

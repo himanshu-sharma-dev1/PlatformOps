@@ -1,6 +1,10 @@
 services:
 
   ai-orchestrator:
+    discovery:
+      hints: [ai-orchestrator]
+      multi_instance: false
+      protected: true
     display_name: AIOrchestrator
     kind: app
     image: ""
@@ -17,6 +21,9 @@ services:
     notes: "cPlatform AIOrchestrator parity — MANUAL register by default; protect delete while siblings exist."
 
   postgres-core:
+    discovery:
+      hints: [postgres, postgresql]
+      multi_instance: true
     display_name: PostgreSQL Core
     kind: infrastructure
     image: postgres:16-alpine
@@ -42,6 +49,9 @@ services:
     tags: [database, infra, stateful]
 
   redis-core:
+    discovery:
+      hints: [redis]
+      multi_instance: true
     display_name: Redis Core
     kind: infrastructure
     image: redis:7-alpine
@@ -65,6 +75,9 @@ services:
     tags: [cache, broker, infra, stateful]
 
   rabbitmq-core:
+    discovery:
+      hints: [rabbitmq]
+      multi_instance: true
     display_name: RabbitMQ Core
     kind: infrastructure
     image: rabbitmq:3.13-management-alpine
@@ -90,6 +103,9 @@ services:
     tags: [broker, infra, stateful]
 
   clickhouse-core:
+    discovery:
+      hints: [clickhouse]
+      multi_instance: true
     display_name: ClickHouse Core
     kind: infrastructure
     image: clickhouse/clickhouse-server:24.8
@@ -200,6 +216,9 @@ services:
     tags: [vector-db, infra, stateful]
 
   prometheus-core:
+    discovery:
+      hints: [prometheus]
+      multi_instance: false
     display_name: Prometheus Core
     kind: infrastructure
     image: prom/prometheus:v2.55.1
@@ -219,6 +238,9 @@ services:
     tags: [metrics, infra]
 
   loki-core:
+    discovery:
+      hints: [loki]
+      multi_instance: false
     display_name: Loki Core
     kind: infrastructure
     image: grafana/loki:2.9.8
@@ -238,6 +260,9 @@ services:
     tags: [logs, infra]
 
   alloy-core:
+    discovery:
+      hints: [alloy]
+      multi_instance: false
     display_name: Alloy Collector Core
     kind: infrastructure
     image: grafana/alloy:v1.7.1
@@ -258,6 +283,9 @@ services:
     tags: [logs, telemetry, infra]
 
   node-exporter:
+    discovery:
+      hints: [node-exporter, node_exporter]
+      multi_instance: true
     display_name: Node Exporter
     kind: infrastructure
     image: prom/node-exporter:v1.8.2
@@ -277,6 +305,9 @@ services:
     tags: [metrics, host, infra]
 
   dcgm-exporter:
+    discovery:
+      hints: [dcgm, dcgm-exporter]
+      multi_instance: true
     display_name: DCGM GPU Exporter
     kind: infrastructure
     image: nvcr.io/nvidia/k8s/dcgm-exporter:3.3.8-3.6.0-ubuntu22.04
@@ -688,6 +719,9 @@ services:
     tags: [analytics, demo, app]
 
   dtrain-controller:
+    discovery:
+      hints: [dtrain, dtrain-controller, trainingserver]
+      multi_instance: false
     display_name: DTrain Controller
     kind: app
     image: platformops/dtrain-controller:local
@@ -699,12 +733,17 @@ services:
       - "{volume_root}/dtrain/controller/config:/app/config"
       - "{volume_root}/dtrain/artifacts:/app/artifacts"
     config_files:
-      - "{volume_root}/dtrain/controller/config/dtrain.yaml"
+      - "{volume_root}/dtrain/controller/config/dtrain_config.yaml"
+    # In-container path (volume mount target)
+    runtime_config_path: "/app/config/dtrain_config.yaml"
     log_paths:
       - "{volume_root}/dtrain/controller/logs"
     tags: [ai, mlops, distributed-training, app]
 
   dtrain-worker:
+    discovery:
+      hints: [dtrain-worker]
+      multi_instance: true
     display_name: DTrain Worker
     kind: helper
     image: platformops/dtrain-worker:local
@@ -722,6 +761,9 @@ services:
     tags: [ai, mlops, distributed-training, helper]
 
   dtrain-tracker:
+    discovery:
+      hints: [dtrain-tracker, mlflow]
+      multi_instance: false
     display_name: DTrain Experiment Tracker
     kind: infrastructure
     image: ghcr.io/mlflow/mlflow:v2.16.2

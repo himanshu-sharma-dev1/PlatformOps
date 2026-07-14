@@ -730,10 +730,37 @@ def apply_config_direct_endpoint(service_id: int, payload: ConfigApply, db: Sess
             content=payload.content,
             apply_mode=payload.apply_mode,
         )
+        job = result["job"]
+        before = result["before_snapshot"]
+        after = result["after_snapshot"]
         return {
-            "job": result["job"],
-            "before_snapshot": result["before_snapshot"],
-            "after_snapshot": result["after_snapshot"],
+            "job": {
+                "id": job.id,
+                "service_id": job.service_id,
+                "node_id": job.node_id,
+                "action": job.action,
+                "status": job.status,
+                "command": job.command,
+                "output": job.output or "",
+                "error": job.error or "",
+                "created_at": job.created_at.isoformat() if job.created_at else None,
+                "started_at": job.started_at.isoformat() if job.started_at else None,
+                "ended_at": job.ended_at.isoformat() if job.ended_at else None,
+            },
+            "before_snapshot": {
+                "id": before.id,
+                "service_id": before.service_id,
+                "version": before.version,
+                "name": before.name,
+                "source": before.source,
+            },
+            "after_snapshot": {
+                "id": after.id,
+                "service_id": after.service_id,
+                "version": after.version,
+                "name": after.name,
+                "source": after.source,
+            },
         }
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

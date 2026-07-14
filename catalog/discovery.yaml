@@ -1,0 +1,26 @@
+# Discovery policy — no host-specific container name denylists.
+# Adopt only by catalog scoring; optional network affinity uses the *node's*
+# configured docker_network (not a global ban of "cplatform_*" names).
+
+discovery:
+  # Minimum score to adopt a running container as a catalog service.
+  min_adopt_score: 30
+  # If top two catalog matches differ by less than this, treat as ambiguous (skip).
+  ambiguity_margin: 8
+  # Network affinity is optional only (no exclusion of cPlatform or other nets).
+  prefer_node_network: false
+  node_network_score_boost: 0
+  off_network_score_penalty: 0
+  # Optional: only adopt when catalog image family shares a token with the container image.
+  require_image_family_match: false
+  # Optional label filters (all must match when non-empty). Empty = no label filter.
+  require_labels: {}
+  # Optional: skip containers whose labels match any of these (policy, not name banlist).
+  # Example: { "com.docker.compose.project": "foreign-stack" }
+  exclude_label_equals: {}
+
+# Per-service discovery hints live on catalog cards (services.yaml) under:
+#   discovery:
+#     hints: [token, ...]
+#     multi_instance: false
+#     min_score: 35   # optional override

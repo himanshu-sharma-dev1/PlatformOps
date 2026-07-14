@@ -11,8 +11,11 @@ class Settings(BaseSettings):
     service_catalog_path: Path = Path("catalog/services.yaml")
     dependency_catalog_path: Path = Path("catalog/dependencies.yaml")
     observability_catalog_path: Path = Path("catalog/observability.yaml")
+    discovery_catalog_path: Path = Path("catalog/discovery.yaml")
+    # auto | local | ssh — node facts connection_mode overrides when set
+    default_connection_mode: str = "auto"
     local_mode: bool = True
-    glitchtip_base_url: str = "http://65.2.63.24:9008"
+    glitchtip_base_url: str = "http://127.0.0.1:9008"
     glitchtip_token: str = ""  # set PLATFORMOPS_GLITCHTIP_TOKEN in env
     glitchtip_org_slug: str = "iktara"
     glitchtip_project_map: dict = {
