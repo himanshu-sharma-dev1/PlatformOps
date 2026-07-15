@@ -1,23 +1,50 @@
 // @ts-nocheck
 import { api, getAuthToken, setAuthToken } from "../../api/client";
+import {
+  withPending,
+  shouldShowDependencyBlocker,
+  buildDependencyBlockerState,
+} from "../ux/clusterUx";
+
+function raiseDependencyBlocker(s, details, fallbackMessage) {
+  const blocker = buildDependencyBlockerState(details, fallbackMessage);
+  const keys = blocker.items.map((i) => i.service_key).filter(Boolean);
+  s.setActionBlocker?.({
+    ...blocker,
+    missingServiceKeys: keys,
+  });
+  s.showToast?.(fallbackMessage, "err") || s.setNotice(fallbackMessage);
+}
+
 export function createInventoryDeployActions(s: any) {
   return {
   async installCard(card) {
     const node = s.selectedNode || s.nodes[0];
     if (!node) {
+      s.setActionBlocker?.({
+        visible: true,
+        title: "Action blocked",
+        message: "Register a node on a cluster before continuing.",
+        secondaryLabel: "Open provision",
+        secondaryAction: "provision",
+        primaryLabel: "Dismiss",
+      });
       s.setNotice("Register a node on a cluster before continuing.");
       return;
     }
-    const service = await api("/api/services", {
-      method: "POST",
-      body: JSON.stringify({ node_id: node.id, service_key: card.service_key })
+    return withPending(`install-card:${card.service_key}:${node.id}`, async () => {
+      const service = await api("/api/services", {
+        method: "POST",
+        body: JSON.stringify({ node_id: node.id, service_key: card.service_key })
+      });
+      s.setSelectedService(service);
+      await s.loadServiceCapabilities(service.id);
+      await s.loadServiceSummary(service.id);
+      await s.loadServiceReleaseTimeline(service.id);
+      s.setNotice(`Added ${service.name} to ${node.name}`);
+      await (s.refreshClusterInventory || s.refresh)();
+      return service;
     });
-    s.setSelectedService(service);
-    await s.loadServiceCapabilities(service.id);
-    await s.loadServiceSummary(service.id);
-    await s.loadServiceReleaseTimeline(service.id);
-    s.setNotice(`Added ${service.name} to ${node.name}`);
-    await s.refresh();
   },
 
   assignContractValue(target, key, value) {
@@ -304,9 +331,11 @@ export function createInventoryDeployActions(s: any) {
     if (!service) {
       s.setActionBlocker?.({
         visible: true,
+        title: "Action blocked",
         message: "Select a service or open the catalog to install one first.",
         secondaryLabel: "Open catalog",
         secondaryAction: "catalog",
+        primaryLabel: "Dismiss",
       });
       return;
     }
@@ -314,49 +343,62 @@ export function createInventoryDeployActions(s: any) {
     if (!node) {
       s.setActionBlocker?.({
         visible: true,
+        title: "Action blocked",
         message: "Provision a node before deploying services.",
         secondaryLabel: "Open provision",
         secondaryAction: "provision",
+        primaryLabel: "Dismiss",
       });
       return;
     }
-    s.setSelectedService(service);
-    s.setActionBusy?.((b) => ({ ...b, deploy: true }));
-    s.setDeploymentModal({
-      visible: true,
-      serviceId: service.id,
-      serviceName: service.name,
-      nodeName: node?.name ?? `node-${service.node_id}`,
-      preflight: null,
-      autoInstallDependencies: true,
-      loading: true,
-      executing: false,
-      error: "",
-      result: null
+    // cP withPending: coalesce double-clicks on deploy icon
+    return withPending(`open-deploy:${service.id}`, async () => {
+      s.setSelectedService(service);
+      s.setActionBusy?.((b) => ({ ...b, deploy: true }));
+      s.setDeploymentModal({
+        visible: true,
+        serviceId: service.id,
+        serviceName: service.name,
+        nodeName: node?.name ?? `node-${service.node_id}`,
+        preflight: null,
+        autoInstallDependencies: true,
+        loading: true,
+        executing: false,
+        error: "",
+        result: null
+      });
+      try {
+        const [nextPlan, preflight] = await Promise.all([
+          api(`/api/nodes/${service.node_id}/deployment-plan/${service.service_key}`),
+          api(`/api/services/${service.id}/preflight`, { method: "POST" })
+        ]);
+        s.setPlan(nextPlan);
+        // cP edge: surface missing deps from preflight as action blocker (modal still opens)
+        if (shouldShowDependencyBlocker(preflight) || shouldShowDependencyBlocker(preflight?.details)) {
+          raiseDependencyBlocker(
+            s,
+            preflight?.details || preflight,
+            preflight?.message || preflight?.summary || "Deploy blocked: missing dependencies"
+          );
+        }
+        s.setDeploymentModal((current) => ({
+          ...current,
+          loading: false,
+          preflight
+        }));
+      } catch (error) {
+        if (shouldShowDependencyBlocker(error) || shouldShowDependencyBlocker(error?.details)) {
+          raiseDependencyBlocker(s, error?.details || error, error.message || "Deploy blocked");
+        }
+        s.setDeploymentModal((current) => ({
+          ...current,
+          loading: false,
+          error: error.message || "Failed to open deployment control."
+        }));
+      } finally {
+        s.setActionBusy?.((b) => ({ ...b, deploy: false }));
+      }
     });
-    try {
-      const [nextPlan, preflight] = await Promise.all([
-        api(`/api/nodes/${service.node_id}/deployment-plan/${service.service_key}`),
-        api(
-          `/api/services/${service.id}/preflight`,
-          { method: "POST" }
-        )
-      ]);
-      s.setPlan(nextPlan);
-      s.setDeploymentModal((current) => ({
-        ...current,
-        loading: false,
-        preflight
-      }));
-      s.setActionBusy?.((b) => ({ ...b, deploy: false }));
-    } catch (error) {
-      s.setActionBusy?.((b) => ({ ...b, deploy: false }));
-      s.setDeploymentModal((current) => ({
-        ...current,
-        loading: false,
-        error: error.message || "Failed to open deployment control."
-      }));
-    }
   },
 
   async executeDeploymentModal() {
@@ -369,52 +411,71 @@ export function createInventoryDeployActions(s: any) {
       s.setDeploymentModal((current) => ({ ...current, error: "Selected service is no longer available." }));
       return;
     }
-    s.setActionBusy?.((b) => ({ ...b, deploy: true }));
-    s.setDeploymentModal((current) => ({ ...current, executing: true, error: "" }));
-    try {
-      // Prefer full execute plan; fall back to plain deploy if execute fails
-      let result;
+    return withPending(`deploy-service:${service.id}`, async () => {
+      s.setActionBusy?.((b) => ({ ...b, deploy: true }));
+      s.setDeploymentModal((current) => ({ ...current, executing: true, error: "" }));
       try {
-        result = await api(`/api/services/${service.id}/deployment/execute`, {
-          method: "POST",
-          body: JSON.stringify({ auto_install_dependencies: s.deploymentModal.autoInstallDependencies })
-        });
-      } catch (execErr) {
-        const job2 = await api(`/api/services/${service.id}/deploy`, { method: "POST" });
-        result = {
-          summary: `Deploy job #${job2.id}: ${job2.status}`,
-          plan: s.plan,
-          preflight_after: s.deploymentModal.preflight,
-          target_job: job2,
-        };
+        // Prefer full execute plan; fall back to plain deploy if execute fails
+        let result;
+        try {
+          result = await api(`/api/services/${service.id}/deployment/execute`, {
+            method: "POST",
+            body: JSON.stringify({ auto_install_dependencies: s.deploymentModal.autoInstallDependencies })
+          });
+        } catch (execErr) {
+          if (shouldShowDependencyBlocker(execErr) || shouldShowDependencyBlocker(execErr?.details)) {
+            raiseDependencyBlocker(s, execErr?.details || execErr, execErr.message || "Deploy blocked");
+            throw execErr;
+          }
+          const job2 = await api(`/api/services/${service.id}/deploy`, { method: "POST" });
+          result = {
+            summary: `Deploy job #${job2.id}: ${job2.status}`,
+            plan: s.plan,
+            preflight_after: s.deploymentModal.preflight,
+            target_job: job2,
+          };
+        }
+        if (shouldShowDependencyBlocker(result) || shouldShowDependencyBlocker(result?.details)) {
+          raiseDependencyBlocker(s, result?.details || result, result?.summary || "Deploy blocked");
+          s.setDeploymentModal((current) => ({
+            ...current,
+            executing: false,
+            error: result?.summary || "Deploy blocked: missing dependencies",
+            result,
+          }));
+          return;
+        }
+        s.setPlan(result.plan || s.plan);
+        s.setDeploymentModal((current) => ({
+          ...current,
+          executing: false,
+          preflight: result.preflight_after || current.preflight,
+          result
+        }));
+        if (result.target_job) {
+          s.setJob(result.target_job);
+        }
+        s.showToast?.(result.summary || "Deployment started", "ok") || s.setNotice(result.summary || "Deployment started");
+        await (s.refreshClusterInventory || s.refresh)();
+        await s.loadNodeJobHistory(service.node_id);
+        await s.loadServiceSummary(service.id);
+        await s.refreshNodeLiveStatus?.(service.node_id);
+        s.setEventsRefreshKey?.((k) => Number(k || 0) + 1);
+      } catch (error) {
+        if (shouldShowDependencyBlocker(error) || shouldShowDependencyBlocker(error?.details)) {
+          raiseDependencyBlocker(s, error?.details || error, error.message || "Deploy blocked");
+        }
+        s.showToast?.(error.message || "Deployment execution failed.", "err");
+        s.setDeploymentModal((current) => ({
+          ...current,
+          executing: false,
+          error: error.message || "Deployment execution failed."
+        }));
+        s.setNotice(error.message || "Deployment execution failed.");
+      } finally {
+        s.setActionBusy?.((b) => ({ ...b, deploy: false }));
       }
-      s.setPlan(result.plan || s.plan);
-      s.setDeploymentModal((current) => ({
-        ...current,
-        executing: false,
-        preflight: result.preflight_after || current.preflight,
-        result
-      }));
-      if (result.target_job) {
-        s.setJob(result.target_job);
-      }
-      s.showToast?.(result.summary || "Deployment started", "ok") || s.setNotice(result.summary || "Deployment started");
-      await s.refresh();
-      await s.loadNodeJobHistory(service.node_id);
-      await s.loadServiceSummary(service.id);
-      await s.refreshNodeLiveStatus?.(service.node_id);
-      s.setEventsRefreshKey?.((k) => Number(k || 0) + 1);
-    } catch (error) {
-      s.showToast?.(error.message || "Deployment execution failed.", "err");
-      s.setDeploymentModal((current) => ({
-        ...current,
-        executing: false,
-        error: error.message || "Deployment execution failed."
-      }));
-      s.setNotice(error.message || "Deployment execution failed.");
-    } finally {
-      s.setActionBusy?.((b) => ({ ...b, deploy: false }));
-    }
+    });
   },
 
   async installMissingDependencies(service) {

@@ -10,6 +10,10 @@ import {
   LAUNCH_STUB_MESSAGE,
   busyClassName,
   buttonLoadingClass,
+  canSelectNode,
+  nodeRowStatusClass,
+  getStateTone,
+  serviceExposeLabel,
 } from "../platform/ux/clusterUx";
 import { ClusterEventsPanel } from "../components/ClusterEventsPanel";
 
@@ -131,6 +135,7 @@ export function ClustersView() {
   const nodeMetrics = p.nodeMetrics as any;
   const nodeJobHistory = p.nodeJobHistory as any;
   const events = (p.events || []) as any[];
+  const observabilityPipeline = p.observabilityPipeline as any;
 
   const servicePortsLabel = p.servicePortsLabel as (...a: any[]) => string;
   const formatLocalTimestamp = p.formatLocalTimestamp as (...a: any[]) => string;
@@ -152,6 +157,8 @@ export function ClustersView() {
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [probeBusy, setProbeBusy] = React.useState(false);
   const [liveSshBusy, setLiveSshBusy] = React.useState(false);
+  /** cP loadNodeWorkspace loading shell while node detail hydrates */
+  const [workspaceLoading, setWorkspaceLoading] = React.useState(false);
   const actionBusy = (p.actionBusy || {}) as Record<string, boolean>;
   const setActionBlocker = p.setActionBlocker as (...a: any[]) => void;
   const eventsRefreshKey = Number(p.eventsRefreshKey || 0);
@@ -274,23 +281,57 @@ export function ClustersView() {
     return true;
   }, [nodes, selectedNode, setActionBlocker]);
 
-  // After discover/deploy/delete mutations, re-fetch scoped events if Events UI is open.
+  // cP edge: auto-load node events when Events tab opens for a node not yet loaded.
+  React.useEffect(() => {
+    if (detailTab !== "events" || !selectedNode?.id) return;
+    if (nodeEventsStarted) return;
+    let cancelled = false;
+    (async () => {
+      setNodeEventsBusy(true);
+      setNodeEventsStarted(true);
+      try {
+        const evts = await loadScopedEvents?.({ node_id: selectedNode.id, limit: 60 });
+        if (!cancelled) setNodeEvents(Array.isArray(evts) ? evts : []);
+      } catch {
+        if (!cancelled) setNodeEvents([]);
+      } finally {
+        if (!cancelled) setNodeEventsBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [detailTab, selectedNode?.id, nodeEventsStarted, loadScopedEvents]);
+
+  // Mutation tick: refresh in-page node events if Events tab is open.
+  React.useEffect(() => {
+    if (!eventsRefreshKey || detailTab !== "events" || !selectedNode?.id) return;
+    let cancelled = false;
+    (async () => {
+      setNodeEventsBusy(true);
+      try {
+        const evts = await loadScopedEvents?.({ node_id: selectedNode.id, limit: 60 });
+        if (!cancelled) {
+          setNodeEvents(Array.isArray(evts) ? evts : []);
+          setNodeEventsStarted(true);
+        }
+      } catch {
+        if (!cancelled) setNodeEvents([]);
+      } finally {
+        if (!cancelled) setNodeEventsBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventsRefreshKey]);
+
+  // After discover/deploy/delete mutations, re-fetch scoped events if Events drawers are open.
   React.useEffect(() => {
     if (!eventsRefreshKey) return;
     let cancelled = false;
     (async () => {
-      if (detailTab === "events" && selectedNode?.id) {
-        setNodeEventsBusy(true);
-        setNodeEventsStarted(true);
-        try {
-          const evts = await loadScopedEvents?.({ node_id: selectedNode.id, limit: 60 });
-          if (!cancelled) setNodeEvents(Array.isArray(evts) ? evts : []);
-        } catch {
-          if (!cancelled) setNodeEvents([]);
-        } finally {
-          if (!cancelled) setNodeEventsBusy(false);
-        }
-      }
       if (serviceDrawer.visible && serviceDrawer.tab === "events" && serviceDrawer.service?.id) {
         setServiceDrawer((d) => ({ ...d, busy: true }));
         try {
@@ -452,6 +493,10 @@ export function ClustersView() {
     const clusterNodes = nodes.filter((n) => n.cluster_id === selectedCluster.id);
     const clusterServices = services.filter((s) => clusterNodes.some((n) => n.id === s.node_id));
     const activeNode = selectedNode && clusterNodes.some((n) => n.id === selectedNode.id) ? selectedNode : null;
+    const pipelineNodes = (observabilityPipeline?.nodes ?? []).filter((n: any) =>
+      clusterNodes.some((cn) => cn.id === n.node_id)
+    );
+    const pipelineHealthy = pipelineNodes.filter((n: any) => n.pipeline_ready).length;
     const nodeServices = activeNode ? services.filter((s) => s.node_id === activeNode.id) : [];
     const runningCount = clusterServices.filter((s) => ["running", "healthy"].includes((s.status || "").toLowerCase())).length;
     const unhealthyCount = clusterServices.filter((s) => ["error", "failed", "unhealthy"].includes((s.status || "").toLowerCase())).length;
@@ -511,9 +556,24 @@ export function ClustersView() {
           </div>
         </div>
 
-        {/* cPlatform cluster detail has no separate Observability-stack band here — detangled */}
+        {/* Observability plane summary for this cluster (cluster core API — not Topology/Policy/SRE) */}
+        <GlassCard style={{ padding: "0.85rem 1.1rem", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: "0.7rem", letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--ink-4)", fontWeight: 600 }}>Observability</div>
+            <div style={{ marginTop: 4, color: "var(--ink-2)", fontSize: "0.9rem" }}>
+              {clusterNodes.length === 0
+                ? "No nodes in this cluster"
+                : observabilityPipeline
+                  ? `${pipelineHealthy}/${pipelineNodes.length} pipeline-ready on this cluster`
+                  : "Loading pipeline…"}
+            </div>
+          </div>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setActiveView("observability")}>
+            Manage stack
+          </button>
+        </GlassCard>
 
-        <div className="cluster-split">
+        <div className={`cluster-split ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
           <div className="node-list-wrap">
             <div className="node-list-head">
               <h3>Nodes</h3>
@@ -533,23 +593,29 @@ export function ClustersView() {
                   const liveRunning = isSelected && nodeLiveStatus?.node_id === node.id
                     ? nodeLiveStatus.running_count
                     : nodeSvcs.filter((s) => ["running", "healthy"].includes((s.status || "").toLowerCase())).length;
-                  const nstat = ["healthy", "running"].includes((node.status || "").toLowerCase())
-                    ? "ready"
-                    : (node.status || "").toLowerCase() === "unreachable"
-                      ? "unreachable"
-                      : (node.status || "unknown");
+                  const nstat = nodeRowStatusClass(node.status);
                   return (
-                    <div key={node.id} className={`node-row ${isSelected ? "active" : ""}`} onClick={() => {
-                      const isUnreachable = (node.status || "").toLowerCase() === "unreachable";
-                      if (isUnreachable) {
-                        p.setNotice(`Node ${node.name} is unreachable. Probe or check connection settings.`);
+                    <div
+                      key={node.id}
+                      className={`node-row ${isSelected ? "active" : ""} ${nstat === "unreachable" ? "is-unreachable" : ""}`}
+                      data-node-id={node.id}
+                      onClick={() => {
+                      // cP edge: unreachable nodes show toast and do not load workspace
+                      const gate = canSelectNode(node);
+                      if (!gate.ok) {
+                        p.showToast?.(gate.notice, "err") || p.setNotice(gate.notice);
                         return;
                       }
+                      // cP: close open detail drawers when switching nodes
+                      setServiceDrawer((d) => ({ ...d, visible: false, service: null }));
+                      setNodeDrawer((d) => ({ ...d, visible: false, node: null }));
                       setDetailTab("overview");
                       setNodeEvents([]);
-                      selectNode(node);
+                      setNodeEventsStarted(false);
+                      setWorkspaceLoading(true);
+                      Promise.resolve(selectNode(node)).finally(() => setWorkspaceLoading(false));
                     }}>
-                      <div className={`nstat ${nstat}`}></div>
+                      <div className={`nstat ${nstat}`} title={String(node.status || "unknown")}></div>
                       <div className="info">
                         <div className="nm">{node.name}</div>
                         <div className="sub"><span className="cloud">{node.environment.toUpperCase()}</span>{node.host}</div>
@@ -852,30 +918,37 @@ export function ClustersView() {
                     <button className="btn btn-primary btn-sm" onClick={() => setCatalogDrawerVisible(true)}>Add service</button>
                   </div>
                 </div>
-                <div className="service-stack">
+                {workspaceLoading ? (
+                  <div className="detail-loading-shell is-loading" data-ux="workspace-loading-shell" style={{ marginBottom: "0.75rem" }}>
+                    <span className="pulse-dot" /> Loading node services…
+                  </div>
+                ) : null}
+                <div className={`service-stack ${workspaceLoading ? "is-busy" : ""}`}>
                   {nodeServices.map((service) => {
                     const live = serviceLiveById[service.id] || serviceLiveById[String(service.id)];
                     const installing = isServiceInstalling(service, job);
                     const displayStatus = installing
                       ? "installing"
                       : (live?.overall_status || service.status || "unknown").toLowerCase();
-                    const pillClass = ["healthy", "running"].includes(displayStatus)
-                      ? "pill-ok"
-                      : ["error", "failed", "unhealthy", "exited", "dead", "not_found"].includes(displayStatus)
-                        ? "pill-error"
-                        : displayStatus === "patching"
-                          ? "pill-info"
-                          : "pill-warn";
+                    const tone = getStateTone(displayStatus);
+                    const pillClass =
+                      tone === "ok" ? "pill-ok" : tone === "err" ? "pill-error" : tone === "warn" ? "pill-warn" : "pill-muted";
+                    const expose = serviceExposeLabel(service);
+                    const portsLabel = servicePortsLabel?.(service);
+                    const portDisplay =
+                      portsLabel && portsLabel !== "—" ? portsLabel : expose.portText;
                     return (
                     <div
                       key={service.id}
-                      className={`svc-card ${displayStatus}${installing ? " installing" : ""}`}
+                      className={`svc-card ${displayStatus}${installing ? " installing" : ""}${tone === "err" ? " failed" : ""}`}
                       style={{ cursor: "pointer" }}
                       onClick={() => openServiceDrawer(service, "overview")}
                       role="button"
                       tabIndex={0}
                       onKeyDown={(e) => { if (e.key === "Enter") openServiceDrawer(service, "overview"); }}
                       data-installing={installing ? "true" : "false"}
+                      data-service-id={service.id}
+                      data-busy={installing || actionBusy.deploy ? "true" : "false"}
                     >
                       <div className="svc-icon"><ServiceIcon serviceKey={service.service_key} /></div>
                       <div className="svc-info">
@@ -893,9 +966,10 @@ export function ClustersView() {
                           {service.container_name ? <> · docker <code>{service.container_name}</code></> : null}
                           {" · "}image <code>{service.image || live?.image || "—"}</code>
                           {live?.restart_count != null ? <> · restarts {live.restart_count}</> : null}
+                          {" · "}{expose.uptimeText}
                         </div>
                       </div>
-                      <div className="svc-ports"><span className="port">{servicePortsLabel(service)}</span></div>
+                      <div className="svc-ports" title={expose.uptimeText}><span className="port">{portDisplay}</span></div>
                       <div className="svc-status">
                         <span
                           className={`pill ${pillClass}`}
@@ -905,8 +979,8 @@ export function ClustersView() {
                               : `Inventory status: ${service.status || "unknown"}`
                           }
                         >
-                          {displayStatus}
-                          {live ? "" : " · inv"}
+                          {installing ? "DEPLOYING" : displayStatus}
+                          {live || installing ? "" : " · inv"}
                         </span>
                       </div>
                       <div className="svc-acts" onClick={(e) => e.stopPropagation()}>

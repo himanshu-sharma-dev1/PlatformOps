@@ -818,6 +818,8 @@ svg.ic,
 .node-row .nstat.ready, .node-row .nstat.healthy { background: var(--ok); }
 .node-row .nstat.degraded, .node-row .nstat.warning { background: var(--warn); }
 .node-row .nstat.unreachable, .node-row .nstat.error, .node-row .nstat.failed { background: var(--err); }
+.node-row.is-unreachable { opacity: 0.72; cursor: not-allowed; }
+.node-row.is-unreachable:hover { background: transparent; }
 .node-row .nstat.provisioning {
   background: var(--info);
   animation: pulse 1.6s ease-in-out infinite;

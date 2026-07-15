@@ -47,9 +47,9 @@ export function usePlatformController(): PlatformApi {
       }
     } catch (_error) {
     }
-    // Only load inventory when a session token already exists (avoids 401 spam on login screen)
+    // Cluster inventory bootstrap only (never advanced Topology/Policy/SRE on first paint)
     if (getAuthToken()) {
-      s.refresh().catch((error) => s.setNotice(error.message));
+      (s.refreshClusterInventory || s.refresh)().catch((error) => s.setNotice(error.message));
     }
   }, []);
 
@@ -131,10 +131,11 @@ export function usePlatformController(): PlatformApi {
     if (!hasActiveJobs) return;
     const interval = window.setInterval(() => {
       s.loadNodeJobHistory(s.selectedNode.id).catch(console.error);
-      s.refresh().catch(console.error);
+      // Cluster path only — do not pull Topology/Policy/SRE while jobs run
+      (s.refreshClusterInventory || s.refresh)().catch(console.error);
     }, 2e3);
     return () => window.clearInterval(interval);
-  }, [s.selectedNode, s.nodeJobHistory, s.refresh, s.loadNodeJobHistory]);
+  }, [s.selectedNode, s.nodeJobHistory, s.refreshClusterInventory, s.refresh, s.loadNodeJobHistory]);
 
   useEffect(() => {
     if (!s.job || s.job.status !== "running" && s.job.status !== "queued") return;

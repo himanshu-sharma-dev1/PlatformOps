@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { api, getAuthToken, setAuthToken } from "../../api/client";
+import { withPending } from "../ux/clusterUx";
 export function createInventoryLoadActions(s: any) {
   return {
   async loadServiceCapabilities(serviceId) {
@@ -123,25 +124,28 @@ export function createInventoryLoadActions(s: any) {
   },
 
   async discoverNodeInfra(nodeId) {
-    s.setActionBusy?.((b) => ({ ...b, discover: true }));
-    try {
-      s.setNotice(`Discovering infrastructure on node ${nodeId}\u2026`);
-      const result = await api(`/api/nodes/${nodeId}/discover`, { method: "POST" });
-      const summary =
-        result?.summary ||
-        result?.message ||
-        `Discover: scanned ${result?.containers_scanned ?? "?"} · adopted ${result?.adopted_count ?? 0}`;
-      s.showToast?.(summary, "ok") || s.setNotice(summary);
-      await s.refresh();
-      await s.loadNodeJobHistory(nodeId);
-      await s.refreshNodeLiveStatus(nodeId);
-      // Signal open Events tab/drawers to re-fetch scoped events
-      s.setEventsRefreshKey?.((k) => Number(k || 0) + 1);
-    } catch (e) {
-      s.showToast?.(e?.message || "Discover failed", "err") || s.setNotice(e?.message || "Discover failed");
-    } finally {
-      s.setActionBusy?.((b) => ({ ...b, discover: false }));
-    }
+    // cP withPending + button busy: coalesce double-clicks on Discover
+    return withPending(`discover-node:${nodeId}`, async () => {
+      s.setActionBusy?.((b) => ({ ...b, discover: true }));
+      try {
+        s.setNotice(`Discovering infrastructure on node ${nodeId}\u2026`);
+        const result = await api(`/api/nodes/${nodeId}/discover`, { method: "POST" });
+        const summary =
+          result?.summary ||
+          result?.message ||
+          `Discover: scanned ${result?.containers_scanned ?? "?"} · adopted ${result?.adopted_count ?? 0}`;
+        s.showToast?.(summary, "ok") || s.setNotice(summary);
+        await (s.refreshClusterInventory || s.refresh)();
+        await s.loadNodeJobHistory(nodeId);
+        await s.refreshNodeLiveStatus(nodeId);
+        // Signal open Events tab/drawers to re-fetch scoped events
+        s.setEventsRefreshKey?.((k) => Number(k || 0) + 1);
+      } catch (e) {
+        s.showToast?.(e?.message || "Discover failed", "err") || s.setNotice(e?.message || "Discover failed");
+      } finally {
+        s.setActionBusy?.((b) => ({ ...b, discover: false }));
+      }
+    });
   },
 
   async loadScopedEvents(options = {}) {
@@ -263,73 +267,40 @@ export function createInventoryLoadActions(s: any) {
     return `/api/events?${params.toString()}`;
   },
 
-  async refresh() {
+  /**
+   * Cluster / inventory core only — no Topology/Policy/SRE/Audit bulk APIs.
+   * Used by cluster page, deploy, discover, and auth bootstrap so cluster UX
+   * is not coupled to advanced product modules.
+   */
+  async refreshClusterInventory() {
+    // Cluster core + observability only. Never Topology/Policy/SRE/Audit bulk APIs.
     const [
       catalogNext,
       clustersNext,
       nodesNext,
       servicesNext,
-      topologyNext,
       eventsNext,
-      checksNext,
-      findingsNext,
-      incidentsNext,
-      runbooksNext,
-      slosNext,
       dashboardSummaryNext,
       observabilityNext,
-      capacityNext,
-      secretsNext,
-      maintenanceNext,
-      auditExportsNext,
-      coverageNext,
-      lifecycleAuditNext,
-      forceApprovalsNext,
-      releaseApprovalsNext
     ] = await Promise.all([
       api("/api/catalog/services"),
       api("/api/clusters"),
       api("/api/nodes"),
       api("/api/services"),
-      api("/api/topology"),
-      api(s.buildEventsPath()),
-      api("/api/monitoring/checks"),
-      api("/api/policy/findings"),
-      api("/api/incidents"),
-      api("/api/runbooks/executions"),
-      api("/api/slo/reports"),
-      api("/api/dashboard/summary"),
-      api("/api/observability/pipeline"),
-      api("/api/capacity/reports"),
-      api("/api/secrets"),
-      api("/api/maintenance"),
-      api("/api/audit/exports"),
-      api("/api/capabilities/coverage"),
-      api("/api/lifecycle/audit?hours=72"),
-      api("/api/lifecycle/force-approvals?limit=30"),
-      api("/api/release-approvals?limit=30")
+      api(`/api/events?limit=${String(s.eventLimit || 120)}`),
+      api("/api/dashboard/summary").catch(() => s.dashboardSummary || null),
+      // Observability is part of cluster DevOps surface; soft-fail so inventory still loads
+      api("/api/observability/pipeline").catch(() => s.observabilityPipeline || null),
     ]);
     s.setCatalog(catalogNext);
     s.setClusters(clustersNext);
     s.setNodes(nodesNext);
     s.setServices(servicesNext);
-    s.setTopology(topologyNext);
     s.setEvents(eventsNext);
-    s.setChecks(checksNext);
-    s.setFindings(findingsNext);
-    s.setIncidents(incidentsNext);
-    s.setRunbooks(runbooksNext);
-    s.setSlos(slosNext);
-    s.setDashboardSummary(dashboardSummaryNext);
-    s.setObservabilityPipeline(observabilityNext);
-    s.setCapacity(capacityNext);
-    s.setSecrets(secretsNext);
-    s.setMaintenance(maintenanceNext);
-    s.setAuditExports(auditExportsNext);
-    s.setCoverage(coverageNext);
-    s.setLifecycleAudit(lifecycleAuditNext);
-    s.setForceApprovals(forceApprovalsNext);
-    s.setReleaseApprovals(releaseApprovalsNext);
+    if (dashboardSummaryNext != null) s.setDashboardSummary(dashboardSummaryNext);
+    if (observabilityNext != null) s.setObservabilityPipeline(observabilityNext);
+
+    // Sync selection: drop stale ids only — do not auto-pick first service (cPlatform-like)
     if (s.selectedCluster) {
       const syncedCluster = clustersNext.find((cluster) => cluster.id === s.selectedCluster.id);
       if (syncedCluster) s.setSelectedCluster(syncedCluster);
@@ -338,100 +309,166 @@ export function createInventoryLoadActions(s: any) {
     if (s.selectedNode) {
       const syncedNode = nodesNext.find((node) => node.id === s.selectedNode.id);
       if (syncedNode) s.setSelectedNode(syncedNode);
-      else s.setSelectedNode(null);
+      else {
+        s.setSelectedNode(null);
+        s.setNodeConnection?.(null);
+        s.setNodeMetrics?.(null);
+        s.setNodeOnboarding?.(null);
+      }
     }
     if (s.selectedService) {
       const syncedService = servicesNext.find((service) => service.id === s.selectedService.id);
       if (syncedService) s.setSelectedService(syncedService);
       else {
         s.setSelectedService(null);
-        s.setServiceSummary(null);
-        s.setServiceReleaseTimeline(null);
+        s.setServiceSummary?.(null);
+        s.setServiceReleaseTimeline?.(null);
       }
     }
-    if (clustersNext.length > 0 && !s.selectedCluster) {
-      const defaultCluster = clustersNext[0];
-      s.setSelectedCluster(defaultCluster);
-      api(`/api/clusters/${defaultCluster.id}/summary`).then(s.setClusterSummary).catch(console.error);
-      s.loadClusterOperations(defaultCluster.id).catch(console.error);
-    } else if (s.selectedCluster) {
+    if (s.selectedCluster) {
       api(`/api/clusters/${s.selectedCluster.id}/summary`).then(s.setClusterSummary).catch(console.error);
-      s.loadClusterOperations(s.selectedCluster.id).catch(console.error);
-    } else {
-      s.setClusterOperations(null);
+      s.loadClusterOperations?.(s.selectedCluster.id)?.catch?.(console.error);
     }
-    if (nodesNext.length > 0 && !s.selectedNode) {
-      const defaultNode = nodesNext[0];
-      s.setSelectedNode(defaultNode);
-      api(`/api/nodes/${defaultNode.id}/summary`).then(s.setNodeSummary).catch(console.error);
-      s.loadNodeConnection(defaultNode.id).catch(console.error);
-      s.loadNodeMetrics(defaultNode.id).catch(console.error);
-      s.loadNodeOnboarding(defaultNode.id).catch(console.error);
-    } else if (s.selectedNode) {
+    if (s.selectedNode) {
       api(`/api/nodes/${s.selectedNode.id}/summary`).then(s.setNodeSummary).catch(console.error);
-      s.loadNodeConnection(s.selectedNode.id).catch(console.error);
-      s.loadNodeMetrics(s.selectedNode.id).catch(console.error);
-      s.loadNodeOnboarding(s.selectedNode.id).catch(console.error);
-    } else {
-      s.setNodeConnection(null);
-      s.setNodeMetrics(null);
-      s.setNodeOnboarding(null);
+      s.loadNodeConnection?.(s.selectedNode.id)?.catch?.(console.error);
+      s.loadNodeJobHistory?.(s.selectedNode.id)?.catch?.(console.error);
     }
-    api("/api/dtrain/overview").then(s.setDtrainOverview).catch(console.error);
-    if (!s.selectedService && servicesNext.length) {
-      s.setSelectedService(servicesNext[0]);
-      s.loadServiceCapabilities(servicesNext[0].id);
-      s.loadServiceSummary(servicesNext[0].id);
-      s.loadServiceReleaseTimeline(servicesNext[0].id);
-      s.loadServiceMetrics(servicesNext[0].id);
-    } else if (s.selectedService) {
-      s.loadServiceCapabilities(s.selectedService.id);
-      s.loadServiceSummary(s.selectedService.id);
-      s.loadServiceReleaseTimeline(s.selectedService.id);
-      s.loadServiceMetrics(s.selectedService.id);
-    } else {
-      s.setServiceSummary(null);
-      s.setServiceReleaseTimeline(null);
-      s.setServiceMetrics(null);
+    return {
+      clusters: clustersNext,
+      nodes: nodesNext,
+      services: servicesNext,
+    };
+  },
+
+  /**
+   * Advanced product modules only — Topology / Policy / Reliability / Audit / SRE lists.
+   * Loaded when those pages open or when full refresh is requested. Never required for cluster ops.
+   */
+  async refreshAdvancedInventory() {
+    const [
+      topologyNext,
+      checksNext,
+      findingsNext,
+      incidentsNext,
+      runbooksNext,
+      slosNext,
+      capacityNext,
+      secretsNext,
+      maintenanceNext,
+      auditExportsNext,
+      coverageNext,
+      lifecycleAuditNext,
+      forceApprovalsNext,
+      releaseApprovalsNext,
+    ] = await Promise.all([
+      api("/api/topology").catch(() => s.topology || null),
+      api("/api/monitoring/checks").catch(() => s.checks || []),
+      api("/api/policy/findings").catch(() => s.findings || []),
+      api("/api/incidents").catch(() => s.incidents || []),
+      api("/api/runbooks/executions").catch(() => s.runbooks || []),
+      api("/api/slo/reports").catch(() => s.slos || []),
+      api("/api/capacity/reports").catch(() => s.capacity || null),
+      api("/api/secrets").catch(() => s.secrets || []),
+      api("/api/maintenance").catch(() => s.maintenance || []),
+      api("/api/audit/exports").catch(() => s.auditExports || []),
+      api("/api/capabilities/coverage").catch(() => s.coverage || null),
+      api("/api/lifecycle/audit?hours=72").catch(() => s.lifecycleAudit || null),
+      api("/api/lifecycle/force-approvals?limit=30").catch(() => s.forceApprovals || []),
+      api("/api/release-approvals?limit=30").catch(() => s.releaseApprovals || []),
+    ]);
+    if (topologyNext != null) s.setTopology?.(topologyNext);
+    s.setChecks?.(checksNext);
+    s.setFindings?.(findingsNext);
+    s.setIncidents?.(incidentsNext);
+    s.setRunbooks?.(runbooksNext);
+    s.setSlos?.(slosNext);
+    s.setCapacity?.(capacityNext);
+    s.setSecrets?.(secretsNext);
+    s.setMaintenance?.(maintenanceNext);
+    s.setAuditExports?.(auditExportsNext);
+    s.setCoverage?.(coverageNext);
+    s.setLifecycleAudit?.(lifecycleAuditNext);
+    s.setForceApprovals?.(forceApprovalsNext);
+    s.setReleaseApprovals?.(releaseApprovalsNext);
+  },
+
+  /**
+   * Default refresh: cluster core always.
+   * Advanced modules (topology/policy/sre/audit) ONLY when those pages are open or options.full.
+   * Cluster ops path never blocks on advanced bulk loads.
+   */
+  async refresh(options = {}) {
+    const view = s.activeView || "clusters";
+    const advancedViews = ["topology", "policy", "audit", "reliability"];
+    const full =
+      options.full === true ||
+      options.mode === "full" ||
+      advancedViews.includes(view);
+    await s.refreshClusterInventory();
+    if (full) {
+      await s.refreshAdvancedInventory();
+    }
+    // Optional dTrain overview (cluster-adjacent, not topology)
+    if (typeof s.setDtrainOverview === "function") {
+      api("/api/dtrain/overview").then(s.setDtrainOverview).catch(() => {});
     }
   },
 
   async selectCluster(cluster) {
-    setSelectedCluster(cluster);
+    if (!cluster) return;
+    s.setSelectedCluster(cluster);
     s.setSelectedService(null);
-    s.setServiceSummary(null);
-    s.setServiceMetrics(null);
-    s.setServiceReleaseTimeline(null);
+    s.setServiceSummary?.(null);
+    s.setServiceMetrics?.(null);
+    s.setServiceReleaseTimeline?.(null);
+    // cP edge: drop stale node if it is not in this cluster
+    const clusterNodes = (s.nodes || []).filter((n) => n.cluster_id === cluster.id);
+    const keep = s.selectedNode && clusterNodes.some((n) => n.id === s.selectedNode.id) ? s.selectedNode : null;
+    if (!keep) {
+      s.setSelectedNode(null);
+      s.setNodeSummary?.(null);
+      s.setNodeConnection?.(null);
+      s.setNodeJobHistory?.(null);
+      s.setNodeMetrics?.(null);
+      s.setNodeOnboarding?.(null);
+      s.setNodeLiveStatus?.(null);
+    }
     try {
       const summary = await api(`/api/clusters/${cluster.id}/summary`);
+      // Ignore late responses if selection changed
+      if (s.selectedCluster?.id !== cluster.id) return;
       s.setClusterSummary(summary);
-      const clusterNodes = s.nodes.filter((n) => n.cluster_id === cluster.id);
-      const keep = s.selectedNode && clusterNodes.some((n) => n.id === s.selectedNode.id) ? s.selectedNode : null;
       if (keep) {
         await s.selectNode(keep);
-      } else {
-        s.setSelectedNode(null);
-        s.setNodeSummary(null);
-        s.setNodeConnection(null);
-        s.setNodeJobHistory(null);
-        s.setNodeMetrics(null);
-        s.setNodeOnboarding(null);
       }
+      s.loadClusterOperations?.(cluster.id)?.catch?.(() => {});
     } catch (error) {
       s.setNotice(`Failed to load cluster summary: ${error.message}`);
     }
   },
 
   async selectNode(node) {
-    setSelectedNode(node);
+    if (!node) {
+      s.setSelectedNode(null);
+      return;
+    }
+    // cP edge: workspace race token — ignore late loads when user switches nodes quickly
+    const token = (s._nodeWorkspaceToken = Number(s._nodeWorkspaceToken || 0) + 1);
+    s.setSelectedNode(node);
     try {
       const summary = await api(`/api/nodes/${node.id}/summary`);
+      if (token !== s._nodeWorkspaceToken || s.selectedNode?.id !== node.id) return;
       s.setNodeSummary(summary);
-      await s.loadNodeConnection(node.id);
-      await s.loadNodeJobHistory(node.id);
-      await s.loadNodeMetrics(node.id);
-      await s.loadNodeOnboarding(node.id);
+      await Promise.all([
+        s.loadNodeConnection?.(node.id),
+        s.loadNodeJobHistory?.(node.id),
+        s.loadNodeMetrics?.(node.id),
+        s.loadNodeOnboarding?.(node.id),
+      ]);
+      if (token !== s._nodeWorkspaceToken || s.selectedNode?.id !== node.id) return;
     } catch (error) {
+      if (token !== s._nodeWorkspaceToken) return;
       s.setNotice(`Failed to load node summary: ${error.message}`);
     }
   },

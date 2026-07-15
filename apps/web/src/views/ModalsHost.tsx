@@ -56,19 +56,64 @@ export function ModalsHost() {
 
   return (
     <>
-      {/* Action blocker — blocked deploy / install prerequisites */}
+      {/* Action blocker — cPlatform actionBlockerModal (deps / provision / catalog) */}
       {actionBlocker?.visible && (
         <div className="modal-overlay" style={{ display: "flex", zIndex: 120 }} data-ux="action-blocker">
-          <GlassCard className="modal" style={{ padding: "1.5rem", maxWidth: "420px", width: "100%", display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <h3 style={{ margin: 0 }}>Action blocked</h3>
+          <GlassCard className="modal" style={{ padding: "1.5rem", maxWidth: "460px", width: "100%", display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {actionBlocker.eyebrow ? (
+              <div style={{ fontSize: "0.7rem", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--ink-4)", fontWeight: 600 }}>
+                {actionBlocker.eyebrow}
+              </div>
+            ) : null}
+            <h3 style={{ margin: 0 }}>{actionBlocker.title || "Action blocked"}</h3>
             <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--ink-2)" }}>{actionBlocker.message}</p>
-            <div className="modal-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+            {Array.isArray(actionBlocker.items) && actionBlocker.items.length > 0 ? (
+              <div className="action-blocker-list" style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 220, overflow: "auto" }}>
+                {actionBlocker.items.map((item: any, idx: number) => (
+                  <div
+                    key={`${item.name}-${idx}`}
+                    className="action-modal-item"
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      alignItems: "center",
+                      border: "1px solid var(--line)",
+                      borderRadius: 10,
+                      padding: "0.65rem 0.75rem",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: "0.88rem" }}>{item.name || "Item"}</div>
+                      {item.meta ? <div style={{ fontSize: "0.75rem", color: "var(--ink-4)" }}>{item.meta}</div> : null}
+                    </div>
+                    {item.service_key ? (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => {
+                          setActionBlocker?.({ visible: false, message: "", items: [] });
+                          setCatalogDrawerVisible?.(true);
+                          // Best-effort: store key for catalog focus if controller supports it
+                          if (typeof p.setSelectedPlacementServiceKey === "function" && item.service_key) {
+                            p.setSelectedPlacementServiceKey(item.service_key);
+                          }
+                        }}
+                      >
+                        Install
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <div className="modal-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", flexWrap: "wrap" }}>
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
                 onClick={() => {
                   const act = actionBlocker.secondaryAction;
-                  setActionBlocker?.({ visible: false, message: "", secondaryLabel: "", secondaryAction: null });
+                  setActionBlocker?.({ visible: false, message: "", secondaryLabel: "", secondaryAction: null, items: [] });
                   if (act === "catalog") setCatalogDrawerVisible?.(true);
                   if (act === "provision") {
                     openNodeCreate?.();
@@ -76,14 +121,30 @@ export function ModalsHost() {
                   }
                 }}
               >
-                {actionBlocker.secondaryLabel || "Continue"}
+                {actionBlocker.secondaryLabel || "Close"}
               </button>
               <button
                 type="button"
                 className="btn btn-primary btn-sm"
-                onClick={() => setActionBlocker?.({ visible: false, message: "", secondaryLabel: "", secondaryAction: null })}
+                onClick={async () => {
+                  const act = actionBlocker.primaryAction || actionBlocker.secondaryAction;
+                  const keys = actionBlocker.missingServiceKeys || actionBlocker.items?.map((i: any) => i.service_key).filter(Boolean) || [];
+                  setActionBlocker?.({ visible: false, message: "", secondaryLabel: "", secondaryAction: null, items: [] });
+                  if (act === "install-first-missing" && keys[0] && typeof p.openDependencyTarget === "function" && p.selectedService) {
+                    await p.openDependencyTarget(keys[0], "ensure");
+                    return;
+                  }
+                  if (act === "catalog" || act === "install-first-missing") {
+                    setCatalogDrawerVisible?.(true);
+                    return;
+                  }
+                  if (act === "provision") {
+                    openNodeCreate?.();
+                    setStepperDrawerVisible?.(true);
+                  }
+                }}
               >
-                Dismiss
+                {actionBlocker.primaryLabel || "Dismiss"}
               </button>
             </div>
           </GlassCard>

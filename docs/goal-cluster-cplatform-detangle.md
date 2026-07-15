@@ -1,31 +1,61 @@
-# GOAL: Cluster page = cPlatform DevOps surface (detangle extras)
+# GOAL: Cluster code-path detangle + cPlatform edge parity
 
-**Status:** IN PROGRESS → execute until shell matches cPlatform product scope  
-**Created:** 2026-07-15  
+**Status:** IN PROGRESS  
+**Updated:** 2026-07-15  
 
-## Mandate
+## Mandate (clarified)
 
-1. **Detangle** product pages that are **not** on cPlatform primary nav: Topology, Policy, Audit, Reliability, Observability-stack product page.
-2. Keep **cluster-centric** DevOps: Clusters, Config Manager, Users, Monitoring, Performance, Diagnostics (entry points like cP).
-3. **Events** on cluster detail match cPlatform `renderEvents` pattern (status “N events”, title/message/when rows).
-4. Do **not** delete backend APIs — only remove from product shell so operators are not lost in PO-only features.
-5. Stop inventing “Advanced SRE” product work on the cluster path.
+1. **Detangle = code flow, not UI.** Topology / Policy / Audit / Reliability stay in the **sidebar and App views**.
+2. Cluster inventory, job poll, deploy, discover, and bootstrap **must not depend on** Topology/Policy/SRE/Audit bulk APIs.
+3. **Observability is first-class** on the cluster DevOps surface (pipeline load + cluster-detail band + Observability stack page).
+4. Match **every meaningful cPlatform `clusterDetail.js` edge case** on the cluster page (take as long as needed).
 
-## Done in this pass
+## Code-path split
 
-- [x] Sidebar: remove Topology / Policy / Audit / Reliability / Observability stack from nav  
-- [x] App shell: detangled views redirect to Clusters  
-- [x] Remove Observability pipeline band from cluster detail  
-- [x] Shared `ClusterEventsPanel` + `formatClusterEventRow` (cP-style) on node tab + drawers  
-- [x] Unit tests for event formatting + DETANGLED_VIEWS  
+| Loader | APIs | When |
+|--------|------|------|
+| `refreshClusterInventory()` | catalog, clusters, nodes, services, events, dashboard summary, **observability pipeline** | Always for cluster ops, bootstrap, job poll |
+| `refreshAdvancedInventory()` | topology, policy findings, incidents, runbooks, SLO, capacity, secrets, maintenance, audit, lifecycle | Only when Advanced page opens or `refresh({ full: true })` |
+| `refresh()` | cluster core + advanced **only if** active view is topology/policy/audit/reliability | Default mutations on cluster stay cluster-core |
 
-## Still for you (manual)
+## UI (kept)
 
-- Run `docs/manual-test-suite-cluster-page.md` smoke  
-- Confirm Events tab shows real rows after Discover on verify-node-1  
+- Platform: Clusters, Config Manager, Users  
+- Observability: Monitoring, Performance, Diagnostics, Observability stack  
+- Advanced (muted secondary): Topology, Policy, Audit, Reliability  
+- Cluster detail: **Observability band** (`N/M pipeline-ready` + Manage stack)
+
+## cPlatform edge cases shipped / restored this pass
+
+| Edge | cPlatform source | PO implementation |
+|------|------------------|-------------------|
+| `withPending` double-submit coalesce | `withPending` | `clusterUx.withPending` on discover / deploy / install-card |
+| Node workspace race token | `workspaceLoadToken` | `selectNode` `_nodeWorkspaceToken` |
+| Unreachable node gate | node row click | `canSelectNode` + toast + `is-unreachable` CSS |
+| State tone / pill | `getStateTone` | `getStateTone` + service card pills |
+| Expose/port labels | `buildServiceCardHtml` | `serviceExposeLabel` on svc cards |
+| Dependency blocker modal | `showDependencyBlocker` | `buildDependencyBlockerState` + ModalsHost items + Install CTAs |
+| Deploy preflight missing deps | deploy flow | raised on open/execute deployment modal |
+| Events panel “N events” | `renderEvents` | `ClusterEventsPanel` + `formatClusterEventRow` |
+| Button busy / spinner | `setButtonLoading` | `buttonLoadingClass` + actionBusy |
+| Installing shimmer | deploying card | `isServiceInstalling` + `.svc-card.installing` |
+| Obs pipeline soft-fail | — | obs pipeline failure does not block inventory |
+| Job poll no advanced APIs | — | uses `refreshClusterInventory` |
+| Bootstrap no advanced APIs | — | uses `refreshClusterInventory` |
+| Sidebar collapse | detail layout | `sidebar-collapsed` class restored |
+| Late cluster summary ignore | selection change | `selectCluster` checks `selectedCluster.id` |
+
+## Still open (continue until identical)
+
+- Full service schema edit drawer field-for-field vs cP  
+- DnD catalog → node (optional; click path exists)  
+- Node delete blocker item list when services present (impact modal exists)  
+- Live status dependency table pixel structure  
+- Catalog category chips parity audit  
+- Manual UAT: `docs/manual-test-suite-cluster-page.md`
 
 ## Non-goals
 
-- Deleting Topology/Policy/etc. source files (can re-enable later via config)  
-- Pixel-perfect CSS clone  
-- Models/train/infer  
+- Deleting Advanced source files or backend APIs  
+- Pixel-perfect CSS variable identity with cPlatform  
+- Models / train / infer product work  

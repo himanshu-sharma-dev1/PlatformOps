@@ -145,11 +145,18 @@ export function useUiState() {
   const [activeView, setActiveView] = useState("clusters" as any);
   /** Cluster-page action busy keys: discover, validate, deploy, patch, save, test-repo, test-registry */
   const [actionBusy, setActionBusy] = useState({} as Record<string, boolean>);
+  /** cPlatform actionBlockerModal — message + optional dependency items / install-first CTA */
   const [actionBlocker, setActionBlocker] = useState({
     visible: false,
+    eyebrow: "",
+    title: "",
     message: "",
+    items: [] as Array<{ name: string; meta?: string; service_key?: string }>,
     secondaryLabel: "",
     secondaryAction: null as null | "catalog" | "provision",
+    primaryLabel: "",
+    primaryAction: null as null | "catalog" | "provision" | "install-first-missing",
+    missingServiceKeys: [] as string[],
   } as any);
   const [launchDrawerVisible, setLaunchDrawerVisible] = useState(false as any);
   /** Bumped after cluster mutations so open Events panes re-fetch scoped events. */

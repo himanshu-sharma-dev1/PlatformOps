@@ -270,5 +270,220 @@ export function eventsCountLabel(count: number, loading = false): string {
   return `${count} events`;
 }
 
-/** Product views that are NOT on cPlatform primary nav (detangled from shell). */
-export const DETANGLED_VIEWS = ["topology", "policy", "audit", "reliability", "observability"] as const;
+/**
+ * Advanced modules kept in UI but detangled from the cluster code path.
+ * Cluster refresh / job poll / deploy must never require these bulk APIs.
+ * Observability is intentionally NOT here — it is part of cluster DevOps.
+ */
+export const CODE_DETANGLED_MODULES = ["topology", "policy", "audit", "reliability"] as const;
+
+/** @deprecated alias — code-path detangle only (UI still shows Advanced). */
+export const DETANGLED_VIEWS = CODE_DETANGLED_MODULES;
+
+/** Views that load cluster core inventory (incl. observability pipeline). */
+export const CLUSTER_CORE_VIEWS = [
+  "clusters",
+  "dashboard",
+  "config",
+  "diagnostics",
+  "monitoring",
+  "performance",
+  "observability",
+  "users",
+] as const;
+
+/** cPlatform getStateTone — map free-text state to pill tone. */
+export function getStateTone(stateLabel: string | null | undefined): "ok" | "warn" | "err" | "muted" {
+  const n = String(stateLabel || "").toLowerCase().trim();
+  if (!n || n === "unknown" || n === "not deployed" || n === "not_found") return "muted";
+  if (
+    n === "running" ||
+    n === "healthy" ||
+    n === "ready" ||
+    n === "deployed" ||
+    n === "active" ||
+    n === "ok" ||
+    n.includes("deployed")
+  ) {
+    return "ok";
+  }
+  if (
+    n === "installing" ||
+    n === "deploying" ||
+    n === "provisioning" ||
+    n === "queued" ||
+    n === "configuring" ||
+    n === "pending" ||
+    n.includes("progress")
+  ) {
+    return "warn";
+  }
+  if (
+    n === "error" ||
+    n === "failed" ||
+    n === "unhealthy" ||
+    n === "unreachable" ||
+    n === "dead" ||
+    n === "exited" ||
+    n.includes("error") ||
+    n.includes("fail")
+  ) {
+    return "err";
+  }
+  return "muted";
+}
+
+/** Node list row status class (cPlatform nstat). */
+export function nodeRowStatusClass(status: string | null | undefined): string {
+  const n = String(status || "").toLowerCase();
+  if (n === "healthy" || n === "running" || n === "ready") return "ready";
+  if (n === "unreachable") return "unreachable";
+  if (n === "degraded" || n === "warning") return "degraded";
+  if (n === "error" || n === "failed") return "error";
+  return n || "unknown";
+}
+
+/**
+ * cPlatform withPending — coalesce concurrent identical in-flight requests.
+ * Module-level so deploy/delete/discover share dedupe across action modules.
+ */
+const pendingRequests = new Map<string, Promise<unknown>>();
+
+export async function withPending<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const k = String(key || "");
+  if (!k) return fn();
+  const existing = pendingRequests.get(k);
+  if (existing) return existing as Promise<T>;
+  const promise = (async () => {
+    try {
+      return await fn();
+    } finally {
+      pendingRequests.delete(k);
+    }
+  })();
+  pendingRequests.set(k, promise);
+  return promise;
+}
+
+/** Clear pending map (tests only). */
+export function __resetPendingForTests(): void {
+  pendingRequests.clear();
+}
+
+/** Race guard: ignore stale async workspace loads after node switch. */
+export function isStaleWorkspaceToken(current: number, expected: number): boolean {
+  return Number(current) !== Number(expected);
+}
+
+/**
+ * Parse MISSING_DEPENDENCIES / preflight-style blocker payloads (cPlatform showDependencyBlocker).
+ */
+export function parseMissingDependencies(details: any): {
+  missing: Array<{ service_type?: string; display_name?: string; service_key?: string; reason?: string; state?: string }>;
+  nodeId: string | number | null;
+  code: string;
+} {
+  const d = details && typeof details === "object" ? details : {};
+  const nested = d.details && typeof d.details === "object" ? d.details : d;
+  const missing =
+    nested.missing_dependencies ||
+    nested.missing ||
+    nested.dependencies ||
+    d.missing_dependencies ||
+    [];
+  return {
+    missing: Array.isArray(missing) ? missing : [],
+    nodeId: nested.node_id ?? d.node_id ?? null,
+    code: String(nested.code || d.code || ""),
+  };
+}
+
+/** Whether an error/preflight result should open the dependency action blocker. */
+export function shouldShowDependencyBlocker(errOrResult: any): boolean {
+  if (!errOrResult) return false;
+  const code = String(
+    errOrResult?.code ||
+      errOrResult?.details?.code ||
+      errOrResult?.error_code ||
+      ""
+  ).toUpperCase();
+  if (code === "MISSING_DEPENDENCIES" || code === "DEPENDENCY_BLOCKED") return true;
+  const parsed = parseMissingDependencies(errOrResult);
+  if (parsed.missing.length > 0) return true;
+  const msg = String(errOrResult?.message || errOrResult?.error || errOrResult || "");
+  return /missing dependenc|dependency.?blocked|install.?dependenc/i.test(msg);
+}
+
+/** Build action-blocker props from missing-deps payload. */
+export function buildDependencyBlockerState(details: any, fallbackMessage = "Deployment blocked: missing dependencies"): {
+  visible: true;
+  eyebrow: string;
+  title: string;
+  message: string;
+  items: Array<{ name: string; meta: string; service_key?: string }>;
+  secondaryLabel: string;
+  secondaryAction: "catalog";
+  primaryLabel: string;
+  primaryAction: "install-first-missing" | "catalog";
+} {
+  const { missing, nodeId } = parseMissingDependencies(details);
+  const nodeLabel = nodeId != null ? String(nodeId) : "selected node";
+  return {
+    visible: true,
+    eyebrow: "Missing dependencies",
+    title: "Deployment blocked",
+    message:
+      `${fallbackMessage}. Deploy the required infrastructure cards on ${nodeLabel} before starting this application service.`,
+    items: missing.map((item) => ({
+      name: item.display_name || item.service_type || item.service_key || "Dependency",
+      meta: `${item.service_type || item.service_key || "infrastructure"} · ${item.reason || item.state || "not ready"}`,
+      service_key: item.service_key || item.service_type,
+    })),
+    secondaryLabel: "Open catalog",
+    secondaryAction: "catalog",
+    primaryLabel: missing.length ? "Install first missing" : "Open catalog",
+    primaryAction: missing.length ? "install-first-missing" : "catalog",
+  };
+}
+
+/** Service card expose/port label (cPlatform buildServiceCardHtml). */
+export function serviceExposeLabel(service: {
+  expose_service?: boolean;
+  host_port?: string | number;
+  config_json?: string | Record<string, unknown>;
+} | null | undefined): { portText: string; uptimeText: string } {
+  if (!service) return { portText: "internal", uptimeText: "no host port" };
+  let expose = Boolean(service.expose_service);
+  let hostPort = service.host_port != null ? String(service.host_port).trim() : "";
+  try {
+    const cfg =
+      typeof service.config_json === "string"
+        ? JSON.parse(service.config_json || "{}")
+        : service.config_json || {};
+    if (cfg && typeof cfg === "object") {
+      if ((cfg as any).expose_service != null) expose = Boolean((cfg as any).expose_service);
+      if ((cfg as any).host_port != null && !hostPort) hostPort = String((cfg as any).host_port).trim();
+    }
+  } catch {
+    /* ignore */
+  }
+  if (expose && hostPort) {
+    return { portText: `:${hostPort}`, uptimeText: `host port ${hostPort}` };
+  }
+  return { portText: "internal", uptimeText: "no host port" };
+}
+
+/** Unreachable / invalid node selection guard (cPlatform). */
+export function canSelectNode(node: { status?: string; name?: string } | null | undefined): {
+  ok: boolean;
+  notice: string;
+} {
+  if (!node) return { ok: false, notice: "No node selected." };
+  if (String(node.status || "").toLowerCase() === "unreachable") {
+    return {
+      ok: false,
+      notice: `Node ${node.name || "unknown"} is unreachable. Probe or check connection settings.`,
+    };
+  }
+  return { ok: true, notice: "" };
+}
