@@ -487,3 +487,184 @@ export function canSelectNode(node: { status?: string; name?: string } | null | 
   }
   return { ok: true, notice: "" };
 }
+
+/** cPlatform renderDetailSummaryCards payload. */
+export function buildServiceSummaryCards(opts: {
+  status?: string;
+  serviceType?: string;
+  port?: string | number | null;
+  eventsCount?: number;
+  loading?: boolean;
+}): Array<{ label: string; value: string; sub?: string }> {
+  const loading = Boolean(opts.loading);
+  return [
+    {
+      label: "Status",
+      value: loading ? "Loading…" : String(opts.status || "Unknown"),
+      sub: opts.serviceType || "",
+    },
+    {
+      label: "Port",
+      value: loading ? "Loading…" : opts.port != null && String(opts.port) !== "" ? String(opts.port) : "NA",
+      sub: "Exposed port",
+    },
+    {
+      label: "Events",
+      value: loading ? "…" : String(opts.eventsCount ?? 0),
+      sub: "Recent history",
+    },
+  ];
+}
+
+/** Normalize live-status dependency rows (cPlatform renderDependenciesTable). */
+export function normalizeLiveDependencies(
+  live: {
+    dependencies?: Array<Record<string, unknown>>;
+    items?: Array<Record<string, unknown>>;
+    container_name?: string;
+    overall_status?: string;
+    restart_count?: number | string;
+    image?: string;
+    name?: string;
+  } | null | undefined,
+  fallbackService?: { container_name?: string; name?: string; image?: string } | null
+): Array<{
+  name: string;
+  target: string;
+  source: string;
+  state: string;
+  runningSince: string;
+  restarts: string;
+}> {
+  const deps = live?.dependencies;
+  if (Array.isArray(deps) && deps.length > 0) {
+    return deps.map((item) => {
+      const target =
+        item.target_host ||
+        item.container_ip ||
+        item.service_name ||
+        item.host ||
+        item.port ||
+        item.container_name ||
+        "External";
+      return {
+        name: String(item.name || item.service_name || item.service_key || "Dependency"),
+        target: String(target),
+        source: String(item.source_type || item.source || "Unknown"),
+        state: String(item.state || item.overall_status || "Unknown"),
+        runningSince: String(item.running_since || item.started_at || "External"),
+        restarts:
+          item.restart_count != null && item.restart_count !== ""
+            ? String(item.restart_count)
+            : "Not tracked",
+      };
+    });
+  }
+  // Fallback: main container as single row when no deps payload
+  if (live || fallbackService) {
+    return [
+      {
+        name: String(live?.name || fallbackService?.name || "Main container"),
+        target: String(live?.container_name || fallbackService?.container_name || "—"),
+        source: "container",
+        state: String(live?.overall_status || "Unknown"),
+        runningSince: "—",
+        restarts:
+          live?.restart_count != null && live.restart_count !== ""
+            ? String(live.restart_count)
+            : "Not tracked",
+      },
+    ];
+  }
+  return [];
+}
+
+/** Merge install schema values with existing service config (edit prefill). */
+export function mergeInstallFieldValues(
+  schemaValues: Record<string, unknown>,
+  service: {
+    name?: string;
+    config_json?: string | Record<string, unknown>;
+    expose_service?: boolean;
+    host_port?: string | number;
+    install_mode?: string;
+  } | null | undefined
+): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...(schemaValues || {}) };
+  if (!service) return next;
+  let cfg: Record<string, unknown> = {};
+  try {
+    cfg =
+      typeof service.config_json === "string"
+        ? JSON.parse(service.config_json || "{}")
+        : (service.config_json as Record<string, unknown>) || {};
+  } catch {
+    cfg = {};
+  }
+  // Prefer flat config keys that match schema field keys
+  for (const key of Object.keys(next)) {
+    if (cfg[key] !== undefined && cfg[key] !== null) next[key] = cfg[key];
+  }
+  // Common cP static fields
+  if (cfg.expose_service != null) next.expose_service = cfg.expose_service;
+  else if (service.expose_service != null) next.expose_service = service.expose_service;
+  if (cfg.host_port != null) next.host_port = cfg.host_port;
+  else if (service.host_port != null) next.host_port = service.host_port;
+  if (cfg.service_install != null) next.service_install = cfg.service_install;
+  if (cfg.install_mode != null) next.install_mode = cfg.install_mode;
+  else if (service.install_mode != null) next.install_mode = service.install_mode;
+  if (cfg.service_version != null) next.service_version = cfg.service_version;
+  if (cfg.service_port != null) next.service_port = cfg.service_port;
+  return next;
+}
+
+/** Detect adopted / discovered inventory services. */
+export function isAdoptedService(service: {
+  origin?: string;
+  source?: string;
+  adopted?: boolean;
+  tags?: string[];
+  discovery?: string;
+} | null | undefined): boolean {
+  if (!service) return false;
+  if (service.adopted === true) return true;
+  const origin = String(service.origin || service.source || service.discovery || "").toLowerCase();
+  if (origin.includes("adopt") || origin.includes("discover")) return true;
+  const tags = (service.tags || []).map((t) => String(t).toLowerCase());
+  return tags.includes("adopted") || tags.includes("discovered");
+}
+
+/** Filter clusters by search + optional environment/region chips. */
+export function filterClustersAdvanced<
+  T extends { name?: string; region?: string; environment?: string }
+>(
+  clusters: T[],
+  opts: { search?: string; environment?: string; region?: string }
+): T[] {
+  let list = filterClusters(clusters, opts.search || "");
+  const env = String(opts.environment || "all").toLowerCase();
+  const region = String(opts.region || "all").toLowerCase();
+  if (env && env !== "all") {
+    list = list.filter((c) => String(c.environment || "").toLowerCase() === env);
+  }
+  if (region && region !== "all") {
+    list = list.filter((c) => String(c.region || "").toLowerCase() === region);
+  }
+  return list;
+}
+
+/** Unique sorted facet values for cluster chips. */
+export function clusterFacetValues(
+  clusters: Array<{ environment?: string; region?: string }>,
+  facet: "environment" | "region"
+): string[] {
+  const set = new Set<string>();
+  for (const c of clusters || []) {
+    const v = String(c[facet] || "").trim();
+    if (v) set.add(v);
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
+/** Catalog drag payload id. */
+export const CATALOG_DRAG_MIME = "application/x-platformops-catalog-key";

@@ -256,6 +256,39 @@ await check("serviceExposeLabel + canSelectNode", () => {
   assert.equal(ux.canSelectNode({ status: "ready", name: "x" }).ok, true);
 });
 
+await check("buildServiceSummaryCards + normalizeLiveDependencies", () => {
+  const cards = ux.buildServiceSummaryCards({ status: "running", serviceType: "redis", port: 6379, eventsCount: 3 });
+  assert.equal(cards.length, 3);
+  assert.equal(cards[0].value, "running");
+  assert.equal(cards[2].value, "3");
+  const deps = ux.normalizeLiveDependencies({
+    dependencies: [{ name: "pg", target_host: "10.0.0.1", state: "running", restart_count: 0 }],
+  });
+  assert.equal(deps.length, 1);
+  assert.equal(deps[0].name, "pg");
+  const fallback = ux.normalizeLiveDependencies({ overall_status: "running", container_name: "c1" }, { name: "svc" });
+  assert.equal(fallback[0].target, "c1");
+});
+
+await check("mergeInstallFieldValues + isAdoptedService + filterClustersAdvanced", () => {
+  const merged = ux.mergeInstallFieldValues(
+    { expose_service: false, host_port: "", service_version: "1" },
+    { config_json: JSON.stringify({ expose_service: true, host_port: 9000, service_version: "2" }) }
+  );
+  assert.equal(merged.expose_service, true);
+  assert.equal(String(merged.host_port), "9000");
+  assert.equal(merged.service_version, "2");
+  assert.equal(ux.isAdoptedService({ origin: "discover" }), true);
+  assert.equal(ux.isAdoptedService({ status: "running" }), false);
+  const list = [
+    { name: "a", environment: "production", region: "us-east-1" },
+    { name: "b", environment: "development", region: "local" },
+  ];
+  assert.equal(ux.filterClustersAdvanced(list, { environment: "production" }).length, 1);
+  assert.equal(ux.clusterFacetValues(list, "region").includes("local"), true);
+  assert.ok(ux.CATALOG_DRAG_MIME.includes("catalog"));
+});
+
 const summary = `\n${passed} checks passed\n`;
 console.log(summary);
 writeFileSync(join(outDir, "ux-unit-tests-summary.txt"), summary, "utf8");

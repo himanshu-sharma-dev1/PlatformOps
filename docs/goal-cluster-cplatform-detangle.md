@@ -47,12 +47,19 @@
 
 ## Still open (continue until identical)
 
-- Full service schema edit drawer field-for-field vs cP  
-- DnD catalog → node (optional; click path exists)  
-- Node delete blocker item list when services present (impact modal exists)  
-- Live status dependency table pixel structure  
-- Catalog category chips parity audit  
+- Install drawer 2-step stepper labels pixel-match cP  
+- Node provision drawer step labels full cP cloud vs bare-metal  
 - Manual UAT: `docs/manual-test-suite-cluster-page.md`
+
+## Added 2026-07-15 (grind pass)
+
+- Service detail summary cards (Status / Port / Events) + overview KV extras  
+- Live status summary cards + 6-col deps table (node + service)  
+- Catalog drag → service-stack drop + filterCatalogItems  
+- Service card Edit (schema) + adopted meta  
+- openServiceEditor prefill from config_json (`mergeInstallFieldValues`)  
+- Install schema hide host_port when expose off  
+- Cluster list env/region facet chips (`filterClustersAdvanced`)
 
 ## Non-goals
 

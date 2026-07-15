@@ -4,6 +4,7 @@ import {
   withPending,
   shouldShowDependencyBlocker,
   buildDependencyBlockerState,
+  mergeInstallFieldValues,
 } from "../ux/clusterUx";
 
 function raiseDependencyBlocker(s, details, fallbackMessage) {
@@ -154,26 +155,53 @@ export function createInventoryDeployActions(s: any) {
   },
 
   async openServiceEditor(service) {
-    const card = s.catalog.find((item) => item.service_key === service.service_key);
-    if (!card) {
-      s.setNotice(`Catalog definition for ${service.service_key} is not available.`);
+    if (!service) {
+      s.setNotice("Select a service first.");
       return;
     }
-    const schema = await s.loadInstallSchemaFor(card, service.node_id, service);
-    s.setCatalogOnboarding({
-      visible: true,
-      mode: "edit",
-      card,
-      editingService: service,
-      installSchema: schema,
-      installFieldValues: s.installSchemaValues(schema),
-      nodeId: service.node_id,
-      customName: service.name,
-      nextAction: "overview",
-      overridesText: "",
-      creating: false,
-      error: "",
-      registeredService: null
+    return withPending(`edit-service:${service.id}`, async () => {
+      const card = s.catalog.find((item) => item.service_key === service.service_key);
+      if (!card) {
+        s.setNotice(`Catalog definition for ${service.service_key} is not available.`);
+        return;
+      }
+      const schema = await s.loadInstallSchemaFor(card, service.node_id, service);
+      const baseValues = s.installSchemaValues(schema);
+      const installFieldValues = mergeInstallFieldValues(baseValues, service);
+      // Prefill advanced overrides with residual config not covered by schema keys
+      let overridesText = "";
+      try {
+        const cfg =
+          typeof service.config_json === "string"
+            ? JSON.parse(service.config_json || "{}")
+            : service.config_json || {};
+        if (cfg && typeof cfg === "object" && !Array.isArray(cfg)) {
+          const residual = { ...cfg };
+          for (const key of Object.keys(installFieldValues || {})) delete residual[key];
+          delete residual.ports;
+          if (Object.keys(residual).length > 0) {
+            overridesText = JSON.stringify(residual, null, 2);
+          }
+        }
+      } catch {
+        overridesText = "";
+      }
+      s.setSelectedService(service);
+      s.setCatalogOnboarding({
+        visible: true,
+        mode: "edit",
+        card,
+        editingService: service,
+        installSchema: schema,
+        installFieldValues,
+        nodeId: service.node_id,
+        customName: service.name,
+        nextAction: "overview",
+        overridesText,
+        creating: false,
+        error: "",
+        registeredService: null,
+      });
     });
   },
 

@@ -2,6 +2,7 @@
 import React from "react";
 import { GlassCard } from "../components/GlassCard";
 import { usePlatform } from "../platform/usePlatform";
+import { filterCatalogItems, CATALOG_DRAG_MIME } from "../platform/ux/clusterUx";
 
 /** DrawersHost — Phase 1 extracted page JSX. */
 export function DrawersHost() {
@@ -97,28 +98,7 @@ export function DrawersHost() {
     <>
       {/* SERVICE CATALOG DRAWER — search + category chips → install/config chain */}
       {catalogDrawerVisible && (() => {
-        const q = catalogSearch.trim().toLowerCase();
-        const cat = catalogCategory.toLowerCase();
-        const filtered = (catalog || []).filter((card: any) => {
-          if (cat && cat !== "all") {
-            const kind = String(card.kind || "").toLowerCase();
-            const sub = String(card.subsystem || "").toLowerCase();
-            const tags = (card.tags || []).map((t: string) => String(t).toLowerCase());
-            const hit =
-              kind === cat ||
-              sub === cat ||
-              tags.includes(cat) ||
-              (cat === "infra" && (kind.includes("infra") || sub.includes("infra") || tags.includes("infra"))) ||
-              (cat === "app" && (kind.includes("app") || sub.includes("app") || tags.includes("app")));
-            if (!hit) return false;
-          }
-          if (!q) return true;
-          const hay = [card.name, card.description, card.kind, card.subsystem, card.service_key, ...(card.tags || [])]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase();
-          return hay.includes(q);
-        });
+        const filtered = filterCatalogItems(catalog || [], catalogSearch, catalogCategory);
         const chips = [
           { id: "all", label: "All" },
           { id: "infra", label: "Infra" },
@@ -133,7 +113,7 @@ export function DrawersHost() {
             <div className="drawer-head">
               <div>
                 <h2 style={{ fontSize: "1.5rem", fontFamily: "var(--display)", margin: 0 }}>Service catalog</h2>
-                <div className="sub">Click a card to open install/config (dForm · MANUAL/ANSIBLE · expose)</div>
+                <div className="sub">Click or drag a card onto the service stack (dForm · MANUAL/ANSIBLE · expose)</div>
               </div>
               <button className="icon-btn" onClick={() => setCatalogDrawerVisible(false)} aria-label="Close catalog">
                 <svg className="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -156,6 +136,7 @@ export function DrawersHost() {
                   type="button"
                   className={`cat-chip ${catalogCategory === chip.id ? "active" : ""}`}
                   onClick={() => setCatalogCategory(chip.id)}
+                  data-cat={chip.id}
                 >
                   {chip.label}
                 </button>
@@ -166,6 +147,18 @@ export function DrawersHost() {
                 <div
                   key={card.service_key}
                   className="catalog-item"
+                  draggable
+                  data-cat={String(card.kind || card.subsystem || "app").toLowerCase()}
+                  data-service-key={card.service_key}
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = "copy";
+                    e.dataTransfer.setData(CATALOG_DRAG_MIME, card.service_key);
+                    e.dataTransfer.setData("text/plain", card.service_key);
+                    e.currentTarget.classList.add("dragging");
+                  }}
+                  onDragEnd={(e) => {
+                    e.currentTarget.classList.remove("dragging");
+                  }}
                   onClick={() => openCatalogOnboarding(card)}
                   role="button"
                   tabIndex={0}
@@ -178,12 +171,13 @@ export function DrawersHost() {
                     background: "rgba(255,255,255,0.02)",
                     border: "1px solid var(--line)",
                     borderRadius: "12px",
-                    cursor: "pointer",
+                    cursor: "grab",
                     transition: "all 0.2s"
                   }}
                 >
+                  <div className="drag-h" title="Drag onto service stack" aria-hidden>⋮⋮</div>
                   <div className="ico" style={{ width: "40px", height: "40px", borderRadius: "8px", background: "var(--navy-100)", color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
-                    {card.name[0]}
+                    {(card.name || "?")[0]}
                   </div>
                   <div className="info" style={{ flex: 1 }}>
                     <div className="nm" style={{ fontWeight: 600 }}>{card.name}</div>
@@ -203,7 +197,7 @@ export function DrawersHost() {
               )}
             </div>
             <div className="drawer-foot">
-              <span style={{ fontSize: "0.78rem", color: "var(--ink-4)", marginRight: "auto" }}>{filtered.length} of {(catalog || []).length} cards</span>
+              <span style={{ fontSize: "0.78rem", color: "var(--ink-4)", marginRight: "auto" }}>{filtered.length} of {(catalog || []).length} cards · drag to node stack</span>
               <button className="btn btn-secondary btn-sm" onClick={() => setCatalogDrawerVisible(false)}>Close</button>
             </div>
           </aside>
@@ -350,20 +344,43 @@ export function DrawersHost() {
                         <div style={{ display: "grid", gap: "0.6rem" }}>
                           {(catalogOnboarding.installSchema?.fields ?? [])
                             .filter((field) => field.section === section && field.key !== "name")
+                            .filter((field) => {
+                              // cP syncInfraExposeControls: hide host_port when expose is off
+                              if (field.key === "host_port" || field.key === "published_port") {
+                                const expose =
+                                  catalogOnboarding.installFieldValues?.expose_service ??
+                                  catalogOnboarding.installFieldValues?.expose;
+                                return Boolean(expose);
+                              }
+                              return true;
+                            })
                             .map((field) => (
-                              <label key={`install-field-${field.key}`} className="field" style={{ margin: 0 }}>
+                              <label key={`install-field-${field.key}`} className="field" style={{ margin: 0 }} data-field-key={field.key}>
                                 <span>{field.label}{field.required ? " *" : ""}</span>
                                 {field.field_type === "boolean" ? (
                                   <input
                                     type="checkbox"
+                                    name={field.key}
                                     checked={Boolean(catalogOnboarding.installFieldValues[field.key])}
-                                    onChange={(e) => setCatalogOnboarding((current) => ({
-                                      ...current,
-                                      installFieldValues: { ...current.installFieldValues, [field.key]: e.target.checked },
-                                    }))}
+                                    onChange={(e) => {
+                                      const checked = e.target.checked;
+                                      setCatalogOnboarding((current) => {
+                                        const nextValues = {
+                                          ...current.installFieldValues,
+                                          [field.key]: checked,
+                                        };
+                                        // clear host port when unchecking expose
+                                        if ((field.key === "expose_service" || field.key === "expose") && !checked) {
+                                          nextValues.host_port = "";
+                                          nextValues.published_port = "";
+                                        }
+                                        return { ...current, installFieldValues: nextValues };
+                                      });
+                                    }}
                                   />
                                 ) : field.field_type === "select" ? (
                                   <select
+                                    name={field.key}
                                     value={String(catalogOnboarding.installFieldValues[field.key] ?? "")}
                                     onChange={(e) => setCatalogOnboarding((current) => ({
                                       ...current,
@@ -371,11 +388,12 @@ export function DrawersHost() {
                                     }))}
                                   >
                                     <option value="">Select...</option>
-                                    {field.options.map((option) => <option key={`${field.key}-${option}`} value={option}>{option}</option>)}
+                                    {(field.options || []).map((option) => <option key={`${field.key}-${option}`} value={option}>{option}</option>)}
                                   </select>
                                 ) : field.field_type === "list" ? (
                                   <textarea
                                     className="input"
+                                    name={field.key}
                                     style={{ minHeight: "72px", fontFamily: "var(--mono)", fontSize: "0.76rem" }}
                                     value={String(catalogOnboarding.installFieldValues[field.key] ?? "")}
                                     onChange={(e) => setCatalogOnboarding((current) => ({
@@ -386,6 +404,7 @@ export function DrawersHost() {
                                 ) : (
                                   <input
                                     className="input"
+                                    name={field.key}
                                     type={field.field_type === "number" ? "number" : "text"}
                                     value={String(catalogOnboarding.installFieldValues[field.key] ?? "")}
                                     onChange={(e) => setCatalogOnboarding((current) => ({

@@ -4,7 +4,8 @@ import { GlassCard } from "../components/GlassCard";
 import { usePlatform } from "../platform/usePlatform";
 import { isSeedDemoName } from "../components/charts";
 import {
-  filterClusters,
+  filterClustersAdvanced,
+  clusterFacetValues,
   isServiceInstalling,
   shouldBlockDeploy,
   LAUNCH_STUB_MESSAGE,
@@ -14,6 +15,10 @@ import {
   nodeRowStatusClass,
   getStateTone,
   serviceExposeLabel,
+  buildServiceSummaryCards,
+  normalizeLiveDependencies,
+  isAdoptedService,
+  CATALOG_DRAG_MIME,
 } from "../platform/ux/clusterUx";
 import { ClusterEventsPanel } from "../components/ClusterEventsPanel";
 
@@ -153,6 +158,9 @@ export function ClustersView() {
   const [nodeEventsBusy, setNodeEventsBusy] = React.useState(false);
   const [nodeEventsStarted, setNodeEventsStarted] = React.useState(false);
   const [clusterSearch, setClusterSearch] = React.useState("");
+  const [clusterEnvFilter, setClusterEnvFilter] = React.useState("all");
+  const [clusterRegionFilter, setClusterRegionFilter] = React.useState("all");
+  const [stackDropActive, setStackDropActive] = React.useState(false);
   const [liveBusy, setLiveBusy] = React.useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [probeBusy, setProbeBusy] = React.useState(false);
@@ -423,12 +431,24 @@ export function ClustersView() {
                 data-ux="cluster-search"
               />
             </div>
+            <div className="catalog-categories" data-ux="cluster-env-chips" style={{ marginTop: 8 }}>
+              <button type="button" className={`cat-chip ${clusterEnvFilter === "all" ? "active" : ""}`} onClick={() => setClusterEnvFilter("all")}>All envs</button>
+              {clusterFacetValues(clusters.filter((c) => !isSeedDemoName(c.name)), "environment").map((env) => (
+                <button key={env} type="button" className={`cat-chip ${clusterEnvFilter === env ? "active" : ""}`} onClick={() => setClusterEnvFilter(env)}>{env}</button>
+              ))}
+            </div>
+            <div className="catalog-categories" data-ux="cluster-region-chips" style={{ marginTop: 4 }}>
+              <button type="button" className={`cat-chip ${clusterRegionFilter === "all" ? "active" : ""}`} onClick={() => setClusterRegionFilter("all")}>All regions</button>
+              {clusterFacetValues(clusters.filter((c) => !isSeedDemoName(c.name)), "region").map((region) => (
+                <button key={region} type="button" className={`cat-chip ${clusterRegionFilter === region ? "active" : ""}`} onClick={() => setClusterRegionFilter(region)}>{region}</button>
+              ))}
+            </div>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "1.25rem" }}>
-            {filterClusters(
+            {filterClustersAdvanced(
               clusters.filter((c) => !isSeedDemoName(c.name)),
-              clusterSearch
+              { search: clusterSearch, environment: clusterEnvFilter, region: clusterRegionFilter }
             ).map((cluster) => {
               const clusterNodes = nodes.filter((n) => n.cluster_id === cluster.id && !isSeedDemoName(n.name));
               const clusterServices = services.filter((s) => clusterNodes.some((n) => n.id === s.node_id));
@@ -923,7 +943,39 @@ export function ClustersView() {
                     <span className="pulse-dot" /> Loading node services…
                   </div>
                 ) : null}
-                <div className={`service-stack ${workspaceLoading ? "is-busy" : ""}`}>
+                <div
+                  className={`service-stack ${workspaceLoading ? "is-busy" : ""} ${stackDropActive ? "drop-target" : ""}`}
+                  data-ux="service-stack"
+                  onDragOver={(e) => {
+                    if (![...e.dataTransfer.types].includes(CATALOG_DRAG_MIME) && ![...e.dataTransfer.types].includes("text/plain")) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "copy";
+                    setStackDropActive(true);
+                  }}
+                  onDragLeave={(e) => {
+                    if (e.currentTarget === e.target) setStackDropActive(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setStackDropActive(false);
+                    const key =
+                      e.dataTransfer.getData(CATALOG_DRAG_MIME) ||
+                      e.dataTransfer.getData("text/plain");
+                    if (!key) return;
+                    const card = (catalog || []).find((c: any) => c.service_key === key);
+                    if (!card) {
+                      p.showToast?.("Catalog card not found", "err") || p.setNotice("Catalog card not found");
+                      return;
+                    }
+                    // cP: drop → open install drawer for this node
+                    if (!activeNode) {
+                      p.showToast?.("Select a node before installing a service", "err");
+                      return;
+                    }
+                    selectNode(activeNode);
+                    p.openCatalogOnboarding?.(card);
+                  }}
+                >
                   {nodeServices.map((service) => {
                     const live = serviceLiveById[service.id] || serviceLiveById[String(service.id)];
                     const installing = isServiceInstalling(service, job);
@@ -937,10 +989,11 @@ export function ClustersView() {
                     const portsLabel = servicePortsLabel?.(service);
                     const portDisplay =
                       portsLabel && portsLabel !== "—" ? portsLabel : expose.portText;
+                    const adopted = isAdoptedService(service);
                     return (
                     <div
                       key={service.id}
-                      className={`svc-card ${displayStatus}${installing ? " installing" : ""}${tone === "err" ? " failed" : ""}`}
+                      className={`svc-card ${displayStatus}${installing ? " installing" : ""}${tone === "err" ? " failed" : ""}${adopted ? " adopted" : ""}`}
                       style={{ cursor: "pointer" }}
                       onClick={() => openServiceDrawer(service, "overview")}
                       role="button"
@@ -948,6 +1001,7 @@ export function ClustersView() {
                       onKeyDown={(e) => { if (e.key === "Enter") openServiceDrawer(service, "overview"); }}
                       data-installing={installing ? "true" : "false"}
                       data-service-id={service.id}
+                      data-adopted={adopted ? "true" : "false"}
                       data-busy={installing || actionBusy.deploy ? "true" : "false"}
                     >
                       <div className="svc-icon"><ServiceIcon serviceKey={service.service_key} /></div>
@@ -962,6 +1016,7 @@ export function ClustersView() {
                         </div>
                         <div className="meta">
                           kind {service.kind}
+                          {adopted ? <> · <span className="adopted-meta">adopted · container</span></> : null}
                           {service.service_key ? <> · key <code>{service.service_key}</code></> : null}
                           {service.container_name ? <> · docker <code>{service.container_name}</code></> : null}
                           {" · "}image <code>{service.image || live?.image || "—"}</code>
@@ -991,6 +1046,14 @@ export function ClustersView() {
                         >
                           <svg className="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
                         </button>
+                        <button
+                          className="icon-btn svc-edit-btn"
+                          title="Edit service install/schema"
+                          data-ux="btn-svc-edit"
+                          onClick={() => openServiceEditor?.(service)}
+                        >
+                          <svg className="ic" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        </button>
                         <button 
                           className="icon-btn" 
                           title="Open diagnostics log tailing console" 
@@ -1000,7 +1063,7 @@ export function ClustersView() {
                         </button>
                         <button 
                           className="icon-btn" 
-                          title="Edit configuration keys and overrides" 
+                          title="Open config manager" 
                           onClick={() => { setSelectedService(service); loadConfig(service); setActiveView("config"); }}
                         >
                           <svg className="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -1141,9 +1204,11 @@ export function ClustersView() {
                       <table className="deps-table" data-ux="live-deps-table">
                         <thead>
                           <tr>
-                            <th>Service</th>
-                            <th>Container</th>
-                            <th>Status</th>
+                            <th>Name</th>
+                            <th>Target</th>
+                            <th>Source</th>
+                            <th>State</th>
+                            <th>Running since</th>
                             <th>Restarts</th>
                           </tr>
                         </thead>
@@ -1151,11 +1216,20 @@ export function ClustersView() {
                           {(nodeLiveStatus.items || []).map((item: any) => (
                             <tr key={`dep-${item.service_id}`}>
                               <td>{item.name || item.service_key}</td>
-                              <td><code>{item.container_name || "—"}</code></td>
-                              <td>{item.overall_status || item.state || "—"}</td>
-                              <td>{item.restart_count ?? "—"}</td>
+                              <td><code>{item.container_name || item.target_host || "—"}</code></td>
+                              <td>{item.source || item.source_type || "container"}</td>
+                              <td>
+                                <span className={`pill ${item.running ? "pill-ok" : "pill-error"}`}>
+                                  {item.overall_status || item.state || "—"}
+                                </span>
+                              </td>
+                              <td>{item.started_at ? formatLocalTimestamp(item.started_at) : item.running_since || "—"}</td>
+                              <td>{item.restart_count ?? "Not tracked"}</td>
                             </tr>
                           ))}
+                          {(nodeLiveStatus.items || []).length === 0 && (
+                            <tr><td colSpan={6}>No runtime dependencies detected.</td></tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -1351,40 +1425,90 @@ export function ClustersView() {
               )}
               {serviceDrawer.tab === "overview" && !serviceDrawer.busy && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+                  {/* cP renderDetailSummaryCards */}
+                  <div className="detail-summary" data-ux="detail-summary">
+                    {buildServiceSummaryCards({
+                      status: serviceDrawer.live?.overall_status || serviceDrawer.service.status,
+                      serviceType: serviceDrawer.service.service_key || serviceDrawer.service.kind,
+                      port: serviceExposeLabel(serviceDrawer.service).portText === "internal"
+                        ? servicePortsLabel?.(serviceDrawer.service)
+                        : serviceExposeLabel(serviceDrawer.service).portText,
+                      eventsCount: (serviceDrawer.events || []).length,
+                      loading: false,
+                    }).map((card) => (
+                      <div key={card.label} className="detail-card">
+                        <div className="k">{card.label}</div>
+                        <div className="v">{card.value}</div>
+                        {card.sub ? <div className="sub">{card.sub}</div> : null}
+                      </div>
+                    ))}
+                  </div>
                   <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "110px 1fr", gap: "0.4rem 0.75rem", fontSize: "0.85rem" }} className="detail-grid">
+                    <dt style={{ color: "var(--ink-4)" }}>Service ID</dt>
+                    <dd style={{ margin: 0 }}><code>{serviceDrawer.service.external_id || serviceDrawer.service.id}</code></dd>
+                    <dt style={{ color: "var(--ink-4)" }}>Service type</dt>
+                    <dd style={{ margin: 0 }}>{serviceDrawer.service.service_key || serviceDrawer.service.kind}</dd>
                     <dt style={{ color: "var(--ink-4)" }}>Container</dt>
                     <dd style={{ margin: 0 }}><code>{serviceDrawer.service.container_name || "—"}</code></dd>
                     <dt style={{ color: "var(--ink-4)" }}>Image</dt>
                     <dd style={{ margin: 0 }}><code style={{ wordBreak: "break-all" }}>{serviceDrawer.service.image || serviceDrawer.live?.image || "—"}</code></dd>
-                    <dt style={{ color: "var(--ink-4)" }}>Kind</dt>
-                    <dd style={{ margin: 0 }}>{serviceDrawer.service.kind}</dd>
-                    <dt style={{ color: "var(--ink-4)" }}>Status</dt>
+                    <dt style={{ color: "var(--ink-4)" }}>Install mode</dt>
+                    <dd style={{ margin: 0 }}>{serviceDrawer.service.install_mode || "—"}</dd>
+                    <dt style={{ color: "var(--ink-4)" }}>Deploy status</dt>
                     <dd style={{ margin: 0 }}>{serviceDrawer.live?.overall_status || serviceDrawer.service.status || "—"}</dd>
                     <dt style={{ color: "var(--ink-4)" }}>Ports</dt>
                     <dd style={{ margin: 0 }}>{servicePortsLabel(serviceDrawer.service)}</dd>
+                    <dt style={{ color: "var(--ink-4)" }}>Node IP</dt>
+                    <dd style={{ margin: 0 }}><code>{nodes.find((n) => n.id === serviceDrawer.service.node_id)?.host || "—"}</code></dd>
+                    <dt style={{ color: "var(--ink-4)" }}>Checked at</dt>
+                    <dd style={{ margin: 0 }}>{serviceDrawer.live?.checked_at ? formatLocalTimestamp(serviceDrawer.live.checked_at) : "—"}</dd>
                   </dl>
+                  <div className="detail-kv-list" data-ux="detail-overview-extra">
+                    <div className="detail-kv">
+                      <span className="k">Latest event</span>
+                      <span className="v">
+                        {(serviceDrawer.events || [])[0]?.message ||
+                          (serviceDrawer.events || [])[0]?.event_msg ||
+                          "No events yet"}
+                      </span>
+                    </div>
+                    <div className="detail-kv">
+                      <span className="k">Runtime error</span>
+                      <span className="v" style={{ color: serviceDrawer.live?.error ? "var(--err)" : undefined }}>
+                        {serviceDrawer.live?.error && serviceDrawer.live.error !== "None"
+                          ? serviceDrawer.live.error
+                          : "None"}
+                      </span>
+                    </div>
+                  </div>
                   <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "0.85rem" }}>
                     <strong style={{ fontSize: "0.9rem" }}>Expose / host port</strong>
                     <p style={{ margin: "0.35rem 0 0.75rem", fontSize: "0.78rem", color: "var(--ink-4)" }}>
-                      Network exposure for this service card.
+                      Network exposure for this service card (cP expose_service + host_port).
                     </p>
                     <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.85rem", marginBottom: 8 }}>
                       <input
                         type="checkbox"
                         checked={Boolean(serviceDrawer.expose)}
-                        onChange={(e) => setServiceDrawer((d) => ({ ...d, expose: e.target.checked }))}
+                        onChange={(e) => {
+                          const on = e.target.checked;
+                          // cP syncInfraExposeControls: clear host port when unchecking
+                          setServiceDrawer((d) => ({ ...d, expose: on, hostPort: on ? d.hostPort : "" }));
+                        }}
                       />
                       Expose service on host port
                     </label>
-                    <input
-                      className="input"
-                      type="number"
-                      placeholder="Host port"
-                      value={serviceDrawer.hostPort}
-                      disabled={!serviceDrawer.expose}
-                      onChange={(e) => setServiceDrawer((d) => ({ ...d, hostPort: e.target.value }))}
-                      style={{ width: "100%", marginBottom: 8 }}
-                    />
+                    {serviceDrawer.expose ? (
+                      <input
+                        className="input"
+                        type="number"
+                        placeholder="Host port"
+                        value={serviceDrawer.hostPort}
+                        onChange={(e) => setServiceDrawer((d) => ({ ...d, hostPort: e.target.value }))}
+                        style={{ width: "100%", marginBottom: 8 }}
+                        data-infra-host-port-row
+                      />
+                    ) : null}
                     <button
                       type="button"
                       className="btn btn-primary btn-sm"
@@ -1419,35 +1543,69 @@ export function ClustersView() {
               {serviceDrawer.tab === "live" && (
                 <div style={{ fontSize: "0.85rem" }}>
                   {serviceDrawer.busy && !serviceDrawer.live ? (
-                    <div className="detail-loading-shell is-loading"><span className="pulse-dot" /> Loading live status…</div>
+                    <div className="detail-loading-shell is-loading"><span className="pulse-dot" /> Fetching runtime status…</div>
                   ) : serviceDrawer.live ? (
                     <>
-                    <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "120px 1fr", gap: "0.4rem 0.75rem" }}>
-                      <dt style={{ color: "var(--ink-4)" }}>Overall</dt>
-                      <dd style={{ margin: 0 }}><span className={`pill ${serviceDrawer.live.running ? "pill-ok" : "pill-error"}`}>{serviceDrawer.live.overall_status}</span></dd>
+                    <div className="detail-summary" data-ux="live-status-summary">
+                      <div className="detail-card">
+                        <div className="k">Overall status</div>
+                        <div className="v">{serviceDrawer.live.overall_status || "Unknown"}</div>
+                        {serviceDrawer.live.error ? <div className="sub">{serviceDrawer.live.error}</div> : null}
+                      </div>
+                      <div className="detail-card">
+                        <div className="k">Node IP</div>
+                        <div className="v">{nodes.find((n) => n.id === serviceDrawer.service.node_id)?.host || "NA"}</div>
+                        <div className="sub">node {serviceDrawer.service.node_id}</div>
+                      </div>
+                      <div className="detail-card">
+                        <div className="k">Checked at</div>
+                        <div className="v">{serviceDrawer.live.checked_at ? formatLocalTimestamp(serviceDrawer.live.checked_at) : "NA"}</div>
+                        <div className="sub">svc {serviceDrawer.service.id}</div>
+                      </div>
+                    </div>
+                    <dl style={{ margin: "0.85rem 0 0", display: "grid", gridTemplateColumns: "120px 1fr", gap: "0.4rem 0.75rem" }} className="detail-grid" data-ux="live-status-grid">
+                      <dt style={{ color: "var(--ink-4)" }}>Container</dt>
+                      <dd style={{ margin: 0 }}><code>{serviceDrawer.service.container_name || serviceDrawer.live.container_name || "—"}</code></dd>
                       <dt style={{ color: "var(--ink-4)" }}>State</dt>
-                      <dd style={{ margin: 0 }}>{serviceDrawer.live.state || "—"}</dd>
+                      <dd style={{ margin: 0 }}><span className={`pill ${serviceDrawer.live.running ? "pill-ok" : "pill-error"}`}>{serviceDrawer.live.state || serviceDrawer.live.overall_status || "—"}</span></dd>
                       <dt style={{ color: "var(--ink-4)" }}>Running</dt>
                       <dd style={{ margin: 0 }}>{String(serviceDrawer.live.running)}</dd>
                       <dt style={{ color: "var(--ink-4)" }}>Restarts</dt>
                       <dd style={{ margin: 0 }}>{serviceDrawer.live.restart_count ?? "—"}</dd>
                       <dt style={{ color: "var(--ink-4)" }}>Started</dt>
                       <dd style={{ margin: 0 }}>{serviceDrawer.live.started_at ? formatLocalTimestamp(serviceDrawer.live.started_at) : "—"}</dd>
-                      <dt style={{ color: "var(--ink-4)" }}>Checked</dt>
-                      <dd style={{ margin: 0 }}>{serviceDrawer.live.checked_at ? formatLocalTimestamp(serviceDrawer.live.checked_at) : "—"}</dd>
                       <dt style={{ color: "var(--ink-4)" }}>Source</dt>
                       <dd style={{ margin: 0 }}>{serviceDrawer.live.source || "—"}</dd>
+                      <dt style={{ color: "var(--ink-4)" }}>Image</dt>
+                      <dd style={{ margin: 0 }}><code style={{ wordBreak: "break-all" }}>{serviceDrawer.live.image || serviceDrawer.service.image || "—"}</code></dd>
                       <dt style={{ color: "var(--ink-4)" }}>Error</dt>
                       <dd style={{ margin: 0, color: serviceDrawer.live.error ? "var(--err)" : undefined }}>{serviceDrawer.live.error || "—"}</dd>
                     </dl>
                     <table className="deps-table" data-ux="svc-live-deps">
                       <thead>
-                        <tr><th>Dependency / field</th><th>Value</th></tr>
+                        <tr>
+                          <th>Name</th>
+                          <th>Target</th>
+                          <th>Source</th>
+                          <th>State</th>
+                          <th>Running since</th>
+                          <th>Restarts</th>
+                        </tr>
                       </thead>
                       <tbody>
-                        <tr><td>Container</td><td><code>{serviceDrawer.service.container_name || "—"}</code></td></tr>
-                        <tr><td>Image</td><td><code style={{ wordBreak: "break-all" }}>{serviceDrawer.live.image || serviceDrawer.service.image || "—"}</code></td></tr>
-                        <tr><td>Restarts</td><td>{serviceDrawer.live.restart_count ?? "—"}</td></tr>
+                        {normalizeLiveDependencies(serviceDrawer.live, serviceDrawer.service).map((row, i) => (
+                          <tr key={`${row.name}-${i}`}>
+                            <td>{row.name}</td>
+                            <td><code>{row.target}</code></td>
+                            <td>{row.source}</td>
+                            <td><span className={`pill pill-${getStateTone(row.state) === "ok" ? "ok" : getStateTone(row.state) === "err" ? "error" : "warn"}`}>{row.state}</span></td>
+                            <td>{row.runningSince}</td>
+                            <td>{row.restarts}</td>
+                          </tr>
+                        ))}
+                        {normalizeLiveDependencies(serviceDrawer.live, serviceDrawer.service).length === 0 && (
+                          <tr><td colSpan={6}>No runtime dependencies detected.</td></tr>
+                        )}
                       </tbody>
                     </table>
                     </>
@@ -1475,7 +1633,18 @@ export function ClustersView() {
               <button type="button" className="btn btn-danger btn-sm" onClick={() => requestDelete("service", serviceDrawer.service.id, serviceDrawer.service.name)}>Delete</button>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => setServiceDrawer((d) => ({ ...d, visible: false }))}>Close</button>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => openServiceEditor?.(serviceDrawer.service)}>Edit</button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  data-ux="btn-svc-edit-drawer"
+                  onClick={() => {
+                    const svc = serviceDrawer.service;
+                    setServiceDrawer((d) => ({ ...d, visible: false }));
+                    openServiceEditor?.(svc);
+                  }}
+                >
+                  Edit
+                </button>
                 <button
                   type="button"
                   className={buttonLoadingClass("btn btn-secondary btn-sm", Boolean(actionBusy.patch))}
