@@ -170,23 +170,39 @@ export function createMonitoringActions(s: any) {
   },
 
   async runPatchObservability(serviceId, serviceName) {
-    s.setNotice("Running Sentry Observability Injection Patch...");
+    s.setNotice("Running observability runtime patch (GlitchTip/Sentry inject)…");
     try {
+      const headers = { "Content-Type": "application/json" };
+      try {
+        const token = getAuthToken?.() || (typeof localStorage !== "undefined" ? localStorage.getItem("platformops.auth.token") : "");
+        if (token) headers.Authorization = `Bearer ${token}`;
+      } catch (_e) { /* ignore */ }
       const res = await fetch("/PlatformIO/Monitoring/PatchObservability/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ service_id: serviceId })
       });
-      const data = await res.json();
-      if (data.success) {
-        s.setNotice("Sentry SDK injected and container restarted successfully.");
-        await s.loadGlitchTipDataForService(serviceName);
-      } else {
-        s.setNotice(`Observability patch failed: ${data.error}`);
+      const data = await res.json().catch(() => ({}));
+      // Only treat explicit success:true as success — HTTP 200 with success:false is a failure.
+      if (data && data.success === true) {
+        s.setNotice(data.message || data.result?.message || `Observability patch finished for ${serviceName || serviceId}.`);
+        if (serviceName && s.loadGlitchTipDataForService) {
+          await s.loadGlitchTipDataForService(serviceName).catch(() => {});
+        }
+        if (s.refreshNodeLiveStatus && s.selectedNode?.id) {
+          await s.refreshNodeLiveStatus(s.selectedNode.id).catch(() => {});
+        }
+        return data;
       }
+      const errMsg =
+        (data && (data.error || data.detail || data.result?.error)) ||
+        (!res.ok ? `HTTP ${res.status}` : "Patch reported success=false");
+      s.setNotice(`Observability patch failed: ${typeof errMsg === "string" ? errMsg : JSON.stringify(errMsg)}`);
+      return data;
     } catch (e) {
       console.error("Failed to run observability patch:", e);
       s.setNotice(e?.message || "Observability patch failed");
+      return null;
     }
   },
 

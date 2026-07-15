@@ -183,6 +183,8 @@ from ..schemas import (
     ClusterOut,
     ClusterSummary,
     ClusterUpdate,
+    TestGitRepoRequest,
+    TestRegistryRequest,
     ConfigApply,
     ConfigSnapshotCompareOut,
     ConfigSnapshotCreate,

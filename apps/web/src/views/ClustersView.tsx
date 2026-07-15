@@ -50,8 +50,59 @@ export function ClustersView() {
   const nodeLiveStatus = p.nodeLiveStatus as any;
   const refreshNodeLiveStatus = p.refreshNodeLiveStatus as (...a: any[]) => void;
   const cleanupNodeInventory = p.cleanupNodeInventory as (...a: any[]) => Promise<any>;
+  const loadScopedEvents = p.loadScopedEvents as (...a: any[]) => Promise<any[]>;
+  const loadServiceLiveStatus = p.loadServiceLiveStatus as (...a: any[]) => Promise<any>;
+  const updateServiceExpose = p.updateServiceExpose as (...a: any[]) => Promise<any>;
+  const runPatchObservability = p.runPatchObservability as (...a: any[]) => Promise<any>;
   const [detailTab, setDetailTab] = React.useState("overview" as string);
   const [cleanupBusy, setCleanupBusy] = React.useState(false);
+  const [nodeEvents, setNodeEvents] = React.useState([] as any[]);
+  const [nodeEventsBusy, setNodeEventsBusy] = React.useState(false);
+  const [serviceDrawer, setServiceDrawer] = React.useState({
+    visible: false,
+    service: null as any,
+    tab: "overview" as string,
+    events: [] as any[],
+    live: null as any,
+    expose: false,
+    hostPort: "" as string | number,
+    busy: false,
+  });
+
+  const openServiceDrawer = React.useCallback(async (service: any, tab = "overview") => {
+    if (!service) return;
+    setSelectedService(service);
+    let expose = Boolean(service.expose_service);
+    let hostPort: string | number = service.host_port ?? "";
+    try {
+      const cfg = typeof service.config_json === "string" ? JSON.parse(service.config_json || "{}") : (service.config_json || {});
+      if (cfg && typeof cfg === "object") {
+        if (cfg.expose_service != null) expose = Boolean(cfg.expose_service);
+        if (cfg.host_port != null) hostPort = cfg.host_port;
+      }
+    } catch (_e) { /* ignore */ }
+    setServiceDrawer({
+      visible: true,
+      service,
+      tab,
+      events: [],
+      live: serviceLiveById[service.id] || null,
+      expose,
+      hostPort,
+      busy: true,
+    });
+    const [evts, live] = await Promise.all([
+      loadScopedEvents?.({ service_id: service.id, limit: 40 }) || Promise.resolve([]),
+      loadServiceLiveStatus?.(service.id) || Promise.resolve(null),
+    ]);
+    setServiceDrawer((prev) => ({
+      ...prev,
+      events: evts || [],
+      live: live || prev.live,
+      busy: false,
+      service: service,
+    }));
+  }, [loadScopedEvents, loadServiceLiveStatus, serviceLiveById, setSelectedService]);
 
   if (!selectedCluster) {
       return (
@@ -164,6 +215,7 @@ export function ClustersView() {
     const os = facts.os ?? facts.distro ?? "—";
 
     return (
+      <>
       <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
         <div className="page-head">
           <div className="titles">
@@ -239,7 +291,7 @@ export function ClustersView() {
                       ? "unreachable"
                       : (node.status || "unknown");
                   return (
-                    <div key={node.id} className={`node-row ${isSelected ? "active" : ""}`} onClick={() => { setDetailTab("overview"); selectNode(node); }}>
+                    <div key={node.id} className={`node-row ${isSelected ? "active" : ""}`} onClick={() => { setDetailTab("overview"); setNodeEvents([]); selectNode(node); }}>
                       <div className={`nstat ${nstat}`}></div>
                       <div className="info">
                         <div className="nm">{node.name}</div>
@@ -285,7 +337,7 @@ export function ClustersView() {
                 </div>
 
                 <div className="detail-tabs" style={{ display: "flex", gap: 6, marginTop: "0.85rem", flexWrap: "wrap" }}>
-                  {["overview", "services", "events", "jobs"].map((tab) => (
+                  {["overview", "services", "events", "live", "jobs"].map((tab) => (
                     <button
                       key={tab}
                       type="button"
@@ -300,9 +352,25 @@ export function ClustersView() {
                         cursor: "pointer",
                         textTransform: "capitalize",
                       }}
-                      onClick={() => setDetailTab(tab)}
+                      onClick={async () => {
+                        setDetailTab(tab);
+                        if (tab === "live" || tab === "services") {
+                          refreshNodeLiveStatus?.(activeNode.id);
+                        }
+                        if (tab === "events") {
+                          setNodeEventsBusy(true);
+                          try {
+                            const evts = await loadScopedEvents?.({ node_id: activeNode.id, limit: 60 });
+                            setNodeEvents(Array.isArray(evts) ? evts : []);
+                          } catch (_e) {
+                            setNodeEvents([]);
+                          } finally {
+                            setNodeEventsBusy(false);
+                          }
+                        }
+                      }}
                     >
-                      {tab}
+                      {tab === "live" ? "Live status" : tab}
                     </button>
                   ))}
                 </div>
@@ -453,7 +521,15 @@ export function ClustersView() {
                         ? "pill-error"
                         : "pill-warn";
                     return (
-                    <div key={service.id} className={`svc-card ${displayStatus}`}>
+                    <div
+                      key={service.id}
+                      className={`svc-card ${displayStatus}`}
+                      style={{ cursor: "pointer" }}
+                      onClick={() => openServiceDrawer(service, "overview")}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === "Enter") openServiceDrawer(service, "overview"); }}
+                    >
                       <div className="svc-icon">{(service.name || service.service_key || "?")[0]}</div>
                       <div className="svc-info">
                         <div className="nm" style={{ fontWeight: 600 }}>
@@ -486,7 +562,10 @@ export function ClustersView() {
                           {live ? "" : " · inv"}
                         </span>
                       </div>
-                      <div className="svc-acts">
+                      <div className="svc-acts" onClick={(e) => e.stopPropagation()}>
+                        <button className="icon-btn" title="Overview / Events / Live" onClick={() => openServiceDrawer(service, "overview")}>
+                          <svg className="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                        </button>
                         <button className="icon-btn" title="Logs" onClick={() => { setSelectedService(service); loadDiagnostics(service); setActiveView("diagnostics"); setDiagTab("tail"); }}>
                           <svg className="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
                         </button>
@@ -495,6 +574,9 @@ export function ClustersView() {
                         </button>
                         <button className="icon-btn" title="Deploy" onClick={() => openDeploymentModal(service)}>
                           <svg className="ic" viewBox="0 0 24 24"><path d="M12 2v20M17 5l-5-5-5 5"/></svg>
+                        </button>
+                        <button className="icon-btn" title="GlitchTip / observability patch" onClick={() => runPatchObservability?.(service.id, service.name)}>
+                          <svg className="ic" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
                         </button>
                         <button className="icon-btn danger" title="Uninstall" onClick={() => requestDelete("service", service.id, service.name)}>
                           <svg className="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m1 0v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6h12z"/></svg>
@@ -515,22 +597,99 @@ export function ClustersView() {
 
               {detailTab === "events" && (
                 <div style={{ marginTop: "1rem", border: "1px solid var(--line)", borderRadius: 12, padding: "1rem", background: "var(--bg-elevated)" }}>
-                  <div className="panel-title" style={{ marginBottom: "0.75rem" }}>
-                    <h2>Node events</h2>
-                    <span>{events.filter((e) => e.node_id === activeNode.id).length}</span>
+                  <div className="panel-title" style={{ marginBottom: "0.75rem", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      <h2 style={{ margin: 0 }}>Node events</h2>
+                      <span>{nodeEvents.length}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={nodeEventsBusy}
+                      onClick={async () => {
+                        setNodeEventsBusy(true);
+                        try {
+                          const evts = await loadScopedEvents?.({ node_id: activeNode.id, limit: 60 });
+                          setNodeEvents(Array.isArray(evts) ? evts : []);
+                        } catch (_e) {
+                          setNodeEvents([]);
+                        } finally {
+                          setNodeEventsBusy(false);
+                        }
+                      }}
+                    >
+                      {nodeEventsBusy ? "Loading…" : "Refresh events"}
+                    </button>
                   </div>
                   <div className="timeline" style={{ maxHeight: 360, overflow: "auto" }}>
-                    {events.filter((e) => e.node_id === activeNode.id).slice(0, 40).map((ev) => (
+                    {nodeEventsBusy && nodeEvents.length === 0 && (
+                      <p style={{ color: "var(--ink-4)", margin: 0 }}>Loading node events…</p>
+                    )}
+                    {nodeEvents.slice(0, 40).map((ev) => (
                       <article key={ev.id}>
                         <span className={`pill ${ev.level === "error" ? "pill-error" : ev.level === "warning" ? "pill-warn" : "pill-ok"}`}>{ev.category || "event"}</span>
                         <strong style={{ fontSize: "0.85rem" }}>{ev.message}</strong>
                         <small style={{ color: "var(--ink-4)" }}>{formatLocalTimestamp(ev.created_at)}</small>
                       </article>
                     ))}
-                    {events.filter((e) => e.node_id === activeNode.id).length === 0 && (
-                      <p style={{ color: "var(--ink-4)", margin: 0 }}>No node-scoped events yet.</p>
+                    {!nodeEventsBusy && nodeEvents.length === 0 && (
+                      <p style={{ color: "var(--ink-4)", margin: 0 }}>No node-scoped events yet. Click Refresh events to load from API.</p>
                     )}
                   </div>
+                </div>
+              )}
+
+              {detailTab === "live" && (
+                <div style={{ marginTop: "1rem", border: "1px solid var(--line)", borderRadius: 12, padding: "1rem", background: "var(--bg-elevated)" }}>
+                  <div className="panel-title" style={{ marginBottom: "0.75rem", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <div>
+                      <h2 style={{ margin: 0 }}>Live status</h2>
+                      <small style={{ color: "var(--ink-4)" }}>
+                        {nodeLiveStatus?.checked_at
+                          ? `Checked ${formatLocalTimestamp(nodeLiveStatus.checked_at)} · source ${nodeLiveStatus.source || "—"}`
+                          : "Not loaded yet"}
+                      </small>
+                    </div>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => refreshNodeLiveStatus?.(activeNode.id, { via: "ssh" })}>
+                      Refresh live
+                    </button>
+                  </div>
+                  {nodeLiveStatus && nodeLiveStatus.node_id === activeNode.id ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem" }}>
+                      <div style={{ fontSize: "0.85rem", color: "var(--ink-3)" }}>
+                        {nodeLiveStatus.running_count}/{nodeLiveStatus.count} running
+                      </div>
+                      {(nodeLiveStatus.items || []).map((item: any) => (
+                        <article
+                          key={`live-${item.service_id}`}
+                          style={{ border: "1px solid var(--line-2)", borderRadius: 10, padding: "0.7rem 0.85rem", cursor: "pointer" }}
+                          onClick={() => {
+                            const svc = nodeServices.find((s) => s.id === item.service_id);
+                            if (svc) openServiceDrawer(svc, "live");
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                            <div>
+                              <strong>{item.name || item.service_key}</strong>
+                              {item.external_id ? <span style={{ marginLeft: 8, fontFamily: "var(--mono)", fontSize: "0.72rem", color: "var(--ink-4)" }}>{item.external_id}</span> : null}
+                              <div style={{ fontSize: "0.78rem", color: "var(--ink-4)" }}>
+                                <code>{item.container_name || "—"}</code>
+                                {item.image ? <> · {item.image}</> : null}
+                              </div>
+                            </div>
+                            <span className={`pill ${item.running ? "pill-ok" : "pill-error"}`}>{item.overall_status || item.state || "unknown"}</span>
+                          </div>
+                          {item.error ? <div style={{ marginTop: 6, fontSize: "0.78rem", color: "var(--err)" }}>{item.error}</div> : null}
+                          <div style={{ marginTop: 4, fontSize: "0.72rem", color: "var(--ink-4)" }}>
+                            restarts {item.restart_count ?? "—"}
+                            {item.started_at ? ` · started ${formatLocalTimestamp(item.started_at)}` : ""}
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ color: "var(--ink-4)" }}>No live report yet. Click Refresh live.</p>
+                  )}
                 </div>
               )}
 
@@ -573,5 +732,180 @@ export function ClustersView() {
           )}
         </div>
       </div>
+
+      {/* Service detail drawer — Overview | Events | Live Status (cPlatform parity) */}
+      {serviceDrawer.visible && serviceDrawer.service && (
+        <>
+          <div
+            className="drawer-backdrop"
+            style={{ display: "block", position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 80 }}
+            onClick={() => setServiceDrawer((d) => ({ ...d, visible: false }))}
+          />
+          <aside
+            style={{
+              position: "fixed",
+              top: 0,
+              right: 0,
+              width: "min(420px, 100vw)",
+              height: "100vh",
+              background: "var(--bg-elevated, #0f1419)",
+              borderLeft: "1px solid var(--line)",
+              zIndex: 90,
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "-8px 0 32px rgba(0,0,0,0.25)",
+            }}
+          >
+            <div style={{ padding: "1rem 1.1rem", borderBottom: "1px solid var(--line)", display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
+              <div>
+                <h3 style={{ margin: 0 }}>{serviceDrawer.service.name}</h3>
+                <div style={{ fontSize: "0.78rem", color: "var(--ink-4)", marginTop: 4 }}>
+                  {serviceDrawer.service.external_id || "—"} · <code>{serviceDrawer.service.service_key}</code>
+                </div>
+              </div>
+              <button type="button" className="icon-btn" onClick={() => setServiceDrawer((d) => ({ ...d, visible: false }))} aria-label="Close">
+                ✕
+              </button>
+            </div>
+            <div style={{ display: "flex", gap: 6, padding: "0.65rem 1rem", borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
+              {["overview", "events", "live"].map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  className={`btn btn-sm ${serviceDrawer.tab === tab ? "btn-primary" : "btn-secondary"}`}
+                  onClick={async () => {
+                    setServiceDrawer((d) => ({ ...d, tab, busy: true }));
+                    if (tab === "events") {
+                      const evts = await loadScopedEvents?.({ service_id: serviceDrawer.service.id, limit: 40 });
+                      setServiceDrawer((d) => ({ ...d, events: evts || [], busy: false }));
+                    } else if (tab === "live") {
+                      const live = await loadServiceLiveStatus?.(serviceDrawer.service.id);
+                      setServiceDrawer((d) => ({ ...d, live: live || d.live, busy: false }));
+                    } else {
+                      setServiceDrawer((d) => ({ ...d, busy: false }));
+                    }
+                  }}
+                >
+                  {tab === "live" ? "Live status" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
+            </div>
+            <div style={{ flex: 1, overflow: "auto", padding: "1rem 1.1rem" }}>
+              {serviceDrawer.busy && <p style={{ color: "var(--ink-4)", fontSize: "0.85rem" }}>Loading…</p>}
+              {serviceDrawer.tab === "overview" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+                  <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "110px 1fr", gap: "0.4rem 0.75rem", fontSize: "0.85rem" }}>
+                    <dt style={{ color: "var(--ink-4)" }}>Container</dt>
+                    <dd style={{ margin: 0 }}><code>{serviceDrawer.service.container_name || "—"}</code></dd>
+                    <dt style={{ color: "var(--ink-4)" }}>Image</dt>
+                    <dd style={{ margin: 0 }}><code style={{ wordBreak: "break-all" }}>{serviceDrawer.service.image || serviceDrawer.live?.image || "—"}</code></dd>
+                    <dt style={{ color: "var(--ink-4)" }}>Kind</dt>
+                    <dd style={{ margin: 0 }}>{serviceDrawer.service.kind}</dd>
+                    <dt style={{ color: "var(--ink-4)" }}>Status</dt>
+                    <dd style={{ margin: 0 }}>{serviceDrawer.live?.overall_status || serviceDrawer.service.status || "—"}</dd>
+                    <dt style={{ color: "var(--ink-4)" }}>Ports</dt>
+                    <dd style={{ margin: 0 }}>{servicePortsLabel(serviceDrawer.service)}</dd>
+                  </dl>
+                  <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "0.85rem" }}>
+                    <strong style={{ fontSize: "0.9rem" }}>Expose / host port</strong>
+                    <p style={{ margin: "0.35rem 0 0.75rem", fontSize: "0.78rem", color: "var(--ink-4)" }}>
+                      cPlatform-style network exposure for this service card.
+                    </p>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.85rem", marginBottom: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(serviceDrawer.expose)}
+                        onChange={(e) => setServiceDrawer((d) => ({ ...d, expose: e.target.checked }))}
+                      />
+                      Expose service on host port
+                    </label>
+                    <input
+                      className="input"
+                      type="number"
+                      placeholder="Host port"
+                      value={serviceDrawer.hostPort}
+                      disabled={!serviceDrawer.expose}
+                      onChange={(e) => setServiceDrawer((d) => ({ ...d, hostPort: e.target.value }))}
+                      style={{ width: "100%", marginBottom: 8 }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={async () => {
+                        const updated = await updateServiceExpose?.(serviceDrawer.service, {
+                          expose_service: serviceDrawer.expose,
+                          host_port: serviceDrawer.expose ? serviceDrawer.hostPort : "",
+                        });
+                        if (updated) setServiceDrawer((d) => ({ ...d, service: updated }));
+                      }}
+                    >
+                      Save network options
+                    </button>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => { loadConfig(serviceDrawer.service); setActiveView("config"); }}>Config</button>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => openDeploymentModal(serviceDrawer.service)}>Deploy</button>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => runPatchObservability?.(serviceDrawer.service.id, serviceDrawer.service.name)}>Patch observability</button>
+                    <button type="button" className="btn btn-danger btn-sm" onClick={() => requestDelete("service", serviceDrawer.service.id, serviceDrawer.service.name)}>Uninstall</button>
+                  </div>
+                </div>
+              )}
+              {serviceDrawer.tab === "events" && (
+                <div className="timeline" style={{ display: "flex", flexDirection: "column", gap: "0.55rem" }}>
+                  {(serviceDrawer.events || []).length === 0 && !serviceDrawer.busy && (
+                    <p style={{ color: "var(--ink-4)", margin: 0 }}>No service events yet.</p>
+                  )}
+                  {(serviceDrawer.events || []).map((ev: any) => (
+                    <article key={ev.id} style={{ border: "1px solid var(--line-2)", borderRadius: 10, padding: "0.65rem 0.75rem" }}>
+                      <span className={`pill ${ev.level === "error" ? "pill-error" : ev.level === "warning" ? "pill-warn" : "pill-ok"}`}>{ev.category || "event"}</span>
+                      <div style={{ fontSize: "0.85rem", marginTop: 4 }}>{ev.message}</div>
+                      <small style={{ color: "var(--ink-4)" }}>{formatLocalTimestamp(ev.created_at)}</small>
+                    </article>
+                  ))}
+                </div>
+              )}
+              {serviceDrawer.tab === "live" && (
+                <div style={{ fontSize: "0.85rem" }}>
+                  {serviceDrawer.live ? (
+                    <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "120px 1fr", gap: "0.4rem 0.75rem" }}>
+                      <dt style={{ color: "var(--ink-4)" }}>Overall</dt>
+                      <dd style={{ margin: 0 }}><span className={`pill ${serviceDrawer.live.running ? "pill-ok" : "pill-error"}`}>{serviceDrawer.live.overall_status}</span></dd>
+                      <dt style={{ color: "var(--ink-4)" }}>State</dt>
+                      <dd style={{ margin: 0 }}>{serviceDrawer.live.state || "—"}</dd>
+                      <dt style={{ color: "var(--ink-4)" }}>Running</dt>
+                      <dd style={{ margin: 0 }}>{String(serviceDrawer.live.running)}</dd>
+                      <dt style={{ color: "var(--ink-4)" }}>Restarts</dt>
+                      <dd style={{ margin: 0 }}>{serviceDrawer.live.restart_count ?? "—"}</dd>
+                      <dt style={{ color: "var(--ink-4)" }}>Started</dt>
+                      <dd style={{ margin: 0 }}>{serviceDrawer.live.started_at ? formatLocalTimestamp(serviceDrawer.live.started_at) : "—"}</dd>
+                      <dt style={{ color: "var(--ink-4)" }}>Checked</dt>
+                      <dd style={{ margin: 0 }}>{serviceDrawer.live.checked_at ? formatLocalTimestamp(serviceDrawer.live.checked_at) : "—"}</dd>
+                      <dt style={{ color: "var(--ink-4)" }}>Source</dt>
+                      <dd style={{ margin: 0 }}>{serviceDrawer.live.source || "—"}</dd>
+                      <dt style={{ color: "var(--ink-4)" }}>Error</dt>
+                      <dd style={{ margin: 0, color: serviceDrawer.live.error ? "var(--err)" : undefined }}>{serviceDrawer.live.error || "—"}</dd>
+                    </dl>
+                  ) : (
+                    <p style={{ color: "var(--ink-4)" }}>No live status yet.</p>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ marginTop: 12 }}
+                    onClick={async () => {
+                      setServiceDrawer((d) => ({ ...d, busy: true }));
+                      const live = await loadServiceLiveStatus?.(serviceDrawer.service.id);
+                      setServiceDrawer((d) => ({ ...d, live: live || d.live, busy: false }));
+                    }}
+                  >
+                    Refresh live status
+                  </button>
+                </div>
+              )}
+            </div>
+          </aside>
+        </>
+      )}
+      </>
     );
 }

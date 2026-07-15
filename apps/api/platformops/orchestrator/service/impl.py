@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ...catalog import (
@@ -583,6 +583,34 @@ def _deployment_command_preview(node: Node, service: ServiceInstance | None, ser
 
 def delete_service(db: Session, service: ServiceInstance) -> DeploymentJob:
     node = service.node
+    # cPlatform parity: cannot delete AIOrchestrator while other services exist on the cluster
+    orch_keys = {"ai-orchestrator", "aiorchestrator", "cplatform"}
+    if str(service.service_key or "").strip().lower() in orch_keys:
+        cluster_id = node.cluster_id if node else None
+        siblings = 0
+        if cluster_id is not None:
+            node_ids = list(
+                db.scalars(select(Node.id).where(Node.cluster_id == cluster_id)).all()
+            )
+            if node_ids:
+                siblings = (
+                    db.scalar(
+                        select(func.count())
+                        .select_from(ServiceInstance)
+                        .where(
+                            ServiceInstance.node_id.in_(node_ids),
+                            ServiceInstance.id != service.id,
+                            ServiceInstance.status != "deleted",
+                        )
+                    )
+                    or 0
+                )
+        if siblings > 0:
+            raise ValueError(
+                "AIOrchestrator cannot be deleted while other services exist on this cluster. "
+                f"Remove {int(siblings)} other service(s) first."
+            )
+
     vars_path = write_job_vars(
         "delete",
         service.id,

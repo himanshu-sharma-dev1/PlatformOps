@@ -1145,23 +1145,25 @@ def patch_service_runtime_observability(db: Session, service_id: int) -> dict[st
         }
 
     patch_script = settings.resolve(settings.ansible_dir) / "playbooks" / "service_runtime_patch.py"
+    # Args must match service_runtime_patch.py (underscores, not hyphens).
+    dsn = (
+        f"{settings.glitchtip_base_url.rstrip('/')}/{service.id}"
+        if not settings.glitchtip_token
+        else f"http://{settings.glitchtip_token}@{settings.glitchtip_base_url.split('://', 1)[-1].rstrip('/')}/{service.id}"
+    )
     cmd = [
         sys.executable,
         str(patch_script),
-        "--container-name",
-        service.container_name,
+        "--container_name",
+        service.container_name or "",
         "--service_type",
-        service.service_key,
+        service.service_key or "",
         "--service_name",
-        service.name,
+        service.name or service.service_key or "",
         "--service_id",
         str(service.id),
         "--sentry_dsn",
-        (
-            f"{settings.glitchtip_base_url.rstrip('/')}/{service.id}"
-            if not settings.glitchtip_token
-            else f"http://{settings.glitchtip_token}@{settings.glitchtip_base_url.split('://', 1)[-1].rstrip('/')}/{service.id}"
-        ),
+        dsn,
         "--glitchtip_enabled",
         "true",
         "--environment",
@@ -1169,8 +1171,34 @@ def patch_service_runtime_observability(db: Session, service_id: int) -> dict[st
         "--restart",
         "true",
     ]
+    if service.node_id:
+        cmd.extend(["--node_id", str(service.node_id)])
+    if service.node and service.node.host:
+        cmd.extend(["--node_ip", str(service.node.host)])
     try:
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        return {"success": res.returncode == 0, "stdout": res.stdout, "stderr": res.stderr}
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        payload: dict[str, Any] = {
+            "success": False,
+            "stdout": res.stdout or "",
+            "stderr": res.stderr or "",
+            "returncode": res.returncode,
+        }
+        # Script prints JSON and often exits 0 even on logical failure — parse honestly.
+        raw = (res.stdout or "").strip()
+        if raw:
+            try:
+                parsed = json.loads(raw.splitlines()[-1] if "\n" in raw else raw)
+                if isinstance(parsed, dict):
+                    payload["success"] = bool(parsed.get("success"))
+                    if parsed.get("error"):
+                        payload["error"] = parsed.get("error")
+                    payload["result"] = parsed
+            except json.JSONDecodeError:
+                payload["success"] = res.returncode == 0
+        else:
+            payload["success"] = res.returncode == 0
+            if not payload["success"]:
+                payload["error"] = (res.stderr or "runtime patch failed").strip()
+        return payload
     except Exception as exc:
         return {"success": False, "error": str(exc)}

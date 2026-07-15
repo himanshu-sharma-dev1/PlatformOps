@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ClusterCreate(BaseModel):
@@ -18,6 +18,20 @@ class ClusterCreate(BaseModel):
     registry_url: str = ""
     registry_user: str = ""
     registry_password: str = ""
+
+
+class TestGitRepoRequest(BaseModel):
+    repo_type: str = "github"
+    repo_url: str = ""
+    repo_branch: str = "main"
+    repo_token: str | None = None
+
+
+class TestRegistryRequest(BaseModel):
+    registry_type: str = "dockerhub"
+    registry_url: str = ""
+    registry_user: str | None = None
+    registry_password: str | None = None
 
 
 class ClusterUpdate(BaseModel):
@@ -117,8 +131,36 @@ class ServiceOut(BaseModel):
     container_name: str
     image: str
     status: str
+    # Contract highlights for cluster UI (expose / adopt) — derived from config_json
+    expose_service: bool = False
+    host_port: str | int | None = None
+    adopted: bool = False
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _derive_contract_flags(cls, values, handler):
+        # Accept ORM ServiceInstance or dict
+        raw = values
+        data = handler(values)
+        cfg_raw = ""
+        if hasattr(raw, "config_json"):
+            cfg_raw = getattr(raw, "config_json", "") or ""
+        elif isinstance(raw, dict):
+            cfg_raw = raw.get("config_json") or ""
+        try:
+            import json
+
+            cfg = json.loads(cfg_raw) if cfg_raw else {}
+            if not isinstance(cfg, dict):
+                cfg = {}
+        except Exception:
+            cfg = {}
+        object.__setattr__(data, "expose_service", bool(cfg.get("expose_service")))
+        object.__setattr__(data, "host_port", cfg.get("host_port"))
+        object.__setattr__(data, "adopted", bool(cfg.get("adopted")))
+        return data
 
 
 class ServiceLiveStatusOut(BaseModel):

@@ -139,6 +139,34 @@ export function createInventoryLoadActions(s: any) {
     }
   },
 
+  async loadScopedEvents(options = {}) {
+    try {
+      const params = new URLSearchParams();
+      params.set("limit", String(options.limit || 80));
+      if (options.node_id != null) params.set("node_id", String(options.node_id));
+      if (options.service_id != null) params.set("service_id", String(options.service_id));
+      if (options.category) params.set("category", String(options.category));
+      const items = await api(`/api/events?${params.toString()}`);
+      return Array.isArray(items) ? items : items?.items || [];
+    } catch (e) {
+      s.setNotice(e?.message || "Failed to load events");
+      return [];
+    }
+  },
+
+  async loadServiceLiveStatus(serviceId) {
+    if (!serviceId) return null;
+    try {
+      const item = await api(`/api/services/${serviceId}/live-status`);
+      const map = { ...(s.serviceLiveById || {}) };
+      map[serviceId] = item;
+      s.setServiceLiveById(map);
+      return item;
+    } catch (e) {
+      return null;
+    }
+  },
+
   async refreshNodeLiveStatus(nodeId, opts) {
     if (!nodeId) return null;
     try {

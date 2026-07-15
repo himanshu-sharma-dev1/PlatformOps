@@ -210,7 +210,10 @@ def delete(
             node_id=service.node_id,
             metadata={"service_id": service_id},
         )
-    deleted = delete_service(db, service)
+    try:
+        deleted = delete_service(db, service)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if force and force_approval_id is not None and not impact["can_delete_without_force"]:
         approval = _get_force_delete_approval(db, force_approval_id)
         mark_force_delete_approval_used(db, approval)

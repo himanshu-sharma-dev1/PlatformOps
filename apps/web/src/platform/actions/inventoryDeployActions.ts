@@ -247,6 +247,51 @@ export function createInventoryDeployActions(s: any) {
     }
   },
 
+  async updateServiceExpose(service, { expose_service, host_port, name }) {
+    if (!service?.id) {
+      s.setNotice("Select a service first.");
+      return null;
+    }
+    try {
+      const contract_overrides = {};
+      if (expose_service !== undefined) contract_overrides.expose_service = Boolean(expose_service);
+      if (host_port !== undefined && host_port !== null && String(host_port).trim() !== "") {
+        contract_overrides.host_port = Number(host_port) || host_port;
+      }
+      // Port collision when exposing
+      if (contract_overrides.expose_service && contract_overrides.host_port != null) {
+        try {
+          const check = await api(
+            `/api/nodes/${service.node_id}/check-port-and-name?port=${encodeURIComponent(String(contract_overrides.host_port))}&name=${encodeURIComponent(service.container_name || "")}`
+          );
+          if (check && check.available === false) {
+            s.setNotice(check.message || `Port ${contract_overrides.host_port} is not available on this node.`);
+            return null;
+          }
+        } catch (_e) {
+          /* non-fatal: backend may still validate */
+        }
+      }
+      const updated = await api(`/api/services/${service.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: name ?? undefined,
+          contract_overrides,
+        }),
+      });
+      s.setSelectedService(updated);
+      s.setNotice(
+        `Updated ${updated.name}: expose=${contract_overrides.expose_service ?? "unchanged"}` +
+          (contract_overrides.host_port != null ? ` host_port=${contract_overrides.host_port}` : "")
+      );
+      await s.refresh();
+      return updated;
+    } catch (error) {
+      s.setNotice(error?.message || "Failed to update service");
+      return null;
+    }
+  },
+
   async openDeploymentModal(service) {
     const node = s.nodes.find((item) => item.id === service.node_id);
     s.setSelectedService(service);

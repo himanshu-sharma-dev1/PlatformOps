@@ -251,7 +251,7 @@ def main():
             "error": "Container not found on node",
             "checked_at": checked_at,
         }))
-        return
+        raise SystemExit(2)
 
     container_id = str(inspect_data.get("Id", "")).strip()
     python_cmd = _resolve_python_cmd(args.container_name)
@@ -261,7 +261,7 @@ def main():
             "error": "Python runtime not found in target container",
             "checked_at": checked_at,
         }))
-        return
+        raise SystemExit(2)
 
     install_ok, installed_now, install_info = _install_sentry_sdk(args.container_name, python_cmd)
     if not install_ok:
@@ -270,7 +270,7 @@ def main():
             "error": f"Failed to install sentry-sdk: {install_info}",
             "checked_at": checked_at,
         }))
-        return
+        raise SystemExit(2)
 
     release_value = args.release.strip() or args.service_name or args.service_type
     bootstrap_ok, bootstrap_path, bootstrap_error, patch_changed = _install_runtime_bootstrap(
@@ -294,7 +294,7 @@ def main():
             "error": f"Failed to install runtime bootstrap: {bootstrap_error}",
             "checked_at": checked_at,
         }))
-        return
+        raise SystemExit(2)
 
     restart_requested = str(args.restart).strip().lower() in ["true", "1", "yes", "on"]
     restart_required = bool(installed_now or patch_changed)

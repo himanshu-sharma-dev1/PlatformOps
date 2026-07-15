@@ -1,5 +1,9 @@
 # Legacy cPlatform: Cluster Page Feature Inventory
 
+> **Superseding complete reference:** for PlatformOps ↔ cPlatform full surface map, REST APIs, hardcodes, flows, parity matrix, and backlog, use  
+> **[`cluster-page-complete-reference.md`](./cluster-page-complete-reference.md)**.  
+> This file remains a shorter cPlatform-oriented inventory checklist.
+
 This document provides a highly detailed list of every single user interface feature, backend API, interactive control, and system operation supported by the legacy `cPlatform` **Cluster list (`02-clusters.html`)** and **Cluster Detail (`04-cluster-detail.html`)** pages.
 
 ---

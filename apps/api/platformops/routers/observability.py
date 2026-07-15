@@ -68,7 +68,7 @@ import urllib.request  # noqa: E402
 from datetime import datetime, timedelta  # noqa: E402
 
 
-@router.post("/api/observability/deploy", response_model=JobOut)
+@router.post("/api/nodes/{node_id}/observability/deploy", response_model=JobOut)
 def deploy_observability_endpoint(node_id: int, db: Session = Depends(get_db)) -> dict:
     node = db.get(Node, node_id)
     if not node:

@@ -184,7 +184,7 @@ def get_cluster_operations_endpoint(cluster_id: int, limit: int = 40, db: Sessio
 
 
 @router.post("/api/clusters/test-repo")
-def test_cluster_repo_connection_endpoint(payload: TestGitRepoRequest) -> dict:
+def test_cluster_repo_connection_endpoint(payload: TestGitRepoRequest = Body(...)) -> dict:
     try:
         return test_git_connection(
             repo_type=payload.repo_type,
@@ -197,7 +197,7 @@ def test_cluster_repo_connection_endpoint(payload: TestGitRepoRequest) -> dict:
 
 
 @router.post("/api/clusters/test-registry")
-def test_cluster_registry_connection_endpoint(payload: TestRegistryRequest) -> dict:
+def test_cluster_registry_connection_endpoint(payload: TestRegistryRequest = Body(...)) -> dict:
     try:
         return test_registry_connection(
             registry_type=payload.registry_type,
