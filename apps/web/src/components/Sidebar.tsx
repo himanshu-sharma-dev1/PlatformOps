@@ -48,7 +48,8 @@ const NAV: Array<{
     ],
   },
   {
-    group: "Observability",
+    // cPlatform-aligned ops surface only (no Topology / Policy / Audit / Reliability product pages)
+    group: "Operations",
     items: [
       {
         id: "monitoring",
@@ -76,64 +77,6 @@ const NAV: Array<{
           <svg className="ico" viewBox="0 0 24 24" aria-hidden>
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
             <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
-          </svg>
-        ),
-      },
-      {
-        id: "observability",
-        label: "Observability stack",
-        icon: (
-          <svg className="ico" viewBox="0 0 24 24" aria-hidden>
-            <path d="M12 2L2 7l10 5 10-5-10-5z" />
-            <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
-          </svg>
-        ),
-      },
-    ],
-  },
-  {
-    group: "Advanced",
-    muted: true,
-    items: [
-      {
-        id: "topology",
-        label: "Topology",
-        icon: (
-          <svg className="ico" viewBox="0 0 24 24" aria-hidden>
-            <circle cx="6" cy="6" r="2" />
-            <circle cx="18" cy="6" r="2" />
-            <circle cx="12" cy="18" r="2" />
-            <path d="M8 7l3 9M16 7l-3 9M8 6h8" />
-          </svg>
-        ),
-      },
-      {
-        id: "policy",
-        label: "Policy",
-        icon: (
-          <svg className="ico" viewBox="0 0 24 24" aria-hidden>
-            <path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z" />
-          </svg>
-        ),
-      },
-      {
-        id: "audit",
-        label: "Audit",
-        icon: (
-          <svg className="ico" viewBox="0 0 24 24" aria-hidden>
-            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
-            <rect x="9" y="3" width="6" height="4" rx="1" />
-            <path d="M9 12h6M9 16h4" />
-          </svg>
-        ),
-      },
-      {
-        id: "reliability",
-        label: "Reliability",
-        icon: (
-          <svg className="ico" viewBox="0 0 24 24" aria-hidden>
-            <path d="M12 9v4M12 17h.01" />
-            <path d="M10.3 3.3L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.3a2 2 0 00-3.4 0z" />
           </svg>
         ),
       },

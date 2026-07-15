@@ -208,3 +208,67 @@ export function shouldRefreshOpenEvents(opts: {
 export function deployButtonClass(baseClass: string, busy: boolean): string {
   return buttonLoadingClass(baseClass, busy);
 }
+
+/**
+ * cPlatform-style event row (renderEvents): "Title: message (date time)".
+ * Accepts PlatformOps OperationalEventOut + legacy cP field names.
+ */
+export function formatClusterEventRow(ev: Record<string, unknown> | null | undefined): {
+  title: string;
+  message: string;
+  when: string;
+  level: string;
+  category: string;
+} {
+  if (!ev || typeof ev !== "object") {
+    return { title: "Event", message: "", when: "", level: "info", category: "event" };
+  }
+  const rawMsg = String(
+    ev.event_msg || ev.message || ev.msg || ev.Event_Msg || ""
+  );
+  let title = String(
+    ev.event_title ||
+      ev.event_type ||
+      ev.title ||
+      ev.category ||
+      ev.level ||
+      ev.event_trigger ||
+      ev.Event_Trigger ||
+      ""
+  );
+  let message = rawMsg;
+  if (!title && rawMsg.includes("-")) {
+    const i = rawMsg.indexOf("-");
+    title = rawMsg.slice(0, i).trim();
+    message = rawMsg.slice(i + 1).trim();
+  }
+  if (!title) title = "Event";
+  const date = String(ev.create_date || ev.event_date || ev.date || ev.Event_Date || "");
+  const time = String(ev.create_time || ev.event_time || ev.time || ev.Event_Time || "");
+  let when = "";
+  if (date || time) {
+    when = `${date} ${time}`.trim();
+  } else if (ev.created_at) {
+    try {
+      when = new Date(String(ev.created_at)).toLocaleString();
+    } catch {
+      when = String(ev.created_at);
+    }
+  }
+  return {
+    title,
+    message: message || rawMsg || "—",
+    when,
+    level: String(ev.level || "info").toLowerCase(),
+    category: String(ev.category || title || "event"),
+  };
+}
+
+/** Status text matching cPlatform events panel: "N events" / "0 events". */
+export function eventsCountLabel(count: number, loading = false): string {
+  if (loading) return "Loading events…";
+  return `${count} events`;
+}
+
+/** Product views that are NOT on cPlatform primary nav (detangled from shell). */
+export const DETANGLED_VIEWS = ["topology", "policy", "audit", "reliability", "observability"] as const;

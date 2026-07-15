@@ -175,6 +175,26 @@ check("deployButtonClass loading", () => {
   assert.ok(!ux.deployButtonClass("btn btn-primary btn-sm", false).includes("btn-loading"));
 });
 
+check("formatClusterEventRow cPlatform style", () => {
+  const row = ux.formatClusterEventRow({
+    category: "deploy",
+    level: "info",
+    message: "Deploy finished",
+    created_at: "2026-07-15T12:00:00Z",
+  });
+  assert.equal(row.title, "deploy");
+  assert.ok(row.message.includes("Deploy"));
+  assert.equal(ux.eventsCountLabel(3), "3 events");
+  assert.equal(ux.eventsCountLabel(0, true), "Loading events…");
+});
+
+check("DETANGLED_VIEWS excludes advanced product pages", () => {
+  assert.ok(ux.DETANGLED_VIEWS.includes("topology"));
+  assert.ok(ux.DETANGLED_VIEWS.includes("policy"));
+  assert.ok(ux.DETANGLED_VIEWS.includes("audit"));
+  assert.ok(ux.DETANGLED_VIEWS.includes("reliability"));
+});
+
 const summary = `\n${passed} checks passed\n`;
 console.log(summary);
 writeFileSync(join(outDir, "ux-unit-tests-summary.txt"), summary, "utf8");

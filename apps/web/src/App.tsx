@@ -7,14 +7,13 @@ import { ConfigView } from "./views/ConfigView";
 import { DiagnosticsView } from "./views/DiagnosticsView";
 import { MonitoringView } from "./views/MonitoringView";
 import { PerformanceView } from "./views/PerformanceView";
-import { ObservabilityView } from "./views/ObservabilityView";
-import { TopologyView } from "./views/TopologyView";
-import { PolicyView } from "./views/PolicyView";
-import { AuditView } from "./views/AuditView";
-import { ReliabilityView } from "./views/ReliabilityView";
 import { UsersView } from "./views/UsersView";
 import { DrawersHost } from "./views/DrawersHost";
 import { ModalsHost } from "./views/ModalsHost";
+import { DETANGLED_VIEWS } from "./platform/ux/clusterUx";
+
+/** Views kept in codebase but removed from cPlatform-aligned product shell. */
+const DETANGLED = new Set<string>(DETANGLED_VIEWS as unknown as string[]);
 
 function AuthenticatedShell() {
   const p = usePlatform() as any;
@@ -31,12 +30,20 @@ function AuthenticatedShell() {
     return <LoginBridge />;
   }
 
-  const activeView = p.activeView === "dashboard" ? "clusters" : p.activeView;
+  // Detangle: force cPlatform product surface (no topology/policy/audit/reliability/obs-stack as primary pages)
+  let activeView = p.activeView === "dashboard" ? "clusters" : p.activeView;
+  if (DETANGLED.has(activeView)) {
+    activeView = "clusters";
+  }
 
   return (
     <Layout
       activeView={activeView}
       onViewChange={(view) => {
+        if (DETANGLED.has(view)) {
+          p.setActiveView("clusters");
+          return;
+        }
         if (view === "clusters") {
           p.selectNode?.(null);
           p.setSelectedCluster(null);
@@ -81,11 +88,6 @@ function AuthenticatedShell() {
         {activeView === "monitoring" ? <MonitoringView /> : null}
         {activeView === "diagnostics" ? <DiagnosticsView /> : null}
         {activeView === "performance" ? <PerformanceView /> : null}
-        {activeView === "observability" ? <ObservabilityView /> : null}
-        {activeView === "topology" ? <TopologyView /> : null}
-        {activeView === "policy" ? <PolicyView /> : null}
-        {activeView === "audit" ? <AuditView /> : null}
-        {activeView === "reliability" ? <ReliabilityView /> : null}
       </main>
       <DrawersHost />
       <ModalsHost />

@@ -6,13 +6,12 @@ import { isSeedDemoName } from "../components/charts";
 import {
   filterClusters,
   isServiceInstalling,
-  eventsStatusLine,
-  deriveEventsLoadState,
   shouldBlockDeploy,
   LAUNCH_STUB_MESSAGE,
   busyClassName,
   buttonLoadingClass,
 } from "../platform/ux/clusterUx";
+import { ClusterEventsPanel } from "../components/ClusterEventsPanel";
 
 export function ServiceIcon({ serviceKey }: { serviceKey: string }) {
   const sk = String(serviceKey || "").toLowerCase();
@@ -132,7 +131,7 @@ export function ClustersView() {
   const nodeMetrics = p.nodeMetrics as any;
   const nodeJobHistory = p.nodeJobHistory as any;
   const events = (p.events || []) as any[];
-  const observabilityPipeline = p.observabilityPipeline as any;
+
   const servicePortsLabel = p.servicePortsLabel as (...a: any[]) => string;
   const formatLocalTimestamp = p.formatLocalTimestamp as (...a: any[]) => string;
   const serviceLiveById = (p.serviceLiveById || {}) as Record<string, any>;
@@ -453,8 +452,6 @@ export function ClustersView() {
     const clusterNodes = nodes.filter((n) => n.cluster_id === selectedCluster.id);
     const clusterServices = services.filter((s) => clusterNodes.some((n) => n.id === s.node_id));
     const activeNode = selectedNode && clusterNodes.some((n) => n.id === selectedNode.id) ? selectedNode : null;
-    const pipelineNodes = (observabilityPipeline?.nodes ?? []).filter((n) => clusterNodes.some((cn) => cn.id === n.node_id));
-    const pipelineHealthy = pipelineNodes.filter((n) => n.pipeline_ready).length;
     const nodeServices = activeNode ? services.filter((s) => s.node_id === activeNode.id) : [];
     const runningCount = clusterServices.filter((s) => ["running", "healthy"].includes((s.status || "").toLowerCase())).length;
     const unhealthyCount = clusterServices.filter((s) => ["error", "failed", "unhealthy"].includes((s.status || "").toLowerCase())).length;
@@ -514,21 +511,9 @@ export function ClustersView() {
           </div>
         </div>
 
-        <GlassCard style={{ padding: "0.85rem 1.1rem", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
-          <div>
-            <div style={{ fontSize: "0.7rem", letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--ink-4)", fontWeight: 600 }}>Observability</div>
-            <div style={{ marginTop: 4, color: "var(--ink-2)", fontSize: "0.9rem" }}>
-              {clusterNodes.length === 0
-                ? "No nodes in this cluster"
-                : observabilityPipeline
-                  ? `${pipelineHealthy}/${pipelineNodes.length} pipeline-ready on this cluster`
-                  : "Loading pipeline…"}
-            </div>
-          </div>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setActiveView("observability")}>Manage stack</button>
-        </GlassCard>
+        {/* cPlatform cluster detail has no separate Observability-stack band here — detangled */}
 
-        <div className={`cluster-split ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+        <div className="cluster-split">
           <div className="node-list-wrap">
             <div className="node-list-head">
               <h3>Nodes</h3>
@@ -979,21 +964,9 @@ export function ClustersView() {
               )}
 
               {detailTab === "events" && (
-                <div style={{ marginTop: "1rem", border: "1px solid var(--line)", borderRadius: 12, padding: "1rem", background: "var(--bg-elevated)" }}>
+                <div style={{ marginTop: "1rem", border: "1px solid var(--line)", borderRadius: 12, padding: "1rem", background: "var(--bg-elevated)" }} data-ux="node-events-pane">
                   <div className="panel-title" style={{ marginBottom: "0.75rem", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                      <h2 style={{ margin: 0 }}>Node events</h2>
-                      <span className="events-status-line" data-ux="events-status-line">
-                        {eventsStatusLine(
-                          deriveEventsLoadState({
-                            started: nodeEventsStarted,
-                            loading: nodeEventsBusy,
-                            items: nodeEvents,
-                          }),
-                          nodeEvents.length
-                        )}
-                      </span>
-                    </div>
+                    <h2 style={{ margin: 0 }}>Recent events</h2>
                     <button
                       type="button"
                       className={buttonLoadingClass("btn btn-secondary btn-sm", nodeEventsBusy)}
@@ -1012,27 +985,16 @@ export function ClustersView() {
                       }}
                     >
                       {nodeEventsBusy && <span className="btn-spinner" />}
-                      {nodeEventsBusy ? "Loading…" : "Refresh events"}
+                      {nodeEventsBusy ? "Loading…" : "Refresh"}
                     </button>
                   </div>
-                  {nodeEventsBusy && nodeEvents.length === 0 ? (
-                    <div className="detail-loading-shell is-loading" data-ux="events-loading-shell">
-                      <span className="pulse-dot" /> Loading events…
-                    </div>
-                  ) : (
-                  <div className="timeline" style={{ maxHeight: 360, overflow: "auto" }}>
-                    {nodeEvents.slice(0, 40).map((ev) => (
-                      <article key={ev.id}>
-                        <span className={`pill ${ev.level === "error" ? "pill-error" : ev.level === "warning" ? "pill-warn" : "pill-ok"}`}>{ev.category || "event"}</span>
-                        <strong style={{ fontSize: "0.85rem" }}>{ev.message}</strong>
-                        <small style={{ color: "var(--ink-4)" }}>{formatLocalTimestamp(ev.created_at)}</small>
-                      </article>
-                    ))}
-                    {!nodeEventsBusy && nodeEvents.length === 0 && (
-                      <p style={{ color: "var(--ink-4)", margin: 0 }}>No node-scoped events yet. Click Refresh events to load from API.</p>
-                    )}
-                  </div>
-                  )}
+                  <ClusterEventsPanel
+                    events={nodeEvents}
+                    loading={nodeEventsBusy}
+                    emptyMsg="No node events found"
+                    formatLocalTimestamp={formatLocalTimestamp}
+                    statusId="node-events-status"
+                  />
                 </div>
               )}
 
@@ -1372,34 +1334,13 @@ export function ClustersView() {
                 </div>
               )}
               {serviceDrawer.tab === "events" && (
-                <div>
-                  <div className="events-status-line" style={{ marginBottom: 8 }} data-ux="svc-events-status">
-                    Recent events · {eventsStatusLine(
-                      deriveEventsLoadState({
-                        started: serviceDrawer.eventsStarted,
-                        loading: serviceDrawer.busy,
-                        items: serviceDrawer.events,
-                      }),
-                      (serviceDrawer.events || []).length
-                    )}
-                  </div>
-                  {serviceDrawer.busy ? (
-                    <div className="detail-loading-shell is-loading"><span className="pulse-dot" /> Loading events…</div>
-                  ) : (
-                  <div className="timeline" style={{ display: "flex", flexDirection: "column", gap: "0.55rem" }}>
-                    {(serviceDrawer.events || []).length === 0 && (
-                      <p style={{ color: "var(--ink-4)", margin: 0 }}>No service events yet.</p>
-                    )}
-                    {(serviceDrawer.events || []).map((ev: any) => (
-                      <article key={ev.id} style={{ border: "1px solid var(--line-2)", borderRadius: 10, padding: "0.65rem 0.75rem" }}>
-                        <span className={`pill ${ev.level === "error" ? "pill-error" : ev.level === "warning" ? "pill-warn" : "pill-ok"}`}>{ev.category || "event"}</span>
-                        <div style={{ fontSize: "0.85rem", marginTop: 4 }}>{ev.message}</div>
-                        <small style={{ color: "var(--ink-4)" }}>{formatLocalTimestamp(ev.created_at)}</small>
-                      </article>
-                    ))}
-                  </div>
-                  )}
-                </div>
+                <ClusterEventsPanel
+                  events={serviceDrawer.events}
+                  loading={serviceDrawer.busy}
+                  emptyMsg="No service events found"
+                  formatLocalTimestamp={formatLocalTimestamp}
+                  statusId="svc-events-status"
+                />
               )}
               {serviceDrawer.tab === "live" && (
                 <div style={{ fontSize: "0.85rem" }}>
@@ -1540,32 +1481,13 @@ export function ClustersView() {
                 </dl>
               )}
               {nodeDrawer.tab === "events" && (
-                <div>
-                  <div className="events-status-line" style={{ marginBottom: 8 }}>
-                    Recent events · {eventsStatusLine(
-                      deriveEventsLoadState({
-                        started: nodeDrawer.eventsStarted,
-                        loading: nodeDrawer.busy,
-                        items: nodeDrawer.events,
-                      }),
-                      (nodeDrawer.events || []).length
-                    )}
-                  </div>
-                  {nodeDrawer.busy ? (
-                    <div className="detail-loading-shell is-loading"><span className="pulse-dot" /> Loading events…</div>
-                  ) : (
-                    <div className="timeline" style={{ display: "flex", flexDirection: "column", gap: "0.55rem" }}>
-                      {(nodeDrawer.events || []).length === 0 && <p style={{ color: "var(--ink-4)", margin: 0 }}>No node events yet.</p>}
-                      {(nodeDrawer.events || []).map((ev: any) => (
-                        <article key={ev.id} style={{ border: "1px solid var(--line-2)", borderRadius: 10, padding: "0.65rem 0.75rem" }}>
-                          <span className={`pill ${ev.level === "error" ? "pill-error" : ev.level === "warning" ? "pill-warn" : "pill-ok"}`}>{ev.category || "event"}</span>
-                          <div style={{ fontSize: "0.85rem", marginTop: 4 }}>{ev.message}</div>
-                          <small style={{ color: "var(--ink-4)" }}>{formatLocalTimestamp(ev.created_at)}</small>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <ClusterEventsPanel
+                  events={nodeDrawer.events}
+                  loading={nodeDrawer.busy}
+                  emptyMsg="No node events found"
+                  formatLocalTimestamp={formatLocalTimestamp}
+                  statusId="node-drawer-events-status"
+                />
               )}
               {nodeDrawer.tab === "live" && (
                 <div>
