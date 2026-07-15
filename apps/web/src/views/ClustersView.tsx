@@ -1093,7 +1093,7 @@ export function ClustersView() {
                   {nodeServices.length === 0 && (
                     <div className="empty-state">
                       <h3>No services on this node</h3>
-                      <p>Open the catalog to deploy or discover running containers.</p>
+                      <p>Open the catalog to deploy, or drag a catalog card onto this stack. Discover adopts running containers.</p>
                     </div>
                   )}
                 </div>

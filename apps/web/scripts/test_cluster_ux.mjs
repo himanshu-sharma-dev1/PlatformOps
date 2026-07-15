@@ -145,6 +145,9 @@ await check("constants present", () => {
   assert.deepEqual([...ux.DETAIL_TOOLBAR_ORDER], ["overview", "edit", "events", "discover", "launch", "delete"]);
   assert.deepEqual([...ux.INFO_DRAWER_TABS], ["overview", "events", "live"]);
   assert.equal(ux.CLUSTER_EDITOR_STEPS.length, 4);
+  assert.deepEqual([...ux.SVC_INSTALL_STEPS], ["Setup", "Config"]);
+  assert.deepEqual([...ux.NODE_PROVISION_STEPS], ["Cloud", "Hardware", "Config", "Network", "Firewall", "Review"]);
+  assert.equal(ux.NODE_CLOUD_PROVIDERS.length, 3);
   assert.ok(String(ux.LAUNCH_STUB_MESSAGE).includes("not configured"));
 });
 

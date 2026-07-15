@@ -47,9 +47,17 @@
 
 ## Still open (continue until identical)
 
-- Install drawer 2-step stepper labels pixel-match cP  
-- Node provision drawer step labels full cP cloud vs bare-metal  
-- Manual UAT: `docs/manual-test-suite-cluster-page.md`
+- Manual UAT: `docs/manual-test-suite-cluster-page.md`  
+- Optional: cluster create as right drawer (still modal in ModalsHost)  
+
+## Added 2026-07-15 (grind pass 2 — steppers)
+
+- Service install drawer: **Setup → Config** stepper, banner, Continue/Install/Save foot  
+- Edit service opens on **Config** step with EDIT badge  
+- Node provision: labeled **Cloud / Hardware / Config / Network / Firewall / Review**  
+- Cloud provider cards (AWS / GCP / DC bare metal)  
+- **Edit node** now opens the same provision drawer (was broken — only set state)  
+- Provision vs Save on final step; validation console remains step 7 for create  
 
 ## Added 2026-07-15 (grind pass)
 

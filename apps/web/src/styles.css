@@ -1624,6 +1624,52 @@ svg.ic,
 }
 
 .cloud-card .nm {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.cloud-card .desc {
+  font-size: 0.68rem;
+  color: var(--ink-4);
+  margin-top: 2px;
+}
+
+.edit-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  vertical-align: middle;
+  background: var(--warn-bg, rgba(234, 179, 8, 0.15));
+  color: var(--warn, #eab308);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ink-3);
+}
+.btn-ghost:hover {
+  color: var(--ink);
+  background: var(--bg-hover, rgba(255,255,255,0.04));
+}
+
+.hint {
+  font-size: 0.75rem;
+  color: var(--ink-4);
+  margin-top: 0.3rem;
+}
+
+/* Ensure step panes render when classed active inside React drawers */
+.drawer-body .step-pane.active {
+  display: block;
+}
+
+.cloud-card .nm {
   font-weight: 500;
   font-size: 12px;
   color: var(--ink);

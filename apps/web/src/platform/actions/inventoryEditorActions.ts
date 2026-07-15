@@ -315,18 +315,21 @@ export function createInventoryEditorActions(s: any) {
         storage_gb: 100,
         gpu: "none",
         os: "linux",
+        provider: "dc",
+        ingress_ports: "22, 80, 443, 8080",
       },
       error: ""
     });
     s.setNodePreset("local-default");
+    s.setStepperStep?.(1);
+    s.setStepperDrawerVisible?.(true);
   },
 
   openNodeEdit(node) {
-    const facts = s._parseNodeFacts ? s._parseNodeFacts(node) : {
+    // Prefer methods from this factory when available
+    let parsed = {
       cpu_cores: 4, memory_gb: 16, storage_gb: 100, gpu: "none", os: "linux",
     };
-    // Prefer methods from this factory when available
-    let parsed = facts;
     try {
       const raw = typeof node?.facts_json === "string" ? JSON.parse(node.facts_json || "{}") : (node?.facts_json || {});
       parsed = {
@@ -337,6 +340,14 @@ export function createInventoryEditorActions(s: any) {
         os: raw.os ?? "linux",
       };
     } catch { /* keep defaults */ }
+    const env = String(node.environment || "").toLowerCase();
+    const provider = env.includes("aws") || env === "cloud" ? "aws" : env.includes("gcp") || env.includes("google") ? "gcp" : "dc";
+    const preset =
+      provider === "aws"
+        ? String(node.docker_network || "").includes("gpu") || String(parsed.gpu || "").toLowerCase() !== "none"
+          ? "aws-gpu"
+          : "aws-general"
+        : "local-default";
     s.setNodeEditor({
       visible: true,
       mode: "edit",
@@ -352,11 +363,16 @@ export function createInventoryEditorActions(s: any) {
         volume_root: node.volume_root,
         docker_network: node.docker_network || "platformops_prod_network",
         status: node.status,
+        provider,
+        ingress_ports: "22, 80, 443, 8080",
         ...parsed,
       },
       error: ""
     });
-    s.setNodePreset(node.environment === "aws" ? String(node.docker_network || "").includes("gpu") ? "aws-gpu" : "aws-general" : "local-default");
+    s.setNodePreset(preset);
+    // cP edge: Edit node opens the same provision drawer (EDIT badge)
+    s.setStepperStep?.(1);
+    s.setStepperDrawerVisible?.(true);
   },
 
   async saveNodeEditor() {

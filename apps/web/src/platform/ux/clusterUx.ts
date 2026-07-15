@@ -180,6 +180,26 @@ export const INFO_DRAWER_TABS = ["overview", "events", "live"] as const;
 /** Cluster editor wizard steps. */
 export const CLUSTER_EDITOR_STEPS = ["Identity", "Repository", "Image store", "Review"] as const;
 
+/** cP service install drawer steps (data-svc-step). */
+export const SVC_INSTALL_STEPS = ["Setup", "Config"] as const;
+
+/** cP node provision drawer steps (data-step). */
+export const NODE_PROVISION_STEPS = [
+  "Cloud",
+  "Hardware",
+  "Config",
+  "Network",
+  "Firewall",
+  "Review",
+] as const;
+
+/** Cloud provider cards on node provision step 1. */
+export const NODE_CLOUD_PROVIDERS = [
+  { id: "aws", label: "AWS", name: "Amazon Web Services", desc: "EC2 / SSH host", preset: "aws-general" },
+  { id: "gcp", label: "GCP", name: "Google Cloud", desc: "Compute Engine / SSH", preset: "local-default" },
+  { id: "dc", label: "DC", name: "Data Centre", desc: "Bare metal · existing host", preset: "local-default" },
+] as const;
+
 /** Launch stub copy (deferred Terraform/cloud launch). */
 export const LAUNCH_STUB_MESSAGE =
   "Cloud Launch is not configured in this environment. Node provisioning uses the Provision node drawer (SSH / bare-metal path). Full VM/Terraform launch remains deferred.";

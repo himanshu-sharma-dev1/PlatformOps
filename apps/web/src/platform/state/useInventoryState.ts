@@ -77,6 +77,8 @@ export function useInventoryState() {
   const [catalogOnboarding, setCatalogOnboarding] = useState({
     visible: false,
     mode: "create",
+    /** cP svc stepper: 1 Setup · 2 Config */
+    step: 1,
     card: null,
     editingService: null,
     installSchema: null,

@@ -140,6 +140,7 @@ export function createInventoryDeployActions(s: any) {
     s.setCatalogOnboarding({
       visible: true,
       mode: "create",
+      step: 1, // Setup
       card,
       editingService: null,
       installSchema: schema,
@@ -150,7 +151,9 @@ export function createInventoryDeployActions(s: any) {
       overridesText: JSON.stringify(defaultOverrides, null, 2),
       creating: false,
       error: "",
-      registeredService: null
+      registeredService: null,
+      validationConflict: null,
+      validating: false,
     });
   },
 
@@ -190,6 +193,7 @@ export function createInventoryDeployActions(s: any) {
       s.setCatalogOnboarding({
         visible: true,
         mode: "edit",
+        step: 2, // cP edit mode jumps to Config step
         card,
         editingService: service,
         installSchema: schema,
@@ -201,6 +205,8 @@ export function createInventoryDeployActions(s: any) {
         creating: false,
         error: "",
         registeredService: null,
+        validationConflict: null,
+        validating: false,
       });
     });
   },
