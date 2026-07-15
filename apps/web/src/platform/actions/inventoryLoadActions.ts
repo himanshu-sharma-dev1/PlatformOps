@@ -123,6 +123,7 @@ export function createInventoryLoadActions(s: any) {
   },
 
   async discoverNodeInfra(nodeId) {
+    s.setActionBusy?.((b) => ({ ...b, discover: true }));
     try {
       s.setNotice(`Discovering infrastructure on node ${nodeId}\u2026`);
       const result = await api(`/api/nodes/${nodeId}/discover`, { method: "POST" });
@@ -130,12 +131,16 @@ export function createInventoryLoadActions(s: any) {
         result?.summary ||
         result?.message ||
         `Discover: scanned ${result?.containers_scanned ?? "?"} · adopted ${result?.adopted_count ?? 0}`;
-      s.setNotice(summary);
+      s.showToast?.(summary, "ok") || s.setNotice(summary);
       await s.refresh();
       await s.loadNodeJobHistory(nodeId);
       await s.refreshNodeLiveStatus(nodeId);
+      // Signal open Events tab/drawers to re-fetch scoped events
+      s.setEventsRefreshKey?.((k) => Number(k || 0) + 1);
     } catch (e) {
-      s.setNotice(e?.message || "Discover failed");
+      s.showToast?.(e?.message || "Discover failed", "err") || s.setNotice(e?.message || "Discover failed");
+    } finally {
+      s.setActionBusy?.((b) => ({ ...b, discover: false }));
     }
   },
 

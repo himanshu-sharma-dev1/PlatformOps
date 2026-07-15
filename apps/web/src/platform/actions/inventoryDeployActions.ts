@@ -96,11 +96,19 @@ export function createInventoryDeployActions(s: any) {
   async openCatalogOnboarding(card) {
     const fallbackNode = s.selectedNode ?? (s.selectedCluster ? s.nodes.find((item) => item.cluster_id === s.selectedCluster.id) ?? s.nodes[0] : s.nodes[0]);
     if (!fallbackNode) {
+      s.setActionBlocker?.({
+        visible: true,
+        message: "Provision a node first before onboarding a service card.",
+        secondaryLabel: "Open provision",
+        secondaryAction: "provision",
+      });
       s.setNotice("Provision a node first before onboarding a service card.");
       return;
     }
     const defaultOverrides = {};
     const schema = await s.loadInstallSchemaFor(card, fallbackNode.id);
+    // cPlatform chain: close catalog → open install/config drawer
+    s.setCatalogDrawerVisible?.(false);
     s.setCatalogOnboarding({
       visible: true,
       mode: "create",
@@ -293,8 +301,27 @@ export function createInventoryDeployActions(s: any) {
   },
 
   async openDeploymentModal(service) {
+    if (!service) {
+      s.setActionBlocker?.({
+        visible: true,
+        message: "Select a service or open the catalog to install one first.",
+        secondaryLabel: "Open catalog",
+        secondaryAction: "catalog",
+      });
+      return;
+    }
     const node = s.nodes.find((item) => item.id === service.node_id);
+    if (!node) {
+      s.setActionBlocker?.({
+        visible: true,
+        message: "Provision a node before deploying services.",
+        secondaryLabel: "Open provision",
+        secondaryAction: "provision",
+      });
+      return;
+    }
     s.setSelectedService(service);
+    s.setActionBusy?.((b) => ({ ...b, deploy: true }));
     s.setDeploymentModal({
       visible: true,
       serviceId: service.id,
@@ -321,7 +348,9 @@ export function createInventoryDeployActions(s: any) {
         loading: false,
         preflight
       }));
+      s.setActionBusy?.((b) => ({ ...b, deploy: false }));
     } catch (error) {
+      s.setActionBusy?.((b) => ({ ...b, deploy: false }));
       s.setDeploymentModal((current) => ({
         ...current,
         loading: false,
@@ -340,6 +369,7 @@ export function createInventoryDeployActions(s: any) {
       s.setDeploymentModal((current) => ({ ...current, error: "Selected service is no longer available." }));
       return;
     }
+    s.setActionBusy?.((b) => ({ ...b, deploy: true }));
     s.setDeploymentModal((current) => ({ ...current, executing: true, error: "" }));
     try {
       // Prefer full execute plan; fall back to plain deploy if execute fails
@@ -368,18 +398,22 @@ export function createInventoryDeployActions(s: any) {
       if (result.target_job) {
         s.setJob(result.target_job);
       }
-      s.setNotice(result.summary || "Deployment started");
+      s.showToast?.(result.summary || "Deployment started", "ok") || s.setNotice(result.summary || "Deployment started");
       await s.refresh();
       await s.loadNodeJobHistory(service.node_id);
       await s.loadServiceSummary(service.id);
       await s.refreshNodeLiveStatus?.(service.node_id);
+      s.setEventsRefreshKey?.((k) => Number(k || 0) + 1);
     } catch (error) {
+      s.showToast?.(error.message || "Deployment execution failed.", "err");
       s.setDeploymentModal((current) => ({
         ...current,
         executing: false,
         error: error.message || "Deployment execution failed."
       }));
       s.setNotice(error.message || "Deployment execution failed.");
+    } finally {
+      s.setActionBusy?.((b) => ({ ...b, deploy: false }));
     }
   },
 

@@ -6,7 +6,8 @@
 
 **Canonical path:** `docs/features/cluster-page-complete-reference.md`  
 **Related short inventory:** `docs/features/cluster-page-detailed-features.md`  
-**Active execution goal:** [`docs/goal-cluster-page-full-parity.md`](../goal-cluster-page-full-parity.md) — non-deferred items implemented; parity matrix below reflects DONE (Launch VM / pixel CSS deferred)  
+**Functional goal (DONE):** [`docs/goal-cluster-page-full-parity.md`](../goal-cluster-page-full-parity.md)  
+**Next UX goal (ACTIVE planning):** [`docs/goal-cluster-page-cplatform-ux-clone.md`](../goal-cluster-page-cplatform-ux-clone.md) + [`docs/features/cluster-page-cplatform-ux-parity-spec.md`](./cluster-page-cplatform-ux-parity-spec.md) — cPlatform interaction model with PlatformOps visual tokens  
 **Implementation plans:** `docs/plan-cluster-page-production.md`, `docs/plan-cluster-part-a-hardening.md`  
 **Verification runbook:** `docs/runbook-cluster-dtrain.md`
 

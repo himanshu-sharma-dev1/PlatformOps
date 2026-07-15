@@ -12,21 +12,31 @@ export function createAuthActions(s: any) {
   },
 
   async handleLogin() {
-    setLoginBusy(true);
+    s.setLoginBusy(true);
     s.setLoginError("");
     try {
       const res = await api("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email: s.loginForm.email, password: s.loginForm.password })
+        body: JSON.stringify({
+          email: String(s.loginForm.email || "").trim(),
+          password: s.loginForm.password
+        })
       });
+      if (!res?.token) {
+        throw new Error("Login response missing token");
+      }
       setAuthToken(res.token);
       s.setAuthUser(res.user);
       const last = res.user?.session_info?.last_visited;
       if (last?.view) s.setActiveView(String(last.view));
+      // Load inventory only after token is stored
+      await s.refresh?.().catch(() => {});
     } catch (e) {
-      setLoginError(e?.message || "Login failed");
+      s.setLoginError(e?.message || "Login failed");
+      setAuthToken("");
+      s.setAuthUser(null);
     } finally {
-      setLoginBusy(false);
+      s.setLoginBusy(false);
     }
   },
 

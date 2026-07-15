@@ -46,7 +46,10 @@ export function usePlatformController(): PlatformApi {
       }
     } catch (_error) {
     }
-    s.refresh().catch((error) => s.setNotice(error.message));
+    // Only load inventory when a session token already exists (avoids 401 spam on login screen)
+    if (getAuthToken()) {
+      s.refresh().catch((error) => s.setNotice(error.message));
+    }
   }, []);
 
   useEffect(() => {
@@ -97,10 +100,10 @@ export function usePlatformController(): PlatformApi {
   // Clusters live status poll (real docker inspect; ~5s server cache)
   useEffect(() => {
     const onClusters = s.activeView === "clusters" || s.activeView === "dashboard";
-    if (!onClusters || !s.selectedNode?.id) return;
+    if (!onClusters || !s.selectedNode?.id || !s.authUser || !getAuthToken()) return;
     let cancelled = false;
     const tick = () => {
-      if (cancelled) return;
+      if (cancelled || !getAuthToken()) return;
       s.refreshNodeLiveStatus?.(s.selectedNode.id).catch(() => {});
     };
     tick();
@@ -109,7 +112,7 @@ export function usePlatformController(): PlatformApi {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [s.activeView, s.selectedNode?.id]);
+  }, [s.activeView, s.selectedNode?.id, s.authUser]);
 
   useEffect(() => {
     if (!s.selectedService) return;
@@ -249,13 +252,14 @@ export function usePlatformController(): PlatformApi {
   }, [s.perfAutoRefresh, s.activeView, s.selectedService, s.selectedNode]);
 
   useEffect(() => {
-    if (s.activeView !== "clusters") return;
+    if (s.activeView !== "clusters" || !s.authUser || !getAuthToken()) return;
     const id = window.setInterval(() => {
+      if (!getAuthToken()) return;
       s.refresh().catch(() => void 0);
       s.setLiveStatusTick((x) => x + 1);
     }, 45e3);
     return () => window.clearInterval(id);
-  }, [s.activeView]);
+  }, [s.activeView, s.authUser]);
 
   return s as PlatformApi;
 }

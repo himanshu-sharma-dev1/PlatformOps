@@ -3908,6 +3908,201 @@ a {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* cPlatform UX primitives (PlatformOps tokens) */
+.btn-loading {
+  pointer-events: none;
+  opacity: 0.78;
+  position: relative;
+}
+.btn-loading .btn-spinner,
+.btn-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 6px;
+  animation: btn-spin 0.7s linear infinite;
+}
+.btn-loading-label { vertical-align: middle; }
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
+}
+
+.drawer-body.is-busy,
+.is-busy {
+  pointer-events: none;
+  opacity: 0.72;
+  position: relative;
+}
+.drawer-body.is-busy::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  cursor: wait;
+}
+
+.detail-loading-shell {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-4);
+  font-size: 0.85rem;
+}
+.detail-loading-shell.is-loading .pulse-dot,
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--navy-500, var(--navy));
+  animation: pulse-dot 1s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.svc-card.installing {
+  position: relative;
+  overflow: hidden;
+}
+.svc-card.installing::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--info, #3b82f6), transparent);
+  background-size: 200% 100%;
+  animation: install-shimmer 1.2s linear infinite;
+}
+@keyframes install-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+.cluster-list-toolbar {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+.cluster-search {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+  max-width: 420px;
+}
+.cluster-search input {
+  width: 100%;
+  padding-left: 2rem;
+}
+.cluster-search .ic {
+  position: absolute;
+  left: 0.55rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  opacity: 0.55;
+  pointer-events: none;
+}
+.cluster-card-add {
+  border: 1.5px dashed var(--line-strong, var(--line));
+  background: transparent;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  color: var(--ink-3);
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.cluster-card-add:hover {
+  border-color: var(--navy-500, var(--navy));
+  color: var(--navy);
+  background: var(--navy-50, rgba(30, 58, 95, 0.06));
+}
+.test-conn-result {
+  font-size: 0.78rem;
+  margin-top: 0.35rem;
+  min-height: 1.1em;
+}
+.test-conn-result.testing { color: var(--ink-4); }
+.test-conn-result.ok { color: var(--ok, #15803d); }
+.test-conn-result.err { color: var(--err, #b91c1c); }
+.events-status-line {
+  font-size: 0.78rem;
+  color: var(--ink-4);
+}
+.drawer.wide.detail-drawer,
+.drawer.detail-drawer {
+  width: min(520px, 100vw);
+}
+.drawer.open {
+  transform: translateX(0);
+}
+.drawer-backdrop.open,
+.drawer-backdrop[style*="display: block"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+.cat-chip.active {
+  background: var(--navy-50, rgba(30, 58, 95, 0.12));
+  border-color: var(--navy-500, var(--navy));
+  color: var(--navy);
+  font-weight: 600;
+}
+.deps-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  margin-top: 0.75rem;
+}
+.deps-table th,
+.deps-table td {
+  border: 1px solid var(--line);
+  padding: 0.4rem 0.55rem;
+  text-align: left;
+}
+.deps-table th {
+  background: var(--bg-sunken, rgba(0,0,0,0.12));
+  color: var(--ink-3);
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.node-toolbar-cp {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+.secret-replace-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+.drawer.cluster-editor-drawer {
+  width: min(560px, 100vw);
+  z-index: 60;
+}
+.drawer.cluster-editor-drawer.open {
+  display: flex;
+  transform: translateX(0);
+}
+
 /* Incident / Confirmation Modals overlay */
 .modal-overlay {
   position: fixed;

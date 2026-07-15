@@ -389,6 +389,7 @@ export function createSreActions(s: any) {
   },
 
   async validateNode(nodeId) {
+    s.setActionBusy?.((b) => ({ ...b, validate: true }));
     try {
       s.setNotice(`Running configuration validation for node ${nodeId}...`);
       const result = await api(`/api/nodes/${nodeId}/validate`, { method: "POST" });
@@ -404,11 +405,11 @@ export function createSreActions(s: any) {
             const job2 = await api(`/api/jobs/${result.id}`);
             s.setJob(job2);
             if (job2.status === "success" || job2.status === "failed" || job2.status === "cancelled") {
-              s.setNotice(
+              const msg =
                 job2.status === "success"
                   ? `Node validation succeeded (job #${job2.id})`
-                  : `Node validation ${job2.status}${job2.error ? `: ${String(job2.error).slice(0, 160)}` : ""}`
-              );
+                  : `Node validation ${job2.status}${job2.error ? `: ${String(job2.error).slice(0, 160)}` : ""}`;
+              s.showToast?.(msg, job2.status === "success" ? "ok" : "err") || s.setNotice(msg);
               break;
             }
           } catch {
@@ -420,7 +421,9 @@ export function createSreActions(s: any) {
       await s.loadNodeOnboarding?.(nodeId);
       await s.refresh();
     } catch (error) {
-      s.setNotice(`Validation failed: ${error.message}`);
+      s.showToast?.(`Validation failed: ${error.message}`, "err") || s.setNotice(`Validation failed: ${error.message}`);
+    } finally {
+      s.setActionBusy?.((b) => ({ ...b, validate: false }));
     }
   }
   };

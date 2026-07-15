@@ -8,10 +8,16 @@ export function createInventoryEditorActions(s: any) {
       mode: "create",
       clusterId: null,
       step: 1,
+      saving: false,
+      replaceRepoSecret: true,
+      replaceRegistrySecret: true,
+      repoTest: { state: "idle", message: "" },
+      registryTest: { state: "idle", message: "" },
       draft: {
         name: "",
         region: "local",
         environment: "development",
+        description: "",
         repo_type: "github",
         repo_url: "",
         repo_branch: "main",
@@ -31,10 +37,16 @@ export function createInventoryEditorActions(s: any) {
       mode: "edit",
       clusterId: cluster.id,
       step: 1,
+      saving: false,
+      replaceRepoSecret: false,
+      replaceRegistrySecret: false,
+      repoTest: { state: "idle", message: "" },
+      registryTest: { state: "idle", message: "" },
       draft: {
         name: cluster.name,
         region: cluster.region,
         environment: cluster.environment,
+        description: cluster.description || "",
         repo_type: cluster.repo_type || "github",
         repo_url: cluster.repo_url || "",
         repo_branch: cluster.repo_branch || "main",
@@ -72,9 +84,11 @@ export function createInventoryEditorActions(s: any) {
       const draft = s.clusterEditor.draft;
       const name = draft.name.trim();
       if (!name) {
-        s.setClusterEditor((current) => ({ ...current, error: "Cluster name is required.", step: 1 }));
+        s.setClusterEditor((current) => ({ ...current, error: "Cluster name is required.", step: 1, saving: false }));
         return;
       }
+      s.setClusterEditor((current) => ({ ...current, saving: true, error: "" }));
+      s.setActionBusy?.((b) => ({ ...b, save: true }));
       if (s.clusterEditor.mode === "create") {
         const created = await api("/api/clusters", {
           method: "POST",
@@ -92,13 +106,18 @@ export function createInventoryEditorActions(s: any) {
             registry_password: draft.registry_password
           })
         });
-        s.setClusterEditor((current) => ({ ...current, visible: false, error: "" }));
-        s.setNotice(`Created cluster ${created.name}`);
+        s.setClusterEditor((current) => ({ ...current, visible: false, error: "", saving: false }));
+        s.setActionBusy?.((b) => ({ ...b, save: false }));
+        s.showToast?.(`Created cluster ${created.name}`, "ok") || s.setNotice(`Created cluster ${created.name}`);
         s.setSelectedCluster(created);
         await s.refresh();
         return;
       }
-      if (!s.clusterEditor.clusterId) return;
+      if (!s.clusterEditor.clusterId) {
+        s.setClusterEditor((current) => ({ ...current, saving: false }));
+        s.setActionBusy?.((b) => ({ ...b, save: false }));
+        return;
+      }
       const payload = {
         name,
         region: draft.region.trim() || "local",
@@ -110,23 +129,36 @@ export function createInventoryEditorActions(s: any) {
         registry_url: draft.registry_url,
         registry_user: draft.registry_user
       };
-      if (draft.repo_token) payload.repo_token = draft.repo_token;
-      if (draft.registry_password) payload.registry_password = draft.registry_password;
+      if (draft.repo_token && (s.clusterEditor.replaceRepoSecret || s.clusterEditor.mode === "create")) {
+        payload.repo_token = draft.repo_token;
+      }
+      if (draft.registry_password && (s.clusterEditor.replaceRegistrySecret || s.clusterEditor.mode === "create")) {
+        payload.registry_password = draft.registry_password;
+      }
       const updated = await api(`/api/clusters/${s.clusterEditor.clusterId}`, {
         method: "PUT",
         body: JSON.stringify(payload)
       });
-      s.setClusterEditor((current) => ({ ...current, visible: false, error: "" }));
+      s.setClusterEditor((current) => ({ ...current, visible: false, error: "", saving: false }));
+      s.setActionBusy?.((b) => ({ ...b, save: false }));
       s.setSelectedCluster(updated);
-      s.setNotice(`Updated cluster ${updated.name}`);
+      s.showToast?.(`Updated cluster ${updated.name}`, "ok") || s.setNotice(`Updated cluster ${updated.name}`);
       await s.refresh();
     } catch (error) {
-      s.setClusterEditor((current) => ({ ...current, error: error.message || "Failed to save cluster." }));
+      s.setClusterEditor((current) => ({
+        ...current,
+        error: error.message || "Failed to save cluster.",
+        saving: false
+      }));
+      s.setActionBusy?.((b) => ({ ...b, save: false }));
+      s.showToast?.(error.message || "Failed to save cluster.", "err");
     }
   },
 
   async testClusterRepoConnection() {
     const d = s.clusterEditor.draft;
+    s.setClusterEditor((c) => ({ ...c, repoTest: { state: "testing", message: "testing…" } }));
+    s.setActionBusy?.((b) => ({ ...b, "test-repo": true }));
     try {
       const res = await api("/api/clusters/test-repo", {
         method: "POST",
@@ -137,14 +169,26 @@ export function createInventoryEditorActions(s: any) {
           repo_token: d.repo_token || null
         })
       });
-      s.setNotice(res.message || (res.connected ? "Repository connection OK" : "Repository check finished"));
+      const ok = Boolean(res.connected);
+      const message = res.message || (ok ? "Repository connection OK" : "Repository check finished");
+      s.setClusterEditor((c) => ({
+        ...c,
+        repoTest: { state: ok ? "ok" : "err", message }
+      }));
+      s.showToast?.(message, ok ? "ok" : "err") || s.setNotice(message);
     } catch (e) {
-      s.setNotice(e?.message || "Repository connection failed");
+      const message = e?.message || "Repository connection failed";
+      s.setClusterEditor((c) => ({ ...c, repoTest: { state: "err", message } }));
+      s.showToast?.(message, "err") || s.setNotice(message);
+    } finally {
+      s.setActionBusy?.((b) => ({ ...b, "test-repo": false }));
     }
   },
 
   async testClusterRegistryConnection() {
     const d = s.clusterEditor.draft;
+    s.setClusterEditor((c) => ({ ...c, registryTest: { state: "testing", message: "testing…" } }));
+    s.setActionBusy?.((b) => ({ ...b, "test-registry": true }));
     try {
       const res = await api("/api/clusters/test-registry", {
         method: "POST",
@@ -155,9 +199,19 @@ export function createInventoryEditorActions(s: any) {
           registry_password: d.registry_password || null
         })
       });
-      s.setNotice(res.message || (res.connected ? "Registry connection OK" : "Registry check finished"));
+      const ok = Boolean(res.connected);
+      const message = res.message || (ok ? "Registry connection OK" : "Registry check finished");
+      s.setClusterEditor((c) => ({
+        ...c,
+        registryTest: { state: ok ? "ok" : "err", message }
+      }));
+      s.showToast?.(message, ok ? "ok" : "err") || s.setNotice(message);
     } catch (e) {
-      s.setNotice(e?.message || "Registry connection failed");
+      const message = e?.message || "Registry connection failed";
+      s.setClusterEditor((c) => ({ ...c, registryTest: { state: "err", message } }));
+      s.showToast?.(message, "err") || s.setNotice(message);
+    } finally {
+      s.setActionBusy?.((b) => ({ ...b, "test-registry": false }));
     }
   },
 
@@ -423,9 +477,11 @@ export function createInventoryEditorActions(s: any) {
       const result = await api(endpoint, { method: targetType === "service" ? "POST" : "DELETE" });
       if (targetType === "service") {
         s.setJob(result);
-        s.setNotice(`Delete service ${targetName} job started: ${result.status}`);
+        s.showToast?.(`Delete service ${targetName} job started: ${result.status}`, "warn")
+          || s.setNotice(`Delete service ${targetName} job started: ${result.status}`);
       } else {
-        s.setNotice(`Deleted ${targetType} ${targetName} successfully.`);
+        s.showToast?.(`Deleted ${targetType} ${targetName} successfully.`, "ok")
+          || s.setNotice(`Deleted ${targetType} ${targetName} successfully.`);
       }
       s.setDeleteModal((prev) => ({ ...prev, visible: false }));
       if (s.selectedService?.id === targetId && targetType === "service") {
@@ -433,8 +489,10 @@ export function createInventoryEditorActions(s: any) {
         s.setCapabilities(null);
       }
       await s.refresh();
+      // Re-fetch Events if open after delete mutation
+      s.setEventsRefreshKey?.((k) => Number(k || 0) + 1);
     } catch (error) {
-      s.setNotice(`Delete failed: ${error.message}`);
+      s.showToast?.(`Delete failed: ${error.message}`, "err") || s.setNotice(`Delete failed: ${error.message}`);
     }
   },
 

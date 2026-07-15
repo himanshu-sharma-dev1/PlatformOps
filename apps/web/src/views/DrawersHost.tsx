@@ -10,6 +10,8 @@ export function DrawersHost() {
   const catalog = p.catalog;
   const catalogDrawerVisible = p.catalogDrawerVisible;
   const catalogOnboarding = p.catalogOnboarding;
+  const [catalogSearch, setCatalogSearch] = React.useState("");
+  const [catalogCategory, setCatalogCategory] = React.useState("all");
   const config = p.config;
   const configSource = p.configSource;
   const confirmCatalogOnboarding = p.confirmCatalogOnboarding;
@@ -47,25 +49,81 @@ export function DrawersHost() {
 
   return (
     <>
-      {/* SERVICE CATALOG DRAWER */}
-      {catalogDrawerVisible && (
+      {/* SERVICE CATALOG DRAWER — search + category chips → install/config chain */}
+      {catalogDrawerVisible && (() => {
+        const q = catalogSearch.trim().toLowerCase();
+        const cat = catalogCategory.toLowerCase();
+        const filtered = (catalog || []).filter((card: any) => {
+          if (cat && cat !== "all") {
+            const kind = String(card.kind || "").toLowerCase();
+            const sub = String(card.subsystem || "").toLowerCase();
+            const tags = (card.tags || []).map((t: string) => String(t).toLowerCase());
+            const hit =
+              kind === cat ||
+              sub === cat ||
+              tags.includes(cat) ||
+              (cat === "infra" && (kind.includes("infra") || sub.includes("infra") || tags.includes("infra"))) ||
+              (cat === "app" && (kind.includes("app") || sub.includes("app") || tags.includes("app")));
+            if (!hit) return false;
+          }
+          if (!q) return true;
+          const hay = [card.name, card.description, card.kind, card.subsystem, card.service_key, ...(card.tags || [])]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return hay.includes(q);
+        });
+        const chips = [
+          { id: "all", label: "All" },
+          { id: "infra", label: "Infra" },
+          { id: "app", label: "App" },
+          { id: "observability", label: "Observability" },
+          { id: "data", label: "Data" },
+        ];
+        return (
         <>
-          <div className="drawer-backdrop" style={{ display: "block" }} onClick={() => setCatalogDrawerVisible(false)}></div>
-          <aside className="drawer wide" style={{ display: "flex", flexDirection: "column", gap: "1rem", padding: "1.5rem", right: 0 }}>
-            <div className="drawer-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div className="drawer-backdrop open" style={{ display: "block" }} onClick={() => setCatalogDrawerVisible(false)} />
+          <aside className="drawer catalog-drawer open" style={{ display: "flex", flexDirection: "column", right: 0 }} data-ux="catalog-drawer">
+            <div className="drawer-head">
               <div>
-                <h2 style={{ fontSize: "1.5rem", fontFamily: "var(--display)" }}>Service catalog</h2>
-                <div className="sub" style={{ fontSize: "0.85rem", color: "var(--ink-4)" }}>Choose a service card to onboard it onto a node, then continue into config or deployment control.</div>
+                <h2 style={{ fontSize: "1.5rem", fontFamily: "var(--display)", margin: 0 }}>Service catalog</h2>
+                <div className="sub">Click a card to open install/config (dForm · MANUAL/ANSIBLE · expose)</div>
               </div>
-              <button className="icon-btn" onClick={() => setCatalogDrawerVisible(false)}><svg className="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+              <button className="icon-btn" onClick={() => setCatalogDrawerVisible(false)} aria-label="Close catalog">
+                <svg className="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
             </div>
-
-            <div className="catalog-list" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", overflowY: "auto", flex: 1 }}>
-              {catalog.map((card) => (
-                <div 
-                  key={card.service_key} 
+            <div className="catalog-search">
+              <input
+                className="input"
+                type="search"
+                placeholder="Search catalog…"
+                value={catalogSearch}
+                onChange={(e) => setCatalogSearch(e.target.value)}
+                data-ux="catalog-search"
+              />
+            </div>
+            <div className="catalog-categories" data-ux="catalog-chips">
+              {chips.map((chip) => (
+                <button
+                  key={chip.id}
+                  type="button"
+                  className={`cat-chip ${catalogCategory === chip.id ? "active" : ""}`}
+                  onClick={() => setCatalogCategory(chip.id)}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+            <div className="catalog-list drawer-body" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", overflowY: "auto", flex: 1 }}>
+              {filtered.map((card: any) => (
+                <div
+                  key={card.service_key}
                   className="catalog-item"
                   onClick={() => openCatalogOnboarding(card)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === "Enter") openCatalogOnboarding(card); }}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -84,30 +142,51 @@ export function DrawersHost() {
                   <div className="info" style={{ flex: 1 }}>
                     <div className="nm" style={{ fontWeight: 600 }}>{card.name}</div>
                     <div className="desc" style={{ fontSize: "0.8rem", color: "var(--ink-4)", marginTop: "2px" }}>{card.description || card.image}</div>
-                    <div className="tags" style={{ display: "flex", gap: "0.25rem", marginTop: "4px" }}>
-                      <span className="tag" style={{ fontSize: "0.7rem", scale: "0.9" }}>{card.subsystem}</span>
-                      <span className="tag" style={{ fontSize: "0.7rem", scale: "0.9" }}>{card.kind}</span>
-                      {card.configurable && <span className="tag" style={{ fontSize: "0.7rem", scale: "0.9" }}>config</span>}
-                      {card.dependencies.length > 0 && <span className="tag" style={{ fontSize: "0.7rem", scale: "0.9" }}>{card.dependencies.length} deps</span>}
+                    <div className="tags" style={{ display: "flex", gap: "0.25rem", marginTop: "4px", flexWrap: "wrap" }}>
+                      <span className="tag" style={{ fontSize: "0.7rem" }}>{card.subsystem}</span>
+                      <span className="tag" style={{ fontSize: "0.7rem" }}>{card.kind}</span>
+                      {card.configurable && <span className="tag" style={{ fontSize: "0.7rem" }}>config</span>}
+                      {(card.dependencies || []).length > 0 && <span className="tag" style={{ fontSize: "0.7rem" }}>{card.dependencies.length} deps</span>}
+                      {(card.ports || []).length > 0 && <span className="tag" style={{ fontSize: "0.7rem" }}>{card.ports.length} port(s)</span>}
                     </div>
                   </div>
                 </div>
               ))}
+              {filtered.length === 0 && (
+                <p style={{ color: "var(--ink-4)", fontSize: "0.85rem", margin: "1rem 0" }}>No catalog items match this filter.</p>
+              )}
+            </div>
+            <div className="drawer-foot">
+              <span style={{ fontSize: "0.78rem", color: "var(--ink-4)", marginRight: "auto" }}>{filtered.length} of {(catalog || []).length} cards</span>
+              <button className="btn btn-secondary btn-sm" onClick={() => setCatalogDrawerVisible(false)}>Close</button>
             </div>
           </aside>
         </>
-      )}
+        );
+      })()}
 
       {catalogOnboarding.visible && catalogOnboarding.card && (
-        <div className="modal-overlay" style={{ display: "flex", zIndex: 110 }}>
-          <GlassCard className="modal" style={{ padding: "1.5rem", maxWidth: "640px", width: "100%", display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <div>
-              <h3 style={{ marginBottom: "0.25rem" }}>{catalogOnboarding.mode === "edit" ? "Configure Service Card" : "Onboard Service Card"}</h3>
-              <p style={{ margin: 0, fontSize: "0.9rem" }}>
-                {catalogOnboarding.mode === "edit" ? "Update" : "Register"} <strong>{catalogOnboarding.card.name}</strong> on a node, then continue into the right operator workflow.
-              </p>
+        <>
+          <div className="drawer-backdrop open" style={{ display: "block", zIndex: 105 }} onClick={() => setCatalogOnboarding((current) => ({ ...current, visible: false, error: "", registeredService: null }))} />
+          <aside
+            className={`drawer svc-config-drawer open ${catalogOnboarding.creating ? "is-busy" : ""}`}
+            style={{ display: "flex", flexDirection: "column", zIndex: 110, width: "min(640px, 100vw)" }}
+            data-ux="svc-config-drawer"
+          >
+            <div className="drawer-head">
+              <div>
+                <h2 style={{ margin: 0, fontSize: "1.25rem", fontFamily: "var(--display)" }}>
+                  {catalogOnboarding.mode === "edit" ? "Configure service" : "Install / configure"}
+                </h2>
+                <div className="sub">
+                  {catalogOnboarding.mode === "edit" ? "Update" : "Register"} <strong>{catalogOnboarding.card.name}</strong> · dForm · MANUAL/ANSIBLE · expose
+                </div>
+              </div>
+              <button type="button" className="icon-btn" onClick={() => setCatalogOnboarding((current) => ({ ...current, visible: false, error: "", registeredService: null }))} aria-label="Close">
+                <svg className="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
             </div>
-
+            <div className={`drawer-body ${catalogOnboarding.creating ? "is-busy" : ""}`} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             <div style={{ display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: "0.85rem" }}>
               <div style={{ border: "1px solid var(--line)", borderRadius: "12px", padding: "0.95rem", background: "rgba(255,255,255,0.03)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
@@ -396,14 +475,21 @@ export function DrawersHost() {
             )}
 
             {catalogOnboarding.error && <p style={{ color: "var(--err)", fontSize: "0.82rem", margin: 0 }}>{catalogOnboarding.error}</p>}
-            <div className="modal-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", flexWrap: "wrap" }}>
+            </div>
+            <div className="drawer-foot" style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", flexWrap: "wrap" }}>
               <button className="btn btn-secondary btn-sm" onClick={() => setCatalogOnboarding((current) => ({ ...current, visible: false, error: "", registeredService: null }))}>Cancel</button>
-              <button className="btn btn-primary btn-sm" onClick={confirmCatalogOnboarding} disabled={catalogOnboarding.creating}>
-                {catalogOnboarding.creating ? "Saving..." : catalogOnboarding.mode === "edit" ? "Save configuration" : "Register Service Card"}
+              <button
+                className={`btn btn-primary btn-sm ${catalogOnboarding.creating ? "btn-loading" : ""}`}
+                onClick={confirmCatalogOnboarding}
+                disabled={catalogOnboarding.creating}
+                data-ux="catalog-onboard-submit"
+              >
+                {catalogOnboarding.creating && <span className="btn-spinner" />}
+                {catalogOnboarding.creating ? "Saving…" : catalogOnboarding.mode === "edit" ? "Save configuration" : "Register Service Card"}
               </button>
             </div>
-          </GlassCard>
-        </div>
+          </aside>
+        </>
       )}
 
       {/* NODE PROVISIONING STEPPER DRAWER */}

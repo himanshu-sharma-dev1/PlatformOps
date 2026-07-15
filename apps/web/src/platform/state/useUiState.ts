@@ -143,6 +143,17 @@ export function useUiState() {
   const [treeSearchQuery, setTreeSearchQuery] = useState("" as any);
   const [nodeSearchQuery, setNodeSearchQuery] = useState("" as any);
   const [activeView, setActiveView] = useState("clusters" as any);
+  /** Cluster-page action busy keys: discover, validate, deploy, patch, save, test-repo, test-registry */
+  const [actionBusy, setActionBusy] = useState({} as Record<string, boolean>);
+  const [actionBlocker, setActionBlocker] = useState({
+    visible: false,
+    message: "",
+    secondaryLabel: "",
+    secondaryAction: null as null | "catalog" | "provision",
+  } as any);
+  const [launchDrawerVisible, setLaunchDrawerVisible] = useState(false as any);
+  /** Bumped after cluster mutations so open Events panes re-fetch scoped events. */
+  const [eventsRefreshKey, setEventsRefreshKey] = useState(0 as any);
   return {
     liveStatusTick, setLiveStatusTick,
     uptimeFormVisible, setUptimeFormVisible,
@@ -168,5 +179,9 @@ export function useUiState() {
     treeSearchQuery, setTreeSearchQuery,
     nodeSearchQuery, setNodeSearchQuery,
     activeView, setActiveView,
+    actionBusy, setActionBusy,
+    actionBlocker, setActionBlocker,
+    launchDrawerVisible, setLaunchDrawerVisible,
+    eventsRefreshKey, setEventsRefreshKey,
   };
 }

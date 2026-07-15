@@ -170,6 +170,7 @@ export function createMonitoringActions(s: any) {
   },
 
   async runPatchObservability(serviceId, serviceName) {
+    s.setActionBusy?.((b) => ({ ...b, patch: true }));
     s.setNotice("Running observability runtime patch (GlitchTip/Sentry inject)…");
     try {
       const headers = { "Content-Type": "application/json" };
@@ -185,7 +186,8 @@ export function createMonitoringActions(s: any) {
       const data = await res.json().catch(() => ({}));
       // Only treat explicit success:true as success — HTTP 200 with success:false is a failure.
       if (data && data.success === true) {
-        s.setNotice(data.message || data.result?.message || `Observability patch finished for ${serviceName || serviceId}.`);
+        const msg = data.message || data.result?.message || `Observability patch finished for ${serviceName || serviceId}.`;
+        s.showToast?.(msg, "ok") || s.setNotice(msg);
         if (serviceName && s.loadGlitchTipDataForService) {
           await s.loadGlitchTipDataForService(serviceName).catch(() => {});
         }
@@ -197,12 +199,15 @@ export function createMonitoringActions(s: any) {
       const errMsg =
         (data && (data.error || data.detail || data.result?.error)) ||
         (!res.ok ? `HTTP ${res.status}` : "Patch reported success=false");
-      s.setNotice(`Observability patch failed: ${typeof errMsg === "string" ? errMsg : JSON.stringify(errMsg)}`);
+      const fail = `Observability patch failed: ${typeof errMsg === "string" ? errMsg : JSON.stringify(errMsg)}`;
+      s.showToast?.(fail, "err") || s.setNotice(fail);
       return data;
     } catch (e) {
       console.error("Failed to run observability patch:", e);
-      s.setNotice(e?.message || "Observability patch failed");
+      s.showToast?.(e?.message || "Observability patch failed", "err") || s.setNotice(e?.message || "Observability patch failed");
       return null;
+    } finally {
+      s.setActionBusy?.((b) => ({ ...b, patch: false }));
     }
   },
 

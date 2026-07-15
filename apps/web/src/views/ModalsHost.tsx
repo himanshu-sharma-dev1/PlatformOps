@@ -47,10 +47,49 @@ export function ModalsHost() {
   const setSelectedArchive = p.setSelectedArchive;
   const testClusterRegistryConnection = p.testClusterRegistryConnection;
   const testClusterRepoConnection = p.testClusterRepoConnection;
+  const actionBlocker = p.actionBlocker;
+  const setActionBlocker = p.setActionBlocker;
+  const setCatalogDrawerVisible = p.setCatalogDrawerVisible;
+  const setStepperDrawerVisible = p.setStepperDrawerVisible;
+  const openNodeCreate = p.openNodeCreate;
 
 
   return (
     <>
+      {/* Action blocker — blocked deploy / install prerequisites */}
+      {actionBlocker?.visible && (
+        <div className="modal-overlay" style={{ display: "flex", zIndex: 120 }} data-ux="action-blocker">
+          <GlassCard className="modal" style={{ padding: "1.5rem", maxWidth: "420px", width: "100%", display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <h3 style={{ margin: 0 }}>Action blocked</h3>
+            <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--ink-2)" }}>{actionBlocker.message}</p>
+            <div className="modal-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => {
+                  const act = actionBlocker.secondaryAction;
+                  setActionBlocker?.({ visible: false, message: "", secondaryLabel: "", secondaryAction: null });
+                  if (act === "catalog") setCatalogDrawerVisible?.(true);
+                  if (act === "provision") {
+                    openNodeCreate?.();
+                    setStepperDrawerVisible?.(true);
+                  }
+                }}
+              >
+                {actionBlocker.secondaryLabel || "Continue"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => setActionBlocker?.({ visible: false, message: "", secondaryLabel: "", secondaryAction: null })}
+              >
+                Dismiss
+              </button>
+            </div>
+          </GlassCard>
+        </div>
+      )}
+
       {/* RENAME MODAL */}
       {renameModal.visible && (
         <div className="modal-overlay" style={{ display: "flex", zIndex: 100 }}>
@@ -72,17 +111,36 @@ export function ModalsHost() {
         </div>
       )}
 
-      {/* CLUSTER EDITOR MODAL — true 4-step wizard (cPlatform parity) */}
+      {/* CLUSTER EDITOR — right drawer 4-step wizard (cPlatform UX structure, PO skin) */}
       {clusterEditor.visible && (() => {
         const step = clusterEditor.step || 1;
         const setStep = p.setClusterEditorStep || ((n: number) => setClusterEditor((prev: any) => ({ ...prev, step: n, error: "" })));
         const advance = p.advanceClusterEditorStep || (() => setClusterEditor((prev: any) => ({ ...prev, step: Math.min(4, (prev.step || 1) + 1), error: "" })));
-        const labels = ["Identity", "Repository", "Registry", "Review"];
+        const labels = ["Identity", "Repository", "Image store", "Review"];
+        const saving = Boolean(clusterEditor.saving);
+        const actionBusy = p.actionBusy || {};
+        const repoTest = clusterEditor.repoTest || { state: "idle", message: "" };
+        const registryTest = clusterEditor.registryTest || { state: "idle", message: "" };
+        const close = () => setClusterEditor((prev: any) => ({ ...prev, visible: false, saving: false }));
         return (
-        <div className="modal-overlay" style={{ display: "flex", zIndex: 100 }}>
-          <GlassCard className="modal" style={{ padding: "1.5rem", maxWidth: "640px", width: "100%", display: "flex", flexDirection: "column", gap: "1rem", maxHeight: "90vh", overflowY: "auto" }}>
-            <h3>{clusterEditor.mode === "create" ? "Create Cluster" : "Cluster settings"}</h3>
-            <div className="cluster-tabs" style={{ marginBottom: 0, display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <>
+          <div className="drawer-backdrop open" style={{ display: "block", zIndex: 55 }} onClick={close} />
+          <aside className={`drawer open cluster-editor-drawer ${saving ? "is-busy" : ""}`} style={{ display: "flex", flexDirection: "column", zIndex: 60 }} data-ux="cluster-editor-drawer">
+            <div className="drawer-head">
+              <div>
+                <h2 style={{ margin: 0, fontSize: "1.35rem", fontFamily: "var(--display)" }}>
+                  {clusterEditor.mode === "create" ? "Create cluster" : "Cluster settings"}
+                </h2>
+                <div className="sub">
+                  {clusterEditor.mode === "edit" ? <span className="pill" style={{ marginRight: 6 }}>EDIT</span> : null}
+                  Step {step} of 4 · {labels[step - 1]}
+                </div>
+              </div>
+              <button type="button" className="icon-btn" onClick={close} aria-label="Close">
+                <svg className="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div className="cluster-tabs" style={{ padding: "0.75rem 1.25rem 0", display: "flex", gap: 6, flexWrap: "wrap" }}>
               {labels.map((label, idx) => {
                 const n = idx + 1;
                 const active = step === n;
@@ -109,7 +167,7 @@ export function ModalsHost() {
                 );
               })}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <div className={`drawer-body ${saving ? "is-busy" : ""}`} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               {step === 1 && (
                 <>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
@@ -131,6 +189,10 @@ export function ModalsHost() {
                       <option value="standalone">Standalone</option>
                       <option value="edge">Edge</option>
                     </select>
+                  </div>
+                  <div className="field">
+                    <label>Description (optional)</label>
+                    <input className="input" value={clusterEditor.draft.description || ""} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, description: e.target.value } }))} placeholder="Short purpose note" />
                   </div>
                 </>
               )}
@@ -157,18 +219,49 @@ export function ModalsHost() {
                     <input className="input" value={clusterEditor.draft.repo_url} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, repo_url: e.target.value } }))} placeholder="https://github.com/org/repo.git" />
                   </div>
                   <div className="field">
-                    <label>Access token {clusterEditor.mode === "edit" ? "(leave blank to keep)" : ""}</label>
-                    <input className="input" type="password" value={clusterEditor.draft.repo_token} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, repo_token: e.target.value } }))} placeholder={clusterEditor.mode === "edit" ? "••••••••" : "optional"} />
+                    <label>Access token</label>
+                    {clusterEditor.mode === "edit" && (
+                      <div className="secret-replace-row">
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem", margin: 0 }}>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(clusterEditor.replaceRepoSecret)}
+                            onChange={(e) => setClusterEditor((prev) => ({ ...prev, replaceRepoSecret: e.target.checked }))}
+                          />
+                          Replace secret
+                        </label>
+                        {!clusterEditor.replaceRepoSecret && <span style={{ fontSize: "0.75rem", color: "var(--ink-4)" }}>Keeping existing token</span>}
+                      </div>
+                    )}
+                    <input
+                      className="input"
+                      type="password"
+                      disabled={clusterEditor.mode === "edit" && !clusterEditor.replaceRepoSecret}
+                      value={clusterEditor.draft.repo_token}
+                      onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, repo_token: e.target.value } }))}
+                      placeholder={clusterEditor.mode === "edit" && !clusterEditor.replaceRepoSecret ? "••••••••" : "optional"}
+                    />
                   </div>
                   <div>
-                    <button type="button" className="btn btn-secondary btn-sm" onClick={testClusterRepoConnection}>Test repository connection</button>
+                    <button
+                      type="button"
+                      className={`btn btn-secondary btn-sm ${actionBusy["test-repo"] || repoTest.state === "testing" ? "btn-loading" : ""}`}
+                      disabled={actionBusy["test-repo"] || repoTest.state === "testing"}
+                      onClick={testClusterRepoConnection}
+                    >
+                      {(actionBusy["test-repo"] || repoTest.state === "testing") && <span className="btn-spinner" />}
+                      Test repository connection
+                    </button>
+                    {repoTest.state !== "idle" && (
+                      <div className={`test-conn-result ${repoTest.state}`} data-ux="repo-test-result">{repoTest.message}</div>
+                    )}
                   </div>
                 </>
               )}
 
               {step === 3 && (
                 <>
-                  <h4 style={{ margin: 0, fontSize: "0.95rem" }}>Container registry</h4>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem" }}>Image store / registry</h4>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
                     <div className="field">
                       <label>Registry type</label>
@@ -189,11 +282,42 @@ export function ModalsHost() {
                     <input className="input" value={clusterEditor.draft.registry_url} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, registry_url: e.target.value } }))} placeholder="registry-1.docker.io" />
                   </div>
                   <div className="field">
-                    <label>Password / access key {clusterEditor.mode === "edit" ? "(leave blank to keep)" : ""}</label>
-                    <input className="input" type="password" value={clusterEditor.draft.registry_password} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, registry_password: e.target.value } }))} placeholder={clusterEditor.mode === "edit" ? "••••••••" : ""} />
+                    <label>Password / access key</label>
+                    {clusterEditor.mode === "edit" && (
+                      <div className="secret-replace-row">
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem", margin: 0 }}>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(clusterEditor.replaceRegistrySecret)}
+                            onChange={(e) => setClusterEditor((prev) => ({ ...prev, replaceRegistrySecret: e.target.checked }))}
+                          />
+                          Replace secret
+                        </label>
+                        {!clusterEditor.replaceRegistrySecret && <span style={{ fontSize: "0.75rem", color: "var(--ink-4)" }}>Keeping existing password</span>}
+                      </div>
+                    )}
+                    <input
+                      className="input"
+                      type="password"
+                      disabled={clusterEditor.mode === "edit" && !clusterEditor.replaceRegistrySecret}
+                      value={clusterEditor.draft.registry_password}
+                      onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, registry_password: e.target.value } }))}
+                      placeholder={clusterEditor.mode === "edit" && !clusterEditor.replaceRegistrySecret ? "••••••••" : ""}
+                    />
                   </div>
                   <div>
-                    <button type="button" className="btn btn-secondary btn-sm" onClick={testClusterRegistryConnection}>Test registry connection</button>
+                    <button
+                      type="button"
+                      className={`btn btn-secondary btn-sm ${actionBusy["test-registry"] || registryTest.state === "testing" ? "btn-loading" : ""}`}
+                      disabled={actionBusy["test-registry"] || registryTest.state === "testing"}
+                      onClick={testClusterRegistryConnection}
+                    >
+                      {(actionBusy["test-registry"] || registryTest.state === "testing") && <span className="btn-spinner" />}
+                      Test registry connection
+                    </button>
+                    {registryTest.state !== "idle" && (
+                      <div className={`test-conn-result ${registryTest.state}`} data-ux="registry-test-result">{registryTest.message}</div>
+                    )}
                   </div>
                 </>
               )}
@@ -202,28 +326,37 @@ export function ModalsHost() {
                 <div style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "1rem", background: "rgba(0,0,0,0.12)", fontSize: "0.88rem", display: "flex", flexDirection: "column", gap: 6 }}>
                   <div><strong>Name:</strong> {clusterEditor.draft.name || "—"}</div>
                   <div><strong>Region / env:</strong> {clusterEditor.draft.region || "—"} · {clusterEditor.draft.environment}</div>
+                  {clusterEditor.draft.description ? <div><strong>Description:</strong> {clusterEditor.draft.description}</div> : null}
                   <div><strong>Repo:</strong> {clusterEditor.draft.repo_type} · {clusterEditor.draft.repo_url || "(none)"} @ {clusterEditor.draft.repo_branch}</div>
-                  <div><strong>Registry:</strong> {clusterEditor.draft.registry_type} · {clusterEditor.draft.registry_url || "(default)"}</div>
+                  <div><strong>Image store:</strong> {clusterEditor.draft.registry_type} · {clusterEditor.draft.registry_url || "(default)"}</div>
                   <p style={{ margin: "0.5rem 0 0", color: "var(--ink-4)", fontSize: "0.8rem" }}>
-                    Confirm and {clusterEditor.mode === "create" ? "create" : "save"}. Secrets blank on edit keep existing values.
+                    Confirm and {clusterEditor.mode === "create" ? "create" : "save"}. Secrets on edit only update when Replace secret is checked.
                   </p>
                 </div>
               )}
+              {clusterEditor.error && <p style={{ color: "var(--err)", fontSize: "0.8rem", margin: 0 }}>{clusterEditor.error}</p>}
             </div>
-            {clusterEditor.error && <p style={{ color: "var(--err)", fontSize: "0.8rem", margin: 0 }}>{clusterEditor.error}</p>}
-            <div className="modal-actions" style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
-              <button className="btn btn-secondary btn-sm" onClick={() => setClusterEditor((prev) => ({ ...prev, visible: false }))}>Cancel</button>
+            <div className="drawer-foot" style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
+              <button className="btn btn-secondary btn-sm" onClick={close} disabled={saving}>Cancel</button>
               <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button className="btn btn-secondary btn-sm" disabled={step <= 1} onClick={() => setStep(step - 1)}>Back</button>
+                <button className="btn btn-secondary btn-sm" disabled={step <= 1 || saving} onClick={() => setStep(step - 1)}>Back</button>
                 {step < 4 ? (
-                  <button className="btn btn-primary btn-sm" onClick={advance}>Next</button>
+                  <button className="btn btn-primary btn-sm" disabled={saving} onClick={advance}>Next</button>
                 ) : (
-                  <button className="btn btn-primary btn-sm" onClick={saveClusterEditor}>{clusterEditor.mode === "create" ? "Create cluster" : "Save settings"}</button>
+                  <button
+                    className={`btn btn-primary btn-sm ${saving ? "btn-loading" : ""}`}
+                    disabled={saving}
+                    onClick={saveClusterEditor}
+                    data-ux="cluster-editor-save"
+                  >
+                    {saving && <span className="btn-spinner" />}
+                    {clusterEditor.mode === "create" ? "Create cluster" : "Save settings"}
+                  </button>
                 )}
               </div>
             </div>
-          </GlassCard>
-        </div>
+          </aside>
+        </>
         );
       })()}
 
@@ -500,11 +633,13 @@ export function ModalsHost() {
                     Deploy dependencies first
                   </button>
                   <button
-                    className="btn btn-primary btn-sm"
+                    className={`btn btn-primary btn-sm ${deploymentModal.executing || deploymentModal.loading ? "btn-loading" : ""}`}
                     onClick={executeDeploymentModal}
                     disabled={deploymentModal.loading || deploymentModal.executing}
+                    data-ux="btn-deploy-execute"
                   >
-                    {deploymentModal.executing ? "Executing..." : "Execute plan"}
+                    {(deploymentModal.executing || deploymentModal.loading) && <span className="btn-spinner" />}
+                    {deploymentModal.executing ? "Executing…" : deploymentModal.loading ? "Loading…" : "Execute plan"}
                   </button>
                 </>
               )}

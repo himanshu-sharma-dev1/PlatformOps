@@ -274,9 +274,10 @@ export function renderCircularGauge(value: number, target: number, label: string
 export function isSeedDemoName(name: string | null | undefined): boolean {
   const n = (name || "").toLowerCase();
   if (!n) return false;
+  // Real inventory nodes (e.g. verify-node-1 on a real AWS host) must remain selectable.
+  // Only hide disposable e2e / seed-demo clutter.
   return (
     n.startsWith("e2e-") ||
-    n.startsWith("verify-node-") ||
     n.startsWith("parity-cl-") ||
     n.includes("e2e-cluster") ||
     n.includes("e2e-node") ||
