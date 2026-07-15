@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { api, getAuthToken, setAuthToken } from "../api/client";
 import type { PlatformApi } from "./context";
 import { usePlatformState } from "./usePlatformState";
@@ -18,6 +18,7 @@ const OPERATOR_PREFERENCES_KEY = "platformops.operator.preferences.v1";
 export function usePlatformController(): PlatformApi {
   const state = usePlatformState();
   const s: any = { ...state };
+  const restoredRef = useRef(false);
 
   Object.assign(
     s,
@@ -71,7 +72,10 @@ export function usePlatformController(): PlatformApi {
   }, [s.selectedCluster, s.selectedNode, s.selectedService, s.selectedPlacementServiceKey, s.configSource, s.nodePreset, s.nodeMetricsWindow, s.serviceMetricsWindow]);
 
   useEffect(() => {
-    if (!s.operatorPreferences) return;
+    if (restoredRef.current || !s.operatorPreferences || s.clusters.length === 0) return;
+    
+    restoredRef.current = true;
+
     if (!s.selectedCluster && s.operatorPreferences.selectedClusterId) {
       const preferredCluster = s.clusters.find((cluster) => cluster.id === s.operatorPreferences.selectedClusterId);
       if (preferredCluster) {
@@ -90,7 +94,7 @@ export function usePlatformController(): PlatformApi {
         s.setSelectedService(preferredService);
       }
     }
-  }, [s.clusters, s.nodes, s.services, s.operatorPreferences, s.selectedCluster, s.selectedNode, s.selectedService]);
+  }, [s.clusters, s.nodes, s.services, s.operatorPreferences]);
 
   useEffect(() => {
     if (!s.selectedNode) return;
