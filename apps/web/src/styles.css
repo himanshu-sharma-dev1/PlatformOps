@@ -4443,3 +4443,17 @@ input:focus, select:focus, textarea:focus {
   background-color: var(--bg-hover) !important;
 }
 
+/* Sidebar collapsed state and responsive grid stacking */
+@media (max-width: 1024px) {
+  .cluster-split {
+    grid-template-columns: 1fr !important;
+  }
+}
+.cluster-split.sidebar-collapsed {
+  grid-template-columns: 1fr !important;
+}
+.cluster-split.sidebar-collapsed .node-list-wrap {
+  display: none !important;
+}
+
+

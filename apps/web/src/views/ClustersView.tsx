@@ -150,6 +150,7 @@ export function ClustersView() {
   const [nodeEventsStarted, setNodeEventsStarted] = React.useState(false);
   const [clusterSearch, setClusterSearch] = React.useState("");
   const [liveBusy, setLiveBusy] = React.useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const actionBusy = (p.actionBusy || {}) as Record<string, boolean>;
   const setActionBlocker = p.setActionBlocker as (...a: any[]) => void;
   const eventsRefreshKey = Number(p.eventsRefreshKey || 0);
@@ -476,7 +477,12 @@ export function ClustersView() {
           </div>
           <div className="actions">
             {activeNode && (
-              <button className="btn btn-secondary" onClick={() => selectNode(null)}>Dashboard</button>
+              <>
+                <button className="btn btn-secondary" onClick={() => { setSidebarCollapsed(false); selectNode(null); }}>Dashboard</button>
+                <button className="btn btn-secondary" onClick={() => setSidebarCollapsed(!sidebarCollapsed)}>
+                  {sidebarCollapsed ? "Show Nodes" : "Hide Nodes"}
+                </button>
+              </>
             )}
             <button className="btn btn-secondary" onClick={() => setSelectedCluster(null)}>All clusters</button>
             <button className="btn btn-secondary" onClick={() => openClusterEdit(selectedCluster)}>Cluster settings</button>
@@ -520,7 +526,7 @@ export function ClustersView() {
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => setActiveView("observability")}>Manage stack</button>
         </GlassCard>
 
-        <div className="cluster-split">
+        <div className={`cluster-split ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
           <div className="node-list-wrap">
             <div className="node-list-head">
               <h3>Nodes</h3>
@@ -1071,20 +1077,24 @@ export function ClustersView() {
                     <span>{nodeJobHistory ? `${nodeJobHistory.total_jobs} total` : "—"}</span>
                   </div>
                   {nodeJobHistory ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem" }}>
-                      {nodeJobHistory.items.slice(0, 20).map((item) => (
-                        <article key={`tab-job-${item.id}`} style={{ border: "1px solid var(--line-2)", borderRadius: 10, padding: "0.7rem 0.85rem" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-                            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                              <span className={`pill ${item.status === "success" ? "pill-ok" : item.status === "failed" ? "pill-error" : "pill-warn"}`}>{item.status}</span>
-                              <strong>{item.action}</strong>
+                    nodeJobHistory.items.length === 0 ? (
+                      <p style={{ color: "var(--ink-4)", margin: 0 }}>No job logs found on this node yet.</p>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem" }}>
+                        {nodeJobHistory.items.slice(0, 20).map((item) => (
+                          <article key={`tab-job-${item.id}`} style={{ border: "1px solid var(--line-2)", borderRadius: 10, padding: "0.7rem 0.85rem" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                                <span className={`pill ${item.status === "success" ? "pill-ok" : item.status === "failed" ? "pill-error" : "pill-warn"}`}>{item.status}</span>
+                                <strong>{item.action}</strong>
+                              </div>
+                              <small style={{ color: "var(--ink-4)" }}>{formatLocalTimestamp(item.created_at)}</small>
                             </div>
-                            <small style={{ color: "var(--ink-4)" }}>{formatLocalTimestamp(item.created_at)}</small>
-                          </div>
-                          {item.error && <pre style={{ margin: "0.45rem 0 0", fontSize: "0.75rem", color: "var(--err)", whiteSpace: "pre-wrap" }}>{item.error}</pre>}
-                        </article>
-                      ))}
-                    </div>
+                            {item.error && <pre style={{ margin: "0.45rem 0 0", fontSize: "0.75rem", color: "var(--err)", whiteSpace: "pre-wrap" }}>{item.error}</pre>}
+                          </article>
+                        ))}
+                      </div>
+                    )
                   ) : (
                     <p style={{ color: "var(--ink-4)" }}>Loading jobs…</p>
                   )}
