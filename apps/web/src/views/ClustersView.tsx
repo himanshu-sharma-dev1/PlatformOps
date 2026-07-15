@@ -486,7 +486,7 @@ export function ClustersView() {
                 </button>
               </>
             )}
-            <button className="btn btn-secondary" onClick={() => setSelectedCluster(null)}>All clusters</button>
+            <button className="btn btn-secondary" onClick={() => { selectNode(null); setSelectedCluster(null); }}>All clusters</button>
             <button className="btn btn-secondary" onClick={() => openClusterEdit(selectedCluster)}>Cluster settings</button>
             <button className="btn btn-secondary" onClick={() => requestDelete("cluster", selectedCluster.id, selectedCluster.name)}>Delete cluster</button>
             <button className="btn btn-primary" onClick={() => { openNodeCreate(); setStepperDrawerVisible(true); }}>Provision node</button>

@@ -38,12 +38,12 @@ function AuthenticatedShell() {
       activeView={activeView}
       onViewChange={(view) => {
         if (view === "clusters") {
+          p.selectNode?.(null);
           p.setSelectedCluster(null);
-          p.setSelectedNode(null);
           p.setSelectedService(null);
           p.setActiveView("clusters");
         } else if (view === "cluster-dashboard") {
-          p.setSelectedNode(null);
+          p.selectNode?.(null);
           p.setSelectedService(null);
           p.setActiveView("clusters");
         } else if (view === "node-dashboard") {
