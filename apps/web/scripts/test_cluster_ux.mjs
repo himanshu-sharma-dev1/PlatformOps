@@ -148,6 +148,9 @@ await check("constants present", () => {
   assert.deepEqual([...ux.SVC_INSTALL_STEPS], ["Setup", "Config"]);
   assert.deepEqual([...ux.NODE_PROVISION_STEPS], ["Cloud", "Hardware", "Config", "Network", "Firewall", "Review"]);
   assert.equal(ux.NODE_CLOUD_PROVIDERS.length, 3);
+  assert.equal(ux.CLUSTER_REPO_PROVIDERS.length, 4);
+  assert.equal(ux.CLUSTER_REGISTRY_PROVIDERS.length, 4);
+  assert.equal(ux.CLUSTER_REPO_AUTH_TABS.length, 3);
   assert.ok(String(ux.LAUNCH_STUB_MESSAGE).includes("not configured"));
 });
 

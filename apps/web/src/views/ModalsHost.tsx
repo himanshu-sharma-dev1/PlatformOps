@@ -2,6 +2,12 @@
 import React from "react";
 import { GlassCard } from "../components/GlassCard";
 import { usePlatform } from "../platform/usePlatform";
+import {
+  CLUSTER_EDITOR_STEPS,
+  CLUSTER_REPO_PROVIDERS,
+  CLUSTER_REGISTRY_PROVIDERS,
+  CLUSTER_REPO_AUTH_TABS,
+} from "../platform/ux/clusterUx";
 
 /** ModalsHost — Phase 1 extracted page JSX. */
 export function ModalsHost() {
@@ -177,73 +183,60 @@ export function ModalsHost() {
         const step = clusterEditor.step || 1;
         const setStep = p.setClusterEditorStep || ((n: number) => setClusterEditor((prev: any) => ({ ...prev, step: n, error: "" })));
         const advance = p.advanceClusterEditorStep || (() => setClusterEditor((prev: any) => ({ ...prev, step: Math.min(4, (prev.step || 1) + 1), error: "" })));
-        const labels = ["Identity", "Repository", "Image store", "Review"];
+        const labels = [...CLUSTER_EDITOR_STEPS];
         const saving = Boolean(clusterEditor.saving);
         const actionBusy = p.actionBusy || {};
         const repoTest = clusterEditor.repoTest || { state: "idle", message: "" };
         const registryTest = clusterEditor.registryTest || { state: "idle", message: "" };
+        const draft = clusterEditor.draft || {};
+        const setDraft = (patch: any) => setClusterEditor((prev: any) => ({ ...prev, draft: { ...prev.draft, ...patch }, error: "" }));
         const close = () => setClusterEditor((prev: any) => ({ ...prev, visible: false, saving: false }));
+        const repoAuth = draft.repo_auth || "pat";
         return (
         <>
           <div className="drawer-backdrop open" style={{ display: "block", zIndex: 55 }} onClick={close} />
-          <aside className={`drawer open cluster-editor-drawer ${saving ? "is-busy" : ""}`} style={{ display: "flex", flexDirection: "column", zIndex: 60 }} data-ux="cluster-editor-drawer">
+          <aside className={`drawer open cluster-editor-drawer ${saving ? "is-busy" : ""}`} style={{ display: "flex", flexDirection: "column", zIndex: 60, width: "min(560px, 100vw)" }} data-ux="cluster-editor-drawer">
             <div className="drawer-head">
               <div>
                 <h2 style={{ margin: 0, fontSize: "1.35rem", fontFamily: "var(--display)" }}>
-                  {clusterEditor.mode === "create" ? "Create cluster" : "Cluster settings"}
+                  {clusterEditor.mode === "create" ? "Create cluster " : "Cluster settings "}
+                  {clusterEditor.mode === "edit" ? <span className="edit-badge">EDIT</span> : null}
                 </h2>
-                <div className="sub">
-                  {clusterEditor.mode === "edit" ? <span className="pill" style={{ marginRight: 6 }}>EDIT</span> : null}
-                  Step {step} of 4 · {labels[step - 1]}
-                </div>
+                <div className="sub">Step {step} of 4 · {labels[step - 1]}</div>
               </div>
               <button type="button" className="icon-btn" onClick={close} aria-label="Close">
                 <svg className="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
               </button>
             </div>
-            <div className="cluster-tabs" style={{ padding: "0.75rem 1.25rem 0", display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <div className="stepper" data-ux="cluster-editor-stepper">
               {labels.map((label, idx) => {
                 const n = idx + 1;
-                const active = step === n;
-                const done = step > n;
+                const cls = n === step ? "step active" : n < step ? "step done" : "step";
                 return (
-                  <button
-                    key={label}
-                    type="button"
-                    className={`tab ${active ? "active" : ""} ${done ? "done" : ""}`}
-                    style={{
-                      border: "1px solid var(--line)",
-                      borderRadius: 8,
-                      padding: "0.35rem 0.65rem",
-                      background: active ? "var(--navy-50, rgba(30,58,95,0.12))" : "transparent",
-                      color: active ? "var(--navy-700, var(--ink))" : "var(--ink-4)",
-                      fontWeight: active ? 600 : 500,
-                      cursor: "pointer",
-                      fontSize: "0.8rem",
-                    }}
-                    onClick={() => setStep(n)}
-                  >
-                    {n}. {label}
-                  </button>
+                  <div key={label} className={cls} data-step={n} onClick={() => setStep(n)} role="button" tabIndex={0}>
+                    <span className="n">{n}</span>
+                    {label}
+                  </div>
                 );
               })}
             </div>
-            <div className={`drawer-body ${saving ? "is-busy" : ""}`} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <div className={`drawer-body ${saving ? "is-busy" : ""}`} style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
               {step === 1 && (
-                <>
+                <div className="step-pane active" data-step-pane="1">
+                  <div className="section-head-sm" style={{ marginTop: 0 }}>Identity</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
                     <div className="field">
-                      <label>Cluster name</label>
-                      <input className="input" value={clusterEditor.draft.name} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, name: e.target.value } }))} placeholder="e.g. prod-mumbai-1" />
+                      <label>Cluster name <span className="req">*</span></label>
+                      <input className="input" value={draft.name} onChange={(e) => setDraft({ name: e.target.value })} placeholder="e.g. prod-mumbai-1" />
                     </div>
                     <div className="field">
                       <label>Region</label>
-                      <input className="input" value={clusterEditor.draft.region} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, region: e.target.value } }))} placeholder="e.g. ap-south-1" />
+                      <input className="input" value={draft.region} onChange={(e) => setDraft({ region: e.target.value })} placeholder="e.g. ap-south-1" />
                     </div>
                   </div>
                   <div className="field">
                     <label>Environment</label>
-                    <select value={clusterEditor.draft.environment} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, environment: e.target.value } }))}>
+                    <select value={draft.environment} onChange={(e) => setDraft({ environment: e.target.value })}>
                       <option value="development">Development</option>
                       <option value="staging">Staging</option>
                       <option value="production">Production</option>
@@ -253,56 +246,114 @@ export function ModalsHost() {
                   </div>
                   <div className="field">
                     <label>Description (optional)</label>
-                    <input className="input" value={clusterEditor.draft.description || ""} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, description: e.target.value } }))} placeholder="Short purpose note" />
+                    <input className="input" value={draft.description || ""} onChange={(e) => setDraft({ description: e.target.value })} placeholder="Short purpose note" />
                   </div>
-                </>
+                </div>
               )}
 
               {step === 2 && (
-                <>
-                  <h4 style={{ margin: 0, fontSize: "0.95rem" }}>Code repository</h4>
+                <div className="step-pane active" data-step-pane="2">
+                  <p className="hint" style={{ marginTop: 0 }}>
+                    Where infrastructure-as-code for this cluster lives. The platform pulls from here when provisioning nodes or deploying services.
+                  </p>
+                  <div className="section-head-sm">Provider</div>
+                  <div className="provider-grid" data-ux="repo-provider-grid">
+                    {CLUSTER_REPO_PROVIDERS.map((prov) => (
+                      <div
+                        key={prov.id}
+                        className={`provider-card ${draft.repo_type === prov.id ? "selected" : ""}`}
+                        data-repo={prov.id}
+                        onClick={() => setDraft({ repo_type: prov.id })}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        <div className="ico">{prov.label}</div>
+                        <div className="nm">{prov.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="field" style={{ marginTop: "0.75rem" }}>
+                    <label>Repository URL</label>
+                    <input className="input" value={draft.repo_url} onChange={(e) => setDraft({ repo_url: e.target.value })} placeholder="https://github.com/org/repo.git" />
+                  </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
                     <div className="field">
-                      <label>Repo type</label>
-                      <select value={clusterEditor.draft.repo_type} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, repo_type: e.target.value } }))}>
-                        <option value="github">GitHub</option>
-                        <option value="gitlab">GitLab</option>
-                        <option value="local">Local path</option>
-                      </select>
+                      <label>Branch</label>
+                      <input className="input" value={draft.repo_branch} onChange={(e) => setDraft({ repo_branch: e.target.value })} />
                     </div>
                     <div className="field">
-                      <label>Branch</label>
-                      <input className="input" value={clusterEditor.draft.repo_branch} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, repo_branch: e.target.value } }))} />
+                      <label>Path (optional)</label>
+                      <input className="input" value={draft.repo_path || ""} onChange={(e) => setDraft({ repo_path: e.target.value })} placeholder="clusters/prod/" />
                     </div>
                   </div>
-                  <div className="field">
-                    <label>Repository URL</label>
-                    <input className="input" value={clusterEditor.draft.repo_url} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, repo_url: e.target.value } }))} placeholder="https://github.com/org/repo.git" />
+                  <div className="section-head-sm">Authentication</div>
+                  <div className="auth-tabs" data-ux="repo-auth-tabs">
+                    {CLUSTER_REPO_AUTH_TABS.map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        className={`auth-tab ${repoAuth === tab.id ? "active" : ""}`}
+                        onClick={() => setDraft({ repo_auth: tab.id })}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
                   </div>
-                  <div className="field">
-                    <label>Access token</label>
-                    {clusterEditor.mode === "edit" && (
-                      <div className="secret-replace-row">
-                        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem", margin: 0 }}>
-                          <input
-                            type="checkbox"
-                            checked={Boolean(clusterEditor.replaceRepoSecret)}
-                            onChange={(e) => setClusterEditor((prev) => ({ ...prev, replaceRepoSecret: e.target.checked }))}
-                          />
-                          Replace secret
-                        </label>
-                        {!clusterEditor.replaceRepoSecret && <span style={{ fontSize: "0.75rem", color: "var(--ink-4)" }}>Keeping existing token</span>}
-                      </div>
-                    )}
-                    <input
-                      className="input"
-                      type="password"
-                      disabled={clusterEditor.mode === "edit" && !clusterEditor.replaceRepoSecret}
-                      value={clusterEditor.draft.repo_token}
-                      onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, repo_token: e.target.value } }))}
-                      placeholder={clusterEditor.mode === "edit" && !clusterEditor.replaceRepoSecret ? "••••••••" : "optional"}
-                    />
-                  </div>
+                  {repoAuth === "pat" && (
+                    <div className="field">
+                      <label>Personal access token</label>
+                      {clusterEditor.mode === "edit" && (
+                        <div className="secret-replace-row">
+                          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem", margin: 0 }}>
+                            <input
+                              type="checkbox"
+                              checked={Boolean(clusterEditor.replaceRepoSecret)}
+                              onChange={(e) => setClusterEditor((prev) => ({ ...prev, replaceRepoSecret: e.target.checked }))}
+                            />
+                            Replace secret
+                          </label>
+                          {!clusterEditor.replaceRepoSecret && <span style={{ fontSize: "0.75rem", color: "var(--ink-4)" }}>Keeping existing token</span>}
+                        </div>
+                      )}
+                      <input
+                        className="input"
+                        type="password"
+                        disabled={clusterEditor.mode === "edit" && !clusterEditor.replaceRepoSecret}
+                        value={draft.repo_token}
+                        onChange={(e) => setDraft({ repo_token: e.target.value })}
+                        placeholder={clusterEditor.mode === "edit" && !clusterEditor.replaceRepoSecret ? "••••••••" : "ghp_… optional"}
+                      />
+                      <div className="hint">Stored for pull operations. Leave blank on edit unless Replace secret is checked.</div>
+                    </div>
+                  )}
+                  {repoAuth === "ssh" && (
+                    <div className="field">
+                      <label>Private SSH key</label>
+                      {clusterEditor.mode === "edit" && (
+                        <div className="secret-replace-row">
+                          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem", margin: 0 }}>
+                            <input
+                              type="checkbox"
+                              checked={Boolean(clusterEditor.replaceRepoSecret)}
+                              onChange={(e) => setClusterEditor((prev) => ({ ...prev, replaceRepoSecret: e.target.checked }))}
+                            />
+                            Replace secret
+                          </label>
+                        </div>
+                      )}
+                      <textarea
+                        className="input"
+                        style={{ minHeight: 88, fontFamily: "var(--mono)", fontSize: "0.75rem" }}
+                        disabled={clusterEditor.mode === "edit" && !clusterEditor.replaceRepoSecret}
+                        value={draft.repo_token}
+                        onChange={(e) => setDraft({ repo_token: e.target.value })}
+                        placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+                      />
+                    </div>
+                  )}
+                  {repoAuth === "none" && (
+                    <p className="hint">No authentication — public repos / read-only operations only.</p>
+                  )}
                   <div>
                     <button
                       type="button"
@@ -311,36 +362,49 @@ export function ModalsHost() {
                       onClick={testClusterRepoConnection}
                     >
                       {(actionBusy["test-repo"] || repoTest.state === "testing") && <span className="btn-spinner" />}
-                      Test repository connection
+                      Test connection
                     </button>
                     {repoTest.state !== "idle" && (
                       <div className={`test-conn-result ${repoTest.state}`} data-ux="repo-test-result">{repoTest.message}</div>
                     )}
                   </div>
-                </>
+                </div>
               )}
 
               {step === 3 && (
-                <>
-                  <h4 style={{ margin: 0, fontSize: "0.95rem" }}>Image store / registry</h4>
+                <div className="step-pane active" data-step-pane="3">
+                  <p className="hint" style={{ marginTop: 0 }}>
+                    Where container images are stored. Nodes pull from here when services are deployed.
+                  </p>
+                  <div className="section-head-sm">Registry</div>
+                  <div className="provider-grid" data-ux="registry-provider-grid">
+                    {CLUSTER_REGISTRY_PROVIDERS.map((prov) => (
+                      <div
+                        key={prov.id}
+                        className={`provider-card ${draft.registry_type === prov.id ? "selected" : ""}`}
+                        data-registry={prov.id}
+                        onClick={() => setDraft({ registry_type: prov.id })}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        <div className="ico">{prov.label}</div>
+                        <div className="nm">{prov.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="field" style={{ marginTop: "0.75rem" }}>
+                    <label>Registry URL</label>
+                    <input className="input" value={draft.registry_url} onChange={(e) => setDraft({ registry_url: e.target.value })} placeholder="registry-1.docker.io" />
+                  </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
                     <div className="field">
-                      <label>Registry type</label>
-                      <select value={clusterEditor.draft.registry_type} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, registry_type: e.target.value } }))}>
-                        <option value="dockerhub">Docker Hub</option>
-                        <option value="ecr">ECR</option>
-                        <option value="gcr">GCR</option>
-                        <option value="local">Local registry</option>
-                      </select>
+                      <label>Namespace / org</label>
+                      <input className="input" value={draft.registry_namespace || ""} onChange={(e) => setDraft({ registry_namespace: e.target.value })} placeholder="optional" />
                     </div>
                     <div className="field">
                       <label>Username</label>
-                      <input className="input" value={clusterEditor.draft.registry_user} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, registry_user: e.target.value } }))} />
+                      <input className="input" value={draft.registry_user} onChange={(e) => setDraft({ registry_user: e.target.value })} />
                     </div>
-                  </div>
-                  <div className="field">
-                    <label>Registry URL</label>
-                    <input className="input" value={clusterEditor.draft.registry_url} onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, registry_url: e.target.value } }))} placeholder="registry-1.docker.io" />
                   </div>
                   <div className="field">
                     <label>Password / access key</label>
@@ -361,8 +425,8 @@ export function ModalsHost() {
                       className="input"
                       type="password"
                       disabled={clusterEditor.mode === "edit" && !clusterEditor.replaceRegistrySecret}
-                      value={clusterEditor.draft.registry_password}
-                      onChange={(e) => setClusterEditor((prev) => ({ ...prev, draft: { ...prev.draft, registry_password: e.target.value } }))}
+                      value={draft.registry_password}
+                      onChange={(e) => setDraft({ registry_password: e.target.value })}
                       placeholder={clusterEditor.mode === "edit" && !clusterEditor.replaceRegistrySecret ? "••••••••" : ""}
                     />
                   </div>
@@ -374,23 +438,27 @@ export function ModalsHost() {
                       onClick={testClusterRegistryConnection}
                     >
                       {(actionBusy["test-registry"] || registryTest.state === "testing") && <span className="btn-spinner" />}
-                      Test registry connection
+                      Test connection
                     </button>
                     {registryTest.state !== "idle" && (
                       <div className={`test-conn-result ${registryTest.state}`} data-ux="registry-test-result">{registryTest.message}</div>
                     )}
                   </div>
-                </>
+                </div>
               )}
 
               {step === 4 && (
-                <div style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "1rem", background: "rgba(0,0,0,0.12)", fontSize: "0.88rem", display: "flex", flexDirection: "column", gap: 6 }}>
-                  <div><strong>Name:</strong> {clusterEditor.draft.name || "—"}</div>
-                  <div><strong>Region / env:</strong> {clusterEditor.draft.region || "—"} · {clusterEditor.draft.environment}</div>
-                  {clusterEditor.draft.description ? <div><strong>Description:</strong> {clusterEditor.draft.description}</div> : null}
-                  <div><strong>Repo:</strong> {clusterEditor.draft.repo_type} · {clusterEditor.draft.repo_url || "(none)"} @ {clusterEditor.draft.repo_branch}</div>
-                  <div><strong>Image store:</strong> {clusterEditor.draft.registry_type} · {clusterEditor.draft.registry_url || "(default)"}</div>
-                  <p style={{ margin: "0.5rem 0 0", color: "var(--ink-4)", fontSize: "0.8rem" }}>
+                <div className="step-pane active" data-step-pane="4" style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "1rem", background: "rgba(0,0,0,0.12)", fontSize: "0.88rem", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div className="section-head-sm" style={{ marginTop: 0 }}>Identity</div>
+                  <div><strong>Name:</strong> {draft.name || "—"}</div>
+                  <div><strong>Region / env:</strong> {draft.region || "—"} · {draft.environment}</div>
+                  {draft.description ? <div><strong>Description:</strong> {draft.description}</div> : null}
+                  <div className="section-head-sm">Repository</div>
+                  <div><strong>Provider:</strong> {draft.repo_type} · auth {repoAuth}</div>
+                  <div><strong>URL:</strong> {draft.repo_url || "(none)"} @ {draft.repo_branch}{draft.repo_path ? ` · path ${draft.repo_path}` : ""}</div>
+                  <div className="section-head-sm">Image store</div>
+                  <div><strong>Registry:</strong> {draft.registry_type} · {draft.registry_url || "(default)"}{draft.registry_namespace ? ` / ${draft.registry_namespace}` : ""}</div>
+                  <p className="hint" style={{ marginBottom: 0 }}>
                     Confirm and {clusterEditor.mode === "create" ? "create" : "save"}. Secrets on edit only update when Replace secret is checked.
                   </p>
                 </div>
@@ -398,11 +466,11 @@ export function ModalsHost() {
               {clusterEditor.error && <p style={{ color: "var(--err)", fontSize: "0.8rem", margin: 0 }}>{clusterEditor.error}</p>}
             </div>
             <div className="drawer-foot" style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
-              <button className="btn btn-secondary btn-sm" onClick={close} disabled={saving}>Cancel</button>
+              <button className="btn btn-ghost btn-sm" onClick={close} disabled={saving}>Cancel</button>
               <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button className="btn btn-secondary btn-sm" disabled={step <= 1 || saving} onClick={() => setStep(step - 1)}>Back</button>
+                <button className="btn btn-secondary btn-sm" disabled={step <= 1 || saving} onClick={() => setStep(step - 1)}>← Back</button>
                 {step < 4 ? (
-                  <button className="btn btn-primary btn-sm" disabled={saving} onClick={advance}>Next</button>
+                  <button className="btn btn-primary btn-sm" disabled={saving} onClick={advance}>Continue →</button>
                 ) : (
                   <button
                     className={`btn btn-primary btn-sm ${saving ? "btn-loading" : ""}`}
@@ -421,8 +489,9 @@ export function ModalsHost() {
         );
       })()}
 
-      {/* NODE EDITOR MODAL */}
-      {nodeEditor.visible && (
+      {/* Legacy node modal disabled — provision drawer is the only node editor (cP parity).
+          Keep block inert: nodeEditor.visible is always false from openNodeCreate/Edit. */}
+      {false && nodeEditor.visible && (
         <div className="modal-overlay" style={{ display: "flex", zIndex: 100 }}>
           <GlassCard className="modal" style={{ padding: "1.5rem", maxWidth: "480px", width: "100%", display: "flex", flexDirection: "column", gap: "1rem" }}>
             <h3>{nodeEditor.mode === "create" ? "Add Node" : "Edit Node"}</h3>

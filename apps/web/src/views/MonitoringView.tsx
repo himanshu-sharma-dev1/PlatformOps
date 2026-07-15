@@ -43,7 +43,7 @@ export function MonitoringView() {
       <div className="page-head">
         <div className="titles">
           <h1>Monitoring</h1>
-          <p className="sub">GlitchTip issues, uptime, APM transactions, and SDK keys. Select an application service from the tree.</p>
+          <p className="sub">GlitchTip issues, uptime, APM transactions, and SDK keys (error tracking only — no mail/SMTP). Select an application service from the tree.</p>
         </div>
         <div className="actions" style={{ flexWrap: "wrap" }}>
           {(["24h", "7d"] as const).map((w) => (

@@ -180,6 +180,29 @@ export const INFO_DRAWER_TABS = ["overview", "events", "live"] as const;
 /** Cluster editor wizard steps. */
 export const CLUSTER_EDITOR_STEPS = ["Identity", "Repository", "Image store", "Review"] as const;
 
+/** Repo provider cards (cP provider-grid). */
+export const CLUSTER_REPO_PROVIDERS = [
+  { id: "github", label: "GH", name: "GitHub" },
+  { id: "gitlab", label: "GL", name: "GitLab" },
+  { id: "bitbucket", label: "BB", name: "Bitbucket" },
+  { id: "local", label: "SH", name: "Self-hosted / local" },
+] as const;
+
+/** Image registry provider cards. */
+export const CLUSTER_REGISTRY_PROVIDERS = [
+  { id: "dockerhub", label: "DH", name: "Docker Hub" },
+  { id: "ecr", label: "ECR", name: "AWS ECR" },
+  { id: "gcr", label: "GCR", name: "Google GCR" },
+  { id: "local", label: "LOC", name: "Local registry" },
+] as const;
+
+/** Repo auth tabs (cP auth-tabs). */
+export const CLUSTER_REPO_AUTH_TABS = [
+  { id: "pat", label: "Personal access token" },
+  { id: "ssh", label: "SSH key" },
+  { id: "none", label: "Public / none" },
+] as const;
+
 /** cP service install drawer steps (data-svc-step). */
 export const SVC_INSTALL_STEPS = ["Setup", "Config"] as const;
 

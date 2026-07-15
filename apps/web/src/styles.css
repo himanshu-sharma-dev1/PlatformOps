@@ -1669,6 +1669,72 @@ svg.ic,
   display: block;
 }
 
+/* Cluster editor provider + auth (cP provider-grid / auth-tabs) */
+.provider-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-2, 8px);
+}
+.provider-card {
+  border: 1px solid var(--line-2);
+  background: var(--bg-card);
+  border-radius: var(--r-md, 8px);
+  padding: 0.65rem 0.4rem;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color .12s, background .12s;
+}
+.provider-card:hover { border-color: var(--line-strong); }
+.provider-card.selected {
+  border-color: var(--navy);
+  background: var(--navy-50);
+}
+.provider-card .ico {
+  width: 32px;
+  height: 32px;
+  margin: 0 auto 0.35rem;
+  border-radius: 8px;
+  background: var(--bg-sunken);
+  color: var(--ink-2);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 11px;
+  font-family: var(--mono);
+}
+.provider-card.selected .ico {
+  background: var(--navy-100);
+  color: var(--navy);
+}
+.provider-card .nm {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.25;
+}
+.auth-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+.auth-tab {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-3);
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.auth-tab.active {
+  background: var(--navy-50);
+  border-color: rgba(59, 130, 246, 0.35);
+  color: var(--navy-500);
+  font-weight: 600;
+}
+.req { color: var(--err); }
+
 .cloud-card .nm {
   font-weight: 500;
   font-size: 12px;

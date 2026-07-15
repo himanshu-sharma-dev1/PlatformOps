@@ -48,7 +48,16 @@
 ## Still open (continue until identical)
 
 - Manual UAT: `docs/manual-test-suite-cluster-page.md`  
-- Optional: cluster create as right drawer (still modal in ModalsHost)  
+
+## Ops note
+
+- GlitchTip **mailing/SMTP disabled** in `ops/compose/observability/glitchtip.env` (`EMAIL_URL=consolemail://`, empty host credentials). Monitoring UI copy notes issues/uptime/APM only.
+
+## Added 2026-07-15 (grind pass 3)
+
+- Cluster create/edit drawer: labeled stepper, provider cards, auth tabs (PAT/SSH/none), registry cards, review sections  
+- Legacy node **modal removed** (provision drawer only; fixes dual-UI bug)  
+- GlitchTip mailing system stripped from env + UI copy  
 
 ## Added 2026-07-15 (grind pass 2 — steppers)
 

@@ -74,6 +74,7 @@ export function GlitchTipWorkspace() {
           {configured && (
             <small style={{ color: "var(--ink-4)" }}>
               Base URL: <code>{gtIntegrationStatus?.base_url}</code> | Org: <code>{gtIntegrationStatus?.org}</code>
+              {" · "}issues / uptime / APM only (mailing disabled)
             </small>
           )}
         </div>

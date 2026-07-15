@@ -21,11 +21,15 @@ export function createInventoryEditorActions(s: any) {
         repo_type: "github",
         repo_url: "",
         repo_branch: "main",
+        repo_path: "",
+        repo_auth: "pat",
         repo_token: "",
         registry_type: "dockerhub",
         registry_url: "",
+        registry_namespace: "",
+        registry_auth: "password",
         registry_user: "",
-        registry_password: ""
+        registry_password: "",
       },
       error: ""
     });
@@ -50,11 +54,15 @@ export function createInventoryEditorActions(s: any) {
         repo_type: cluster.repo_type || "github",
         repo_url: cluster.repo_url || "",
         repo_branch: cluster.repo_branch || "main",
+        repo_path: cluster.repo_path || "",
+        repo_auth: cluster.repo_auth || "pat",
         repo_token: "",
         registry_type: cluster.registry_type || "dockerhub",
         registry_url: cluster.registry_url || "",
+        registry_namespace: cluster.registry_namespace || "",
+        registry_auth: cluster.registry_auth || "password",
         registry_user: cluster.registry_user || "",
-        registry_password: ""
+        registry_password: "",
       },
       error: ""
     });
@@ -295,8 +303,9 @@ export function createInventoryEditorActions(s: any) {
 
   openNodeCreate() {
     const baseClusterId = s.selectedCluster?.id ?? s.clusters[0]?.id ?? 0;
+    // Node create uses the provision drawer only (not the legacy modal)
     s.setNodeEditor({
-      visible: true,
+      visible: false,
       mode: "create",
       nodeId: null,
       draft: {
@@ -348,8 +357,9 @@ export function createInventoryEditorActions(s: any) {
           ? "aws-gpu"
           : "aws-general"
         : "local-default";
+    // Node edit uses the provision drawer only (not the legacy modal)
     s.setNodeEditor({
-      visible: true,
+      visible: false,
       mode: "edit",
       nodeId: node.id,
       draft: {
