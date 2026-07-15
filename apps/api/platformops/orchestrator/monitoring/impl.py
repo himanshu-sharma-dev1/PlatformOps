@@ -1144,6 +1144,10 @@ def patch_service_runtime_observability(db: Session, service_id: int) -> dict[st
             "stderr": "",
         }
 
+    # Set transient status to patching
+    service.status = "patching"
+    db.commit()
+
     patch_script = settings.resolve(settings.ansible_dir) / "playbooks" / "service_runtime_patch.py"
     # Args must match service_runtime_patch.py (underscores, not hyphens).
     dsn = (
@@ -1202,3 +1206,12 @@ def patch_service_runtime_observability(db: Session, service_id: int) -> dict[st
         return payload
     except Exception as exc:
         return {"success": False, "error": str(exc)}
+    finally:
+        # Restore actual live status from docker inspect (force reload)
+        try:
+            from ..service.impl import service_live_status
+            service_live_status(db, service, use_cache=False)
+        except Exception:
+            # Fallback if live status fails
+            service.status = "unknown"
+            db.commit()

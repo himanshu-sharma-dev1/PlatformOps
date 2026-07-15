@@ -45,6 +45,52 @@ export function DrawersHost() {
   const setStepperStep = p.setStepperStep;
   const stepperDrawerVisible = p.stepperDrawerVisible;
   const stepperStep = p.stepperStep;
+  const buildInstallOverrides = p.buildInstallOverrides;
+  const checkPortAndNameAvailability = p.checkPortAndNameAvailability;
+
+  React.useEffect(() => {
+    if (!catalogOnboarding.visible || !catalogOnboarding.card || !catalogOnboarding.nodeId) {
+      return;
+    }
+    
+    // Parse overrides to resolve port
+    let portNum = null;
+    let desiredName = "";
+    try {
+      const card = catalogOnboarding.card;
+      desiredName = (catalogOnboarding.customName.trim() || card.name || card.service_key).toLowerCase().replace(/\s+/g, "-");
+      
+      const contractOverrides = buildInstallOverrides ? buildInstallOverrides() : {};
+      const portRaw = contractOverrides.port ?? contractOverrides.host_port ?? contractOverrides.published_port;
+      portNum = portRaw != null ? Number(portRaw) : null;
+    } catch (e) {
+      return;
+    }
+    
+    setCatalogOnboarding(curr => ({ ...curr, validating: true, validationConflict: null }));
+    
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        const res = await checkPortAndNameAvailability(catalogOnboarding.nodeId, desiredName, portNum);
+        const blocked = res.available === false || res.ok === false;
+        setCatalogOnboarding(curr => ({
+          ...curr,
+          validating: false,
+          validationConflict: blocked ? (res.message || res.detail || "Port or container name conflicts with an existing service on this node.") : null
+        }));
+      } catch (err) {
+        setCatalogOnboarding(curr => ({ ...curr, validating: false }));
+      }
+    }, 450);
+    
+    return () => clearTimeout(delayDebounceFn);
+  }, [
+    catalogOnboarding.visible,
+    catalogOnboarding.nodeId,
+    catalogOnboarding.customName,
+    catalogOnboarding.overridesText,
+    JSON.stringify(catalogOnboarding.installFieldValues)
+  ]);
 
 
   return (
@@ -474,6 +520,16 @@ export function DrawersHost() {
               </div>
             )}
 
+            {catalogOnboarding.validationConflict && (
+              <div style={{ padding: "0.75rem", borderRadius: "10px", background: "rgba(239, 68, 68, 0.12)", border: "1px solid rgba(239, 68, 68, 0.25)", color: "rgb(248, 113, 113)", fontSize: "0.82rem", display: "flex", flexDirection: "column", gap: 4, marginTop: "0.5rem" }}>
+                <strong>Conflict detected:</strong>
+                <span>{catalogOnboarding.validationConflict}</span>
+              </div>
+            )}
+            {catalogOnboarding.validating && (
+              <p style={{ color: "var(--ink-4)", fontSize: "0.78rem", margin: "0.5rem 0 0" }}>Checking port and name availability...</p>
+            )}
+
             {catalogOnboarding.error && <p style={{ color: "var(--err)", fontSize: "0.82rem", margin: 0 }}>{catalogOnboarding.error}</p>}
             </div>
             <div className="drawer-foot" style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", flexWrap: "wrap" }}>
@@ -481,7 +537,7 @@ export function DrawersHost() {
               <button
                 className={`btn btn-primary btn-sm ${catalogOnboarding.creating ? "btn-loading" : ""}`}
                 onClick={confirmCatalogOnboarding}
-                disabled={catalogOnboarding.creating}
+                disabled={catalogOnboarding.creating || catalogOnboarding.validating || Boolean(catalogOnboarding.validationConflict)}
                 data-ux="catalog-onboard-submit"
               >
                 {catalogOnboarding.creating && <span className="btn-spinner" />}

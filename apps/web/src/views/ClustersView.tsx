@@ -740,8 +740,8 @@ export function ClustersView() {
                       ? "pill-ok"
                       : ["error", "failed", "unhealthy", "exited", "dead", "not_found"].includes(displayStatus)
                         ? "pill-error"
-                        : installing
-                          ? "pill-warn"
+                        : displayStatus === "patching"
+                          ? "pill-info"
                           : "pill-warn";
                     return (
                     <div
@@ -1034,7 +1034,15 @@ export function ClustersView() {
               <div>
                 <h2 style={{ margin: 0, fontSize: "1.25rem", fontFamily: "var(--display)" }}>{serviceDrawer.service.name}</h2>
                 <div className="sub" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
-                  <span className={`pill ${["running", "healthy"].includes(String(serviceDrawer.live?.overall_status || serviceDrawer.service.status || "").toLowerCase()) ? "pill-ok" : "pill-warn"}`}>
+                  <span className={`pill ${
+                    ["running", "healthy"].includes(String(serviceDrawer.live?.overall_status || serviceDrawer.service.status || "").toLowerCase())
+                      ? "pill-ok"
+                      : ["error", "failed", "unhealthy", "exited", "dead", "not_found"].includes(String(serviceDrawer.live?.overall_status || serviceDrawer.service.status || "").toLowerCase())
+                        ? "pill-error"
+                        : String(serviceDrawer.live?.overall_status || serviceDrawer.service.status || "").toLowerCase() === "patching"
+                          ? "pill-info"
+                          : "pill-warn"
+                  }`}>
                     {serviceDrawer.live?.overall_status || serviceDrawer.service.status || "unknown"}
                   </span>
                   <span>{serviceDrawer.service.external_id || "—"} · <code>{serviceDrawer.service.service_key}</code></span>

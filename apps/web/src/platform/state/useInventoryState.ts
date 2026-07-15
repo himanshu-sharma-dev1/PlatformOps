@@ -88,6 +88,8 @@ export function useInventoryState() {
     creating: false,
     error: "",
     registeredService: null,
+    validationConflict: null,
+    validating: false,
   } as any);
   /** Live docker status by service id (Clusters poll). */
   const [serviceLiveById, setServiceLiveById] = useState({} as any);

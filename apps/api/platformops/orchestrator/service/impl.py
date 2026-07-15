@@ -1698,6 +1698,9 @@ def get_service_live_status(
         mapped = result["overall_status"]
         if mapped == "not_found":
             mapped = "unknown"
+        if service.status == "patching" and use_cache:
+            mapped = "patching"
+            result["overall_status"] = "patching"
         if service.status != mapped:
             service.status = mapped
             db.commit()
