@@ -151,6 +151,8 @@ export function ClustersView() {
   const [clusterSearch, setClusterSearch] = React.useState("");
   const [liveBusy, setLiveBusy] = React.useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
+  const [probeBusy, setProbeBusy] = React.useState(false);
+  const [liveSshBusy, setLiveSshBusy] = React.useState(false);
   const actionBusy = (p.actionBusy || {}) as Record<string, boolean>;
   const setActionBlocker = p.setActionBlocker as (...a: any[]) => void;
   const eventsRefreshKey = Number(p.eventsRefreshKey || 0);
@@ -577,12 +579,7 @@ export function ClustersView() {
                 <div style={{ padding: "1.5rem", color: "var(--ink-4)", fontSize: "0.85rem" }}>No nodes. Provision a node to get started.</div>
               )}
             </div>
-            <div className="node-list-foot">
-              <button className="btn btn-secondary btn-sm" onClick={() => { openNodeCreate(); setStepperDrawerVisible(true); }}>
-                <svg className="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-                Provision node
-              </button>
-            </div>
+            {/* Removed redundant provision node button */}
           </div>
 
           {activeNode ? (
@@ -618,6 +615,7 @@ export function ClustersView() {
                       disabled={Boolean(actionBusy.discover)}
                       onClick={() => discoverNodeInfra(activeNode.id)}
                       data-ux="btn-discover"
+                      title="Run playbook system discovery (network/volumes/environment)"
                     >
                       {actionBusy.discover && <span className="btn-spinner" />}
                       Discover
@@ -627,21 +625,62 @@ export function ClustersView() {
                       className="btn btn-secondary btn-sm"
                       onClick={() => setLaunchDrawerVisible?.(true)}
                       data-ux="btn-launch"
+                      title="Quick launch new subsystem components on this node"
                     >
                       Launch
                     </button>
-                    <button type="button" className="btn btn-danger btn-sm" onClick={() => requestDelete("node", activeNode.id, activeNode.name)}>Delete</button>
+                    <button 
+                      type="button" 
+                      className="btn btn-danger btn-sm" 
+                      onClick={() => requestDelete("node", activeNode.id, activeNode.name)}
+                      title="Permanently decommission and delete node from cluster"
+                    >
+                      Delete
+                    </button>
                     <button
                       type="button"
                       className={buttonLoadingClass("btn btn-secondary btn-sm", Boolean(actionBusy.validate))}
                       disabled={Boolean(actionBusy.validate)}
                       onClick={() => validateNode(activeNode.id)}
+                      title="Validate host configuration parameters & credentials via Ansible"
                     >
                       {actionBusy.validate && <span className="btn-spinner" />}
                       Validate
                     </button>
-                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => loadNodeConnection?.(activeNode.id)}>Probe</button>
-                    <button type="button" className="btn btn-secondary btn-sm" title="Live status via SSH docker inspect" onClick={() => refreshNodeLiveStatus?.(activeNode.id, { via: "ssh" })}>Live SSH</button>
+                    <button 
+                      type="button" 
+                      className={buttonLoadingClass("btn btn-secondary btn-sm", probeBusy)}
+                      disabled={probeBusy}
+                      onClick={async () => {
+                        setProbeBusy(true);
+                        try {
+                          await loadNodeConnection?.(activeNode.id);
+                        } finally {
+                          setProbeBusy(false);
+                        }
+                      }}
+                      title="Run connection probe (check SSH handshake and port availability)"
+                    >
+                      {probeBusy && <span className="btn-spinner" />}
+                      Probe
+                    </button>
+                    <button 
+                      type="button" 
+                      className={buttonLoadingClass("btn btn-secondary btn-sm", liveSshBusy)}
+                      disabled={liveSshBusy}
+                      onClick={async () => {
+                        setLiveSshBusy(true);
+                        try {
+                          await refreshNodeLiveStatus?.(activeNode.id, { via: "ssh" });
+                        } finally {
+                          setLiveSshBusy(false);
+                        }
+                      }}
+                      title="Direct SSH remote docker status inspect check"
+                    >
+                      {liveSshBusy && <span className="btn-spinner" />}
+                      Live SSH
+                    </button>
                   </div>
                 </div>
 
@@ -656,6 +695,8 @@ export function ClustersView() {
                         borderRadius: 8,
                         padding: "0.3rem 0.7rem",
                         background: detailTab === tab ? "var(--navy-50, rgba(30,58,95,0.12))" : "transparent",
+                        color: tab === "live" ? "var(--navy)" : "inherit",
+                        textDecoration: tab === "live" ? "underline" : "none",
                         fontWeight: detailTab === tab ? 600 : 500,
                         fontSize: "0.8rem",
                         cursor: "pointer",
@@ -904,6 +945,24 @@ export function ClustersView() {
                           onClick={() => { setSelectedService(service); loadConfig(service); setActiveView("config"); }}
                         >
                           <svg className="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+                        </button>
+                        <button
+                          className={`icon-btn ${actionBusy.deploy ? "btn-loading" : ""}`}
+                          title="Deploy service to node target"
+                          disabled={Boolean(actionBusy.deploy)}
+                          onClick={() => {
+                            if (!guardDeploy(service)) return;
+                            openDeploymentModal(service);
+                          }}
+                        >
+                          {actionBusy.deploy ? <span className="btn-spinner" /> : <svg className="ic" viewBox="0 0 24 24"><path d="M12 2v20M17 5l-5-5-5 5"/></svg>}
+                        </button>
+                        <button 
+                          className="icon-btn danger" 
+                          title="Uninstall and delete service card" 
+                          onClick={() => requestDelete("service", service.id, service.name)}
+                        >
+                          <svg className="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m1 0v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6h12z"/></svg>
                         </button>
                       </div>
                     </div>

@@ -85,6 +85,13 @@
   --info-bg:      rgba(56, 189, 248, 0.08);
   --muted-bg:     rgba(148, 163, 184, 0.08);
   --accent-bg:    rgba(249, 115, 22, 0.08);
+
+  --ok:           #16a34a;
+  --warn:         #ca8a04;
+  --err:          #dc2626;
+  --info:         #0284c7;
+  --muted:        #475569;
+  --accent:       #ea580c;
 }
 
 * {
@@ -386,6 +393,19 @@ a {
   border: 1px solid rgba(34, 197, 94, 0.25);
   padding: 4px 10px;
   border-radius: 999px;
+}
+
+svg.ic,
+.ic {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 2px;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .icon-btn {
@@ -1154,6 +1174,15 @@ a {
   font-weight: 600;
   font-style: italic;
   flex-shrink: 0;
+}
+
+.svc-icon svg,
+.svc-icon .ic {
+  width: 20px !important;
+  height: 20px !important;
+  stroke: currentColor;
+  stroke-width: 2px;
+  fill: none;
 }
 
 .svc-card.running .svc-icon, .svc-card.healthy .svc-icon {
@@ -4398,9 +4427,9 @@ input:focus, select:focus, textarea:focus {
 }
 
 .pill-info {
-  background: rgba(59, 130, 246, 0.15) !important;
-  color: rgb(96, 165, 250) !important;
-  border: 1px solid rgba(59, 130, 246, 0.28) !important;
+  background: var(--info-bg) !important;
+  color: var(--info) !important;
+  border: 1px solid rgba(56, 189, 248, 0.28) !important;
   box-shadow: none;
 }
 

@@ -36,7 +36,23 @@ function AuthenticatedShell() {
   return (
     <Layout
       activeView={activeView}
-      onViewChange={p.setActiveView}
+      onViewChange={(view) => {
+        if (view === "clusters") {
+          p.setSelectedCluster(null);
+          p.setSelectedNode(null);
+          p.setSelectedService(null);
+          p.setActiveView("clusters");
+        } else if (view === "cluster-dashboard") {
+          p.setSelectedNode(null);
+          p.setSelectedService(null);
+          p.setActiveView("clusters");
+        } else if (view === "node-dashboard") {
+          p.setSelectedService(null);
+          p.setActiveView("clusters");
+        } else {
+          p.setActiveView(view);
+        }
+      }}
       clusterContext={p.selectedCluster?.name}
       nodeContext={p.selectedNode?.name}
       serviceContext={p.selectedService?.name}
