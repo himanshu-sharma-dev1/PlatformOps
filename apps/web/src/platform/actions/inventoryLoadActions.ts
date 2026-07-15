@@ -406,8 +406,8 @@ export function createInventoryLoadActions(s: any) {
       const summary = await api(`/api/clusters/${cluster.id}/summary`);
       s.setClusterSummary(summary);
       const clusterNodes = s.nodes.filter((n) => n.cluster_id === cluster.id);
-      if (clusterNodes.length > 0) {
-        const keep = s.selectedNode && clusterNodes.some((n) => n.id === s.selectedNode.id) ? s.selectedNode : clusterNodes[0];
+      const keep = s.selectedNode && clusterNodes.some((n) => n.id === s.selectedNode.id) ? s.selectedNode : null;
+      if (keep) {
         await s.selectNode(keep);
       } else {
         s.setSelectedNode(null);

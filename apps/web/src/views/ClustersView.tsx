@@ -14,6 +14,85 @@ import {
   buttonLoadingClass,
 } from "../platform/ux/clusterUx";
 
+export function ServiceIcon({ serviceKey }: { serviceKey: string }) {
+  const sk = String(serviceKey || "").toLowerCase();
+  
+  if (sk.includes("postgres")) {
+    return (
+      <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" title="PostgreSQL Database">
+        <path d="M12 22c5.523 0 10-2.239 10-5V7c0-2.761-4.477-5-10-5S2 4.239 2 7v10c0 2.761 4.477 5 10 5z"/>
+        <path d="M2 7c0 2.76 4.477 5 10 5s10-2.24 10-5"/>
+        <path d="M2 12c0 2.76 4.477 5 10 5s10-2.24 10-5"/>
+      </svg>
+    );
+  }
+  if (sk.includes("redis")) {
+    return (
+      <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" title="Redis Cache">
+        <path d="M3 15h18v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4zM3 8h18v4H3V8zM3 3h18v3H3V3z"/>
+      </svg>
+    );
+  }
+  if (sk.includes("rabbitmq")) {
+    return (
+      <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" title="RabbitMQ Queue">
+        <path d="M4 12h16M4 18h16M4 6h16"/>
+        <circle cx="6" cy="6" r="1" fill="currentColor"/>
+        <circle cx="12" cy="12" r="1" fill="currentColor"/>
+        <circle cx="18" cy="18" r="1" fill="currentColor"/>
+      </svg>
+    );
+  }
+  if (sk.includes("clickhouse")) {
+    return (
+      <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" title="ClickHouse Columns">
+        <path d="M18 20V10M12 20V4M6 20v-6"/>
+      </svg>
+    );
+  }
+  if (sk.includes("prometheus") || sk.includes("otel")) {
+    return (
+      <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" title="Metrics Scraper">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M12 6v6l4 2"/>
+      </svg>
+    );
+  }
+  if (sk.includes("loki")) {
+    return (
+      <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" title="Loki Logs">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+        <path d="M14 2v6h6M16 13H8M16 17H8"/>
+      </svg>
+    );
+  }
+  if (sk.includes("ai-orchestrator") || sk.includes("cplatform")) {
+    return (
+      <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" title="AIOrchestrator Terminal">
+        <path d="M4 17l6-6-6-6M12 19h8"/>
+      </svg>
+    );
+  }
+  if (sk.includes("dtrain")) {
+    return (
+      <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" title="dTrain ML Model">
+        <circle cx="12" cy="5" r="3"/>
+        <circle cx="5" cy="19" r="3"/>
+        <circle cx="19" cy="19" r="3"/>
+        <path d="M12 8L6.5 16.5M12 8l5.5 8.5M8 19h8"/>
+      </svg>
+    );
+  }
+
+  // Fallback Cube for Adopted/Generic services
+  return (
+    <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" title="Container Service">
+      <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+      <path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/>
+    </svg>
+  );
+}
+
 /**
  * Clusters page — list + cluster detail (nodes, services, jobs, events).
  * JSX lives here; data/actions come from PlatformProvider via usePlatform().
@@ -396,6 +475,9 @@ export function ClustersView() {
             <p className="sub">{selectedCluster.region} · {selectedCluster.environment}</p>
           </div>
           <div className="actions">
+            {activeNode && (
+              <button className="btn btn-secondary" onClick={() => selectNode(null)}>Dashboard</button>
+            )}
             <button className="btn btn-secondary" onClick={() => setSelectedCluster(null)}>All clusters</button>
             <button className="btn btn-secondary" onClick={() => openClusterEdit(selectedCluster)}>Cluster settings</button>
             <button className="btn btn-secondary" onClick={() => requestDelete("cluster", selectedCluster.id, selectedCluster.name)}>Delete cluster</button>
@@ -464,7 +546,16 @@ export function ClustersView() {
                       ? "unreachable"
                       : (node.status || "unknown");
                   return (
-                    <div key={node.id} className={`node-row ${isSelected ? "active" : ""}`} onClick={() => { setDetailTab("overview"); setNodeEvents([]); selectNode(node); }}>
+                    <div key={node.id} className={`node-row ${isSelected ? "active" : ""}`} onClick={() => {
+                      const isUnreachable = (node.status || "").toLowerCase() === "unreachable";
+                      if (isUnreachable) {
+                        p.setNotice(`Node ${node.name} is unreachable. Probe or check connection settings.`);
+                        return;
+                      }
+                      setDetailTab("overview");
+                      setNodeEvents([]);
+                      selectNode(node);
+                    }}>
                       <div className={`nstat ${nstat}`}></div>
                       <div className="info">
                         <div className="nm">{node.name}</div>
@@ -754,7 +845,7 @@ export function ClustersView() {
                       onKeyDown={(e) => { if (e.key === "Enter") openServiceDrawer(service, "overview"); }}
                       data-installing={installing ? "true" : "false"}
                     >
-                      <div className="svc-icon">{(service.name || service.service_key || "?")[0]}</div>
+                      <div className="svc-icon"><ServiceIcon serviceKey={service.service_key} /></div>
                       <div className="svc-info">
                         <div className="nm" style={{ fontWeight: 600 }}>
                           {service.name}
@@ -787,38 +878,26 @@ export function ClustersView() {
                         </span>
                       </div>
                       <div className="svc-acts" onClick={(e) => e.stopPropagation()}>
-                        <button className="icon-btn" title="Overview / Events / Live" onClick={() => openServiceDrawer(service, "overview")}>
+                        <button 
+                          className="icon-btn" 
+                          title="View service details & lifecycle controls" 
+                          onClick={() => openServiceDrawer(service, "overview")}
+                        >
                           <svg className="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
                         </button>
-                        <button className="icon-btn" title="Logs" onClick={() => { setSelectedService(service); loadDiagnostics(service); setActiveView("diagnostics"); setDiagTab("tail"); }}>
+                        <button 
+                          className="icon-btn" 
+                          title="Open diagnostics log tailing console" 
+                          onClick={() => { setSelectedService(service); loadDiagnostics(service); setActiveView("diagnostics"); setDiagTab("tail"); }}
+                        >
                           <svg className="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
                         </button>
-                        <button className="icon-btn" title="Config" onClick={() => { setSelectedService(service); loadConfig(service); setActiveView("config"); }}>
+                        <button 
+                          className="icon-btn" 
+                          title="Edit configuration keys and overrides" 
+                          onClick={() => { setSelectedService(service); loadConfig(service); setActiveView("config"); }}
+                        >
                           <svg className="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-                        </button>
-                        <button
-                          className={`icon-btn ${actionBusy.deploy ? "btn-loading" : ""}`}
-                          title="Deploy"
-                          disabled={Boolean(actionBusy.deploy)}
-                          data-ux="btn-deploy"
-                          onClick={() => {
-                            if (!guardDeploy(service)) return;
-                            openDeploymentModal(service);
-                          }}
-                        >
-                          {actionBusy.deploy && <span className="btn-spinner" />}
-                          <svg className="ic" viewBox="0 0 24 24"><path d="M12 2v20M17 5l-5-5-5 5"/></svg>
-                        </button>
-                        <button
-                          className={`icon-btn ${actionBusy.patch ? "btn-loading" : ""}`}
-                          title="GlitchTip / observability patch"
-                          disabled={Boolean(actionBusy.patch)}
-                          onClick={() => runPatchObservability?.(service.id, service.name)}
-                        >
-                          <svg className="ic" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                        </button>
-                        <button className="icon-btn danger" title="Uninstall" onClick={() => requestDelete("service", service.id, service.name)}>
-                          <svg className="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m1 0v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6h12z"/></svg>
                         </button>
                       </div>
                     </div>
@@ -1013,13 +1092,99 @@ export function ClustersView() {
               )}
             </div>
           ) : (
-            <div className="node-detail" style={{ padding: "3rem", textAlign: "center", justifyContent: "center" }}>
-              <h3>Select a node</h3>
-              <p style={{ color: "var(--ink-4)" }}>
-                {clusterNodes.length === 0
-                  ? "This cluster has no nodes yet. Use Provision node to add one."
-                  : "Select a host from the list to manage services and jobs."}
-              </p>
+            <div className="node-detail" style={{ background: "transparent", border: "none", boxShadow: "none", padding: 0 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                
+                {/* Dashboard Node Grid */}
+                <GlassCard style={{ padding: "1.5rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.1rem" }}>
+                    <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 600 }}>Cluster Dashboard</h3>
+                    <span style={{ fontSize: "0.82rem", color: "var(--ink-4)", fontFamily: "var(--mono)" }}>{clusterNodes.length} nodes total</span>
+                  </div>
+                  
+                  {clusterNodes.length === 0 ? (
+                    <div style={{ padding: "2.5rem 1rem", textAlign: "center", color: "var(--ink-3)" }}>
+                      <p style={{ marginBottom: "1rem" }}>This cluster has no nodes yet. Provision a node to get started.</p>
+                      <button className="btn btn-primary btn-sm" onClick={() => { openNodeCreate(); setStepperDrawerVisible(true); }}>
+                        Provision first node
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "1rem" }}>
+                      {clusterNodes.map((node) => {
+                        const nodeSvcs = services.filter((s) => s.node_id === node.id && (s.status || "") !== "deleted");
+                        const svcCount = nodeSvcs.length;
+                        const runningSvcs = nodeSvcs.filter((s) => ["running", "healthy"].includes((s.status || "").toLowerCase())).length;
+                        const isUnreachable = (node.status || "").toLowerCase() === "unreachable";
+                        const nstat = ["healthy", "running"].includes((node.status || "").toLowerCase())
+                          ? "ready"
+                          : isUnreachable
+                            ? "unreachable"
+                            : (node.status || "unknown");
+                            
+                        return (
+                          <div 
+                            key={`dash-node-${node.id}`} 
+                            style={{ 
+                              padding: "1.15rem", 
+                              border: isUnreachable ? "1px solid rgba(239, 68, 68, 0.2)" : "1px solid var(--line)", 
+                              borderRadius: 12, 
+                              background: "var(--bg-card)",
+                              cursor: "pointer",
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "0.45rem"
+                            }}
+                            className="dash-node-card"
+                            onClick={() => {
+                              if (isUnreachable) {
+                                p.setNotice(`Node ${node.name} is unreachable. Probe or check connection settings.`);
+                                return;
+                              }
+                              setDetailTab("overview");
+                              setNodeEvents([]);
+                              selectNode(node);
+                            }}
+                          >
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <strong style={{ fontSize: "1.05rem", color: "var(--ink)" }}>{node.name}</strong>
+                              <span className={`pill ${isUnreachable ? "pill-error" : "pill-ok"}`} style={{ fontSize: "0.7rem", padding: "2px 6px" }}>
+                                {isUnreachable ? "unreachable" : "ready"}
+                              </span>
+                            </div>
+                            <div style={{ fontFamily: "var(--mono)", fontSize: "0.78rem", color: "var(--ink-4)" }}>IP: {node.host}</div>
+                            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: "0.82rem", color: "var(--ink-3)", borderTop: "1px solid var(--line-2)", paddingTop: 8 }}>
+                              <span>Services:</span>
+                              <strong style={{ color: "var(--ink-2)" }}>{runningSvcs}/{svcCount} running</strong>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </GlassCard>
+
+                {/* Service Catalog Quick Actions */}
+                <GlassCard style={{ padding: "1.5rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                    <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 600 }}>Quick Deploy Catalog</h3>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setCatalogDrawerVisible(true)}>Browse all</button>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "0.85rem" }}>
+                    {catalog.slice(0, 3).map((card) => (
+                      <article 
+                        key={`dash-cat-${card.service_key}`} 
+                        style={{ padding: "1rem", border: "1px solid var(--line)", borderRadius: 10, background: "rgba(255,255,255,0.015)" }}
+                      >
+                        <div style={{ fontSize: "0.68rem", color: "var(--navy-500)", textTransform: "uppercase", fontWeight: 600 }}>{card.kind}</div>
+                        <h4 style={{ marginTop: 2, fontSize: "0.92rem", fontWeight: 600 }}>{card.name}</h4>
+                        <p style={{ fontSize: "0.78rem", color: "var(--ink-4)", marginTop: 4, height: "36px", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{card.description || card.image}</p>
+                      </article>
+                    ))}
+                  </div>
+                </GlassCard>
+
+              </div>
             </div>
           )}
         </div>
