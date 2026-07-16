@@ -56,6 +56,7 @@ export function ModalsHost() {
   const testClusterRepoConnection = p.testClusterRepoConnection;
   const actionBusy = (p.actionBusy || {}) as Record<string, boolean>;
   const deleteBusy = Boolean(actionBusy.delete);
+  const installDepsBusy = Boolean(actionBusy.installDeps);
   const actionBlocker = p.actionBlocker;
   const setActionBlocker = p.setActionBlocker;
   const setCatalogDrawerVisible = p.setCatalogDrawerVisible;
@@ -754,15 +755,17 @@ export function ModalsHost() {
                     Refresh plan
                   </button>
                   <button
-                    className="btn btn-secondary btn-sm"
+                    className={buttonLoadingClass("btn btn-secondary btn-sm", installDepsBusy)}
                     onClick={async () => {
                       const service = services.find((item) => item.id === deploymentModal.serviceId);
                       if (service) {
                         await installMissingDependencies(service);
                       }
                     }}
-                    disabled={deploymentModal.loading || deploymentModal.executing}
+                    disabled={deploymentModal.loading || deploymentModal.executing || installDepsBusy}
+                    data-ux="btn-install-deps"
                   >
+                    {installDepsBusy && <span className="btn-spinner" />}
                     Deploy dependencies first
                   </button>
                   <button

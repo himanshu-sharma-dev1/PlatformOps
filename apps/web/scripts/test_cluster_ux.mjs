@@ -359,6 +359,29 @@ await check("installButtonLabel + runtime patch helpers", () => {
   assert.equal(ux.isRuntimePatchComplete({ last_status: "never" }), false);
 });
 
+await check("formatUtilizationMetric + buildNodeReviewRows", () => {
+  assert.equal(ux.formatUtilizationMetric(null).text, "NA");
+  assert.equal(ux.formatUtilizationMetric(null).width, 0);
+  assert.equal(ux.formatUtilizationMetric(42.56).text, "42.6%");
+  assert.equal(ux.formatUtilizationMetric(150).width, 100);
+  const rows = ux.buildNodeReviewRows({
+    name: "n1",
+    provider: "aws",
+    host: "10.0.0.1",
+    ssh_user: "ubuntu",
+    cpu_cores: 4,
+    memory_gb: 16,
+    storage_gb: 100,
+    gpu: "none",
+    volume_root: "/data",
+    docker_network: "net",
+    ingress_ports: "22,80",
+  });
+  assert.ok(rows.length >= 8);
+  assert.equal(rows.find((r) => r.id === "rvNodeName")?.value, "n1");
+  assert.ok(rows.find((r) => r.id === "rvInstance")?.value.includes("4 vCPU"));
+});
+
 const summary = `\n${passed} checks passed\n`;
 console.log(summary);
 writeFileSync(join(outDir, "ux-unit-tests-summary.txt"), summary, "utf8");

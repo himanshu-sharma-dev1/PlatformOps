@@ -524,35 +524,44 @@ export function createInventoryDeployActions(s: any) {
   },
 
   async installMissingDependencies(service) {
-    try {
-      const result = await api(`/api/services/${service.id}/dependencies/install-missing`, {
-        method: "POST"
-      });
-      const actionCount = result.dependency_actions.length;
-      const nextPlan = await api(`/api/nodes/${service.node_id}/deployment-plan/${service.service_key}`);
-      const preflight = await api(
-        `/api/services/${service.id}/preflight`,
-        { method: "POST" }
-      );
-      s.setPlan(nextPlan);
-      s.setDeploymentModal((current) => current.serviceId === service.id ? {
-        ...current,
-        preflight,
-        result: current.result ? {
-          ...current.result,
-          plan: nextPlan,
-          preflight_after: preflight,
-          dependency_actions: result.dependency_actions,
-          summary: result.summary
-        } : null
-      } : current);
-      s.setNotice(`${result.summary} (${actionCount} actions)`);
-      await s.refresh();
-      await s.loadNodeJobHistory(service.node_id);
-      await s.loadServiceSummary(service.id);
-    } catch (error) {
-      s.setNotice(`Dependency install failed: ${error.message}`);
-    }
+    if (!service?.id) return;
+    // cP startDependencyInstall coalesced
+    return withPending(`install-missing-deps:${service.id}`, async () => {
+      s.setActionBusy?.((b) => ({ ...b, installDeps: true }));
+      try {
+        const result = await api(`/api/services/${service.id}/dependencies/install-missing`, {
+          method: "POST"
+        });
+        const actionCount = result.dependency_actions?.length ?? 0;
+        const nextPlan = await api(`/api/nodes/${service.node_id}/deployment-plan/${service.service_key}`);
+        const preflight = await api(
+          `/api/services/${service.id}/preflight`,
+          { method: "POST" }
+        );
+        s.setPlan(nextPlan);
+        s.setDeploymentModal((current) => current.serviceId === service.id ? {
+          ...current,
+          preflight,
+          result: current.result ? {
+            ...current.result,
+            plan: nextPlan,
+            preflight_after: preflight,
+            dependency_actions: result.dependency_actions,
+            summary: result.summary
+          } : null
+        } : current);
+        const msg = `${result.summary} (${actionCount} actions)`;
+        s.showToast?.(msg, "ok") || s.setNotice(msg);
+        await (s.refreshClusterInventory || s.refresh)();
+        await s.loadNodeJobHistory(service.node_id);
+        await s.loadServiceSummary(service.id);
+      } catch (error) {
+        s.showToast?.(`Dependency install failed: ${error.message}`, "err")
+          || s.setNotice(`Dependency install failed: ${error.message}`);
+      } finally {
+        s.setActionBusy?.((b) => ({ ...b, installDeps: false }));
+      }
+    });
   },
 
   async openDependencyTarget(serviceKey, mode) {

@@ -13,6 +13,7 @@ import {
   installButtonLabel,
   resolveInstallMode,
   busyClassName,
+  buildNodeReviewRows,
 } from "../platform/ux/clusterUx";
 import { api } from "../api/client";
 
@@ -760,17 +761,20 @@ export function DrawersHost() {
               {stepperStep === 6 && (
                 <div className="step-pane active" data-step-content="6">
                   <div className="section-head-sm" style={{ marginTop: 0 }}>Review</div>
-                  <div style={{ background: "rgba(0,0,0,0.2)", padding: "1rem", borderRadius: 10, fontSize: "0.85rem", display: "grid", gap: 6 }}>
-                    <div><strong>Node name:</strong> {draft.name || "N/A"}</div>
-                    <div><strong>Provider:</strong> {provider}</div>
-                    <div><strong>Host IP:</strong> {draft.host || "—"}</div>
-                    <div><strong>SSH User:</strong> {draft.ssh_user}</div>
-                    <div><strong>Key:</strong> {draft.ssh_key_path || (draft.ssh_private_key ? "(pasted PEM)" : isEdit ? "(keep existing)" : "—")}</div>
-                    <div><strong>vCPU / Mem / Disk:</strong> {draft.cpu_cores ?? "—"} / {draft.memory_gb ?? "—"} GB / {draft.storage_gb ?? "—"} GB</div>
-                    <div><strong>GPU:</strong> {draft.gpu || "none"}</div>
-                    <div><strong>Volume root:</strong> {draft.volume_root}</div>
-                    <div><strong>Docker net:</strong> {draft.docker_network}</div>
-                    <div><strong>Ingress:</strong> {draft.ingress_ports || "—"}</div>
+                  <div
+                    className="node-review-grid"
+                    data-ux="node-review"
+                    style={{ background: "rgba(0,0,0,0.2)", padding: "1rem", borderRadius: 10, fontSize: "0.85rem", display: "grid", gap: 8 }}
+                  >
+                    {buildNodeReviewRows(
+                      { ...draft, provider },
+                      { isEdit }
+                    ).map((row) => (
+                      <div key={row.id} id={row.id} style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 8 }}>
+                        <span style={{ color: "var(--ink-4)" }}>{row.label}</span>
+                        <strong style={{ fontWeight: 600, wordBreak: "break-word" }}>{row.value}</strong>
+                      </div>
+                    ))}
                   </div>
                   <p className="hint" style={{ marginTop: 8 }}>
                     {isEdit

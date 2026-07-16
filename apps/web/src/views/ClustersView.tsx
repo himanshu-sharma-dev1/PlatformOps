@@ -29,6 +29,7 @@ import {
   isRuntimePatchEligible,
   formatRuntimePatchStatus,
   isRuntimePatchComplete,
+  formatUtilizationMetric,
 } from "../platform/ux/clusterUx";
 import { ClusterEventsPanel } from "../components/ClusterEventsPanel";
 
@@ -996,35 +997,49 @@ export function ClustersView() {
                 </div>
               )}
 
-              {nodeMetrics && typeof nodeMetrics.cpu_percent === "number" ? (
-                <div className="utilization" style={{ marginTop: "1rem" }}>
+              {(() => {
+                // cP renderNodeUtilization: always show bars; NA when missing
+                const cpu = formatUtilizationMetric(nodeMetrics?.cpu_percent);
+                const mem = formatUtilizationMetric(nodeMetrics?.memory_percent);
+                const disk = formatUtilizationMetric(nodeMetrics?.disk_percent);
+                const net = formatUtilizationMetric(nodeMetrics?.network_rx_mbps, " Mbps");
+                const anyLive = cpu.available || mem.available || disk.available || net.available;
+                return (
+                <div className="utilization" style={{ marginTop: "1rem" }} data-ux="node-utilization">
                   <div className="util">
-                    <div className="top"><span className="name">CPU</span><span className="val">{nodeMetrics.cpu_percent}%</span></div>
-                    <div className="bar"><div className="fill" style={{ width: `${Math.min(100, nodeMetrics.cpu_percent)}%` }} /></div>
+                    <div className="top"><span className="name">CPU</span><span className="val" id="cpuVal">{cpu.text}</span></div>
+                    <div className="bar"><div className="fill" id="cpuBar" style={{ width: `${cpu.width}%` }} /></div>
                     <div className="sub">Prometheus</div>
                   </div>
                   <div className="util">
-                    <div className="top"><span className="name">Memory</span><span className="val">{nodeMetrics.memory_percent}%</span></div>
-                    <div className="bar"><div className="fill warn" style={{ width: `${Math.min(100, nodeMetrics.memory_percent)}%` }} /></div>
-                    <div className="sub">{nodeMetrics.memory_percent}% used</div>
+                    <div className="top"><span className="name">Memory</span><span className="val" id="memoryVal">{mem.text}</span></div>
+                    <div className="bar"><div className="fill warn" id="memoryBar" style={{ width: `${mem.width}%` }} /></div>
+                    <div className="sub">{mem.available ? `${mem.text} used` : "No sample"}</div>
                   </div>
                   <div className="util">
-                    <div className="top"><span className="name">Disk</span><span className="val">{nodeMetrics.disk_percent}%</span></div>
-                    <div className="bar"><div className="fill" style={{ width: `${Math.min(100, nodeMetrics.disk_percent)}%` }} /></div>
+                    <div className="top"><span className="name">Disk</span><span className="val" id="storageVal">{disk.text}</span></div>
+                    <div className="bar"><div className="fill" id="storageBar" style={{ width: `${disk.width}%` }} /></div>
                     <div className="sub">Filesystem</div>
                   </div>
                   <div className="util">
-                    <div className="top"><span className="name">Network</span><span className="val">{nodeMetrics.network_rx_mbps} Mbps</span></div>
-                    <div className="bar"><div className="fill" style={{ width: `${Math.min(100, Number(nodeMetrics.network_rx_mbps) || 0)}%` }} /></div>
-                    <div className="sub">↓ {nodeMetrics.network_rx_mbps} · ↑ {nodeMetrics.network_tx_mbps}</div>
+                    <div className="top"><span className="name">Network</span><span className="val" id="gpuVal">{net.text}</span></div>
+                    <div className="bar"><div className="fill" id="gpuBar" style={{ width: `${net.width}%` }} /></div>
+                    <div className="sub">
+                      {anyLive
+                        ? `↓ ${nodeMetrics?.network_rx_mbps ?? "—"} · ↑ ${nodeMetrics?.network_tx_mbps ?? "—"}`
+                        : "No live sample"}
+                    </div>
                   </div>
+                  {!anyLive ? (
+                    <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setActiveView("performance")}>
+                        Open Performance
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
-              ) : (
-                <div style={{ marginTop: "1rem", padding: "0.85rem", border: "1px solid var(--line)", borderRadius: 12, color: "var(--ink-3)", fontSize: "0.85rem", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                  <span>No live utilization for this node.</span>
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setActiveView("performance")}>Open Performance</button>
-                </div>
-              )}
+                );
+              })()}
               </>
               )}
 

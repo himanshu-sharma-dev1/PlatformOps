@@ -88,6 +88,12 @@
 - Node provision drawer `is-busy` while saving  
 - `runPatchObservability` coalesced + publishes `runtimePatchStatus`  
 
+## Added 2026-07-16 (grind pass 9)
+
+- Utilization always shows bars with **NA** when no sample (`formatUtilizationMetric` / cP `renderMetric`)  
+- Node provision **Review** rows via `buildNodeReviewRows` (cP `updateNodeReview` ids)  
+- Install missing deps `withPending` + button busy + toast + cluster-core refresh  
+
 ## Ops / E2E note
 
 - **E2E mailing out of scope:** `scripts/run_e2e_tests.py` never tests invite-email/SMTP/account mail.  

@@ -958,6 +958,67 @@ export function isRuntimePatchComplete(status: { last_status?: string } | null |
   return String(status?.last_status || "").toLowerCase() === "success";
 }
 
+/**
+ * cP renderMetric — utilization bar text + fill width.
+ * null/NaN → "NA" + 0% width (bars stay visible).
+ */
+export function formatUtilizationMetric(
+  value: number | string | null | undefined,
+  suffix = "%"
+): { text: string; width: number; available: boolean } {
+  if (value === null || value === undefined || value === "") {
+    return { text: "NA", width: 0, available: false };
+  }
+  const n = typeof value === "number" ? value : Number(value);
+  if (Number.isNaN(n)) return { text: "NA", width: 0, available: false };
+  return {
+    text: `${n.toFixed(1)}${suffix}`,
+    width: Math.min(100, Math.max(0, n)),
+    available: true,
+  };
+}
+
+/** Build cP-style node provision review rows from draft. */
+export function buildNodeReviewRows(draft: {
+  name?: string;
+  provider?: string;
+  host?: string;
+  ssh_user?: string;
+  ssh_key_path?: string;
+  ssh_private_key?: string;
+  cpu_cores?: number | string;
+  memory_gb?: number | string;
+  storage_gb?: number | string;
+  gpu?: string;
+  os?: string;
+  volume_root?: string;
+  docker_network?: string;
+  ingress_ports?: string;
+  environment?: string;
+} | null | undefined, opts?: { isEdit?: boolean }): Array<{ id: string; label: string; value: string }> {
+  const d = draft || {};
+  const key =
+    d.ssh_key_path ||
+    (d.ssh_private_key ? "(pasted PEM)" : opts?.isEdit ? "(keep existing)" : "—");
+  const instanceBits: string[] = [];
+  if (d.cpu_cores != null && d.cpu_cores !== "") instanceBits.push(`${d.cpu_cores} vCPU`);
+  if (d.memory_gb != null && d.memory_gb !== "") instanceBits.push(`${d.memory_gb} GB`);
+  return [
+    { id: "rvNodeName", label: "Node name", value: String(d.name || "—") },
+    { id: "rvProviderAz", label: "Provider", value: String(d.provider || "dc").toUpperCase() + (d.environment ? ` · ${d.environment}` : "") },
+    { id: "rvHost", label: "Host IP", value: String(d.host || "—") },
+    { id: "rvInstance", label: "Instance", value: instanceBits.length ? `Custom · ${instanceBits.join(" · ")}` : "—" },
+    { id: "rvStorage", label: "Storage", value: d.storage_gb != null && d.storage_gb !== "" ? `${d.storage_gb} GB` : "—" },
+    { id: "rvGpu", label: "GPU", value: d.gpu && d.gpu !== "None" ? String(d.gpu) : "none" },
+    { id: "rvOs", label: "OS", value: String(d.os || "—") },
+    { id: "rvUsername", label: "SSH user", value: String(d.ssh_user || "—") },
+    { id: "rvAuthType", label: "Auth", value: String(key) },
+    { id: "rvNodeVolume", label: "Volume root", value: String(d.volume_root || "—") },
+    { id: "rvDns", label: "Docker network", value: String(d.docker_network || "—") },
+    { id: "rvPorts", label: "Ingress ports", value: String(d.ingress_ports || "—") },
+  ];
+}
+
 /** Catalog drag payload id. */
 export const CATALOG_DRAG_MIME = "application/x-platformops-catalog-key";
 
