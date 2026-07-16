@@ -7,6 +7,7 @@ import {
   CLUSTER_REPO_PROVIDERS,
   CLUSTER_REGISTRY_PROVIDERS,
   CLUSTER_REPO_AUTH_TABS,
+  buttonLoadingClass,
 } from "../platform/ux/clusterUx";
 
 /** ModalsHost — Phase 1 extracted page JSX. */
@@ -53,6 +54,8 @@ export function ModalsHost() {
   const setSelectedArchive = p.setSelectedArchive;
   const testClusterRegistryConnection = p.testClusterRegistryConnection;
   const testClusterRepoConnection = p.testClusterRepoConnection;
+  const actionBusy = (p.actionBusy || {}) as Record<string, boolean>;
+  const deleteBusy = Boolean(actionBusy.delete);
   const actionBlocker = p.actionBlocker;
   const setActionBlocker = p.setActionBlocker;
   const setCatalogDrawerVisible = p.setCatalogDrawerVisible;
@@ -895,9 +898,16 @@ export function ModalsHost() {
             )}
 
             <div className="modal-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
-              <button className="btn btn-secondary btn-sm" onClick={() => setDeleteModal(prev => ({ ...prev, visible: false }))}>Cancel</button>
+              <button className="btn btn-secondary btn-sm" disabled={deleteBusy} onClick={() => setDeleteModal(prev => ({ ...prev, visible: false }))}>Cancel</button>
               {deleteModal.impact?.can_delete_without_force ? (
-                <button className="btn btn-primary btn-sm btn-danger" onClick={confirmDelete}>Confirm Deletion</button>
+                <button
+                  className={buttonLoadingClass("btn btn-primary btn-sm btn-danger", deleteBusy)}
+                  disabled={deleteBusy}
+                  onClick={confirmDelete}
+                >
+                  {deleteBusy && <span className="btn-spinner" />}
+                  Confirm Deletion
+                </button>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", borderTop: "1px solid var(--line)", paddingTop: "1rem" }}>
                   <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
@@ -961,10 +971,11 @@ export function ModalsHost() {
 
                   <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem", borderTop: "1px solid var(--line-2)", paddingTop: "0.75rem" }}>
                     <button 
-                      className="btn btn-primary btn-sm btn-danger" 
-                      disabled={!deleteModal.force || deleteModal.forceReason.length < 12 || deleteModal.approvalStatus !== "approved"}
+                      className={buttonLoadingClass("btn btn-primary btn-sm btn-danger", deleteBusy)}
+                      disabled={deleteBusy || !deleteModal.force || deleteModal.forceReason.length < 12 || deleteModal.approvalStatus !== "approved"}
                       onClick={confirmDelete}
                     >
+                      {deleteBusy && <span className="btn-spinner" />}
                       Force Uninstall
                     </button>
                   </div>

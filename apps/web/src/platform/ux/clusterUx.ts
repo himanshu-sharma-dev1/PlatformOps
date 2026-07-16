@@ -740,6 +740,24 @@ export function nodeSearchEmptyMessage(query: string, totalNodes: number, matche
   return `No nodes match “${q}”`;
 }
 
+/** Empty cluster-list copy when search/facet chips match nothing. */
+export function clusterSearchEmptyMessage(
+  opts: { search?: string; environment?: string; region?: string },
+  totalClusters: number,
+  matched: number
+): string | null {
+  if (totalClusters <= 0 || matched > 0) return null;
+  const parts: string[] = [];
+  const q = String(opts.search || "").trim();
+  if (q) parts.push(`“${q}”`);
+  const env = String(opts.environment || "all").toLowerCase();
+  const region = String(opts.region || "all").toLowerCase();
+  if (env && env !== "all") parts.push(`env ${env}`);
+  if (region && region !== "all") parts.push(`region ${region}`);
+  if (!parts.length) return "No clusters match the current filters";
+  return `No clusters match ${parts.join(" · ")}`;
+}
+
 /**
  * Services on a node for the stack — drop deleted inventory rows (cP renderServicesForNode).
  */

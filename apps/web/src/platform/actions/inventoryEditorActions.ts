@@ -460,54 +460,61 @@ export function createInventoryEditorActions(s: any) {
   },
 
   async requestDelete(type, id, name, options) {
-    try {
-      s.setNotice(`Assessing deletion impact for ${name}...`);
-      const segment = type === "service" ? "services" : type === "node" ? "nodes" : "clusters";
-      const impact = await api(`/api/${segment}/${id}/lifecycle-impact`);
-      // cP showNodeDeleteBlocker: when node still has services, surface itemized action blocker first
-      const blockedServices =
-        type === "node"
-          ? impact?.services || impact?.child_services || impact?.blocking_services || []
-          : type === "cluster"
-            ? impact?.nodes || impact?.blocking_nodes || []
-            : [];
-      const hardBlock = Boolean(impact?.blocked || impact?.requires_force) && !options?.seedForce;
-      if (hardBlock && Array.isArray(blockedServices) && blockedServices.length > 0 && type === "node") {
-        s.setActionBlocker?.({
+    const assessKey = `assess-delete-${type}:${id}`;
+    return withPending(assessKey, async () => {
+      s.setActionBusy?.((b) => ({ ...b, [assessKey]: true, assessDelete: true }));
+      try {
+        s.setNotice(`Assessing deletion impact for ${name}...`);
+        const segment = type === "service" ? "services" : type === "node" ? "nodes" : "clusters";
+        const impact = await api(`/api/${segment}/${id}/lifecycle-impact`);
+        // cP showNodeDeleteBlocker: when node still has services, surface itemized action blocker first
+        const blockedServices =
+          type === "node"
+            ? impact?.services || impact?.child_services || impact?.blocking_services || []
+            : type === "cluster"
+              ? impact?.nodes || impact?.blocking_nodes || []
+              : [];
+        const hardBlock = Boolean(impact?.blocked || impact?.requires_force) && !options?.seedForce;
+        if (hardBlock && Array.isArray(blockedServices) && blockedServices.length > 0 && type === "node") {
+          s.setActionBlocker?.({
+            visible: true,
+            eyebrow: "Node has services",
+            title: "Node deletion blocked",
+            message:
+              (impact?.message || "Delete the services first.") +
+              ` Remove the mapped services from ${name} before deleting the node.`,
+            items: blockedServices.map((svc) => ({
+              name: svc.service_name || svc.name || svc.service_id || svc.id || "Service",
+              meta: `${svc.service_type || svc.service_key || "service"} · ${svc.deploy_status || svc.status || "mapped"}`,
+            })),
+            secondaryLabel: "Close",
+            secondaryAction: null,
+            primaryLabel: "Review impact",
+            primaryAction: null,
+          });
+        }
+        s.setDeleteModal({
           visible: true,
-          eyebrow: "Node has services",
-          title: "Node deletion blocked",
-          message:
-            (impact?.message || "Delete the services first.") +
-            ` Remove the mapped services from ${name} before deleting the node.`,
-          items: blockedServices.map((svc) => ({
-            name: svc.service_name || svc.name || svc.service_id || svc.id || "Service",
-            meta: `${svc.service_type || svc.service_key || "service"} · ${svc.deploy_status || svc.status || "mapped"}`,
-          })),
-          secondaryLabel: "Close",
-          secondaryAction: null,
-          primaryLabel: "Review impact",
-          primaryAction: null,
+          targetType: type,
+          targetId: id,
+          targetName: name,
+          impact,
+          force: Boolean(options?.seedForce),
+          forceReason: options?.suggestedReason ?? "",
+          forceApprovalId: "",
+          requestedBy: "platform-operator",
+          approver: "platform-admin",
+          decisionNote: "",
+          approvalStatus: "none"
         });
+        s.setNotice("");
+      } catch (error) {
+        s.showToast?.(`Failed to load deletion safety assessment: ${error.message}`, "err")
+          || s.setNotice(`Failed to load deletion safety assessment: ${error.message}`);
+      } finally {
+        s.setActionBusy?.((b) => ({ ...b, [assessKey]: false, assessDelete: false }));
       }
-      s.setDeleteModal({
-        visible: true,
-        targetType: type,
-        targetId: id,
-        targetName: name,
-        impact,
-        force: Boolean(options?.seedForce),
-        forceReason: options?.suggestedReason ?? "",
-        forceApprovalId: "",
-        requestedBy: "platform-operator",
-        approver: "platform-admin",
-        decisionNote: "",
-        approvalStatus: "none"
-      });
-      s.setNotice("");
-    } catch (error) {
-      s.setNotice(`Failed to load deletion safety assessment: ${error.message}`);
-    }
+    });
   },
 
   async confirmDelete() {

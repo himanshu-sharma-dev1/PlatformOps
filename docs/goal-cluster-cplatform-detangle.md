@@ -66,6 +66,13 @@
 - **confirmDelete** / **validateNode** use `withPending` + cluster-core refresh where applicable  
 - Card `is-busy` during deploy/delete (cP `setBusyState`)  
 
+## Added 2026-07-16 (grind pass 6)
+
+- Cluster list **empty filter** state + Clear filters  
+- Delete modal **Confirm/Force** button busy (`actionBusy.delete`)  
+- Service/node info drawer foot **per-target busy** on Delete/Deploy  
+- `requestDelete` assess path uses `withPending` + toast on impact failure  
+
 ## Ops / E2E note
 
 - **E2E mailing out of scope:** `scripts/run_e2e_tests.py` never tests invite-email/SMTP/account mail.  

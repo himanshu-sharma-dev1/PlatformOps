@@ -23,6 +23,7 @@ import {
   filterNodeServices,
   countRunningServices,
   nodeSearchEmptyMessage,
+  clusterSearchEmptyMessage,
   isServiceActionBusy,
   shouldCloseDetailDrawer,
 } from "../platform/ux/clusterUx";
@@ -513,10 +514,37 @@ export function ClustersView() {
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "1.25rem" }}>
-            {filterClustersAdvanced(
-              clusters.filter((c) => !isSeedDemoName(c.name)),
-              { search: clusterSearch, environment: clusterEnvFilter, region: clusterRegionFilter }
-            ).map((cluster) => {
+            {(() => {
+              const opList = clusters.filter((c) => !isSeedDemoName(c.name));
+              const matched = filterClustersAdvanced(opList, {
+                search: clusterSearch,
+                environment: clusterEnvFilter,
+                region: clusterRegionFilter,
+              });
+              const emptyMsg = clusterSearchEmptyMessage(
+                { search: clusterSearch, environment: clusterEnvFilter, region: clusterRegionFilter },
+                opList.length,
+                matched.length
+              );
+              return (
+                <>
+            {emptyMsg && (
+              <GlassCard className="empty-state empty-cluster-search" data-ux="empty-cluster-search" style={{ padding: "1.5rem", gridColumn: "1 / -1" }}>
+                <p style={{ margin: "0 0 0.75rem", color: "var(--ink-3)" }}>{emptyMsg}</p>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    setClusterSearch("");
+                    setClusterEnvFilter("all");
+                    setClusterRegionFilter("all");
+                  }}
+                >
+                  Clear filters
+                </button>
+              </GlassCard>
+            )}
+            {matched.map((cluster) => {
               const clusterNodes = nodes.filter((n) => n.cluster_id === cluster.id && !isSeedDemoName(n.name));
               const clusterServices = services.filter((s) => clusterNodes.some((n) => n.id === s.node_id));
               const running = clusterServices.filter((s) => ["running", "healthy"].includes((s.status || "").toLowerCase())).length;
@@ -556,6 +584,9 @@ export function ClustersView() {
               <div style={{ fontWeight: 600 }}>Add cluster</div>
               <div style={{ fontSize: "0.8rem" }}>Open create drawer</div>
             </GlassCard>
+                </>
+              );
+            })()}
           </div>
 
           <GlassCard style={{ padding: "1.25rem" }}>
@@ -1730,7 +1761,20 @@ export function ClustersView() {
               )}
             </div>
             <div className="drawer-foot" data-ux="info-drawer-foot" style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
-              <button type="button" className="btn btn-danger btn-sm" onClick={() => requestDelete("service", serviceDrawer.service.id, serviceDrawer.service.name)}>Delete</button>
+              {(() => {
+                const footDeployBusy = isServiceActionBusy(actionBusy, serviceDrawer.service?.id, "deploy");
+                const footDeleteBusy = isServiceActionBusy(actionBusy, serviceDrawer.service?.id, "delete") || Boolean(actionBusy.assessDelete);
+                return (
+                  <>
+              <button
+                type="button"
+                className={buttonLoadingClass("btn btn-danger btn-sm", footDeleteBusy)}
+                disabled={footDeleteBusy || footDeployBusy}
+                onClick={() => requestDelete("service", serviceDrawer.service.id, serviceDrawer.service.name)}
+              >
+                {footDeleteBusy && <span className="btn-spinner" />}
+                Delete
+              </button>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => setServiceDrawer((d) => ({ ...d, visible: false }))}>Close</button>
                 <button
@@ -1758,18 +1802,21 @@ export function ClustersView() {
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => { loadConfig(serviceDrawer.service); setActiveView("config"); }}>Config</button>
                 <button
                   type="button"
-                  className={buttonLoadingClass("btn btn-primary btn-sm", Boolean(actionBusy.deploy))}
-                  disabled={Boolean(actionBusy.deploy)}
+                  className={buttonLoadingClass("btn btn-primary btn-sm", footDeployBusy)}
+                  disabled={footDeployBusy || footDeleteBusy}
                   data-ux="btn-deploy-drawer"
                   onClick={() => {
                     if (!guardDeploy(serviceDrawer.service)) return;
                     openDeploymentModal(serviceDrawer.service);
                   }}
                 >
-                  {actionBusy.deploy && <span className="btn-spinner" />}
+                  {footDeployBusy && <span className="btn-spinner" />}
                   Deploy
                 </button>
               </div>
+                  </>
+                );
+              })()}
             </div>
           </aside>
         </>
@@ -1874,7 +1921,15 @@ export function ClustersView() {
               )}
             </div>
             <div className="drawer-foot" style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
-              <button type="button" className="btn btn-danger btn-sm" onClick={() => requestDelete("node", nodeDrawer.node.id, nodeDrawer.node.name)}>Delete</button>
+              <button
+                type="button"
+                className={buttonLoadingClass("btn btn-danger btn-sm", Boolean(actionBusy.assessDelete || actionBusy.delete))}
+                disabled={Boolean(actionBusy.assessDelete || actionBusy.delete)}
+                onClick={() => requestDelete("node", nodeDrawer.node.id, nodeDrawer.node.name)}
+              >
+                {(actionBusy.assessDelete || actionBusy.delete) && <span className="btn-spinner" />}
+                Delete
+              </button>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => setNodeDrawer((d) => ({ ...d, visible: false }))}>Close</button>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => openNodeEdit(nodeDrawer.node)}>Edit</button>

@@ -326,6 +326,8 @@ await check("filterNodes + nodeSearchEmpty + filterNodeServices + busy keys", ()
   assert.equal(ux.shouldCloseDetailDrawer(10, [{ id: 10, status: "running" }]), false);
   assert.equal(ux.shouldCloseDetailDrawer(10, [{ id: 11 }]), true);
   assert.equal(ux.shouldCloseDetailDrawer(10, [{ id: 10, status: "deleted" }]), true);
+  assert.ok(ux.clusterSearchEmptyMessage({ search: "zzz" }, 3, 0)?.includes("zzz"));
+  assert.equal(ux.clusterSearchEmptyMessage({ search: "a" }, 3, 1), null);
 });
 
 const summary = `\n${passed} checks passed\n`;
