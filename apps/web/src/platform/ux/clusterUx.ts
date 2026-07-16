@@ -861,6 +861,103 @@ export function shouldCloseDetailDrawer(
   return String(found.status || "").toLowerCase() === "deleted";
 }
 
+/**
+ * cP updateInstallButtonLabel — primary install CTA text by mode + install path.
+ */
+export function installButtonLabel(opts: {
+  mode?: "add" | "edit" | string;
+  installMode?: string | null;
+  creating?: boolean;
+}): string {
+  if (opts.creating) return "Saving…";
+  if (String(opts.mode || "add").toLowerCase() === "edit") return "Save changes";
+  const im = String(opts.installMode || "").toLowerCase();
+  if (im.includes("manual") || im === "manual") return "Install Manual";
+  if (im.includes("ansible") || im === "ansible") return "Install via Ansible";
+  return "Install";
+}
+
+/** Resolve install mode from catalog onboarding field bag (service_install / install_mode). */
+export function resolveInstallMode(values: Record<string, unknown> | null | undefined): string {
+  if (!values || typeof values !== "object") return "";
+  const raw =
+    values.service_install ??
+    values.install_mode ??
+    values.installMode ??
+    values.serviceInstall ??
+    "";
+  return String(raw || "");
+}
+
+/**
+ * cP refreshRuntimePatchStatus EXCLUDED_SERVICE_TYPES — hide Patch for pure infra cards.
+ * Match service_key / kind / name haystack.
+ */
+export const RUNTIME_PATCH_EXCLUDED_PATTERNS = [
+  "rabbitmq",
+  "postgres",
+  "postgresql",
+  "redis",
+  "clickhouse",
+  "nifi",
+  "milvus",
+  "etcd",
+  "minio",
+  "nodeexporter",
+  "process-exporter",
+  "dcgm",
+  "prometheus",
+  "airflow",
+] as const;
+
+/** Whether service footer should show Runtime Patch (cP btnRuntimePatchFooter visibility). */
+export function isRuntimePatchEligible(service: {
+  service_key?: string;
+  kind?: string;
+  name?: string;
+  subsystem?: string;
+} | null | undefined): boolean {
+  if (!service) return false;
+  const hay = [service.service_key, service.kind, service.name, service.subsystem]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+  // App/orchestrator always eligible
+  if (/orchestrat|dtrain|cplatform|glitch|sentry|app/.test(hay)) return true;
+  for (const pat of RUNTIME_PATCH_EXCLUDED_PATTERNS) {
+    const compact = pat.replace(/[^a-z0-9]+/g, "");
+    if (hay.includes(compact)) return false;
+  }
+  // Default: allow for non-obvious infra (app services)
+  return true;
+}
+
+/** Format runtime patch status line (cP runtimePatchStatusText). */
+export function formatRuntimePatchStatus(status: {
+  last_status?: string;
+  last_checked_at?: string;
+  last_message?: string;
+  last_environment?: string;
+  loading?: boolean;
+  error?: string;
+} | null | undefined): string {
+  if (!status) return "Runtime patch: not checked";
+  if (status.loading) return "Checking patch status…";
+  if (status.error) return status.error;
+  const lastStatus = status.last_status || "never";
+  const checkedAt = status.last_checked_at || "—";
+  const message = status.last_message || "";
+  const environment = status.last_environment || "";
+  const envText = environment ? ` [env: ${environment}]` : "";
+  return `Runtime patch: ${lastStatus}${envText} (${checkedAt})${message ? ` — ${message}` : ""}`;
+}
+
+/** Whether Patch button should be disabled after successful patch (cP isPatchedSuccess). */
+export function isRuntimePatchComplete(status: { last_status?: string } | null | undefined): boolean {
+  return String(status?.last_status || "").toLowerCase() === "success";
+}
+
 /** Catalog drag payload id. */
 export const CATALOG_DRAG_MIME = "application/x-platformops-catalog-key";
 

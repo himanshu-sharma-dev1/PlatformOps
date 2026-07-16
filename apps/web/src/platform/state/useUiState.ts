@@ -170,6 +170,8 @@ export function useUiState() {
     type: "" as string,
     id: null as string | number | null,
   } as any);
+  /** cP runtimePatchStatusText — last patch result for open service drawer. */
+  const [runtimePatchStatus, setRuntimePatchStatus] = useState(null as any);
   return {
     liveStatusTick, setLiveStatusTick,
     uptimeFormVisible, setUptimeFormVisible,
@@ -200,5 +202,6 @@ export function useUiState() {
     launchDrawerVisible, setLaunchDrawerVisible,
     eventsRefreshKey, setEventsRefreshKey,
     detailCloseSignal, setDetailCloseSignal,
+    runtimePatchStatus, setRuntimePatchStatus,
   };
 }

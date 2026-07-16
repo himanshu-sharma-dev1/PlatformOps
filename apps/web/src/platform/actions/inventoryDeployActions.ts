@@ -223,98 +223,106 @@ export function createInventoryDeployActions(s: any) {
       s.setCatalogOnboarding((current) => ({ ...current, error: "Choose a valid target node." }));
       return;
     }
-    let contractOverrides = {};
-    try {
-      contractOverrides = s.buildInstallOverrides();
-    } catch (error) {
-      s.setCatalogOnboarding((current) => ({ ...current, error: `Invalid install configuration: ${error.message}` }));
-      return;
-    }
-    s.setCatalogOnboarding((current) => ({ ...current, creating: true, error: "" }));
-    try {
+    // cP withPending add-service / save-service
+    const pendingKey = `add-service:${node.id}:${card.service_key || card.name || "service"}`;
+    return withPending(pendingKey, async () => {
+      let contractOverrides = {};
       try {
-        const desiredName = (s.catalogOnboarding.customName.trim() || card.name || card.service_key).toLowerCase().replace(/\s+/g, "-");
-        const portRaw = contractOverrides.port ?? contractOverrides.host_port ?? contractOverrides.published_port;
-        const portNum = portRaw != null ? Number(portRaw) : null;
-        const avail = await s.checkPortAndNameAvailability(node.id, desiredName, portNum);
-        const blocked = avail.available === false || avail.ok === false;
-        if (blocked) {
-          s.setCatalogOnboarding((current) => ({
-            ...current,
-            creating: false,
-            error: avail.message || avail.detail || "Port or container name conflicts with an existing service on this node."
-          }));
-          return;
-        }
-      } catch {
+        contractOverrides = s.buildInstallOverrides();
+      } catch (error) {
+        s.setCatalogOnboarding((current) => ({ ...current, error: `Invalid install configuration: ${error.message}` }));
+        return;
       }
-      const existing = s.services.find((service2) => service2.node_id === node.id && service2.service_key === card.service_key);
-      const targetService = s.catalogOnboarding.editingService;
-      const payload = {
-        node_id: node.id,
-        service_key: card.service_key,
-        name: s.catalogOnboarding.customName.trim() || void 0,
-        contract_overrides: contractOverrides
-      };
-      const service = targetService ? await api(`/api/services/${targetService.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
+      s.setCatalogOnboarding((current) => ({ ...current, creating: true, error: "" }));
+      try {
+        try {
+          const desiredName = (s.catalogOnboarding.customName.trim() || card.name || card.service_key).toLowerCase().replace(/\s+/g, "-");
+          const portRaw = contractOverrides.port ?? contractOverrides.host_port ?? contractOverrides.published_port;
+          const portNum = portRaw != null ? Number(portRaw) : null;
+          const avail = await s.checkPortAndNameAvailability(node.id, desiredName, portNum);
+          const blocked = avail.available === false || avail.ok === false;
+          if (blocked) {
+            s.setCatalogOnboarding((current) => ({
+              ...current,
+              creating: false,
+              error: avail.message || avail.detail || "Port or container name conflicts with an existing service on this node."
+            }));
+            return;
+          }
+        } catch {
+          /* soft-fail availability check */
+        }
+        const existing = s.services.find((service2) => service2.node_id === node.id && service2.service_key === card.service_key);
+        const targetService = s.catalogOnboarding.editingService;
+        const payload = {
+          node_id: node.id,
+          service_key: card.service_key,
           name: s.catalogOnboarding.customName.trim() || void 0,
           contract_overrides: contractOverrides
-        })
-      }) : existing ?? await api("/api/services", {
-        method: "POST",
-        body: JSON.stringify(payload)
-      });
-      s.setSelectedNode(node);
-      s.setSelectedService(service);
-      await s.loadServiceCapabilities(service.id);
-      await s.loadServiceSummary(service.id);
-      await s.loadServiceReleaseTimeline(service.id);
-      await s.loadServiceMetrics(service.id);
-      if (!existing) {
-        await s.refresh();
-      }
-      s.setCatalogOnboarding((current) => ({ ...current, creating: false, error: "", registeredService: service }));
-      s.setCatalogDrawerVisible(false);
-      await s.loadNodeJobHistory(node.id);
-      await s.refreshNodeLiveStatus?.(node.id);
-      const installMode = String(
-        contractOverrides.install_mode ||
-          contractOverrides.service_install ||
-          ""
-      ).toLowerCase();
-      const isManual = installMode.includes("manual");
-      // MANUAL: register only (cPlatform). ANSIBLE: open deploy when requested.
-      if (s.catalogOnboarding.nextAction === "config") {
-        await s.loadConfig(service, s.configSource);
-        s.setActiveView("config");
-        s.setCatalogOnboarding((current) => ({ ...current, visible: false }));
-        s.setNotice(`Registered ${service.name}${service.external_id ? ` (${service.external_id})` : ""} on ${node.name} and opened config manager.`);
-        return;
-      }
-      if (s.catalogOnboarding.nextAction === "deploy" && !isManual) {
-        await s.openDeploymentModal(service);
-        s.setCatalogOnboarding((current) => ({ ...current, visible: false }));
-        s.setNotice(`Registered ${service.name}${service.external_id ? ` (${service.external_id})` : ""} on ${node.name} and opened deployment control.`);
-        return;
-      }
-      s.setCatalogOnboarding((current) => ({ ...current, visible: false }));
-      const modeLabel = isManual ? "MANUAL (registered, no ansible deploy)" : "";
-      s.setNotice(
-        targetService
+        };
+        const service = targetService ? await api(`/api/services/${targetService.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            name: s.catalogOnboarding.customName.trim() || void 0,
+            contract_overrides: contractOverrides
+          })
+        }) : existing ?? await api("/api/services", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        s.setSelectedNode(node);
+        s.setSelectedService(service);
+        await s.loadServiceCapabilities(service.id);
+        await s.loadServiceSummary(service.id);
+        await s.loadServiceReleaseTimeline(service.id);
+        await s.loadServiceMetrics(service.id);
+        if (!existing || targetService) {
+          await (s.refreshClusterInventory || s.refresh)();
+        }
+        // cP: close svc config + catalog after successful add
+        s.setCatalogDrawerVisible(false);
+        await s.loadNodeJobHistory(node.id);
+        await s.refreshNodeLiveStatus?.(node.id);
+        s.setEventsRefreshKey?.((k) => Number(k || 0) + 1);
+        const installMode = String(
+          contractOverrides.install_mode ||
+            contractOverrides.service_install ||
+            ""
+        ).toLowerCase();
+        const isManual = installMode.includes("manual");
+        // MANUAL: register only (cPlatform). ANSIBLE: open deploy when requested.
+        if (s.catalogOnboarding.nextAction === "config") {
+          await s.loadConfig(service, s.configSource);
+          s.setActiveView("config");
+          s.setCatalogOnboarding((current) => ({ ...current, creating: false, visible: false, registeredService: service }));
+          const msg = `Registered ${service.name}${service.external_id ? ` (${service.external_id})` : ""} on ${node.name} and opened config manager.`;
+          s.showToast?.(msg, "ok") || s.setNotice(msg);
+          return;
+        }
+        if (s.catalogOnboarding.nextAction === "deploy" && !isManual) {
+          s.setCatalogOnboarding((current) => ({ ...current, creating: false, visible: false, registeredService: service }));
+          await s.openDeploymentModal(service);
+          const msg = `Registered ${service.name}${service.external_id ? ` (${service.external_id})` : ""} on ${node.name} and opened deployment control.`;
+          s.showToast?.(msg, "ok") || s.setNotice(msg);
+          return;
+        }
+        s.setCatalogOnboarding((current) => ({ ...current, creating: false, visible: false, registeredService: service }));
+        const modeLabel = isManual ? "MANUAL (registered, no ansible deploy)" : "";
+        const msg = targetService
           ? `Updated ${service.name} install configuration.`
           : existing
             ? `Selected existing ${service.name} on ${node.name}.`
-            : `Registered ${service.name}${service.external_id ? ` (${service.external_id})` : ""} on ${node.name}${modeLabel ? ` · ${modeLabel}` : ""}.`
-      );
-    } catch (error) {
-      s.setCatalogOnboarding((current) => ({
-        ...current,
-        creating: false,
-        error: error.message || "Failed to onboard service card."
-      }));
-    }
+            : `Registered ${service.name}${service.external_id ? ` (${service.external_id})` : ""} on ${node.name}${modeLabel ? ` · ${modeLabel}` : ""}.`;
+        s.showToast?.(msg, "ok") || s.setNotice(msg);
+      } catch (error) {
+        s.setCatalogOnboarding((current) => ({
+          ...current,
+          creating: false,
+          error: error.message || "Failed to onboard service card."
+        }));
+        s.showToast?.(error.message || "Install failed", "err");
+      }
+    });
   },
 
   async updateServiceExpose(service, { expose_service, host_port, name }) {

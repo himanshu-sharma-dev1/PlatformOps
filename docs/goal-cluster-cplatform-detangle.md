@@ -80,6 +80,14 @@
 - `saveClusterEditor` / `saveNodeEditor` `withPending` + cluster-core refresh + toast  
 - Provision **Save/Provision** button busy via `actionBusy.saveNode`  
 
+## Added 2026-07-16 (grind pass 8)
+
+- Install CTA **Install Manual / Install via Ansible** (`installButtonLabel` + `resolveInstallMode`)  
+- `confirmCatalogOnboarding` `withPending`, toast, close catalog, cluster-core refresh  
+- Runtime patch: **eligible hide for infra**, status line (`runtimePatchStatusText`), disable after success  
+- Node provision drawer `is-busy` while saving  
+- `runPatchObservability` coalesced + publishes `runtimePatchStatus`  
+
 ## Ops / E2E note
 
 - **E2E mailing out of scope:** `scripts/run_e2e_tests.py` never tests invite-email/SMTP/account mail.  

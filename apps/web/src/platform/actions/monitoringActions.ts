@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { api, getAuthToken, setAuthToken } from "../../api/client";
+import { withPending } from "../ux/clusterUx";
 export function createMonitoringActions(s: any) {
   return {
   async loadGlitchTipIntegrationStatus() {
@@ -170,45 +171,71 @@ export function createMonitoringActions(s: any) {
   },
 
   async runPatchObservability(serviceId, serviceName) {
-    s.setActionBusy?.((b) => ({ ...b, patch: true }));
-    s.setNotice("Running observability runtime patch (GlitchTip/Sentry inject)…");
-    try {
-      const headers = { "Content-Type": "application/json" };
+    // cP withPending + setRuntimePatchButtonBusy
+    return withPending(`runtime-patch:${serviceId}`, async () => {
+      s.setActionBusy?.((b) => ({ ...b, patch: true, [`patch:${serviceId}`]: true }));
+      s.setNotice("Running observability runtime patch (GlitchTip/Sentry inject)…");
       try {
-        const token = getAuthToken?.() || (typeof localStorage !== "undefined" ? localStorage.getItem("platformops.auth.token") : "");
-        if (token) headers.Authorization = `Bearer ${token}`;
-      } catch (_e) { /* ignore */ }
-      const res = await fetch("/PlatformIO/Monitoring/PatchObservability/", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ service_id: serviceId })
-      });
-      const data = await res.json().catch(() => ({}));
-      // Only treat explicit success:true as success — HTTP 200 with success:false is a failure.
-      if (data && data.success === true) {
-        const msg = data.message || data.result?.message || `Observability patch finished for ${serviceName || serviceId}.`;
-        s.showToast?.(msg, "ok") || s.setNotice(msg);
-        if (serviceName && s.loadGlitchTipDataForService) {
-          await s.loadGlitchTipDataForService(serviceName).catch(() => {});
+        const headers = { "Content-Type": "application/json" };
+        try {
+          const token = getAuthToken?.() || (typeof localStorage !== "undefined" ? localStorage.getItem("platformops.auth.token") : "");
+          if (token) headers.Authorization = `Bearer ${token}`;
+        } catch (_e) { /* ignore */ }
+        const res = await fetch("/PlatformIO/Monitoring/PatchObservability/", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ service_id: serviceId })
+        });
+        const data = await res.json().catch(() => ({}));
+        const checkedAt = new Date().toISOString();
+        // Only treat explicit success:true as success — HTTP 200 with success:false is a failure.
+        if (data && data.success === true) {
+          const msg = data.message || data.result?.message || `Observability patch finished for ${serviceName || serviceId}.`;
+          s.showToast?.(msg, "ok") || s.setNotice(msg);
+          // Publish status for open service drawer (cP runtimePatchStatusText)
+          s.setRuntimePatchStatus?.({
+            serviceId,
+            last_status: "success",
+            last_checked_at: checkedAt,
+            last_message: msg,
+            last_environment: data.environment || data.result?.environment || "",
+          });
+          if (serviceName && s.loadGlitchTipDataForService) {
+            await s.loadGlitchTipDataForService(serviceName).catch(() => {});
+          }
+          if (s.refreshNodeLiveStatus && s.selectedNode?.id) {
+            await s.refreshNodeLiveStatus(s.selectedNode.id).catch(() => {});
+          }
+          return data;
         }
-        if (s.refreshNodeLiveStatus && s.selectedNode?.id) {
-          await s.refreshNodeLiveStatus(s.selectedNode.id).catch(() => {});
-        }
+        const errMsg =
+          (data && (data.error || data.detail || data.result?.error)) ||
+          (!res.ok ? `HTTP ${res.status}` : "Patch reported success=false");
+        const fail = `Observability patch failed: ${typeof errMsg === "string" ? errMsg : JSON.stringify(errMsg)}`;
+        s.showToast?.(fail, "err") || s.setNotice(fail);
+        s.setRuntimePatchStatus?.({
+          serviceId,
+          last_status: "failed",
+          last_checked_at: checkedAt,
+          last_message: typeof errMsg === "string" ? errMsg : "failed",
+          last_environment: "",
+        });
         return data;
+      } catch (e) {
+        console.error("Failed to run observability patch:", e);
+        s.showToast?.(e?.message || "Observability patch failed", "err") || s.setNotice(e?.message || "Observability patch failed");
+        s.setRuntimePatchStatus?.({
+          serviceId,
+          last_status: "error",
+          last_checked_at: new Date().toISOString(),
+          last_message: e?.message || "request failed",
+          last_environment: "",
+        });
+        return null;
+      } finally {
+        s.setActionBusy?.((b) => ({ ...b, patch: false, [`patch:${serviceId}`]: false }));
       }
-      const errMsg =
-        (data && (data.error || data.detail || data.result?.error)) ||
-        (!res.ok ? `HTTP ${res.status}` : "Patch reported success=false");
-      const fail = `Observability patch failed: ${typeof errMsg === "string" ? errMsg : JSON.stringify(errMsg)}`;
-      s.showToast?.(fail, "err") || s.setNotice(fail);
-      return data;
-    } catch (e) {
-      console.error("Failed to run observability patch:", e);
-      s.showToast?.(e?.message || "Observability patch failed", "err") || s.setNotice(e?.message || "Observability patch failed");
-      return null;
-    } finally {
-      s.setActionBusy?.((b) => ({ ...b, patch: false }));
-    }
+    });
   },
 
   async runMonitoringSweep() {

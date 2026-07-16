@@ -10,6 +10,9 @@ import {
   NODE_PROVISION_STEPS,
   NODE_CLOUD_PROVIDERS,
   buttonLoadingClass,
+  installButtonLabel,
+  resolveInstallMode,
+  busyClassName,
 } from "../platform/ux/clusterUx";
 import { api } from "../api/client";
 
@@ -554,11 +557,11 @@ export function DrawersHost() {
                   data-ux="catalog-onboard-submit"
                 >
                   {catalogOnboarding.creating && <span className="btn-spinner" />}
-                  {catalogOnboarding.creating
-                    ? "Saving…"
-                    : isEdit
-                      ? "Save changes"
-                      : "Install"}
+                  {installButtonLabel({
+                    mode: isEdit ? "edit" : "add",
+                    installMode: resolveInstallMode(catalogOnboarding.installFieldValues),
+                    creating: catalogOnboarding.creating,
+                  })}
                 </button>
               )}
             </div>
@@ -578,7 +581,12 @@ export function DrawersHost() {
         return (
         <>
           <div className="drawer-backdrop open" style={{ display: "block" }} onClick={() => { if (stepperStep !== 7) setStepperDrawerVisible(false); }} />
-          <aside className={`drawer open ${nodeEditor?.error ? "" : ""}`} style={{ display: "flex", flexDirection: "column", gap: "0", right: 0, width: "min(560px, 100vw)" }} data-ux="node-provision-drawer">
+          <aside
+            className={busyClassName(`drawer open ${nodeEditor?.error ? "" : ""}`, Boolean((p.actionBusy || {}).saveNode))}
+            style={{ display: "flex", flexDirection: "column", gap: "0", right: 0, width: "min(560px, 100vw)" }}
+            data-ux="node-provision-drawer"
+            data-busy={(p.actionBusy || {}).saveNode ? "true" : "false"}
+          >
             <div className="drawer-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2 style={{ fontSize: "1.35rem", fontFamily: "var(--display)", margin: 0 }}>
                 {isEdit ? "Edit node " : "Provision new node "}

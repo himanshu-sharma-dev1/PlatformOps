@@ -26,6 +26,9 @@ import {
   clusterSearchEmptyMessage,
   isServiceActionBusy,
   shouldCloseDetailDrawer,
+  isRuntimePatchEligible,
+  formatRuntimePatchStatus,
+  isRuntimePatchComplete,
 } from "../platform/ux/clusterUx";
 import { ClusterEventsPanel } from "../components/ClusterEventsPanel";
 
@@ -192,7 +195,9 @@ export function ClustersView() {
     hostPort: "" as string | number,
     busy: false,
     patchBusy: false,
+    patchStatus: null as any,
   });
+  const runtimePatchStatus = p.runtimePatchStatus as any;
   const [nodeDrawer, setNodeDrawer] = React.useState({
     visible: false,
     node: null as any,
@@ -215,6 +220,11 @@ export function ClustersView() {
         if (cfg.host_port != null) hostPort = cfg.host_port;
       }
     } catch (_e) { /* ignore */ }
+    // cP: seed patch status from global last result if same service
+    const seedPatch =
+      runtimePatchStatus && String(runtimePatchStatus.serviceId) === String(service.id)
+        ? runtimePatchStatus
+        : { last_status: "never", last_checked_at: "", last_message: "", last_environment: "" };
     setServiceDrawer({
       visible: true,
       service,
@@ -226,6 +236,7 @@ export function ClustersView() {
       hostPort,
       busy: true,
       patchBusy: false,
+      patchStatus: seedPatch,
     });
     const [evts, live] = await Promise.all([
       loadScopedEvents?.({ service_id: service.id, limit: 40 }) || Promise.resolve([]),
@@ -239,7 +250,14 @@ export function ClustersView() {
       busy: false,
       service: service,
     }));
-  }, [loadScopedEvents, loadServiceLiveStatus, serviceLiveById, setSelectedService]);
+  }, [loadScopedEvents, loadServiceLiveStatus, serviceLiveById, setSelectedService, runtimePatchStatus]);
+
+  // Sync cP runtimePatchStatusText when global status updates for open drawer
+  React.useEffect(() => {
+    if (!serviceDrawer.visible || !serviceDrawer.service?.id || !runtimePatchStatus) return;
+    if (String(runtimePatchStatus.serviceId) !== String(serviceDrawer.service.id)) return;
+    setServiceDrawer((d) => ({ ...d, patchStatus: runtimePatchStatus }));
+  }, [runtimePatchStatus, serviceDrawer.visible, serviceDrawer.service?.id]);
 
   const openNodeInfoDrawer = React.useCallback(async (node: any, tab = "overview") => {
     if (!node) return;
@@ -1611,6 +1629,25 @@ export function ClustersView() {
                           : "None"}
                       </span>
                     </div>
+                    {isRuntimePatchEligible(serviceDrawer.service) ? (
+                      <div className="detail-kv" data-ux="runtime-patch-status">
+                        <span className="k">Runtime patch</span>
+                        <span
+                          className="v"
+                          id="runtimePatchStatusText"
+                          style={{
+                            color: isRuntimePatchComplete(serviceDrawer.patchStatus)
+                              ? "var(--ok, #15803d)"
+                              : String(serviceDrawer.patchStatus?.last_status || "").toLowerCase().includes("fail") ||
+                                  String(serviceDrawer.patchStatus?.last_status || "").toLowerCase() === "error"
+                                ? "var(--err)"
+                                : undefined,
+                          }}
+                        >
+                          {formatRuntimePatchStatus(serviceDrawer.patchStatus)}
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
                   <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "0.85rem" }}>
                     <strong style={{ fontSize: "0.9rem" }}>Expose / host port</strong>
@@ -1789,16 +1826,38 @@ export function ClustersView() {
                 >
                   Edit
                 </button>
+                {isRuntimePatchEligible(serviceDrawer.service) ? (
                 <button
                   type="button"
-                  className={buttonLoadingClass("btn btn-secondary btn-sm", Boolean(actionBusy.patch))}
-                  disabled={Boolean(actionBusy.patch)}
-                  onClick={() => runPatchObservability?.(serviceDrawer.service.id, serviceDrawer.service.name)}
+                  className={buttonLoadingClass("btn btn-secondary btn-sm", Boolean(actionBusy.patch || actionBusy[`patch:${serviceDrawer.service.id}`]))}
+                  disabled={
+                    Boolean(actionBusy.patch || actionBusy[`patch:${serviceDrawer.service.id}`]) ||
+                    isRuntimePatchComplete(serviceDrawer.patchStatus)
+                  }
+                  onClick={async () => {
+                    setServiceDrawer((d) => ({
+                      ...d,
+                      patchBusy: true,
+                      patchStatus: { ...(d.patchStatus || {}), loading: true },
+                    }));
+                    try {
+                      await runPatchObservability?.(serviceDrawer.service.id, serviceDrawer.service.name);
+                    } finally {
+                      setServiceDrawer((d) => ({ ...d, patchBusy: false }));
+                    }
+                  }}
                   data-ux="btn-patch"
+                  id="btnRuntimePatchFooter"
+                  title={
+                    isRuntimePatchComplete(serviceDrawer.patchStatus)
+                      ? "Runtime patch already succeeded"
+                      : "Inject observability runtime (GlitchTip/Sentry)"
+                  }
                 >
-                  {actionBusy.patch && <span className="btn-spinner" />}
+                  {(actionBusy.patch || actionBusy[`patch:${serviceDrawer.service.id}`]) && <span className="btn-spinner" />}
                   Patch
                 </button>
+                ) : null}
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => { loadConfig(serviceDrawer.service); setActiveView("config"); }}>Config</button>
                 <button
                   type="button"

@@ -344,6 +344,21 @@ await check("catalog chips + category heuristics", () => {
   assert.equal(ux.filterCatalogItems(items, "app", "all").length, 1);
 });
 
+await check("installButtonLabel + runtime patch helpers", () => {
+  assert.equal(ux.installButtonLabel({ mode: "edit" }), "Save changes");
+  assert.equal(ux.installButtonLabel({ mode: "add", installMode: "MANUAL" }), "Install Manual");
+  assert.equal(ux.installButtonLabel({ mode: "add", installMode: "ANSIBLE" }), "Install via Ansible");
+  assert.equal(ux.installButtonLabel({ creating: true }), "Saving…");
+  assert.equal(ux.resolveInstallMode({ service_install: "MANUAL" }), "MANUAL");
+  assert.equal(ux.isRuntimePatchEligible({ service_key: "redis" }), false);
+  assert.equal(ux.isRuntimePatchEligible({ service_key: "postgres-core" }), false);
+  assert.equal(ux.isRuntimePatchEligible({ service_key: "ai-orchestrator", kind: "app" }), true);
+  assert.ok(ux.formatRuntimePatchStatus(null).includes("not checked"));
+  assert.ok(ux.formatRuntimePatchStatus({ last_status: "success", last_checked_at: "t" }).includes("success"));
+  assert.equal(ux.isRuntimePatchComplete({ last_status: "success" }), true);
+  assert.equal(ux.isRuntimePatchComplete({ last_status: "never" }), false);
+});
+
 const summary = `\n${passed} checks passed\n`;
 console.log(summary);
 writeFileSync(join(outDir, "ux-unit-tests-summary.txt"), summary, "utf8");
