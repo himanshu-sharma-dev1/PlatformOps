@@ -75,6 +75,56 @@ export function deriveEventsLoadState(opts: {
   return n === 0 ? "empty" : "loaded";
 }
 
+/** cP catalog category chips (04-cluster-detail cat-chip data-cat). */
+export const CATALOG_CATEGORY_CHIPS = [
+  { id: "all", label: "All" },
+  { id: "db", label: "Databases" },
+  { id: "cache", label: "Cache" },
+  { id: "stream", label: "Streaming" },
+  { id: "storage", label: "Storage" },
+  { id: "proxy", label: "Proxy" },
+  { id: "monitor", label: "Monitoring" },
+  { id: "logs", label: "Logging" },
+  { id: "ml", label: "ML runtime" },
+  { id: "infra", label: "Infra" },
+  { id: "app", label: "App" },
+  { id: "observability", label: "Observability" },
+] as const;
+
+/** Heuristic category match for a catalog card (cP applyCatalogFilter). */
+export function catalogItemMatchesCategory(
+  item: { name?: string; description?: string; kind?: string; subsystem?: string; tags?: string[]; service_key?: string },
+  category: string
+): boolean {
+  const cat = String(category || "all").trim().toLowerCase();
+  if (!cat || cat === "all") return true;
+  const kind = String(item.kind || "").toLowerCase();
+  const sub = String(item.subsystem || "").toLowerCase();
+  const key = String(item.service_key || "").toLowerCase();
+  const name = String(item.name || "").toLowerCase();
+  const desc = String(item.description || "").toLowerCase();
+  const tags = (item.tags || []).map((t) => String(t).toLowerCase());
+  const hay = [kind, sub, key, name, desc, ...tags].join(" ");
+  if (kind === cat || sub === cat || tags.includes(cat) || key === cat) return true;
+  if (cat === "infra" && (kind === "infrastructure" || sub.includes("infra") || tags.includes("infra"))) return true;
+  if (cat === "app" && (kind === "application" || kind === "app" || sub.includes("app"))) return true;
+  if (cat === "db" || cat === "databases") {
+    return /postgres|mysql|mariadb|mongo|clickhouse|cockroach|sql|database|db/.test(hay);
+  }
+  if (cat === "cache") return /redis|memcache|cache|valkey/.test(hay);
+  if (cat === "stream") return /kafka|rabbit|nats|pulsar|stream|queue|mq/.test(hay);
+  if (cat === "storage") return /minio|s3|ceph|nfs|volume|storage|blob/.test(hay);
+  if (cat === "proxy") return /nginx|traefik|haproxy|envoy|proxy|gateway|caddy/.test(hay);
+  if (cat === "monitor" || cat === "monitoring") {
+    return /prometheus|grafana|otel|opentelemetry|metric|monitor|alertmanager/.test(hay);
+  }
+  if (cat === "logs" || cat === "logging") return /loki|log|fluent|vector|elasticsearch/.test(hay);
+  if (cat === "ml" || cat === "ml runtime") return /ml|train|infer|model|orchestrat|dtrain|ai-/.test(hay);
+  if (cat === "observability") return /observ|glitch|sentry|trace|otel|prometheus|loki|grafana/.test(hay);
+  if (cat === "data") return /postgres|mysql|redis|kafka|clickhouse|minio|data/.test(hay);
+  return hay.includes(cat);
+}
+
 /** Live filter catalog cards by search + category chip. */
 export function filterCatalogItems<T extends { name?: string; description?: string; kind?: string; subsystem?: string; tags?: string[]; service_key?: string }>(
   items: T[],
@@ -82,20 +132,8 @@ export function filterCatalogItems<T extends { name?: string; description?: stri
   category: string
 ): T[] {
   const q = String(search || "").trim().toLowerCase();
-  const cat = String(category || "all").trim().toLowerCase();
   return (items || []).filter((item) => {
-    if (cat && cat !== "all") {
-      const kind = String(item.kind || "").toLowerCase();
-      const sub = String(item.subsystem || "").toLowerCase();
-      const tags = (item.tags || []).map((t) => String(t).toLowerCase());
-      const hit =
-        kind === cat ||
-        sub === cat ||
-        tags.includes(cat) ||
-        (cat === "infra" && (kind === "infrastructure" || sub.includes("infra") || tags.includes("infra"))) ||
-        (cat === "app" && (kind === "application" || kind === "app" || sub.includes("app")));
-      if (!hit) return false;
-    }
+    if (!catalogItemMatchesCategory(item, category)) return false;
     if (!q) return true;
     const hay = [item.name, item.description, item.kind, item.subsystem, item.service_key, ...(item.tags || [])]
       .filter(Boolean)

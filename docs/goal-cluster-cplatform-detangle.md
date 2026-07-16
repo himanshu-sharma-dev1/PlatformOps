@@ -73,6 +73,13 @@
 - Service/node info drawer foot **per-target busy** on Delete/Deploy  
 - `requestDelete` assess path uses `withPending` + toast on impact failure  
 
+## Added 2026-07-16 (grind pass 7)
+
+- Catalog chips match cP categories (db/cache/stream/storage/proxy/monitor/logs/ml + infra/app/obs)  
+- `catalogItemMatchesCategory` heuristics + filtered count in catalog head  
+- `saveClusterEditor` / `saveNodeEditor` `withPending` + cluster-core refresh + toast  
+- Provision **Save/Provision** button busy via `actionBusy.saveNode`  
+
 ## Ops / E2E note
 
 - **E2E mailing out of scope:** `scripts/run_e2e_tests.py` never tests invite-email/SMTP/account mail.  

@@ -330,6 +330,20 @@ await check("filterNodes + nodeSearchEmpty + filterNodeServices + busy keys", ()
   assert.equal(ux.clusterSearchEmptyMessage({ search: "a" }, 3, 1), null);
 });
 
+await check("catalog chips + category heuristics", () => {
+  assert.ok(Array.isArray(ux.CATALOG_CATEGORY_CHIPS) && ux.CATALOG_CATEGORY_CHIPS.length >= 8);
+  assert.equal(ux.catalogItemMatchesCategory({ service_key: "redis", name: "Redis" }, "cache"), true);
+  assert.equal(ux.catalogItemMatchesCategory({ service_key: "postgres", name: "PostgreSQL" }, "db"), true);
+  assert.equal(ux.catalogItemMatchesCategory({ service_key: "nginx", name: "Nginx" }, "proxy"), true);
+  assert.equal(ux.catalogItemMatchesCategory({ service_key: "redis" }, "proxy"), false);
+  const items = [
+    { service_key: "redis", name: "Redis", kind: "infra" },
+    { service_key: "my-app", name: "App", kind: "app" },
+  ];
+  assert.equal(ux.filterCatalogItems(items, "", "cache").length, 1);
+  assert.equal(ux.filterCatalogItems(items, "app", "all").length, 1);
+});
+
 const summary = `\n${passed} checks passed\n`;
 console.log(summary);
 writeFileSync(join(outDir, "ux-unit-tests-summary.txt"), summary, "utf8");

@@ -89,79 +89,84 @@ export function createInventoryEditorActions(s: any) {
   },
 
   async saveClusterEditor() {
-    try {
-      const draft = s.clusterEditor.draft;
-      const name = draft.name.trim();
-      if (!name) {
-        s.setClusterEditor((current) => ({ ...current, error: "Cluster name is required.", step: 1, saving: false }));
-        return;
-      }
-      s.setClusterEditor((current) => ({ ...current, saving: true, error: "" }));
-      s.setActionBusy?.((b) => ({ ...b, save: true }));
-      if (s.clusterEditor.mode === "create") {
-        const created = await api("/api/clusters", {
-          method: "POST",
-          body: JSON.stringify({
-            name,
-            region: draft.region.trim() || "local",
-            environment: draft.environment.trim() || "development",
-            repo_type: draft.repo_type,
-            repo_url: draft.repo_url,
-            repo_branch: draft.repo_branch || "main",
-            repo_token: draft.repo_token,
-            registry_type: draft.registry_type,
-            registry_url: draft.registry_url,
-            registry_user: draft.registry_user,
-            registry_password: draft.registry_password
-          })
+    const mode = s.clusterEditor.mode || "create";
+    const id = s.clusterEditor.clusterId || "new";
+    // cP withPending on create/save cluster
+    return withPending(`save-cluster:${mode}:${id}`, async () => {
+      try {
+        const draft = s.clusterEditor.draft;
+        const name = draft.name.trim();
+        if (!name) {
+          s.setClusterEditor((current) => ({ ...current, error: "Cluster name is required.", step: 1, saving: false }));
+          return;
+        }
+        s.setClusterEditor((current) => ({ ...current, saving: true, error: "" }));
+        s.setActionBusy?.((b) => ({ ...b, save: true }));
+        if (s.clusterEditor.mode === "create") {
+          const created = await api("/api/clusters", {
+            method: "POST",
+            body: JSON.stringify({
+              name,
+              region: draft.region.trim() || "local",
+              environment: draft.environment.trim() || "development",
+              repo_type: draft.repo_type,
+              repo_url: draft.repo_url,
+              repo_branch: draft.repo_branch || "main",
+              repo_token: draft.repo_token,
+              registry_type: draft.registry_type,
+              registry_url: draft.registry_url,
+              registry_user: draft.registry_user,
+              registry_password: draft.registry_password
+            })
+          });
+          s.setClusterEditor((current) => ({ ...current, visible: false, error: "", saving: false }));
+          s.setActionBusy?.((b) => ({ ...b, save: false }));
+          s.showToast?.(`Created cluster ${created.name}`, "ok") || s.setNotice(`Created cluster ${created.name}`);
+          s.setSelectedCluster(created);
+          await (s.refreshClusterInventory || s.refresh)();
+          return;
+        }
+        if (!s.clusterEditor.clusterId) {
+          s.setClusterEditor((current) => ({ ...current, saving: false }));
+          s.setActionBusy?.((b) => ({ ...b, save: false }));
+          return;
+        }
+        const payload = {
+          name,
+          region: draft.region.trim() || "local",
+          environment: draft.environment.trim() || "development",
+          repo_type: draft.repo_type,
+          repo_url: draft.repo_url,
+          repo_branch: draft.repo_branch || "main",
+          registry_type: draft.registry_type,
+          registry_url: draft.registry_url,
+          registry_user: draft.registry_user
+        };
+        if (draft.repo_token && (s.clusterEditor.replaceRepoSecret || s.clusterEditor.mode === "create")) {
+          payload.repo_token = draft.repo_token;
+        }
+        if (draft.registry_password && (s.clusterEditor.replaceRegistrySecret || s.clusterEditor.mode === "create")) {
+          payload.registry_password = draft.registry_password;
+        }
+        const updated = await api(`/api/clusters/${s.clusterEditor.clusterId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload)
         });
         s.setClusterEditor((current) => ({ ...current, visible: false, error: "", saving: false }));
         s.setActionBusy?.((b) => ({ ...b, save: false }));
-        s.showToast?.(`Created cluster ${created.name}`, "ok") || s.setNotice(`Created cluster ${created.name}`);
-        s.setSelectedCluster(created);
-        await s.refresh();
-        return;
-      }
-      if (!s.clusterEditor.clusterId) {
-        s.setClusterEditor((current) => ({ ...current, saving: false }));
+        s.setSelectedCluster(updated);
+        s.showToast?.(`Updated cluster ${updated.name}`, "ok") || s.setNotice(`Updated cluster ${updated.name}`);
+        await (s.refreshClusterInventory || s.refresh)();
+      } catch (error) {
+        s.setClusterEditor((current) => ({
+          ...current,
+          error: error.message || "Failed to save cluster.",
+          saving: false
+        }));
         s.setActionBusy?.((b) => ({ ...b, save: false }));
-        return;
+        s.showToast?.(error.message || "Failed to save cluster.", "err");
       }
-      const payload = {
-        name,
-        region: draft.region.trim() || "local",
-        environment: draft.environment.trim() || "development",
-        repo_type: draft.repo_type,
-        repo_url: draft.repo_url,
-        repo_branch: draft.repo_branch || "main",
-        registry_type: draft.registry_type,
-        registry_url: draft.registry_url,
-        registry_user: draft.registry_user
-      };
-      if (draft.repo_token && (s.clusterEditor.replaceRepoSecret || s.clusterEditor.mode === "create")) {
-        payload.repo_token = draft.repo_token;
-      }
-      if (draft.registry_password && (s.clusterEditor.replaceRegistrySecret || s.clusterEditor.mode === "create")) {
-        payload.registry_password = draft.registry_password;
-      }
-      const updated = await api(`/api/clusters/${s.clusterEditor.clusterId}`, {
-        method: "PUT",
-        body: JSON.stringify(payload)
-      });
-      s.setClusterEditor((current) => ({ ...current, visible: false, error: "", saving: false }));
-      s.setActionBusy?.((b) => ({ ...b, save: false }));
-      s.setSelectedCluster(updated);
-      s.showToast?.(`Updated cluster ${updated.name}`, "ok") || s.setNotice(`Updated cluster ${updated.name}`);
-      await s.refresh();
-    } catch (error) {
-      s.setClusterEditor((current) => ({
-        ...current,
-        error: error.message || "Failed to save cluster.",
-        saving: false
-      }));
-      s.setActionBusy?.((b) => ({ ...b, save: false }));
-      s.showToast?.(error.message || "Failed to save cluster.", "err");
-    }
+    });
   },
 
   async testClusterRepoConnection() {
@@ -387,31 +392,58 @@ export function createInventoryEditorActions(s: any) {
   },
 
   async saveNodeEditor() {
-    try {
-      const draft = s.nodeEditor.draft;
-      const name = draft.name.trim();
-      if (!draft.cluster_id) {
-        s.setNodeEditor((current) => ({ ...current, error: "Select a parent cluster." }));
-        return null;
-      }
-      if (!name) {
-        s.setNodeEditor((current) => ({ ...current, error: "Node name is required." }));
-        return null;
-      }
-      if (!String(draft.host || "").trim()) {
-        s.setNodeEditor((current) => ({ ...current, error: "SSH host/IP is required." }));
-        return null;
-      }
-      const facts = {
-        cpu_cores: Number(draft.cpu_cores) || 0,
-        memory_gb: Number(draft.memory_gb) || 0,
-        storage_gb: Number(draft.storage_gb) || 0,
-        gpu: String(draft.gpu ?? "none"),
-        os: String(draft.os ?? "linux"),
-      };
-      if (s.nodeEditor.mode === "create") {
-        const created = await api("/api/nodes", {
-          method: "POST",
+    const mode = s.nodeEditor.mode || "create";
+    const id = s.nodeEditor.nodeId || "new";
+    // cP withPending add-node / save-node
+    return withPending(`save-node:${mode}:${id}`, async () => {
+      s.setActionBusy?.((b) => ({ ...b, saveNode: true }));
+      try {
+        const draft = s.nodeEditor.draft;
+        const name = draft.name.trim();
+        if (!draft.cluster_id) {
+          s.setNodeEditor((current) => ({ ...current, error: "Select a parent cluster." }));
+          return null;
+        }
+        if (!name) {
+          s.setNodeEditor((current) => ({ ...current, error: "Node name is required." }));
+          return null;
+        }
+        if (!String(draft.host || "").trim()) {
+          s.setNodeEditor((current) => ({ ...current, error: "SSH host/IP is required." }));
+          return null;
+        }
+        const facts = {
+          cpu_cores: Number(draft.cpu_cores) || 0,
+          memory_gb: Number(draft.memory_gb) || 0,
+          storage_gb: Number(draft.storage_gb) || 0,
+          gpu: String(draft.gpu ?? "none"),
+          os: String(draft.os ?? "linux"),
+        };
+        if (s.nodeEditor.mode === "create") {
+          const created = await api("/api/nodes", {
+            method: "POST",
+            body: JSON.stringify({
+              cluster_id: draft.cluster_id,
+              name,
+              host: draft.host.trim(),
+              ssh_user: draft.ssh_user.trim() || "ubuntu",
+              ssh_key_path: draft.ssh_key_path.trim(),
+              ssh_private_key: draft.ssh_private_key.trim() || void 0,
+              environment: draft.environment.trim() || "local",
+              volume_root: draft.volume_root.trim() || "/tmp/platformops",
+              docker_network: draft.docker_network.trim() || "platformops_prod_network",
+              facts,
+            })
+          });
+          s.setNodeEditor((current) => ({ ...current, visible: false, error: "" }));
+          s.setSelectedNode(created);
+          s.showToast?.(`Created node ${created.name}`, "ok") || s.setNotice(`Created node ${created.name}`);
+          await (s.refreshClusterInventory || s.refresh)();
+          return created;
+        }
+        if (!s.nodeEditor.nodeId) return null;
+        const updated = await api(`/api/nodes/${s.nodeEditor.nodeId}`, {
+          method: "PUT",
           body: JSON.stringify({
             cluster_id: draft.cluster_id,
             name,
@@ -422,41 +454,23 @@ export function createInventoryEditorActions(s: any) {
             environment: draft.environment.trim() || "local",
             volume_root: draft.volume_root.trim() || "/tmp/platformops",
             docker_network: draft.docker_network.trim() || "platformops_prod_network",
+            status: draft.status.trim() || "unknown",
             facts,
           })
         });
         s.setNodeEditor((current) => ({ ...current, visible: false, error: "" }));
-        s.setSelectedNode(created);
-        s.setNotice(`Created node ${created.name}`);
-        await s.refresh();
-        return created;
+        s.setSelectedNode(updated);
+        s.showToast?.(`Updated node ${updated.name}`, "ok") || s.setNotice(`Updated node ${updated.name}`);
+        await (s.refreshClusterInventory || s.refresh)();
+        return updated;
+      } catch (error) {
+        s.setNodeEditor((current) => ({ ...current, error: error.message || "Failed to save node." }));
+        s.showToast?.(error.message || "Failed to save node.", "err");
+        return null;
+      } finally {
+        s.setActionBusy?.((b) => ({ ...b, saveNode: false }));
       }
-      if (!s.nodeEditor.nodeId) return null;
-      const updated = await api(`/api/nodes/${s.nodeEditor.nodeId}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          cluster_id: draft.cluster_id,
-          name,
-          host: draft.host.trim(),
-          ssh_user: draft.ssh_user.trim() || "ubuntu",
-          ssh_key_path: draft.ssh_key_path.trim(),
-          ssh_private_key: draft.ssh_private_key.trim() || void 0,
-          environment: draft.environment.trim() || "local",
-          volume_root: draft.volume_root.trim() || "/tmp/platformops",
-          docker_network: draft.docker_network.trim() || "platformops_prod_network",
-          status: draft.status.trim() || "unknown",
-          facts,
-        })
-      });
-      s.setNodeEditor((current) => ({ ...current, visible: false, error: "" }));
-      s.setSelectedNode(updated);
-      s.setNotice(`Updated node ${updated.name}`);
-      await s.refresh();
-      return updated;
-    } catch (error) {
-      s.setNodeEditor((current) => ({ ...current, error: error.message || "Failed to save node." }));
-      return null;
-    }
+    });
   },
 
   async requestDelete(type, id, name, options) {

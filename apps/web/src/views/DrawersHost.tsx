@@ -2,7 +2,15 @@
 import React from "react";
 import { GlassCard } from "../components/GlassCard";
 import { usePlatform } from "../platform/usePlatform";
-import { filterCatalogItems, CATALOG_DRAG_MIME, SVC_INSTALL_STEPS, NODE_PROVISION_STEPS, NODE_CLOUD_PROVIDERS } from "../platform/ux/clusterUx";
+import {
+  filterCatalogItems,
+  CATALOG_DRAG_MIME,
+  CATALOG_CATEGORY_CHIPS,
+  SVC_INSTALL_STEPS,
+  NODE_PROVISION_STEPS,
+  NODE_CLOUD_PROVIDERS,
+  buttonLoadingClass,
+} from "../platform/ux/clusterUx";
 import { api } from "../api/client";
 
 /** DrawersHost — Phase 1 extracted page JSX. */
@@ -100,13 +108,7 @@ export function DrawersHost() {
       {/* SERVICE CATALOG DRAWER — search + category chips → install/config chain */}
       {catalogDrawerVisible && (() => {
         const filtered = filterCatalogItems(catalog || [], catalogSearch, catalogCategory);
-        const chips = [
-          { id: "all", label: "All" },
-          { id: "infra", label: "Infra" },
-          { id: "app", label: "App" },
-          { id: "observability", label: "Observability" },
-          { id: "data", label: "Data" },
-        ];
+        const chips = CATALOG_CATEGORY_CHIPS;
         return (
         <>
           <div className="drawer-backdrop open" style={{ display: "block" }} onClick={() => setCatalogDrawerVisible(false)} />
@@ -114,7 +116,9 @@ export function DrawersHost() {
             <div className="drawer-head">
               <div>
                 <h2 style={{ fontSize: "1.5rem", fontFamily: "var(--display)", margin: 0 }}>Service catalog</h2>
-                <div className="sub">Click or drag a card onto the service stack (dForm · MANUAL/ANSIBLE · expose)</div>
+                <div className="sub">
+                  {filtered.length} of {(catalog || []).length} cards · click or drag onto the service stack
+                </div>
               </div>
               <button className="icon-btn" onClick={() => setCatalogDrawerVisible(false)} aria-label="Close catalog">
                 <svg className="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -805,7 +809,8 @@ export function DrawersHost() {
                 <button className="btn btn-primary btn-sm" onClick={() => setStepperStep((prev) => prev + 1)}>Continue →</button>
               ) : stepperStep === 6 ? (
                 <button
-                  className="btn btn-primary btn-sm"
+                  className={buttonLoadingClass("btn btn-primary btn-sm", Boolean((p.actionBusy || {}).saveNode))}
+                  disabled={Boolean((p.actionBusy || {}).saveNode)}
                   data-ux="node-provision-submit"
                   onClick={async () => {
                     const createdNode = await saveNodeEditor();
@@ -833,6 +838,7 @@ export function DrawersHost() {
                     }
                   }}
                 >
+                  {(p.actionBusy || {}).saveNode && <span className="btn-spinner" />}
                   {isEdit ? "Save" : "Provision"}
                 </button>
               ) : (
