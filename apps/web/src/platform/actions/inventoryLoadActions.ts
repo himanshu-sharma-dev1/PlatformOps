@@ -441,6 +441,14 @@ export function createInventoryLoadActions(s: any) {
       s.setClusterSummary(summary);
       if (keep) {
         await s.selectNode(keep);
+      } else {
+        // cP edge: open first reachable node so detail pane is not empty forever
+        const firstReachable = clusterNodes.find(
+          (n) => String(n.status || "").toLowerCase() !== "unreachable"
+        );
+        if (firstReachable) {
+          await s.selectNode(firstReachable);
+        }
       }
       s.loadClusterOperations?.(cluster.id)?.catch?.(() => {});
     } catch (error) {

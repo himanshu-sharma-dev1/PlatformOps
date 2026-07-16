@@ -49,15 +49,18 @@
 
 - Manual UAT: `docs/manual-test-suite-cluster-page.md`  
 
-## Ops note
+## Ops / E2E note
 
-- GlitchTip **mailing/SMTP disabled** in `ops/compose/observability/glitchtip.env` (`EMAIL_URL=consolemail://`, empty host credentials). Monitoring UI copy notes issues/uptime/APM only.
+- **E2E mailing out of scope:** `scripts/run_e2e_tests.py` never tests invite-email/SMTP/account mail.  
+  - Default `SKIP_GLITCHTIP=1` (cluster-focused).  
+  - `SKIP_GLITCHTIP_EXCEPTION_CAPTURE=1` by default so live exceptions (which can trigger GT alert mail) are not raised.  
+  - Set `SKIP_GLITCHTIP=0` only for optional read-only GlitchTip checks.
 
 ## Added 2026-07-15 (grind pass 3)
 
 - Cluster create/edit drawer: labeled stepper, provider cards, auth tabs (PAT/SSH/none), registry cards, review sections  
 - Legacy node **modal removed** (provision drawer only; fixes dual-UI bug)  
-- GlitchTip mailing system stripped from env + UI copy  
+- E2E: mailing removed from suite; GlitchTip phase optional/soft  
 
 ## Added 2026-07-15 (grind pass 2 — steppers)
 

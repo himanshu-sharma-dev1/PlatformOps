@@ -1240,22 +1240,39 @@ export function ClustersView() {
               )}
 
               {detailTab === "jobs" && (
-                <div style={{ marginTop: "1rem", border: "1px solid var(--line)", borderRadius: 12, padding: "1rem", background: "var(--bg-elevated)" }}>
-                  <div className="panel-title" style={{ marginBottom: "0.75rem" }}>
-                    <h2>Jobs</h2>
-                    <span>{nodeJobHistory ? `${nodeJobHistory.total_jobs} total` : "—"}</span>
+                <div style={{ marginTop: "1rem", border: "1px solid var(--line)", borderRadius: 12, padding: "1rem", background: "var(--bg-elevated)" }} data-ux="node-jobs-pane">
+                  <div className="panel-title" style={{ marginBottom: "0.75rem", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      <h2 style={{ margin: 0 }}>Jobs</h2>
+                      <span style={{ fontSize: "0.8rem", color: "var(--ink-4)" }}>
+                        {nodeJobHistory ? `${nodeJobHistory.total_jobs ?? (nodeJobHistory.items || []).length} total` : "—"}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => activeNode && p.loadNodeJobHistory?.(activeNode.id)}
+                    >
+                      Refresh jobs
+                    </button>
                   </div>
                   {nodeJobHistory ? (
-                    nodeJobHistory.items.length === 0 ? (
-                      <p style={{ color: "var(--ink-4)", margin: 0 }}>No job logs found on this node yet.</p>
+                    (nodeJobHistory.items || []).length === 0 ? (
+                      <div className="empty-state" data-ux="jobs-empty">
+                        <p style={{ color: "var(--ink-4)", margin: 0 }}>No job logs on this node yet.</p>
+                        <p style={{ color: "var(--ink-5)", margin: "0.35rem 0 0", fontSize: "0.78rem" }}>
+                          Validate, Discover, Deploy, or Config apply will appear here.
+                        </p>
+                      </div>
                     ) : (
                       <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem" }}>
-                        {nodeJobHistory.items.slice(0, 20).map((item) => (
+                        {(nodeJobHistory.items || []).slice(0, 20).map((item) => (
                           <article key={`tab-job-${item.id}`} style={{ border: "1px solid var(--line-2)", borderRadius: 10, padding: "0.7rem 0.85rem" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
                               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                                 <span className={`pill ${item.status === "success" ? "pill-ok" : item.status === "failed" ? "pill-error" : "pill-warn"}`}>{item.status}</span>
                                 <strong>{item.action}</strong>
+                                {item.service_id != null ? <small style={{ color: "var(--ink-4)" }}>svc #{item.service_id}</small> : null}
                               </div>
                               <small style={{ color: "var(--ink-4)" }}>{formatLocalTimestamp(item.created_at)}</small>
                             </div>
@@ -1265,7 +1282,7 @@ export function ClustersView() {
                       </div>
                     )
                   ) : (
-                    <p style={{ color: "var(--ink-4)" }}>Loading jobs…</p>
+                    <div className="detail-loading-shell is-loading"><span className="pulse-dot" /> Loading jobs…</div>
                   )}
                 </div>
               )}
