@@ -15,6 +15,7 @@ import { ReliabilityView } from "./views/ReliabilityView";
 import { UsersView } from "./views/UsersView";
 import { DrawersHost } from "./views/DrawersHost";
 import { ModalsHost } from "./views/ModalsHost";
+import { resolveEscapeClose } from "./platform/ux/clusterUx";
 
 function AuthenticatedShell() {
   const p = usePlatform() as any;
@@ -39,6 +40,50 @@ function AuthenticatedShell() {
       p.refreshAdvancedInventory?.().catch(() => {});
     }
   }, [activeView]);
+
+  // cP Escape close priority for shell-level drawers/modals (info detail handled in ClustersView)
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // Let local ClustersView info drawers win if they set this flag
+      if ((window as any).__poInfoDetailOpen) return;
+      const surface = resolveEscapeClose({
+        actionBlocker: Boolean(p.actionBlocker?.visible),
+        svcConfig: Boolean(p.catalogOnboarding?.visible),
+        nodeProvision: Boolean(p.stepperDrawerVisible),
+        catalog: Boolean(p.catalogDrawerVisible),
+        clusterEditor: Boolean(p.clusterEditor?.visible),
+        launch: Boolean(p.launchDrawerVisible),
+        deployment: Boolean(p.deploymentModal?.visible),
+        deleteModal: Boolean(p.deleteModal?.visible),
+      });
+      if (!surface) return;
+      e.preventDefault();
+      if (surface === "action_blocker") {
+        p.setActionBlocker?.({ visible: false, message: "", items: [] });
+      } else if (surface === "svc_config") {
+        p.setCatalogOnboarding?.((c: any) => ({ ...c, visible: false, error: "", registeredService: null }));
+      } else if (surface === "node_provision") {
+        p.setStepperDrawerVisible?.(false);
+        p.setStepperStep?.(1);
+      } else if (surface === "catalog") {
+        p.setCatalogDrawerVisible?.(false);
+      } else if (surface === "cluster_editor") {
+        p.setClusterEditor?.((c: any) => ({ ...c, visible: false, saving: false }));
+      } else if (surface === "launch") {
+        p.setLaunchDrawerVisible?.(false);
+      } else if (surface === "deployment") {
+        p.setDeploymentModal?.((c: any) => ({ ...c, visible: false }));
+      } else if (surface === "delete_modal") {
+        p.setDeleteModal?.((c: any) => ({ ...c, visible: false }));
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  });
+
+  const toastMsg = p.toast?.message || p.notice;
+  const toastKind = p.toast?.kind || "ok";
 
   return (
     <Layout
@@ -65,23 +110,6 @@ function AuthenticatedShell() {
       serviceContext={p.selectedService?.name}
     >
       <main style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-        {(p.toast?.message || p.notice) ? (
-          <section
-            className={`toast-bar toast-${p.toast?.kind || "ok"}`}
-            role="status"
-            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem" }}
-          >
-            <span>{p.toast?.message || p.notice}</span>
-            <button
-              type="button"
-              className="toast-dismiss"
-              onClick={() => (typeof p.dismissToast === "function" ? p.dismissToast() : p.setNotice(""))}
-            >
-              Dismiss
-            </button>
-          </section>
-        ) : null}
-
         {activeView === "dashboard" || activeView === "clusters" ? <ClustersView /> : null}
         {activeView === "config" ? <ConfigView /> : null}
         {activeView === "users" ? <UsersView /> : null}
@@ -96,6 +124,27 @@ function AuthenticatedShell() {
       </main>
       <DrawersHost />
       <ModalsHost />
+      {/* cP floating toast (bottom) — auto-dismiss via showToast */}
+      {toastMsg ? (
+        <div
+          className={`toast-float toast-${toastKind} show`}
+          role="status"
+          data-ux="toast"
+          onClick={() => (typeof p.dismissToast === "function" ? p.dismissToast() : p.setNotice(""))}
+        >
+          <span className="toast-float-msg">{toastMsg}</span>
+          <button
+            type="button"
+            className="toast-dismiss"
+            onClick={(e) => {
+              e.stopPropagation();
+              typeof p.dismissToast === "function" ? p.dismissToast() : p.setNotice("");
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
     </Layout>
   );
 }

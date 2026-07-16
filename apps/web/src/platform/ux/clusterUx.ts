@@ -711,3 +711,42 @@ export function clusterFacetValues(
 
 /** Catalog drag payload id. */
 export const CATALOG_DRAG_MIME = "application/x-platformops-catalog-key";
+
+/**
+ * cP Escape close priority (clusterDetail keydown):
+ * action blocker → info detail → svc config → node provision → catalog → cluster editor → launch
+ */
+export type EscapeSurface =
+  | "action_blocker"
+  | "info_detail"
+  | "svc_config"
+  | "node_provision"
+  | "catalog"
+  | "cluster_editor"
+  | "launch"
+  | "deployment"
+  | "delete_modal"
+  | null;
+
+export function resolveEscapeClose(open: {
+  actionBlocker?: boolean;
+  infoDetail?: boolean;
+  svcConfig?: boolean;
+  nodeProvision?: boolean;
+  catalog?: boolean;
+  clusterEditor?: boolean;
+  launch?: boolean;
+  deployment?: boolean;
+  deleteModal?: boolean;
+}): EscapeSurface {
+  if (open.actionBlocker) return "action_blocker";
+  if (open.infoDetail) return "info_detail";
+  if (open.svcConfig) return "svc_config";
+  if (open.nodeProvision) return "node_provision";
+  if (open.catalog) return "catalog";
+  if (open.clusterEditor) return "cluster_editor";
+  if (open.launch) return "launch";
+  if (open.deployment) return "deployment";
+  if (open.deleteModal) return "delete_modal";
+  return null;
+}

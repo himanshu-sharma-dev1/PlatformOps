@@ -335,6 +335,34 @@ export function ClustersView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventsRefreshKey]);
 
+  // Flag for shell Escape handler: info detail drawers take priority (cP order)
+  React.useEffect(() => {
+    (window as any).__poInfoDetailOpen = Boolean(serviceDrawer.visible || nodeDrawer.visible);
+    return () => {
+      (window as any).__poInfoDetailOpen = false;
+    };
+  }, [serviceDrawer.visible, nodeDrawer.visible]);
+
+  // cP Escape: close service/node info detail drawers first
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (serviceDrawer.visible) {
+        e.preventDefault();
+        e.stopPropagation();
+        setServiceDrawer((d) => ({ ...d, visible: false, service: null }));
+        return;
+      }
+      if (nodeDrawer.visible) {
+        e.preventDefault();
+        e.stopPropagation();
+        setNodeDrawer((d) => ({ ...d, visible: false, node: null }));
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [serviceDrawer.visible, nodeDrawer.visible]);
+
   // After discover/deploy/delete mutations, re-fetch scoped events if Events drawers are open.
   React.useEffect(() => {
     if (!eventsRefreshKey) return;
@@ -1091,8 +1119,8 @@ export function ClustersView() {
                     );
                   })}
                   {nodeServices.length === 0 && (
-                    <div className="empty-state">
-                      <h3>No services on this node</h3>
+                    <div className="empty-state empty-services" data-ux="empty-services">
+                      <h3>No services installed on this node</h3>
                       <p>Open the catalog to deploy, or drag a catalog card onto this stack. Discover adopts running containers.</p>
                     </div>
                   )}

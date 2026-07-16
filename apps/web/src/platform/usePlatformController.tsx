@@ -138,12 +138,32 @@ export function usePlatformController(): PlatformApi {
   }, [s.selectedNode, s.nodeJobHistory, s.refreshClusterInventory, s.refresh, s.loadNodeJobHistory]);
 
   useEffect(() => {
-    if (!s.job || s.job.status !== "running" && s.job.status !== "queued") return;
+    if (!s.job || (s.job.status !== "running" && s.job.status !== "queued")) return;
     const interval = window.setInterval(async () => {
       try {
         const refreshedJob = await api(`/api/jobs/${s.job.id}`);
+        const prevStatus = s.job?.status;
         s.setJob(refreshedJob);
-      } catch (err) {
+        // cP edge: toast when job leaves running/queued
+        if (
+          refreshedJob &&
+          prevStatus &&
+          (prevStatus === "running" || prevStatus === "queued") &&
+          refreshedJob.status !== "running" &&
+          refreshedJob.status !== "queued"
+        ) {
+          const ok = refreshedJob.status === "success";
+          const msg = `Job #${refreshedJob.id} ${refreshedJob.action || ""}: ${refreshedJob.status}${
+            refreshedJob.error ? ` — ${refreshedJob.error}` : ""
+          }`.trim();
+          s.showToast?.(msg, ok ? "ok" : "err") || s.setNotice(msg);
+          s.setEventsRefreshKey?.((k) => Number(k || 0) + 1);
+          (s.refreshClusterInventory || s.refresh)?.().catch?.(() => {});
+          if (s.selectedNode?.id) {
+            s.loadNodeJobHistory?.(s.selectedNode.id)?.catch?.(() => {});
+          }
+        }
+      } catch (_err) {
       }
     }, 1500);
     return () => window.clearInterval(interval);

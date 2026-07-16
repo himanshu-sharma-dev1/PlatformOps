@@ -276,6 +276,14 @@ await check("buildServiceSummaryCards + normalizeLiveDependencies", () => {
   assert.equal(fallback[0].target, "c1");
 });
 
+await check("resolveEscapeClose priority", () => {
+  assert.equal(ux.resolveEscapeClose({ catalog: true, launch: true }), "catalog");
+  assert.equal(ux.resolveEscapeClose({ actionBlocker: true, catalog: true }), "action_blocker");
+  assert.equal(ux.resolveEscapeClose({ infoDetail: true, svcConfig: true }), "info_detail");
+  assert.equal(ux.resolveEscapeClose({ svcConfig: true, nodeProvision: true }), "svc_config");
+  assert.equal(ux.resolveEscapeClose({}), null);
+});
+
 await check("mergeInstallFieldValues + isAdoptedService + filterClustersAdvanced", () => {
   const merged = ux.mergeInstallFieldValues(
     { expose_service: false, host_port: "", service_version: "1" },

@@ -49,6 +49,14 @@
 
 - Manual UAT: `docs/manual-test-suite-cluster-page.md`  
 
+## Added 2026-07-15 (grind pass 4)
+
+- **Escape** closes surfaces in cP priority (blocker → info → svc config → node → catalog → cluster editor → launch → deploy → delete)  
+- Floating bottom **toast** (cP-style) with auto-dismiss  
+- Job terminal **toast** + events/inventory refresh when job leaves running  
+- Empty services copy matches cP “No services installed on this node”  
+- Open cluster auto-selects first reachable node (prior pass)  
+
 ## Ops / E2E note
 
 - **E2E mailing out of scope:** `scripts/run_e2e_tests.py` never tests invite-email/SMTP/account mail.  
