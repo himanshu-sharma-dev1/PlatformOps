@@ -709,6 +709,102 @@ export function clusterFacetValues(
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
 
+/**
+ * cP applyNodeSearchFilter — match name / host / environment / id / status haystack.
+ */
+export function filterNodes<
+  T extends {
+    name?: string;
+    host?: string;
+    environment?: string;
+    status?: string;
+    id?: string | number;
+    region?: string;
+  }
+>(nodes: T[], search: string): T[] {
+  const q = String(search || "").trim().toLowerCase();
+  if (!q) return nodes || [];
+  return (nodes || []).filter((n) => {
+    const hay = [n.name, n.host, n.environment, n.status, n.region, n.id != null ? String(n.id) : ""]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+/** Empty node-list copy when search matches nothing (cluster still has nodes). */
+export function nodeSearchEmptyMessage(query: string, totalNodes: number, matched: number): string | null {
+  const q = String(query || "").trim();
+  if (!q || totalNodes <= 0 || matched > 0) return null;
+  return `No nodes match “${q}”`;
+}
+
+/**
+ * Services on a node for the stack — drop deleted inventory rows (cP renderServicesForNode).
+ */
+export function filterNodeServices<T extends { node_id?: string | number; status?: string }>(
+  services: T[],
+  nodeId: string | number | null | undefined
+): T[] {
+  if (nodeId == null) return [];
+  return (services || []).filter(
+    (s) => String(s.node_id) === String(nodeId) && String(s.status || "").toLowerCase() !== "deleted"
+  );
+}
+
+/** Running count for services-head “N running”. */
+export function countRunningServices(
+  services: Array<{ status?: string }>,
+  liveStatuses?: Array<{ overall_status?: string } | null | undefined>
+): number {
+  if (Array.isArray(liveStatuses) && liveStatuses.length > 0) {
+    return liveStatuses.filter((l) => {
+      const st = String(l?.overall_status || "").toLowerCase();
+      return st === "running" || st === "healthy" || st === "ready";
+    }).length;
+  }
+  return (services || []).filter((s) => {
+    const st = String(s.status || "").toLowerCase();
+    return st === "running" || st === "healthy" || st === "ready";
+  }).length;
+}
+
+/** actionBusy key for per-card deploy spinner (cP setButtonLoading on deploy-service). */
+export function serviceDeployBusyKey(serviceId: string | number | null | undefined): string {
+  return `deploy:${serviceId ?? ""}`;
+}
+
+/** actionBusy key for per-card delete spinner. */
+export function serviceDeleteBusyKey(serviceId: string | number | null | undefined): string {
+  return `delete:${serviceId ?? ""}`;
+}
+
+/** Read per-service busy from actionBusy map (falls back to global deploy only if same service). */
+export function isServiceActionBusy(
+  actionBusy: Record<string, boolean> | null | undefined,
+  serviceId: string | number | null | undefined,
+  kind: "deploy" | "delete" = "deploy"
+): boolean {
+  if (!actionBusy || serviceId == null) return false;
+  const key = kind === "delete" ? serviceDeleteBusyKey(serviceId) : serviceDeployBusyKey(serviceId);
+  return Boolean(actionBusy[key]);
+}
+
+/**
+ * Close info drawer when target was deleted / removed from inventory (cP deleteService closeInfoDetailDrawer).
+ */
+export function shouldCloseDetailDrawer(
+  openId: string | number | null | undefined,
+  items: Array<{ id?: string | number; status?: string }> | null | undefined
+): boolean {
+  if (openId == null || openId === "") return false;
+  const list = items || [];
+  const found = list.find((item) => String(item.id) === String(openId));
+  if (!found) return true;
+  return String(found.status || "").toLowerCase() === "deleted";
+}
+
 /** Catalog drag payload id. */
 export const CATALOG_DRAG_MIME = "application/x-platformops-catalog-key";
 

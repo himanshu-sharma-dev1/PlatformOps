@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { api, getAuthToken, setAuthToken } from "../../api/client";
+import { withPending, serviceDeleteBusyKey } from "../ux/clusterUx";
 export function createInventoryEditorActions(s: any) {
   return {
   openClusterCreate() {
@@ -511,41 +512,64 @@ export function createInventoryEditorActions(s: any) {
 
   async confirmDelete() {
     const { targetType, targetId, targetName, force, forceReason, forceApprovalId } = s.deleteModal;
-    try {
-      if (force && forceReason.trim().length < 12) {
-        s.setNotice("Force delete requires a reason of at least 12 characters.");
-        return;
-      }
-      const reasonParam = force ? `&force_reason=${encodeURIComponent(forceReason.trim())}` : "";
-      const approvalParam = force ? `&force_approval_id=${encodeURIComponent(forceApprovalId || "")}` : "";
-      let endpoint = "";
-      if (targetType === "service") {
-        endpoint = `/api/services/${targetId}/delete?force=${force}${reasonParam}${approvalParam}`;
-      } else if (targetType === "node") {
-        endpoint = `/api/nodes/${targetId}?force=${force}${reasonParam}${approvalParam}`;
-      } else if (targetType === "cluster") {
-        endpoint = `/api/clusters/${targetId}?force=${force}${reasonParam}${approvalParam}`;
-      }
-      const result = await api(endpoint, { method: targetType === "service" ? "POST" : "DELETE" });
-      if (targetType === "service") {
-        s.setJob(result);
-        s.showToast?.(`Delete service ${targetName} job started: ${result.status}`, "warn")
-          || s.setNotice(`Delete service ${targetName} job started: ${result.status}`);
-      } else {
-        s.showToast?.(`Deleted ${targetType} ${targetName} successfully.`, "ok")
-          || s.setNotice(`Deleted ${targetType} ${targetName} successfully.`);
-      }
-      s.setDeleteModal((prev) => ({ ...prev, visible: false }));
-      if (s.selectedService?.id === targetId && targetType === "service") {
-        s.setSelectedService(null);
-        s.setCapabilities(null);
-      }
-      await (s.refreshClusterInventory || s.refresh)();
-      // Re-fetch Events if open after delete mutation
-      s.setEventsRefreshKey?.((k) => Number(k || 0) + 1);
-    } catch (error) {
-      s.showToast?.(`Delete failed: ${error.message}`, "err") || s.setNotice(`Delete failed: ${error.message}`);
+    if (force && forceReason.trim().length < 12) {
+      s.setNotice("Force delete requires a reason of at least 12 characters.");
+      return;
     }
+    // cP withPending delete-service / delete-node / delete-cluster
+    const pendingKey = `delete-${targetType}:${targetId}`;
+    const deleteKey = targetType === "service" ? serviceDeleteBusyKey(targetId) : `delete-${targetType}:${targetId}`;
+    return withPending(pendingKey, async () => {
+      s.setActionBusy?.((b) => ({ ...b, [deleteKey]: true, delete: true }));
+      try {
+        const reasonParam = force ? `&force_reason=${encodeURIComponent(forceReason.trim())}` : "";
+        const approvalParam = force ? `&force_approval_id=${encodeURIComponent(forceApprovalId || "")}` : "";
+        let endpoint = "";
+        if (targetType === "service") {
+          endpoint = `/api/services/${targetId}/delete?force=${force}${reasonParam}${approvalParam}`;
+        } else if (targetType === "node") {
+          endpoint = `/api/nodes/${targetId}?force=${force}${reasonParam}${approvalParam}`;
+        } else if (targetType === "cluster") {
+          endpoint = `/api/clusters/${targetId}?force=${force}${reasonParam}${approvalParam}`;
+        }
+        const result = await api(endpoint, { method: targetType === "service" ? "POST" : "DELETE" });
+        if (targetType === "service") {
+          s.setJob(result);
+          s.showToast?.(`Delete service ${targetName} job started: ${result.status}`, "warn")
+            || s.setNotice(`Delete service ${targetName} job started: ${result.status}`);
+        } else {
+          s.showToast?.(`Deleted ${targetType} ${targetName} successfully.`, "ok")
+            || s.setNotice(`Deleted ${targetType} ${targetName} successfully.`);
+        }
+        s.setDeleteModal((prev) => ({ ...prev, visible: false }));
+        // cP closeInfoDetailDrawer when deleted target was open
+        if (targetType === "service" && s.selectedService?.id === targetId) {
+          s.setSelectedService(null);
+          s.setCapabilities(null);
+        }
+        if (targetType === "node" && s.selectedNode?.id === targetId) {
+          s.setSelectedNode(null);
+        }
+        if (targetType === "cluster" && s.selectedCluster?.id === targetId) {
+          s.setSelectedCluster(null);
+          s.setSelectedNode(null);
+          s.setSelectedService(null);
+        }
+        // Signal detail drawers to close (ClustersView watches this)
+        s.setDetailCloseSignal?.((n) => ({
+          seq: Number((n && n.seq) || 0) + 1,
+          type: targetType,
+          id: targetId,
+        }));
+        await (s.refreshClusterInventory || s.refresh)();
+        // Re-fetch Events if open after delete mutation
+        s.setEventsRefreshKey?.((k) => Number(k || 0) + 1);
+      } catch (error) {
+        s.showToast?.(`Delete failed: ${error.message}`, "err") || s.setNotice(`Delete failed: ${error.message}`);
+      } finally {
+        s.setActionBusy?.((b) => ({ ...b, [deleteKey]: false, delete: false }));
+      }
+    });
   },
 
   async requestForceDeleteApproval() {

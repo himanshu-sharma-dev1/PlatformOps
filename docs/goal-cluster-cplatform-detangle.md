@@ -57,6 +57,15 @@
 - Empty services copy matches cP “No services installed on this node”  
 - Open cluster auto-selects first reachable node (prior pass)  
 
+## Added 2026-07-16 (grind pass 5)
+
+- **Node search** matches name / host / env / id / status (`filterNodes`); empty state + Clear when no match  
+- **filterNodeServices** drops `deleted` rows from stack + node svc counts  
+- **Per-service deploy/delete busy** (`deploy:{id}` / `delete:{id}`) — no longer freezes every card’s deploy icon  
+- **Close info drawers** on delete confirm (`detailCloseSignal`) + inventory sync if target gone  
+- **confirmDelete** / **validateNode** use `withPending` + cluster-core refresh where applicable  
+- Card `is-busy` during deploy/delete (cP `setBusyState`)  
+
 ## Ops / E2E note
 
 - **E2E mailing out of scope:** `scripts/run_e2e_tests.py` never tests invite-email/SMTP/account mail.  

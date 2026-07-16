@@ -161,6 +161,15 @@ export function useUiState() {
   const [launchDrawerVisible, setLaunchDrawerVisible] = useState(false as any);
   /** Bumped after cluster mutations so open Events panes re-fetch scoped events. */
   const [eventsRefreshKey, setEventsRefreshKey] = useState(0 as any);
+  /**
+   * cP closeInfoDetailDrawer after delete — ClustersView closes service/node drawers
+   * when seq advances for matching type/id.
+   */
+  const [detailCloseSignal, setDetailCloseSignal] = useState({
+    seq: 0,
+    type: "" as string,
+    id: null as string | number | null,
+  } as any);
   return {
     liveStatusTick, setLiveStatusTick,
     uptimeFormVisible, setUptimeFormVisible,
@@ -190,5 +199,6 @@ export function useUiState() {
     actionBlocker, setActionBlocker,
     launchDrawerVisible, setLaunchDrawerVisible,
     eventsRefreshKey, setEventsRefreshKey,
+    detailCloseSignal, setDetailCloseSignal,
   };
 }

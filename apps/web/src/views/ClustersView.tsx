@@ -19,6 +19,12 @@ import {
   normalizeLiveDependencies,
   isAdoptedService,
   CATALOG_DRAG_MIME,
+  filterNodes,
+  filterNodeServices,
+  countRunningServices,
+  nodeSearchEmptyMessage,
+  isServiceActionBusy,
+  shouldCloseDetailDrawer,
 } from "../platform/ux/clusterUx";
 import { ClusterEventsPanel } from "../components/ClusterEventsPanel";
 
@@ -343,6 +349,39 @@ export function ClustersView() {
     };
   }, [serviceDrawer.visible, nodeDrawer.visible]);
 
+  // cP deleteService/deleteNode: close info drawers when target removed (or delete confirmed)
+  const detailCloseSignal = p.detailCloseSignal as { seq?: number; type?: string; id?: string | number | null } | undefined;
+  React.useEffect(() => {
+    if (!detailCloseSignal?.seq || !detailCloseSignal.type || detailCloseSignal.id == null) return;
+    if (detailCloseSignal.type === "service" && serviceDrawer.visible && String(serviceDrawer.service?.id) === String(detailCloseSignal.id)) {
+      setServiceDrawer((d) => ({ ...d, visible: false, service: null }));
+    }
+    if (detailCloseSignal.type === "node" && nodeDrawer.visible && String(nodeDrawer.node?.id) === String(detailCloseSignal.id)) {
+      setNodeDrawer((d) => ({ ...d, visible: false, node: null }));
+    }
+    if (detailCloseSignal.type === "node" && serviceDrawer.visible && String(serviceDrawer.service?.node_id) === String(detailCloseSignal.id)) {
+      setServiceDrawer((d) => ({ ...d, visible: false, service: null }));
+    }
+    if (detailCloseSignal.type === "cluster") {
+      setServiceDrawer((d) => ({ ...d, visible: false, service: null }));
+      setNodeDrawer((d) => ({ ...d, visible: false, node: null }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailCloseSignal?.seq]);
+
+  // Inventory sync: close drawers if target disappeared (e.g. deleted by job / other session)
+  React.useEffect(() => {
+    if (serviceDrawer.visible && serviceDrawer.service?.id != null && shouldCloseDetailDrawer(serviceDrawer.service.id, services)) {
+      setServiceDrawer((d) => ({ ...d, visible: false, service: null }));
+    }
+  }, [services, serviceDrawer.visible, serviceDrawer.service?.id]);
+
+  React.useEffect(() => {
+    if (nodeDrawer.visible && nodeDrawer.node?.id != null && shouldCloseDetailDrawer(nodeDrawer.node.id, nodes)) {
+      setNodeDrawer((d) => ({ ...d, visible: false, node: null }));
+    }
+  }, [nodes, nodeDrawer.visible, nodeDrawer.node?.id]);
+
   // cP Escape: close service/node info detail drawers first
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -539,13 +578,17 @@ export function ClustersView() {
     }
 
     const clusterNodes = nodes.filter((n) => n.cluster_id === selectedCluster.id);
+    const filteredNodes = filterNodes(clusterNodes, nodeSearchQuery);
+    const nodeSearchEmpty = nodeSearchEmptyMessage(nodeSearchQuery, clusterNodes.length, filteredNodes.length);
     const clusterServices = services.filter((s) => clusterNodes.some((n) => n.id === s.node_id));
     const activeNode = selectedNode && clusterNodes.some((n) => n.id === selectedNode.id) ? selectedNode : null;
     const pipelineNodes = (observabilityPipeline?.nodes ?? []).filter((n: any) =>
       clusterNodes.some((cn) => cn.id === n.node_id)
     );
     const pipelineHealthy = pipelineNodes.filter((n: any) => n.pipeline_ready).length;
-    const nodeServices = activeNode ? services.filter((s) => s.node_id === activeNode.id) : [];
+    // cP renderServicesForNode: exclude deleted inventory rows
+    const nodeServices = activeNode ? filterNodeServices(services, activeNode.id) : [];
+    const runningOnNode = countRunningServices(nodeServices);
     const runningCount = clusterServices.filter((s) => ["running", "healthy"].includes((s.status || "").toLowerCase())).length;
     const unhealthyCount = clusterServices.filter((s) => ["error", "failed", "unhealthy"].includes((s.status || "").toLowerCase())).length;
 
@@ -632,15 +675,13 @@ export function ClustersView() {
               <input type="text" placeholder="Search nodes…" value={nodeSearchQuery} onChange={(e) => setNodeSearchQuery(e.target.value)} />
             </div>
             <div className="node-list">
-              {clusterNodes
-                .filter((n) => n.name.toLowerCase().includes(nodeSearchQuery.toLowerCase()))
-                .map((node) => {
+              {filteredNodes.map((node) => {
                   const isSelected = activeNode?.id === node.id;
-                  const nodeSvcs = services.filter((s) => s.node_id === node.id && (s.status || "") !== "deleted");
+                  const nodeSvcs = filterNodeServices(services, node.id);
                   const svcCount = nodeSvcs.length;
                   const liveRunning = isSelected && nodeLiveStatus?.node_id === node.id
                     ? nodeLiveStatus.running_count
-                    : nodeSvcs.filter((s) => ["running", "healthy"].includes((s.status || "").toLowerCase())).length;
+                    : countRunningServices(nodeSvcs);
                   const nstat = nodeRowStatusClass(node.status);
                   return (
                     <div
@@ -675,7 +716,17 @@ export function ClustersView() {
                   );
                 })}
               {clusterNodes.length === 0 && (
-                <div style={{ padding: "1.5rem", color: "var(--ink-4)", fontSize: "0.85rem" }}>No nodes. Provision a node to get started.</div>
+                <div className="empty-state empty-nodes" data-ux="empty-nodes" style={{ padding: "1.5rem" }}>
+                  <p style={{ margin: 0, color: "var(--ink-4)", fontSize: "0.85rem" }}>No nodes. Provision a node to get started.</p>
+                </div>
+              )}
+              {nodeSearchEmpty && (
+                <div className="empty-state empty-node-search" data-ux="empty-node-search" style={{ padding: "1.25rem 1rem" }}>
+                  <p style={{ margin: "0 0 0.5rem", color: "var(--ink-3)", fontSize: "0.85rem" }}>{nodeSearchEmpty}</p>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setNodeSearchQuery("")}>
+                    Clear search
+                  </button>
+                </div>
               )}
             </div>
             {/* Removed redundant provision node button */}
@@ -936,7 +987,7 @@ export function ClustersView() {
                     <span className="ct">
                       {nodeLiveStatus && nodeLiveStatus.node_id === activeNode.id
                         ? `${nodeLiveStatus.running_count} running (live${nodeLiveStatus.source ? ` · ${nodeLiveStatus.source}` : ""})`
-                        : `${nodeServices.filter((s) => ["running", "healthy"].includes((s.status || "").toLowerCase())).length} running`}
+                        : `${runningOnNode} running`}
                     </span>
                   </h3>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -1007,6 +1058,9 @@ export function ClustersView() {
                   {nodeServices.map((service) => {
                     const live = serviceLiveById[service.id] || serviceLiveById[String(service.id)];
                     const installing = isServiceInstalling(service, job);
+                    const deployBusy = isServiceActionBusy(actionBusy, service.id, "deploy");
+                    const deleteBusy = isServiceActionBusy(actionBusy, service.id, "delete");
+                    const cardBusy = installing || deployBusy || deleteBusy;
                     const displayStatus = installing
                       ? "installing"
                       : (live?.overall_status || service.status || "unknown").toLowerCase();
@@ -1021,7 +1075,7 @@ export function ClustersView() {
                     return (
                     <div
                       key={service.id}
-                      className={`svc-card ${displayStatus}${installing ? " installing" : ""}${tone === "err" ? " failed" : ""}${adopted ? " adopted" : ""}`}
+                      className={`svc-card ${displayStatus}${installing ? " installing" : ""}${tone === "err" ? " failed" : ""}${adopted ? " adopted" : ""}${cardBusy ? " is-busy" : ""}`}
                       style={{ cursor: "pointer" }}
                       onClick={() => openServiceDrawer(service, "overview")}
                       role="button"
@@ -1030,7 +1084,7 @@ export function ClustersView() {
                       data-installing={installing ? "true" : "false"}
                       data-service-id={service.id}
                       data-adopted={adopted ? "true" : "false"}
-                      data-busy={installing || actionBusy.deploy ? "true" : "false"}
+                      data-busy={cardBusy ? "true" : "false"}
                     >
                       <div className="svc-icon"><ServiceIcon serviceKey={service.service_key} /></div>
                       <div className="svc-info">
@@ -1097,22 +1151,23 @@ export function ClustersView() {
                           <svg className="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
                         </button>
                         <button
-                          className={`icon-btn ${actionBusy.deploy ? "btn-loading" : ""}`}
+                          className={`icon-btn ${deployBusy ? "btn-loading" : ""}`}
                           title="Deploy service to node target"
-                          disabled={Boolean(actionBusy.deploy)}
+                          disabled={deployBusy || deleteBusy}
                           onClick={() => {
                             if (!guardDeploy(service)) return;
                             openDeploymentModal(service);
                           }}
                         >
-                          {actionBusy.deploy ? <span className="btn-spinner" /> : <svg className="ic" viewBox="0 0 24 24"><path d="M12 2v20M17 5l-5-5-5 5"/></svg>}
+                          {deployBusy ? <span className="btn-spinner" /> : <svg className="ic" viewBox="0 0 24 24"><path d="M12 2v20M17 5l-5-5-5 5"/></svg>}
                         </button>
                         <button 
-                          className="icon-btn danger" 
-                          title="Uninstall and delete service card" 
+                          className={`icon-btn danger ${deleteBusy ? "btn-loading" : ""}`}
+                          title="Uninstall and delete service card"
+                          disabled={deleteBusy || deployBusy}
                           onClick={() => requestDelete("service", service.id, service.name)}
                         >
-                          <svg className="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m1 0v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6h12z"/></svg>
+                          {deleteBusy ? <span className="btn-spinner" /> : <svg className="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m1 0v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6h12z"/></svg>}
                         </button>
                       </div>
                     </div>

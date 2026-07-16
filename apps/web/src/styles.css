@@ -784,6 +784,25 @@ svg.ic,
   max-height: 520px;
 }
 
+/* cP applyNodeSearchFilter empty state */
+.empty-node-search,
+.empty-nodes {
+  text-align: center;
+}
+.empty-node-search p,
+.empty-nodes p {
+  line-height: 1.4;
+}
+
+/* cP setBusyState on service card during deploy/delete */
+.svc-card.is-busy {
+  pointer-events: none;
+  opacity: 0.78;
+}
+.svc-card.is-busy .icon-btn {
+  pointer-events: none;
+}
+
 .node-row {
   display: flex;
   align-items: center;

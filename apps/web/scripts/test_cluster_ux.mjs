@@ -303,6 +303,31 @@ await check("mergeInstallFieldValues + isAdoptedService + filterClustersAdvanced
   assert.ok(ux.CATALOG_DRAG_MIME.includes("catalog"));
 });
 
+await check("filterNodes + nodeSearchEmpty + filterNodeServices + busy keys", () => {
+  const nodes = [
+    { id: 1, name: "web-1", host: "10.0.0.5", environment: "production", status: "ready" },
+    { id: 2, name: "db-1", host: "10.0.0.9", environment: "development", status: "unreachable" },
+  ];
+  assert.equal(ux.filterNodes(nodes, "10.0.0.5").length, 1);
+  assert.equal(ux.filterNodes(nodes, "web").length, 1);
+  assert.equal(ux.filterNodes(nodes, "nope").length, 0);
+  assert.equal(ux.nodeSearchEmptyMessage("nope", 2, 0), 'No nodes match “nope”');
+  assert.equal(ux.nodeSearchEmptyMessage("web", 2, 1), null);
+  const svcs = [
+    { id: 10, node_id: 1, status: "running" },
+    { id: 11, node_id: 1, status: "deleted" },
+    { id: 12, node_id: 2, status: "healthy" },
+  ];
+  assert.equal(ux.filterNodeServices(svcs, 1).length, 1);
+  assert.equal(ux.countRunningServices(ux.filterNodeServices(svcs, 1)), 1);
+  assert.equal(ux.serviceDeployBusyKey(42), "deploy:42");
+  assert.equal(ux.isServiceActionBusy({ "deploy:42": true }, 42, "deploy"), true);
+  assert.equal(ux.isServiceActionBusy({ "deploy:42": true }, 99, "deploy"), false);
+  assert.equal(ux.shouldCloseDetailDrawer(10, [{ id: 10, status: "running" }]), false);
+  assert.equal(ux.shouldCloseDetailDrawer(10, [{ id: 11 }]), true);
+  assert.equal(ux.shouldCloseDetailDrawer(10, [{ id: 10, status: "deleted" }]), true);
+});
+
 const summary = `\n${passed} checks passed\n`;
 console.log(summary);
 writeFileSync(join(outDir, "ux-unit-tests-summary.txt"), summary, "utf8");

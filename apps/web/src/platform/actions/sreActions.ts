@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { api, getAuthToken, setAuthToken } from "../../api/client";
+import { withPending } from "../ux/clusterUx";
 export function createSreActions(s: any) {
   return {
   async registerSecret(service) {
@@ -389,42 +390,46 @@ export function createSreActions(s: any) {
   },
 
   async validateNode(nodeId) {
-    s.setActionBusy?.((b) => ({ ...b, validate: true }));
-    try {
-      s.setNotice(`Running configuration validation for node ${nodeId}...`);
-      const result = await api(`/api/nodes/${nodeId}/validate`, { method: "POST" });
-      s.setJob(result);
-      s.setNotice(`Node validation job #${result.id}: ${result.status}`);
-      await s.refresh();
-      await s.loadNodeJobHistory(nodeId);
-      // Poll job briefly then refresh connection (facts merge + probe)
-      if (result?.id) {
-        for (let i = 0; i < 20; i++) {
-          await new Promise((r) => setTimeout(r, 1500));
-          try {
-            const job2 = await api(`/api/jobs/${result.id}`);
-            s.setJob(job2);
-            if (job2.status === "success" || job2.status === "failed" || job2.status === "cancelled") {
-              const msg =
-                job2.status === "success"
-                  ? `Node validation succeeded (job #${job2.id})`
-                  : `Node validation ${job2.status}${job2.error ? `: ${String(job2.error).slice(0, 160)}` : ""}`;
-              s.showToast?.(msg, job2.status === "success" ? "ok" : "err") || s.setNotice(msg);
+    // cP withPending: coalesce double-clicks on Validate
+    return withPending(`validate-node:${nodeId}`, async () => {
+      s.setActionBusy?.((b) => ({ ...b, validate: true }));
+      try {
+        s.setNotice(`Running configuration validation for node ${nodeId}...`);
+        const result = await api(`/api/nodes/${nodeId}/validate`, { method: "POST" });
+        s.setJob(result);
+        s.setNotice(`Node validation job #${result.id}: ${result.status}`);
+        await (s.refreshClusterInventory || s.refresh)();
+        await s.loadNodeJobHistory(nodeId);
+        // Poll job briefly then refresh connection (facts merge + probe)
+        if (result?.id) {
+          for (let i = 0; i < 20; i++) {
+            await new Promise((r) => setTimeout(r, 1500));
+            try {
+              const job2 = await api(`/api/jobs/${result.id}`);
+              s.setJob(job2);
+              if (job2.status === "success" || job2.status === "failed" || job2.status === "cancelled") {
+                const msg =
+                  job2.status === "success"
+                    ? `Node validation succeeded (job #${job2.id})`
+                    : `Node validation ${job2.status}${job2.error ? `: ${String(job2.error).slice(0, 160)}` : ""}`;
+                s.showToast?.(msg, job2.status === "success" ? "ok" : "err") || s.setNotice(msg);
+                break;
+              }
+            } catch {
               break;
             }
-          } catch {
-            break;
           }
         }
+        await s.loadNodeConnection?.(nodeId);
+        await s.loadNodeOnboarding?.(nodeId);
+        await (s.refreshClusterInventory || s.refresh)();
+        s.setEventsRefreshKey?.((k) => Number(k || 0) + 1);
+      } catch (error) {
+        s.showToast?.(`Validation failed: ${error.message}`, "err") || s.setNotice(`Validation failed: ${error.message}`);
+      } finally {
+        s.setActionBusy?.((b) => ({ ...b, validate: false }));
       }
-      await s.loadNodeConnection?.(nodeId);
-      await s.loadNodeOnboarding?.(nodeId);
-      await s.refresh();
-    } catch (error) {
-      s.showToast?.(`Validation failed: ${error.message}`, "err") || s.setNotice(`Validation failed: ${error.message}`);
-    } finally {
-      s.setActionBusy?.((b) => ({ ...b, validate: false }));
-    }
+    });
   }
   };
 }

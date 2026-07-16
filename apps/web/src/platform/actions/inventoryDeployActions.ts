@@ -5,6 +5,7 @@ import {
   shouldShowDependencyBlocker,
   buildDependencyBlockerState,
   mergeInstallFieldValues,
+  serviceDeployBusyKey,
 } from "../ux/clusterUx";
 
 function raiseDependencyBlocker(s, details, fallbackMessage) {
@@ -385,10 +386,11 @@ export function createInventoryDeployActions(s: any) {
       });
       return;
     }
-    // cP withPending: coalesce double-clicks on deploy icon
+    // cP withPending: coalesce double-clicks on deploy icon (per-service busy, not global)
+    const deployKey = serviceDeployBusyKey(service.id);
     return withPending(`open-deploy:${service.id}`, async () => {
       s.setSelectedService(service);
-      s.setActionBusy?.((b) => ({ ...b, deploy: true }));
+      s.setActionBusy?.((b) => ({ ...b, [deployKey]: true, deploy: true }));
       s.setDeploymentModal({
         visible: true,
         serviceId: service.id,
@@ -430,7 +432,7 @@ export function createInventoryDeployActions(s: any) {
           error: error.message || "Failed to open deployment control."
         }));
       } finally {
-        s.setActionBusy?.((b) => ({ ...b, deploy: false }));
+        s.setActionBusy?.((b) => ({ ...b, [deployKey]: false, deploy: false }));
       }
     });
   },
@@ -445,8 +447,9 @@ export function createInventoryDeployActions(s: any) {
       s.setDeploymentModal((current) => ({ ...current, error: "Selected service is no longer available." }));
       return;
     }
+    const deployKey = serviceDeployBusyKey(service.id);
     return withPending(`deploy-service:${service.id}`, async () => {
-      s.setActionBusy?.((b) => ({ ...b, deploy: true }));
+      s.setActionBusy?.((b) => ({ ...b, [deployKey]: true, deploy: true }));
       s.setDeploymentModal((current) => ({ ...current, executing: true, error: "" }));
       try {
         // Prefer full execute plan; fall back to plain deploy if execute fails
@@ -507,7 +510,7 @@ export function createInventoryDeployActions(s: any) {
         }));
         s.setNotice(error.message || "Deployment execution failed.");
       } finally {
-        s.setActionBusy?.((b) => ({ ...b, deploy: false }));
+        s.setActionBusy?.((b) => ({ ...b, [deployKey]: false, deploy: false }));
       }
     });
   },
