@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # The API does not currently expose Prometheus metrics, but keeping the
+  # target on the project network makes the internal dependency useful for
+  # smoke tests and future instrumentation without publishing a host port.
+  - job_name: platformops
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["platformops:8000"]

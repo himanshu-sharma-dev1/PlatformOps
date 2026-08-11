@@ -3,6 +3,7 @@ import React from "react";
 import { GlassCard } from "../components/GlassCard";
 import { usePlatform } from "../platform/usePlatform";
 import { treeNavigator } from "../components/TreeNavigator";
+import { api } from "../api/client";
 
 /** ConfigView — Phase 1 extracted page JSX. */
 export function ConfigView() {

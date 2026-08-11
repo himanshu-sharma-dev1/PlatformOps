@@ -91,11 +91,44 @@ def _facts_json_from_payload(facts: dict | None) -> str:
     return _json.dumps(base)
 
 
+def _normalize_ingress_ports(value: Any) -> str:
+    if isinstance(value, (list, tuple, set)):
+        return ", ".join(str(item).strip() for item in value if str(item).strip())
+    return str(value or "")
+
+
 @router.post("/api/nodes", response_model=NodeOut)
 def create_node(payload: NodeCreate, db: Session = Depends(get_db)) -> Node:
-    _get_cluster(db, payload.cluster_id)
+    cluster = _get_cluster(db, payload.cluster_id)
     private_key = payload.ssh_private_key
-    node_data = payload.model_dump(exclude={"ssh_private_key", "facts"})
+    node_data = payload.model_dump(
+        exclude={
+            "ssh_private_key",
+            "facts",
+            "az",
+            "monitoring_port",
+            "instance_id",
+            "resource_id",
+            "ami_id",
+        }
+    )
+    if payload.az and not payload.availability_zone:
+        node_data["availability_zone"] = payload.az
+    if payload.monitoring_port is not None:
+        node_data["monitor_port"] = payload.monitoring_port
+    if payload.instance_id and not payload.cloud_instance_id:
+        node_data["cloud_instance_id"] = payload.instance_id
+    if payload.resource_id and not payload.cloud_resource_id:
+        node_data["cloud_resource_id"] = payload.resource_id
+    if payload.ami_id and not payload.cloud_image_id:
+        node_data["cloud_image_id"] = payload.ami_id
+    if node_data.get("region") == "local" and cluster.region and cluster.region != "local":
+        node_data["region"] = cluster.region
+    if node_data.get("provider") == "dc" and str(node_data.get("environment") or "").lower() in {"aws", "gcp"}:
+        node_data["provider"] = str(node_data["environment"]).lower()
+    if node_data.get("auth_mode") == "ssh_key" and not (payload.ssh_key_path or private_key):
+        node_data["auth_mode"] = "none"
+    node_data["ingress_ports"] = _normalize_ingress_ports(node_data.get("ingress_ports"))
     if not node_data.get("docker_network"):
         node_data["docker_network"] = "platformops_prod_network"
     facts = dict(payload.facts or {})
@@ -178,6 +211,26 @@ def update_node(node_id: int, payload: NodeUpdate, db: Session = Depends(get_db)
         return node
     if "cluster_id" in updates:
         _get_cluster(db, updates["cluster_id"])
+
+    az = updates.pop("az", None)
+    if az is not None and not updates.get("availability_zone"):
+        updates["availability_zone"] = az
+    monitoring_port = updates.pop("monitoring_port", None)
+    if monitoring_port is not None and "monitor_port" not in updates:
+        updates["monitor_port"] = monitoring_port
+    instance_id = updates.pop("instance_id", None)
+    if instance_id is not None and "cloud_instance_id" not in updates:
+        updates["cloud_instance_id"] = instance_id
+    resource_id = updates.pop("resource_id", None)
+    if resource_id is not None and "cloud_resource_id" not in updates:
+        updates["cloud_resource_id"] = resource_id
+    ami_id = updates.pop("ami_id", None)
+    if ami_id is not None and "cloud_image_id" not in updates:
+        updates["cloud_image_id"] = ami_id
+    if "ingress_ports" in updates:
+        updates["ingress_ports"] = _normalize_ingress_ports(updates["ingress_ports"])
+    if "provider" not in updates and str(updates.get("environment") or "").lower() in {"aws", "gcp"}:
+        updates["provider"] = str(updates["environment"]).lower()
 
     private_key = updates.pop("ssh_private_key", None)
     facts = updates.pop("facts", None)
@@ -276,6 +329,11 @@ def delete_node(
 
     services = db.scalars(select(ServiceInstance).where(ServiceInstance.node_id == node.id)).all()
     service_count = len(services)
+    detach_resource_references(
+        db,
+        service_ids=[service.id for service in services],
+        node_ids=[node.id],
+    )
     for s in services:
         db.delete(s)
     db.delete(node)
@@ -288,7 +346,9 @@ def delete_node(
         message=f"Deleted node '{node.name}' (cascaded {service_count} services)"
         if force
         else f"Deleted empty node '{node.name}'",
-        node_id=node_id,
+        # The node row is gone; keep the event and retain its identity in
+        # metadata rather than violating the nullable audit FK.
+        node_id=None,
         metadata={"node_id": node_id, "service_count": service_count, "force": force, "policy": policy},
     )
     if force and force_approval_id is not None:
@@ -447,5 +507,3 @@ def check_port_and_name_endpoint(
     node_id: int, port: int | None = None, name: str | None = None, db: Session = Depends(get_db)
 ) -> dict:
     return check_port_and_name_availability(db, node_id=node_id, port=port, name=name)
-
-

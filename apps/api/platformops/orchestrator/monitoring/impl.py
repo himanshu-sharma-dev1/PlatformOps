@@ -27,6 +27,7 @@ from ...models import (
 from ...settings import settings
 from ...jobs import create_job
 from ...tasks import run_job_async
+from ...query import escape_query_regex_literal
 from ..common import (
     RUNNING_STATUSES,
     _ansible_base_command,
@@ -377,11 +378,29 @@ def get_node_metrics(db: Session, node_id: int, window: str = "1h") -> dict[str,
     metric_window = _normalize_metric_window(window)
     mounted_volumes = _fetch_mounted_volumes(node)
 
-    cpu_q = '100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)'
-    mem_q = "(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100"
-    disk_q = '(1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100'
-    rx_q = "sum(rate(node_network_receive_bytes_total[5m])) * 8 / 1e6"
-    tx_q = "sum(rate(node_network_transmit_bytes_total[5m])) * 8 / 1e6"
+    try:
+        node_facts = json.loads(node.facts_json or "{}")
+    except json.JSONDecodeError:
+        node_facts = {}
+    identity_values = [
+        str(node_facts.get("prometheus_instance") or ""),
+        str(node.host or ""),
+        str(node.name or ""),
+    ]
+    identity_pattern = "|".join(escape_query_regex_literal(value) for value in identity_values if value)
+    instance_match = f'instance=~".*({identity_pattern}).*"' if identity_pattern else 'instance=~".+"'
+
+    cpu_q = f'100 - (avg(rate(node_cpu_seconds_total{{mode="idle",{instance_match}}}[5m])) * 100)'
+    mem_q = (
+        f'(1 - node_memory_MemAvailable_bytes{{{instance_match}}} '
+        f'/ node_memory_MemTotal_bytes{{{instance_match}}}) * 100'
+    )
+    disk_q = (
+        f'(1 - node_filesystem_avail_bytes{{mountpoint="/",{instance_match}}} '
+        f'/ node_filesystem_size_bytes{{mountpoint="/",{instance_match}}}) * 100'
+    )
+    rx_q = f"sum(rate(node_network_receive_bytes_total{{{instance_match}}}[5m])) * 8 / 1e6"
+    tx_q = f"sum(rate(node_network_transmit_bytes_total{{{instance_match}}}[5m])) * 8 / 1e6"
 
     ok_cpu, cpu_val = _prom_query(cpu_q)
     ok_mem, mem_val = _prom_query(mem_q)

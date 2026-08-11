@@ -3,29 +3,37 @@ import { api, getAuthToken, setAuthToken } from "../../api/client";
 export function createPerformanceActions(s: any) {
   return {
   async loadServiceMetrics(serviceId, window2 = s.serviceMetricsWindow) {
+    s.setLoadingMetrics?.(true);
     try {
       const metrics = await api(`/api/services/${serviceId}/metrics?window=${encodeURIComponent(window2)}`);
       s.setServiceMetrics(metrics);
     } catch (_error) {
       s.setServiceMetrics(null);
+    } finally {
+      s.setLoadingMetrics?.(false);
     }
   },
 
   async loadNodeMetrics(nodeId, window2 = s.nodeMetricsWindow) {
+    s.setLoadingMetrics?.(true);
     try {
       const metrics = await api(`/api/nodes/${nodeId}/metrics?window=${encodeURIComponent(window2)}`);
       s.setNodeMetrics(metrics);
     } catch (_error) {
       s.setNodeMetrics(null);
+    } finally {
+      s.setLoadingMetrics?.(false);
     }
   },
 
   async loadNodeMetricsData(nodeId) {
-    setLoadingMetrics(true);
+    s.setLoadingMetrics?.(true);
     try {
       if (nodeId) {
-        const resNode = await fetch(`/api/nodes/${nodeId}/metrics`);
-        const dataNode = await resNode.json();
+        const [dataNode, dataProc] = await Promise.all([
+          api(`/api/nodes/${nodeId}/metrics`),
+          api(`/api/metrics/processes?node_id=${encodeURIComponent(nodeId)}`)
+        ]);
         if (dataNode && !dataNode.error) {
           s.setRealtimeNodeMetrics({
             cpu: parseFloat(dataNode.cpu_percent || 0),
@@ -33,8 +41,6 @@ export function createPerformanceActions(s: any) {
             disk: parseFloat(dataNode.disk_percent || 0)
           });
         }
-        const resProc = await fetch("/api/metrics/processes");
-        const dataProc = await resProc.json();
         if (dataProc && dataProc.processes) {
           s.setProcessMetrics((dataProc.processes || []).map((p) => ({
             name: p.name || p.group || "proc",
@@ -43,12 +49,10 @@ export function createPerformanceActions(s: any) {
           })));
         }
       } else {
-        const [resNode, resProc] = await Promise.all([
-          fetch("/api/metrics/node"),
-          fetch("/api/metrics/processes")
+        const [dataNode, dataProc] = await Promise.all([
+          api("/api/metrics/node"),
+          api("/api/metrics/processes")
         ]);
-        const dataNode = await resNode.json();
-        const dataProc = await resProc.json();
         if (dataNode && !dataNode.error) {
           s.setRealtimeNodeMetrics({
             cpu: parseFloat(dataNode.cpu || 0),
@@ -67,7 +71,7 @@ export function createPerformanceActions(s: any) {
     } catch (e) {
       console.error("Failed to fetch node metrics:", e);
     } finally {
-      setLoadingMetrics(false);
+      s.setLoadingMetrics?.(false);
     }
   }
   };

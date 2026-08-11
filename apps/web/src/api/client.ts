@@ -20,38 +20,61 @@ export function setAuthToken(token: string) {
   }
 }
 
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+function buildRequestInit(init?: RequestInit): RequestInit {
   const token = getAuthToken();
-  const response = await fetch(`${API}${path}`, {
+  const headers = new Headers(init?.headers);
+  const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
+  if (!headers.has("Content-Type") && !isFormData) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init?.headers ?? {}),
-    },
-  });
+    headers,
+  };
+}
+
+function formatErrorDetail(detail: unknown, fallback: string): Error {
+  if (typeof detail === "string") return new Error(detail);
+  if (detail && typeof detail === "object") {
+    const payload = detail as Record<string, any>;
+    const action = typeof payload.recommended_action === "string" ? payload.recommended_action : "Request failed.";
+    const warnings = Array.isArray(payload.warnings) && payload.warnings.length > 0
+      ? ` Warnings: ${payload.warnings.join("; ")}`
+      : "";
+    const dependents = Array.isArray(payload.dependents) && payload.dependents.length > 0
+      ? ` Dependents: ${payload.dependents.join(", ")}`
+      : "";
+    const policyViolations = payload.policy && Array.isArray(payload.policy.violations) && payload.policy.violations.length > 0
+      ? ` Policy: ${payload.policy.violations.join("; ")}`
+      : "";
+    const error = new Error(`${action}${warnings}${dependents}${policyViolations}`) as Error & { detail?: unknown };
+    error.detail = detail;
+    return error;
+  }
+  return new Error(fallback || "Request failed.");
+}
+
+/** Authenticated response primitive for callers that need a non-JSON body. */
+export async function apiResponse(path: string, init?: RequestInit): Promise<Response> {
+  const response = await fetch(`${API}${path}`, buildRequestInit(init));
   if (!response.ok) {
     const payload = await response.json().catch(() => ({ detail: response.statusText }));
-    const detail = payload?.detail;
-    if (typeof detail === "string") {
-      throw new Error(detail);
-    }
-    if (detail && typeof detail === "object") {
-      const action = typeof detail.recommended_action === "string" ? detail.recommended_action : "Request failed.";
-      const warnings = Array.isArray(detail.warnings) && detail.warnings.length > 0
-        ? ` Warnings: ${detail.warnings.join("; ")}`
-        : "";
-      const dependents = Array.isArray(detail.dependents) && detail.dependents.length > 0
-        ? ` Dependents: ${detail.dependents.join(", ")}`
-        : "";
-      const policyViolations = detail.policy && Array.isArray(detail.policy.violations) && detail.policy.violations.length > 0
-        ? ` Policy: ${detail.policy.violations.join("; ")}`
-        : "";
-      const error = new Error(`${action}${warnings}${dependents}${policyViolations}`) as Error & { detail?: unknown };
-      error.detail = detail;
-      throw error;
-    }
-    throw new Error(response.statusText);
+    throw formatErrorDetail(payload?.detail, response.statusText);
   }
-  return response.json();
+  return response;
+}
+
+export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await apiResponse(path, init);
+  if (response.status === 204) return undefined as T;
+  return response.json() as Promise<T>;
+}
+
+/** Authenticated request helper for file/archive downloads. */
+export async function apiBlob(path: string, init?: RequestInit): Promise<Blob> {
+  const response = await apiResponse(path, init);
+  return response.blob();
 }

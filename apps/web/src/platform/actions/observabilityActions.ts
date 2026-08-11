@@ -4,7 +4,7 @@ export function createObservabilityActions(s: any) {
   return {
   async bootstrapObservability(nodeId) {
     try {
-      setObservabilityBusyNodeId(nodeId);
+      s.setObservabilityBusyNodeId(nodeId);
       const result = await api(`/api/nodes/${nodeId}/observability/bootstrap`, {
         method: "POST"
       });
@@ -14,22 +14,21 @@ export function createObservabilityActions(s: any) {
     } catch (error) {
       s.setNotice(`Observability bootstrap failed: ${error.message}`);
     } finally {
-      setObservabilityBusyNodeId(null);
+      s.setObservabilityBusyNodeId(null);
     }
   },
 
   async refreshObservabilityStackStatus() {
-    setObsStackBusy("status");
+    s.setObsStackBusy("status");
     try {
-      const res = await fetch("/api/observability/status");
-      const data = await res.json();
+      const data = await api("/api/observability/status");
       const containers = Array.isArray(data?.containers) ? data.containers : Array.isArray(data) ? data : [];
       s.setObsStackContainers(containers);
       s.setObsStackOutput("");
     } catch (e) {
       s.setObsStackOutput(e?.message || "Failed to load observability status");
     } finally {
-      setObsStackBusy("");
+      s.setObsStackBusy("");
     }
   },
 
@@ -38,8 +37,7 @@ export function createObservabilityActions(s: any) {
     s.setObsStackBusy(action);
     s.setObsStackOutput("");
     try {
-      const res = await fetch(`/api/observability/${action}`, { method: "POST" });
-      const data = await res.json();
+      const data = await api(`/api/observability/${action}`, { method: "POST" });
       const out = typeof data.output === "string" ? data.output : JSON.stringify(data, null, 2);
       s.setObsStackOutput(out || (data.success ? `${action} completed` : `${action} failed`));
       if (!data.success) s.setNotice(`Observability ${action} failed \u2014 see output`);

@@ -6,7 +6,7 @@ import socket
 import subprocess
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from ..catalog import (
@@ -15,12 +15,82 @@ from ..catalog import (
     rendered_contract,
 )
 from ..models import (
+    BackupRun,
+    CapacityReport,
+    DeploymentJob,
+    DeploymentPlanRecord,
+    DriftReport,
+    IncidentRecord,
+    LogArchive,
+    MaintenanceWindow,
+    MonitoringCheck,
     Node,
     OperationalEvent,
+    PolicyFinding,
+    ReleaseApproval,
+    ReleaseRecord,
+    RunbookExecution,
+    SecretRecord,
+    SloReport,
 )
 from ..settings import settings
+from ..security import redact_secrets, redact_text
 
 RUNNING_STATUSES = {"running", "healthy", "success"}
+
+
+def detach_resource_references(
+    db: Session,
+    *,
+    service_ids: list[int] | tuple[int, ...] = (),
+    node_ids: list[int] | tuple[int, ...] = (),
+) -> None:
+    """Detach nullable resource links before deleting inventory rows.
+
+    Operational history must survive force-deleting a service or node.  The
+    history tables deliberately make their service/node links nullable, so
+    retain each row and clear only the links that would otherwise violate a
+    foreign key during the resource cascade.  This is intentionally a small
+    application-level cleanup rather than a schema migration.
+    """
+
+    normalized_services = sorted({int(value) for value in service_ids if value is not None})
+    normalized_nodes = sorted({int(value) for value in node_ids if value is not None})
+
+    nullable_history_models = (
+        DeploymentJob,
+        IncidentRecord,
+        MaintenanceWindow,
+        MonitoringCheck,
+        OperationalEvent,
+        PolicyFinding,
+        RunbookExecution,
+        SecretRecord,
+        SloReport,
+    )
+    if normalized_services:
+        # These rows are owned by the service and cannot outlive its
+        # non-nullable foreign key.  Delete them before the service's
+        # snapshots/row are cascaded; operational/history rows above remain.
+        for model in (BackupRun, DriftReport, LogArchive, ReleaseApproval, ReleaseRecord):
+            db.execute(delete(model).where(model.service_id.in_(normalized_services)))
+        for model in nullable_history_models:
+            db.execute(
+                update(model)
+                .where(model.service_id.in_(normalized_services))
+                .values(service_id=None)
+            )
+    if normalized_nodes:
+        # Node reports/plans are likewise resource-owned and use non-nullable
+        # node references, so remove them before the node cascade.
+        for model in (CapacityReport, DeploymentPlanRecord):
+            db.execute(delete(model).where(model.node_id.in_(normalized_nodes)))
+        for model in nullable_history_models:
+            db.execute(
+                update(model)
+                .where(model.node_id.in_(normalized_nodes))
+                .values(node_id=None)
+            )
 
 
 def _service_display_name(service_key: str) -> str:
@@ -84,10 +154,10 @@ def record_event(
     event = OperationalEvent(
         category=category,
         level=level,
-        message=message,
+        message=redact_secrets(message),
         service_id=service_id,
         node_id=node_id,
-        metadata_json=json.dumps(metadata or {}),
+        metadata_json=json.dumps(redact_secrets(metadata or {})),
     )
     db.add(event)
     db.commit()
@@ -137,17 +207,19 @@ def test_git_connection(repo_type: str, repo_url: str, repo_branch: str, repo_to
 
     # Run git ls-remote to handshake with remote git host
     command = ["git", "ls-remote", "-h", url, repo_branch]
+    secret_token = repo_token or ""
     try:
         result = subprocess.run(command, capture_output=True, text=True, timeout=10)
         if result.returncode == 0:
             return {"connected": True, "message": f"Successfully verified Git remote branch '{repo_branch}'."}
         else:
-            err = result.stderr.strip() or "Connection test failed."
+            err = redact_text(result.stderr.strip() or "Connection test failed.", secrets=(secret_token,))
             raise ValueError(f"Git remote check failed: {err}")
     except subprocess.TimeoutExpired as exc:
         raise ValueError("Connection handshake timed out (10s).") from exc
     except Exception as exc:
-        raise ValueError(f"Git execution failed: {exc}") from exc
+        safe_error = redact_text(str(exc), secrets=(secret_token,))
+        raise ValueError(f"Git execution failed: {safe_error}") from exc
 
 
 def test_registry_connection(

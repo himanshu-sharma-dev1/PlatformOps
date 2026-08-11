@@ -3,6 +3,7 @@ import React from "react";
 import { GlassCard } from "../components/GlassCard";
 import { usePlatform } from "../platform/usePlatform";
 import { renderCircularGauge } from "../components/charts";
+import { api } from "../api/client";
 
 /** ReliabilityView — Phase 1 extracted page JSX. */
 export function ReliabilityView() {

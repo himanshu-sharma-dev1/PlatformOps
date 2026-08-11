@@ -35,6 +35,13 @@ class Cluster(Base):
     name: Mapped[str] = mapped_column(String(120), unique=True)
     region: Mapped[str] = mapped_column(String(120), default="local")
     environment: Mapped[str] = mapped_column(String(80), default="development")
+    # cPlatform cluster identity / deployment metadata.  Keep these as
+    # first-class columns so the editor round-trips fields that used to be
+    # accepted by the UI and silently discarded by the API.
+    description: Mapped[str] = mapped_column(Text, default="")
+    cluster_type: Mapped[str] = mapped_column(String(80), default="standalone")
+    variant: Mapped[str] = mapped_column(String(80), default="")
+    role: Mapped[str] = mapped_column(String(80), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Repository Mapping Configuration
@@ -42,12 +49,27 @@ class Cluster(Base):
     repo_url: Mapped[str] = mapped_column(String(512), default="")
     repo_branch: Mapped[str] = mapped_column(String(120), default="main")
     repo_token: Mapped[str] = mapped_column(String(512), default="")
+    repo_path: Mapped[str] = mapped_column(String(512), default="")
+    repo_auth: Mapped[str] = mapped_column(String(40), default="pat")
 
     # Container Registry Configuration
     registry_type: Mapped[str] = mapped_column(String(40), default="dockerhub")
     registry_url: Mapped[str] = mapped_column(String(512), default="")
     registry_user: Mapped[str] = mapped_column(String(120), default="")
     registry_password: Mapped[str] = mapped_column(String(512), default="")
+    registry_namespace: Mapped[str] = mapped_column(String(255), default="")
+    registry_auth: Mapped[str] = mapped_column(String(40), default="password")
+    image_store: Mapped[str] = mapped_column(String(120), default="")
+
+    @property
+    def type(self) -> str:
+        """Compatibility alias used by the cPlatform cluster editor."""
+
+        return self.cluster_type
+
+    @type.setter
+    def type(self, value: str) -> None:
+        self.cluster_type = value
 
     nodes: Mapped[list[Node]] = relationship(back_populates="cluster", cascade="all, delete-orphan")
 
@@ -62,6 +84,17 @@ class Node(Base):
     ssh_user: Mapped[str] = mapped_column(String(120), default="ubuntu")
     ssh_key_path: Mapped[str] = mapped_column(String(512), default="")
     environment: Mapped[str] = mapped_column(String(40), default=NodeEnvironment.local.value)
+    provider: Mapped[str] = mapped_column(String(80), default="dc")
+    region: Mapped[str] = mapped_column(String(120), default="local")
+    availability_zone: Mapped[str] = mapped_column(String(120), default="")
+    auth_mode: Mapped[str] = mapped_column(String(40), default="ssh_key")
+    monitor_port: Mapped[int] = mapped_column(Integer, default=9100)
+    ingress_ports: Mapped[str] = mapped_column(String(512), default="")
+    cloud_id: Mapped[str] = mapped_column(String(255), default="")
+    cloud_instance_id: Mapped[str] = mapped_column(String(255), default="")
+    cloud_resource_id: Mapped[str] = mapped_column(String(255), default="")
+    cloud_account_id: Mapped[str] = mapped_column(String(255), default="")
+    cloud_image_id: Mapped[str] = mapped_column(String(255), default="")
     volume_root: Mapped[str] = mapped_column(String(512), default="/tmp/platformops")
     docker_network: Mapped[str] = mapped_column(String(120), default="platformops_prod_network")
     status: Mapped[str] = mapped_column(String(40), default="unknown")
@@ -77,7 +110,7 @@ class ServiceInstance(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     # cPlatform-compatible public id (SERV1001…); allocated to avoid clashes with discover
-    external_id: Mapped[str] = mapped_column(String(40), default="", index=True)
+    external_id: Mapped[str] = mapped_column(String(40), default="", index=True, unique=True)
     node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"))
     service_key: Mapped[str] = mapped_column(String(120))
     name: Mapped[str] = mapped_column(String(160))
@@ -373,6 +406,7 @@ class UserInfo(Base):
     user_number: Mapped[str] = mapped_column(String(32), default="")
     status: Mapped[str] = mapped_column(String(20), default="pending")  # active|pending|disabled
     password_hash: Mapped[str] = mapped_column(String(255), default="")
+    permissions: Mapped[str] = mapped_column(Text, default="[]")
     login_count: Mapped[int] = mapped_column(Integer, default=0)
     session_info: Mapped[str] = mapped_column(Text, default="{}")
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

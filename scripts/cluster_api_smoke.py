@@ -14,14 +14,47 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
-BASE = os.environ.get("PLATFORMOPS_BASE", "http://127.0.0.1:9002")
+BASE = os.environ.get("PLATFORMOPS_BASE", "http://127.0.0.1:9004").rstrip("/")
+LIVE_PLATFORMOPS_PORT = 9002
+ISOLATED_PLATFORMOPS_PORT = 9004
+ALLOW_NON_ISOLATED = "PLATFORMOPS_CLUSTER_SMOKE_ALLOW_NON_ISOLATED"
 SCRATCH = pathlib.Path(os.environ.get("SCRATCH", "/tmp/grok-goal-d145cade8fa9/implementer"))
 SCRATCH.mkdir(parents=True, exist_ok=True)
 LOG = SCRATCH / "cluster-api-smoke.log"
 lines: list[str] = []
 failures: list[str] = []
+
+
+def validate_target() -> None:
+    """Reject the live cPlatform-coupled endpoint before any HTTP request."""
+
+    parsed = urllib.parse.urlparse(BASE)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise SystemExit(
+            "Unsafe cluster smoke target: PLATFORMOPS_BASE must be an http(s) URL "
+            "such as http://127.0.0.1:9004."
+        )
+    try:
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    except ValueError as exc:
+        raise SystemExit(f"Unsafe cluster smoke target: invalid port in {BASE!r}.") from exc
+    if port == LIVE_PLATFORMOPS_PORT:
+        raise SystemExit(
+            "Refusing cluster smoke against port 9002 (the live cPlatform stack). "
+            "Use the isolated target at http://127.0.0.1:9004."
+        )
+    if port != ISOLATED_PLATFORMOPS_PORT and os.environ.get(ALLOW_NON_ISOLATED, "").strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+    }:
+        raise SystemExit(
+            f"Refusing non-isolated cluster smoke target {BASE!r}. Expected port 9004; "
+            f"set {ALLOW_NON_ISOLATED}=1 only for an explicitly reviewed environment."
+        )
 
 
 def log(msg: str) -> None:
@@ -30,6 +63,9 @@ def log(msg: str) -> None:
 
 
 def api(path: str, method: str = "GET", body=None, token: str | None = None, timeout: int = 180):
+    public_paths = {"/api/auth/login", "/api/health"}
+    if (path.startswith("/api/") or path.startswith("/PlatformIO/")) and path not in public_paths and not token:
+        return 401, {"error": "cluster smoke refused an unauthenticated protected request"}
     data = None if body is None else json.dumps(body).encode()
     headers = {"Content-Type": "application/json"}
     if token:
@@ -48,6 +84,10 @@ def api(path: str, method: str = "GET", body=None, token: str | None = None, tim
             return e.code, json.loads(raw) if raw else {"error": str(e)}
         except json.JSONDecodeError:
             return e.code, {"raw": raw, "error": str(e)}
+    except urllib.error.URLError as exc:
+        return 0, {"error": f"request failed: {exc.reason}"}
+    except TimeoutError as exc:
+        return 0, {"error": f"request timed out: {exc}"}
 
 
 def must(cond: bool, msg: str) -> None:
@@ -59,10 +99,11 @@ def must(cond: bool, msg: str) -> None:
 
 
 def main() -> int:
+    validate_target()
     log(f"BASE={BASE}")
     code, login = api("/api/auth/login", "POST", {"email": "admin", "password": "admin"})
-    must(code == 200 and login.get("token"), f"login status={code}")
     token = login.get("token") if isinstance(login, dict) else None
+    must(code == 200 and isinstance(token, str) and bool(token.strip()), f"login status={code}")
     if not token:
         LOG.write_text("\n".join(lines) + "\nFAILURES:\n" + "\n".join(failures), encoding="utf-8")
         return 1

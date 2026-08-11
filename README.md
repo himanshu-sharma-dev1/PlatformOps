@@ -7,7 +7,19 @@
 [![Helm](https://img.shields.io/badge/Helm-3-0F1689.svg?style=flat&logo=helm)](https://helm.sh)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB.svg?style=flat&logo=python)](https://www.python.org)
 
-A portfolio-grade DevOps/SRE control plane and orchestrator built with FastAPI, React, SQLite, and Ansible. It models the core architectural patterns of modern internal developer platforms (IDPs), offering lifecycle governance, subsystem-level rollout sequencing, config management, and deep diagnostics.
+A FastAPI/React DevOps and SRE control plane being ported from the legacy
+`cPlatform` implementation. The current delivery is a functional selected-page
+MVP: the UI can remain visually different while the operator workflows use
+real isolated Docker/Ansible operations and cPlatform-compatible behavior.
+
+See [the MVP handoff](docs/mvp-status.md) for the current acceptance scope,
+verified Cluster → Node → Service workflow, runtime boundaries, limitations,
+and test strategy. The [isolated runtime guide](docs/isolated-platformops.md)
+contains the Compose lifecycle details.
+
+> **Current runtime:** PlatformOps uses host port **9004**. Optional Mailpit
+> uses **9010**. The existing cPlatform deployment and its network are kept
+> untouched.
 
 ## Key Subsystems & Features
 
@@ -42,38 +54,49 @@ A portfolio-grade DevOps/SRE control plane and orchestrator built with FastAPI, 
 - **Lifecycle Audit Window**: Summarizes blocked, forced, and safe delete activity over a configurable time window from operational events.
 - **Filtered Operations Feed**: Supports category/level/search filtering for faster troubleshooting and governance reviews.
 
-### 6. DevOps & Infrastructure Parity (Portfolio Packaging)
-- **Multi-Stage Containerization**: Custom, production-grade, secure multi-stage [Dockerfile](file:///Users/himanshusharma/PlatformOps/ops/docker/web-api/Dockerfile) built on `python:3.12-slim` that isolates dependency setups and executes under a non-root `appuser` (UID `10000`).
-- **Local Services Orchestration**: A [docker-compose.local.yml](file:///Users/himanshusharma/PlatformOps/ops/compose/docker-compose.local.yml) stack linking PostgreSQL, Redis, RabbitMQ, Prometheus, Loki, and our custom `web-api` control plane with persistent storage volumes.
-- **Infrastructure as Code (IaC)**: A mock but syntax-valid Terraform configuration located in [ops/terraform/aws/](file:///Users/himanshusharma/PlatformOps/ops/terraform/aws/) that provisions VPC, Subnet, Route Tables, Internet Gateways, Security Groups, and an Ubuntu EC2 instance representing the Control Plane orchestrator.
-- **Kubernetes Orchestration (Helm)**: A complete Helm 3 chart in [ops/helm/platformops/](file:///Users/himanshusharma/PlatformOps/ops/helm/platformops/) defining dynamic deployments, ClusterIP services, persistent volume claims, security contexts, and resource constraints to deploy PlatformOps in cloud-native K8s clusters.
-- **Developer Workflows**: Expanded [Makefile](file:///Users/himanshusharma/PlatformOps/Makefile) with shortcuts for automated linting, formatting check (via Ruff), docker build pipeline, and database teardown/cleanup actions.
+### 6. DevOps & infrastructure packaging
+- **Combined production image:** the [web/API Dockerfile](ops/docker/web-api/Dockerfile) builds the React bundle and serves it from the FastAPI image.
+- **Isolated runtime:** [docker-compose.isolated.yml](ops/compose/docker-compose.isolated.yml) provides project-scoped PostgreSQL, Redis, RabbitMQ, Prometheus, Loki, Mailpit, and a private DinD engine.
+- **Infrastructure templates:** Terraform is available under [ops/terraform/aws/](ops/terraform/aws/) and a Helm chart under [ops/helm/platformops/](ops/helm/platformops/); these are packaging/templates, not part of the selected-page runtime acceptance gate.
+- **Developer workflows:** the [Makefile](Makefile) provides compile, unit, build, isolated verification, and isolated lifecycle targets.
 
 ## Quick Start
 
-### Backend API Setup
+### Recommended isolated MVP
+
 ```bash
-# Sourcing the python environment
-source /Users/himanshusharma/venv/bin/activate
-
-# Seed database and startup API
-make check
-make api
+make isolated-verify
+make build
+PLATFORMOPS_ENABLE_MAILPIT=1 PLATFORMOPS_SMTP_HOST=mailpit make isolated-up
 ```
-The API will start reloading on `http://127.0.0.1:8000`.
 
-### Frontend Web Console Setup
+Open `http://127.0.0.1:9004` and sign in with the development bootstrap
+credentials `admin` / `admin`. Mailpit is available at
+`http://127.0.0.1:9010`. Stop the stack with `make isolated-down`; its named
+volumes are retained.
+
+### Local development
+
+For backend hot reload, install the Python dependencies and run
+`make api`. For the Vite development server:
+
 ```bash
 cd apps/web
 npm install
 npm run dev
 ```
-Open `http://localhost:5173` to explore the dashboard.
+
+The local development server is normally available at `http://localhost:5173`.
+The legacy `compose-up` target is a separate compatibility stack on port 9002;
+do not use it for isolated MVP verification or against the live cPlatform
+deployment.
 
 ## Verification
-Run all tests and verify compilation:
+Run the repository checks and frontend build:
 ```bash
 make check
 cd apps/web && npm run build
 ```
-All verification steps must compile with zero errors or warnings.
+`make check` is non-mutating and includes compilation, shipped unit tests, and
+the isolated static verifier. See [the MVP handoff](docs/mvp-status.md) for
+environment prerequisites and known test limitations.

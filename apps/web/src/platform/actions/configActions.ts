@@ -17,7 +17,7 @@ export function createConfigActions(s: any) {
     if (options?.append && s.configTimelinePage) {
       s.setConfigTimelinePage({
         ...next,
-        items: [...configTimelinePage.items, ...next.items]
+        items: [...s.configTimelinePage.items, ...next.items]
       });
       if (!options?.silent) {
         s.setNotice(`Loaded ${next.items.length} more config timeline events.`);
@@ -45,7 +45,7 @@ export function createConfigActions(s: any) {
     if (options?.append && s.snapshotPage) {
       s.setSnapshotPage({
         ...next,
-        items: [...snapshotPage.items, ...next.items]
+        items: [...s.snapshotPage.items, ...next.items]
       });
       return;
     }
@@ -81,13 +81,16 @@ export function createConfigActions(s: any) {
   },
 
   async syncPeerConfig(peerServiceId, peerName) {
-    if (!s.config) return;
-    const rolloutYaml = s.migrationArtifactId && s.migrationContent ? s.migrationContent : s.config.content;
+    if (!s.selectedService) return;
     try {
       s.setNotice(`Syncing validated config to peer ${peerName}...`);
-      const result = await api(`/api/services/${peerServiceId}/config/direct-apply`, {
+      const result = await api(`/api/services/${s.selectedService.id}/config/sync-peer`, {
         method: "POST",
-        body: JSON.stringify({ content: rolloutYaml, apply_mode: "reload" })
+        body: JSON.stringify({
+          peer_id: peerServiceId,
+          apply_mode: s.configApplyMode,
+          requested_by: "platform-operator"
+        })
       });
       s.setJob(result.job);
       s.setNotice(`Rollout sync to peer ${peerName} complete! Checkpoint v${result.before_snapshot.version} -> v${result.after_snapshot.version}`);
@@ -192,7 +195,11 @@ export function createConfigActions(s: any) {
     }
     const result = await api(`/api/services/${s.selectedService.id}/config/migration/apply`, {
       method: "POST",
-      body: JSON.stringify({ artifact_id: s.migrationArtifactId, content: s.migrationContent, requested_by: "platform-operator" })
+      body: JSON.stringify({
+        artifact_id: s.migrationArtifactId,
+        edited_yaml: s.migrationContent,
+        apply_mode: s.configApplyMode
+      })
     });
     s.setMigrationApplyResult(result);
     s.setJob(result.job);
@@ -208,7 +215,7 @@ export function createConfigActions(s: any) {
     }
     const result = await api(`/api/services/${s.selectedService.id}/config/migration/restore`, {
       method: "POST",
-      body: JSON.stringify({ artifact_id: s.migrationArtifactId, requested_by: "platform-operator" })
+      body: JSON.stringify({ artifact_id: s.migrationArtifactId, apply_mode: s.configApplyMode })
     });
     s.setMigrationApplyResult(result);
     s.setJob(result.job);

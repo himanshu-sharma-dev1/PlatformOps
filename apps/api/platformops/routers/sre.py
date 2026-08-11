@@ -201,12 +201,8 @@ def audit_exports(limit: int = 100, db: Session = Depends(get_db)) -> list[Audit
     return latest_audit_exports(db, limit=limit)
 
 
-def _mask_cluster(cluster: Cluster) -> Cluster:
-    """Return cluster ORM object with secrets masked for API responses (mutates in-memory only)."""
-    if cluster.repo_token:
-        cluster.repo_token = "***"
-    if cluster.registry_password:
-        cluster.registry_password = "***"
-    return cluster
+def _mask_cluster(cluster: Cluster) -> ClusterOut:
+    """Build a response-safe cluster without mutating the ORM identity."""
 
+    return ClusterOut.model_validate(cluster)
 

@@ -2,7 +2,11 @@
 - name: Deploy or remove a Docker service card
   hosts: all
   gather_facts: false
-  become: true
+  # The API runs local targets through Docker-in-Docker.  Ansible's local
+  # connection already executes as the API user (root in the runtime image),
+  # and the image intentionally does not contain sudo.  Keep privilege
+  # escalation for SSH targets while making the local path usable.
+  become: "{{ (ansible_connection | default('ssh')) != 'local' }}"
   vars:
     remove: false
     contract: {}

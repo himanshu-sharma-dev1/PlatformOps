@@ -5,8 +5,10 @@ import hashlib
 import hmac
 import json
 import secrets
+import smtplib
 import uuid
 from datetime import datetime, timedelta
+from email.message import EmailMessage
 from typing import Any
 
 from sqlalchemy import select
@@ -17,6 +19,32 @@ from ..settings import settings
 
 ROLES = ("System_Admin", "Operational", "Management")
 STATUSES = ("active", "pending", "disabled")
+
+
+def _send_invite_email(*, recipient: str, recipient_name: str, token: str) -> tuple[bool, str]:
+    """Deliver an invitation when SMTP is configured; never expose credentials."""
+    if not settings.smtp_host:
+        return False, "SMTP is not configured"
+    invite_url = f"{settings.public_base_url.rstrip('/')}/#/invite/{token}"
+    message = EmailMessage()
+    message["Subject"] = "PlatformOps invitation"
+    message["From"] = settings.smtp_from
+    message["To"] = recipient
+    message.set_content(
+        f"Hello {recipient_name or recipient},\n\n"
+        f"You have been invited to PlatformOps. Activate your account here:\n{invite_url}\n\n"
+        "If you did not expect this invitation, ignore this message."
+    )
+    try:
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as client:
+            if settings.smtp_starttls:
+                client.starttls()
+            if settings.smtp_username:
+                client.login(settings.smtp_username, settings.smtp_password)
+            client.send_message(message)
+        return True, "Invitation email sent"
+    except Exception as exc:
+        return False, f"Invitation created but email delivery failed: {exc}"
 
 
 def _hash_password(password: str, salt: str | None = None) -> str:
@@ -49,6 +77,20 @@ def _session_info_dict(user: UserInfo) -> dict[str, Any]:
         return {}
 
 
+def _permissions_json_list(value: str | None) -> list[str]:
+    try:
+        parsed = json.loads(value or "[]")
+    except (TypeError, json.JSONDecodeError):
+        parsed = []
+    if not isinstance(parsed, list):
+        return []
+    return [str(item) for item in parsed if str(item).strip()]
+
+
+def _permissions_list(user: UserInfo) -> list[str]:
+    return _permissions_json_list(user.permissions)
+
+
 def _user_out(user: UserInfo, *, invite_token: str = "", password_never: bool = True) -> dict[str, Any]:
     last_login = user.last_login_at.strftime("%d-%b-%y %H:%M") if user.last_login_at else "—"
     last_login_ts = int(user.last_login_at.timestamp()) if user.last_login_at else 0
@@ -58,6 +100,7 @@ def _user_out(user: UserInfo, *, invite_token: str = "", password_never: bool = 
         "user_email": user.user_email,
         "user_role": user.user_role,
         "user_number": user.user_number or "",
+        "permissions": _permissions_list(user),
         "status": user.status,
         "login_count": user.login_count or 0,
         "last_login": last_login,
@@ -72,39 +115,27 @@ def _user_out(user: UserInfo, *, invite_token: str = "", password_never: bool = 
 
 
 def ensure_bootstrap_admin(db: Session) -> UserInfo | None:
-    """Ensure bootstrap admin exists with configured credentials (default admin/admin).
+    """Create the bootstrap administrator only when no administrator exists.
 
-    Updates password/name if a prior bootstrap account is found so local demos
-    can reset credentials via settings without wiping the DB.
+    Startup must never reset a real operator's password, role, name, or status.
+    Credential rotation belongs to the authenticated user-management workflow.
     """
     email = (settings.bootstrap_admin_email or "admin").strip().lower()
     name = (settings.bootstrap_admin_name or "admin").strip() or "admin"
     password = settings.bootstrap_admin_password or "admin"
 
-    candidates = [
-        get_user_by_email(db, email),
-        get_user_by_email(db, "admin@platformops.local"),
-        db.scalar(select(UserInfo).where(UserInfo.user_name == name)),
-        db.scalar(select(UserInfo).where(UserInfo.user_name == "admin")),
-        db.scalar(select(UserInfo).where(UserInfo.user_role == "System_Admin")),
-    ]
-    user = next((u for u in candidates if u is not None), None)
+    administrator = db.scalar(select(UserInfo).where(UserInfo.user_role == "System_Admin"))
+    if administrator:
+        return administrator
 
-    if user:
-        # Keep a single bootstrap admin aligned with settings
-        if email and user.user_email != email:
-            clash = get_user_by_email(db, email)
-            if clash and clash.id != user.id:
-                user = clash
-            else:
-                user.user_email = email
-        user.user_name = name
-        user.user_role = "System_Admin"
-        user.status = "active"
-        user.password_hash = _hash_password(password)
-        db.commit()
-        db.refresh(user)
-        return user
+    identity_owner = get_user_by_email(db, email) or db.scalar(
+        select(UserInfo).where(UserInfo.user_name == name)
+    )
+    if identity_owner:
+        raise RuntimeError(
+            "Bootstrap administrator identity is already used by a non-admin account; "
+            "configure a unique PLATFORMOPS_BOOTSTRAP_ADMIN_EMAIL."
+        )
 
     user = UserInfo(
         user_id=_new_user_id(),
@@ -177,6 +208,7 @@ def create_user(
     password: str,
     user_role: str,
     user_number: str = "",
+    permissions: list[str] | None = None,
 ) -> tuple[bool, str, dict[str, Any] | None]:
     email = user_email.strip().lower()
     role = user_role if user_role in ROLES else "Operational"
@@ -195,6 +227,7 @@ def create_user(
         user_name=user_name.strip() or email.split("@")[0],
         user_role=role,
         user_number=(user_number or "").strip(),
+        permissions=json.dumps(permissions or []),
         status="active",
         password_hash=_hash_password(password),
         login_count=0,
@@ -215,6 +248,7 @@ def update_user(
     user_number: str | None = None,
     password: str | None = None,
     status: str | None = None,
+    permissions: list[str] | None = None,
 ) -> tuple[bool, str, dict[str, Any] | None]:
     user = get_user_by_id(db, user_id)
     if not user:
@@ -227,6 +261,8 @@ def update_user(
         user.user_number = user_number.strip()
     if status is not None and status in STATUSES:
         user.status = status
+    if permissions is not None:
+        user.permissions = json.dumps([str(item) for item in permissions if str(item).strip()])
     if password:
         if len(password) < 8:
             return False, "Password must be at least 8 characters.", None
@@ -296,6 +332,7 @@ def invite_user(
             user_name=name.strip() or email.split("@")[0],
             user_role=role,
             user_number=(phone or "").strip(),
+            permissions=json.dumps(permissions or []),
             status="pending",
             password_hash="",
             login_count=0,
@@ -303,6 +340,9 @@ def invite_user(
         )
         db.add(existing)
         db.flush()
+
+    if permissions is not None:
+        existing.permissions = json.dumps([str(item) for item in permissions if str(item).strip()])
 
     token = secrets.token_urlsafe(24)
     invite = InviteToken(
@@ -319,7 +359,17 @@ def invite_user(
     db.add(invite)
     db.commit()
     db.refresh(existing)
-    return True, f"Invite created for {email}.", _user_out(existing, invite_token=token)
+    delivered, delivery_message = _send_invite_email(
+        recipient=email,
+        recipient_name=existing.user_name,
+        token=token,
+    )
+    if settings.smtp_host and not delivered:
+        return True, delivery_message, _user_out(existing, invite_token=token)
+    message = f"Invite created for {email}."
+    if delivered:
+        message = f"Invite created and emailed to {email}."
+    return True, message, _user_out(existing, invite_token=token)
 
 
 def resend_invites(db: Session, emails: list[str], invited_by: str) -> dict[str, int]:
@@ -378,6 +428,7 @@ def get_invite(db: Session, token: str) -> dict[str, Any]:
             "user_name": invite.user_name,
             "user_email": invite.user_email,
             "user_role": invite.user_role,
+            "permissions": _permissions_json_list(invite.permissions),
             "invited_by": invite.invited_by,
             "expires_in_days": max(0, 30 - age.days),
         },
@@ -399,6 +450,7 @@ def accept_invite(db: Session, token: str, password: str) -> tuple[bool, str, di
     user.status = "active"
     user.password_hash = _hash_password(password)
     user.user_role = invite.user_role or user.user_role
+    user.permissions = json.dumps(_permissions_json_list(invite.permissions))
     invite.is_used = 1
     db.commit()
     db.refresh(user)

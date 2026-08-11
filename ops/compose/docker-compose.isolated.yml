@@ -1,0 +1,199 @@
+name: platformops-isolated
+
+# This file is intentionally independent from docker-compose.local.yml.  Use
+# the `isolated` profile/project through the Makefile so every resource is
+# scoped to one Compose project and the live cPlatform network is unreachable.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["isolated"]
+    environment:
+      POSTGRES_USER: ${PLATFORMOPS_POSTGRES_USER:-platformops}
+      POSTGRES_PASSWORD: ${PLATFORMOPS_POSTGRES_PASSWORD:-platformops}
+      POSTGRES_DB: ${PLATFORMOPS_POSTGRES_DB:-platformops}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    profiles: ["isolated"]
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    profiles: ["isolated"]
+    environment:
+      RABBITMQ_DEFAULT_USER: ${PLATFORMOPS_RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${PLATFORMOPS_RABBITMQ_PASSWORD:-admin}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    profiles: ["isolated"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    volumes:
+      - ./isolated/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      platformops:
+        condition: service_healthy
+
+  loki:
+    image: grafana/loki:3.2.1
+    profiles: ["isolated"]
+    command: ["-config.file=/etc/loki/config.yml"]
+    volumes:
+      - ./isolated/loki.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+
+  # A real Docker daemon owned by this Compose project.  It is privileged
+  # because dockerd needs kernel capabilities, but no host socket or host data
+  # directory is mounted.  The API reaches it only over the project network.
+  docker-engine:
+    image: docker:27.5.1-dind
+    profiles: ["isolated"]
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    command:
+      - --host=tcp://0.0.0.0:2375
+      - --host=unix:///var/run/docker.sock
+      - --tls=false
+    volumes:
+      - docker_engine_data:/var/lib/docker
+    healthcheck:
+      test: ["CMD", "docker", "info"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  platformops:
+    image: ${PLATFORMOPS_ISOLATED_IMAGE:-platformops:isolated}
+    build:
+      context: ../..
+      dockerfile: ops/docker/web-api/Dockerfile
+    profiles: ["isolated"]
+    ports:
+      - "9004:8000"
+    environment:
+      PLATFORMOPS_DATABASE_URL: postgresql+psycopg://${PLATFORMOPS_POSTGRES_USER:-platformops}:${PLATFORMOPS_POSTGRES_PASSWORD:-platformops}@postgres:5432/${PLATFORMOPS_POSTGRES_DB:-platformops}
+      PLATFORMOPS_LOCAL_MODE: "false"
+      PLATFORMOPS_PUBLIC_BASE_URL: http://localhost:9004
+      PLATFORMOPS_GLITCHTIP_BASE_URL: http://glitchtip:8000
+      PLATFORMOPS_PROMETHEUS_BASE_URL: http://prometheus:9090
+      PLATFORMOPS_LOKI_BASE_URL: http://loki:3100
+      PLATFORMOPS_LOKI_WRITE_URL: http://loki:3100
+      PLATFORMOPS_BOOTSTRAP_ADMIN_EMAIL: ${PLATFORMOPS_BOOTSTRAP_ADMIN_EMAIL:-admin}
+      PLATFORMOPS_BOOTSTRAP_ADMIN_PASSWORD: ${PLATFORMOPS_BOOTSTRAP_ADMIN_PASSWORD:-admin}
+      PLATFORMOPS_BOOTSTRAP_ADMIN_NAME: ${PLATFORMOPS_BOOTSTRAP_ADMIN_NAME:-admin}
+      PLATFORMOPS_GLITCHTIP_TOKEN: ${PLATFORMOPS_GLITCHTIP_TOKEN:-}
+      DOCKER_HOST: tcp://docker-engine:2375
+      DOCKER_TLS_CERTDIR: ""
+      PLATFORMOPS_SMTP_HOST: ${PLATFORMOPS_SMTP_HOST:-}
+      PLATFORMOPS_SMTP_PORT: ${PLATFORMOPS_SMTP_PORT:-1025}
+    volumes:
+      - platformops_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      docker-engine:
+        condition: service_healthy
+
+  # Mailpit is deliberately opt-in.  The web UI is the only dependency port
+  # published (9010); SMTP remains internal at mailpit:1025 for invite tests.
+  mailpit:
+    image: axllent/mailpit:v1.21.8
+    profiles: ["mailpit", "glitchtip"]
+    environment:
+      MP_UI_BIND_ADDR: 0.0.0.0:8025
+      MP_SMTP_BIND_ADDR: 0.0.0.0:1025
+    ports:
+      - "9010:8025"
+
+  # Optional Sentry/GlitchTip-compatible endpoint.  It has its own project
+  # database/cache volumes and no host port, so enabling it cannot collide with
+  # the live cPlatform GlitchTip service.
+  glitchtip-db:
+    image: postgres:16-alpine
+    profiles: ["glitchtip"]
+    environment:
+      POSTGRES_USER: glitchtip
+      POSTGRES_PASSWORD: glitchtip
+      POSTGRES_DB: glitchtip
+    volumes:
+      - glitchtip_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U glitchtip -d glitchtip"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  glitchtip-redis:
+    image: redis:7-alpine
+    profiles: ["glitchtip"]
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - glitchtip_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  glitchtip:
+    image: glitchtip/glitchtip:latest
+    profiles: ["glitchtip"]
+    environment:
+      DATABASE_URL: postgresql://glitchtip:glitchtip@glitchtip-db:5432/glitchtip
+      REDIS_URL: redis://glitchtip-redis:6379/0
+      SECRET_KEY: ${PLATFORMOPS_GLITCHTIP_SECRET_KEY:-platformops-isolated-development-only}
+      GLITCHTIP_DOMAIN: http://glitchtip:8000
+      ENABLE_OPEN_USER_REGISTRATION: "False"
+      PORT: "8000"
+      EMAIL_URL: smtp://mailpit:1025
+    command: ["./bin/start.sh"]
+    depends_on:
+      glitchtip-db:
+        condition: service_healthy
+      glitchtip-redis:
+        condition: service_healthy
+
+networks:
+  default:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  prometheus_data:
+  loki_data:
+  docker_engine_data:
+  platformops_data:
+  glitchtip_db_data:
+  glitchtip_redis_data:

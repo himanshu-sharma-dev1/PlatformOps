@@ -2,7 +2,9 @@
 - name: Validate PlatformOps node prerequisites
   hosts: all
   gather_facts: true
-  become: true
+  # Local/DinD validation runs as the API user, and the runtime image does
+  # not install sudo.  Keep privilege escalation for SSH nodes.
+  become: "{{ (ansible_connection | default('ssh')) != 'local' }}"
   tasks:
     - name: Check Docker CLI
       ansible.builtin.command: docker --version

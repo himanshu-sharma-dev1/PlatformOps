@@ -2,6 +2,7 @@
 import React from "react";
 import { GlassCard } from "../components/GlassCard";
 import { usePlatform } from "../platform/usePlatform";
+import { api } from "../api/client";
 
 /** UsersView — Phase 1 extracted page JSX. */
 export function UsersView() {
@@ -56,7 +57,25 @@ export function UsersView() {
                 <tr key={u.user_id} style={{ borderTop: "1px solid var(--line-2)" }}>
                   <td style={{ padding: "0.55rem 0" }}><strong>{u.user_name}</strong></td>
                   <td><code>{u.user_email}</code></td>
-                  <td><span className="pill">{u.user_role}</span></td>
+                  <td>
+                    <select
+                      className="input"
+                      value={u.user_role}
+                      onChange={async (e) => {
+                        await api(`/api/users/${u.user_id}`, {
+                          method: "PUT",
+                          body: JSON.stringify({ user_role: e.target.value })
+                        });
+                        setNotice(`Updated ${u.user_email} role`);
+                        await loadPlatformUsers();
+                      }}
+                      style={{ minWidth: 126, padding: "0.25rem 0.4rem", fontSize: "0.75rem" }}
+                    >
+                      <option value="System_Admin">System_Admin</option>
+                      <option value="Operational">Operational</option>
+                      <option value="Management">Management</option>
+                    </select>
+                  </td>
                   <td><span className={`pill ${u.status === "active" ? "pill-ok" : "pill-warn"}`}>{u.status}</span></td>
                   <td>{u.login_count} · {u.last_login}</td>
                   <td style={{ textAlign: "right" }}>
@@ -64,10 +83,20 @@ export function UsersView() {
                       <button className="btn btn-secondary btn-xs" onClick={() => { navigator.clipboard?.writeText(u.invite_link || ""); setNotice("Invite link copied"); }}>Copy invite</button>
                     ) : null}
                     {u.status === "pending" ? (
-                      <button className="btn btn-secondary btn-xs" style={{ marginLeft: 4 }} onClick={async () => {
-                        await api("/api/users/invite/revoke", { method: "POST", body: JSON.stringify({ user_email: u.user_email }) });
-                        await loadPlatformUsers();
-                      }}>Revoke</button>
+                      <>
+                        <button className="btn btn-secondary btn-xs" style={{ marginLeft: 4 }} onClick={async () => {
+                          const result = await api<any>("/api/users/invite/resend", {
+                            method: "POST",
+                            body: JSON.stringify({ emails: [u.user_email] })
+                          });
+                          setNotice(`Invite resent (${result.sent_count ?? 0} sent)`);
+                          await loadPlatformUsers();
+                        }}>Resend</button>
+                        <button className="btn btn-secondary btn-xs" style={{ marginLeft: 4 }} onClick={async () => {
+                          await api("/api/users/invite/revoke", { method: "POST", body: JSON.stringify({ user_email: u.user_email }) });
+                          await loadPlatformUsers();
+                        }}>Revoke</button>
+                      </>
                     ) : (
                       <button className="btn btn-danger btn-xs" onClick={async () => {
                         if (!window.confirm(`Delete ${u.user_email}?`)) return;

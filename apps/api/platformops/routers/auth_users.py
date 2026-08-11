@@ -89,6 +89,7 @@ def api_create_user(
         password=payload.password,
         user_role=payload.user_role,
         user_number=payload.user_number,
+        permissions=payload.permissions,
     )
     if not ok or not data:
         raise HTTPException(status_code=400, detail=msg)
@@ -110,6 +111,7 @@ def api_update_user(
         user_number=payload.user_number,
         password=payload.password,
         status=payload.status,
+        permissions=payload.permissions,
     )
     if not ok or not data:
         raise HTTPException(status_code=400, detail=msg)

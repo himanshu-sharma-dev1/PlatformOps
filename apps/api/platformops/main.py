@@ -13,12 +13,13 @@ from .deps import bearer_token, is_public_path
 from .orchestrator import users as user_mgmt
 from .orchestrator.users import ensure_bootstrap_admin
 from .routers import auth_users, ops
+from .settings import settings
 
 app = FastAPI(title="PlatformOps", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

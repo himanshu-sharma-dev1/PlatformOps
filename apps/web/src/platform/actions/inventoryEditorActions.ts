@@ -239,7 +239,7 @@ export function createInventoryEditorActions(s: any) {
   },
 
   applyNodePreset(preset) {
-    setNodePreset(preset);
+    s.setNodePreset(preset);
     s.setNodeEditor((current) => {
       if (!current.visible) return current;
       if (preset === "aws-general") {

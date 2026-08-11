@@ -29,10 +29,50 @@ from ...tasks import run_job_async
 from ..common import (
     RUNNING_STATUSES,
     _ansible_base_command,
+    _deep_merge_dict,
     _service_contract_for_node,
     _service_display_name,
     record_event,
 )
+
+
+def _normalize_install_mode(value: Any, *, default: str = "ansible") -> str:
+    """Normalize cPlatform MANUAL/ANSIBLE values to the API contract."""
+
+    raw = str(value if value is not None else default).strip().lower()
+    if raw.startswith("manual"):
+        return "manual"
+    if raw.startswith("ansible"):
+        return "ansible"
+    raise ValueError("install_mode must be 'manual' or 'ansible'")
+
+
+def _normalize_service_overrides(
+    overrides: dict[str, Any] | None,
+    *,
+    explicit_install_mode: str | None = None,
+    default_install_mode: str | None = None,
+) -> dict[str, Any]:
+    """Copy overrides and retain both legacy and canonical install fields."""
+
+    normalized = dict(overrides or {})
+    raw_mode = explicit_install_mode
+    if raw_mode is None:
+        raw_mode = normalized.get("install_mode") or normalized.get("service_install")
+    if raw_mode is not None or default_install_mode is not None:
+        mode = _normalize_install_mode(raw_mode, default=default_install_mode or "ansible")
+        normalized["install_mode"] = mode
+        # dForm still sends/reads this cPlatform spelling in a few flows.
+        normalized["service_install"] = mode.upper()
+    return normalized
+
+
+def _service_config(value: str | None) -> dict[str, Any]:
+    try:
+        parsed = json.loads(value or "{}")
+    except (TypeError, json.JSONDecodeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def create_service_instance(
@@ -55,11 +95,12 @@ def create_service_instance(
     }
     key = alias_map.get(key, key)
 
+    normalized_overrides = _normalize_service_overrides(contract_overrides, default_install_mode="ansible")
     contract = _service_contract_for_node(
         key,
         node_id=node.id,
         volume_root=node.volume_root,
-        overrides=contract_overrides,
+        overrides=normalized_overrides,
     )
     if not contract:
         # Soft contract for AIOrchestrator / dForm-only types not yet in services.yaml
@@ -99,12 +140,13 @@ def create_service_instance(
                 db.refresh(existing)
             return existing
 
-    merged = dict(contract)
-    if contract_overrides:
-        merged.update(contract_overrides)
-    install_mode = str(merged.get("install_mode") or merged.get("service_install") or "ansible").lower()
-    if install_mode in {"manual", "ansible"}:
-        merged["install_mode"] = install_mode
+    merged = _deep_merge_dict(contract, normalized_overrides)
+    install_mode = _normalize_install_mode(
+        merged.get("install_mode") or merged.get("service_install"),
+        default="ansible",
+    )
+    merged["install_mode"] = install_mode
+    merged["service_install"] = install_mode.upper()
 
     external_id = allocate_service_external_id(db)
     status = "registered" if install_mode == "manual" else "created"
@@ -114,9 +156,9 @@ def create_service_instance(
         node_id=node.id,
         service_key=key,
         name=name or contract.get("display_name") or contract.get("name") or key,
-        kind=contract.get("kind", "app"),
-        container_name=contract.get("container_name", f"node-{node.id}-{key}"),
-        image=contract.get("image", ""),
+        kind=merged.get("kind", "app"),
+        container_name=merged.get("container_name", f"node-{node.id}-{key}"),
+        image=merged.get("image", ""),
         status=status,
         config_json=json.dumps(merged),
     )
@@ -135,7 +177,7 @@ def create_service_instance(
             "kind": service.kind,
             "external_id": service.external_id,
             "install_mode": install_mode,
-            "overrides": contract_overrides or {},
+            "overrides": normalized_overrides,
         },
     )
     return service
@@ -148,23 +190,39 @@ def update_service_instance(
     name: str | None = None,
     contract_overrides: dict[str, Any] | None = None,
 ) -> ServiceInstance:
-    merged_contract = _service_contract_for_node(
+    existing_config = _service_config(service.config_json)
+    catalog_contract = _service_contract_for_node(
         service.service_key,
         node_id=service.node_id,
         volume_root=service.node.volume_root,
-        overrides=contract_overrides,
     )
-    if not merged_contract:
+    if not catalog_contract:
         raise ValueError(f"Unknown service key: {service.service_key}")
-    service.name = (
-        (name or "").strip()
-        or merged_contract.get("display_name")
-        or merged_contract.get("name")
-        or service.service_key
+    # Catalog defaults provide newly introduced keys, while the persisted
+    # contract remains authoritative for every unrelated operator override.
+    merged_contract = _deep_merge_dict(catalog_contract, existing_config)
+    existing_mode = existing_config.get("install_mode") or existing_config.get("service_install")
+    normalized_overrides = _normalize_service_overrides(
+        contract_overrides,
+        default_install_mode=_normalize_install_mode(existing_mode, default="ansible"),
     )
+    merged_contract = _deep_merge_dict(merged_contract, normalized_overrides)
+    install_mode = _normalize_install_mode(
+        merged_contract.get("install_mode") or merged_contract.get("service_install"),
+        default="ansible",
+    )
+    merged_contract["install_mode"] = install_mode
+    merged_contract["service_install"] = install_mode.upper()
+
+    if name is not None:
+        service.name = (name.strip() or service.name or merged_contract.get("display_name") or service.service_key)
+    elif not service.name:
+        service.name = merged_contract.get("display_name") or merged_contract.get("name") or service.service_key
     service.kind = merged_contract.get("kind", service.kind)
     service.container_name = merged_contract.get("container_name", service.container_name)
     service.image = merged_contract.get("image", service.image)
+    if service.status in {"created", "registered"}:
+        service.status = "registered" if install_mode == "manual" else "created"
     service.config_json = json.dumps(merged_contract)
     db.commit()
     db.refresh(service)
@@ -175,7 +233,11 @@ def update_service_instance(
         message=f"Updated service card {service.name}",
         service_id=service.id,
         node_id=service.node_id,
-        metadata={"service_key": service.service_key, "overrides": contract_overrides or {}},
+        metadata={
+            "service_key": service.service_key,
+            "install_mode": install_mode,
+            "overrides": normalized_overrides,
+        },
     )
     return service
 
@@ -1484,38 +1546,14 @@ _LIVE_STATUS_TTL_SECONDS = 5.0
 
 
 def _docker_inspect_local(container_name: str) -> tuple[dict[str, Any] | None, str | None]:
-    import subprocess
+    from ..docker_runtime import inspect_container
 
-    if not container_name:
-        return None, "empty container name"
-    try:
-        proc = subprocess.run(
-            ["docker", "inspect", container_name],
-            capture_output=True,
-            text=True,
-            timeout=20,
-        )
-        if proc.returncode != 0:
-            err = (proc.stderr or proc.stdout or "docker inspect failed").strip()
-            # Not found is not a hard failure of the platform
-            if "No such object" in err or "no such object" in err.lower():
-                return None, "not_found"
-            return None, err[:400]
-        data = json.loads(proc.stdout)
-        if isinstance(data, list) and data:
-            return data[0], None
-        return None, "empty inspect payload"
-    except FileNotFoundError:
-        return None, "docker CLI not available"
-    except Exception as exc:
-        return None, str(exc)
+    return inspect_container(container_name)
 
 
 def _docker_inspect_remote(node: Node, container_name: str) -> tuple[dict[str, Any] | None, str | None]:
     """docker inspect over SSH for true remote nodes."""
     import subprocess
-    from pathlib import Path
-
     if not container_name:
         return None, "empty container name"
     host = (node.host or "").strip()
@@ -1523,12 +1561,13 @@ def _docker_inspect_remote(node: Node, container_name: str) -> tuple[dict[str, A
     key = (node.ssh_key_path or "").strip()
     if not host:
         return None, "missing host"
-    # If PEM is not visible inside the API container, fall back to local docker
-    if key and not Path(key).is_file():
-        local, local_err = _docker_inspect_local(container_name)
-        if local is not None or local_err == "not_found":
-            return local, local_err
-        return None, f"ssh key not found in control plane: {key}"
+    # A remote node must be queried remotely.  Local Docker may represent a
+    # different host and is never a valid fallback for an SSH target.
+    if key:
+        from pathlib import Path
+
+        if not Path(key).is_file():
+            return None, f"remote SSH key not found in control plane: {key}"
     # Quote container name for remote shell
     safe_name = container_name.replace("'", "'\"'\"'")
     cmd = [
@@ -1552,23 +1591,16 @@ def _docker_inspect_remote(node: Node, container_name: str) -> tuple[dict[str, A
             combined = (err or out or "remote docker inspect failed").strip()
             if "No such object" in combined or "no such object" in combined.lower():
                 return None, "not_found"
-            # Fallback to local docker when SSH fails but we're on the same host
-            local, local_err = _docker_inspect_local(container_name)
-            if local is not None or local_err == "not_found":
-                return local, local_err
             return None, combined[:400]
         data = json.loads(out)
         if isinstance(data, list) and data:
             return data[0], None
         return None, "empty inspect payload"
     except FileNotFoundError:
-        return _docker_inspect_local(container_name)
+        return None, "ssh client not available on control plane"
     except json.JSONDecodeError:
         return None, "invalid inspect JSON from remote"
     except Exception as exc:
-        local, local_err = _docker_inspect_local(container_name)
-        if local is not None or local_err == "not_found":
-            return local, local_err
         return None, str(exc)[:400]
 
 
@@ -1632,7 +1664,7 @@ def _map_inspect_to_live(
     running = bool(state.get("Running"))
     if running:
         overall = "running"
-    elif status in {"exited", "dead"}:
+    elif status in {"exited", "dead", "stopped"}:
         overall = "exited"
     elif status in {"paused", "restarting", "created"}:
         overall = status
@@ -1685,12 +1717,26 @@ def get_service_live_status(
     else:
         inspect, err, source = _docker_inspect_for_node(node, service.container_name)
         # If local path fails and SSH is available, fall back to SSH
-        if err and node is not None and (node.ssh_key_path or "").strip() and source == "docker_inspect":
+        if (
+            err
+            and node is not None
+            and not _node_uses_local_docker(node)
+            and (node.ssh_key_path or "").strip()
+            and source == "docker_inspect"
+        ):
             inspect2, err2 = _docker_inspect_remote(node, service.container_name)
             if inspect2 is not None or err2 == "not_found":
                 inspect, err, source = inspect2, err2, "docker_inspect_ssh"
 
     result = _map_inspect_to_live(service, inspect, err, source=source)
+    if node is not None:
+        try:
+            from ..discovery import resolve_connection_mode
+
+            result["connection_mode"] = "ssh" if force_ssh else resolve_connection_mode(node)
+        except Exception:
+            result["connection_mode"] = "ssh" if force_ssh else "unknown"
+        result["host"] = node.host or ""
     result["cache_hit"] = False
 
     # Persist honest status on the inventory row when we got a real answer
@@ -1721,6 +1767,7 @@ def get_node_services_live_status(db: Session, node_id: int, *, force_ssh: bool 
     items = [get_service_live_status(db, svc, force_ssh=force_ssh) for svc in services]
     running = sum(1 for i in items if i.get("running"))
     source = "docker_inspect_ssh" if (force_ssh or not _node_uses_local_docker(node)) else "docker_inspect"
+    connection_mode = "ssh" if force_ssh else ("local" if _node_uses_local_docker(node) else "ssh")
     # Prefer reporting actual source from first item if present
     if items and items[0].get("source"):
         source = items[0]["source"]
@@ -1731,6 +1778,8 @@ def get_node_services_live_status(db: Session, node_id: int, *, force_ssh: bool 
         "items": items,
         "checked_at": datetime.utcnow().isoformat() + "Z",
         "source": source,
+        "connection_mode": connection_mode,
+        "host": node.host if node else "",
     }
 
 
@@ -1744,13 +1793,16 @@ def _live_host_ports_for_node(node: Node | None) -> set[int]:
         return ports
     try:
         if _node_uses_local_docker(node):
-            proc = subprocess.run(
-                ["docker", "ps", "--format", "{{.Ports}}"],
-                capture_output=True,
-                text=True,
-                timeout=20,
+            from ..docker_runtime import list_containers
+
+            containers, error = list_containers(all_containers=False)
+            if error:
+                raise RuntimeError(error)
+            text = " ".join(
+                str(port)
+                for container in containers
+                for port in (container.get("ports") or [])
             )
-            text = proc.stdout or ""
         else:
             host = (node.host or "").strip()
             user = (node.ssh_user or "ubuntu").strip()

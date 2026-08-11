@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React from "react";
+import React, { useEffect } from "react";
 import { GlassCard } from "../components/GlassCard";
 import { usePlatform } from "../platform/usePlatform";
 import { renderSVGTimeSeriesChart, renderUptimeAvailabilityBlocks, uptimeLatencySeries } from "../components/charts";
@@ -18,6 +18,7 @@ export function GlitchTipWorkspace() {
   const gtSdkLang = p.gtSdkLang;
   const gtSelectedIssueId = p.gtSelectedIssueId;
   const gtSelectedServiceId = p.gtSelectedServiceId;
+  const gtWindow = p.gtWindow;
   const gtTransactions = p.gtTransactions;
   const gtUptimeMonitors = p.gtUptimeMonitors;
   const incidents = p.incidents;
@@ -52,14 +53,16 @@ export function GlitchTipWorkspace() {
     setGtSelectedServiceId(val);
     const svc = services.find((s) => s.id === val);
     if (svc) {
-      loadGlitchTipDataForService(svc.name);
+      loadGlitchTipDataForService(svc.name, gtWindow);
     }
   };
-  
-  if (!gtSelectedServiceId && services.length > 0) {
-    setGtSelectedServiceId(services[0].id);
-    loadGlitchTipDataForService(services[0].name);
-  }
+
+  useEffect(() => {
+    if (gtSelectedServiceId || services.length === 0) return;
+    const firstService = services[0];
+    setGtSelectedServiceId(firstService.id);
+    loadGlitchTipDataForService(firstService.name, gtWindow);
+  }, [gtSelectedServiceId, services, gtWindow, loadGlitchTipDataForService, setGtSelectedServiceId]);
   
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
@@ -130,7 +133,7 @@ export function GlitchTipWorkspace() {
             <GlassCard style={{ padding: "1.5rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
                 <h3 style={{ fontSize: "1.25rem", fontWeight: 600 }}>Active Issues &amp; Tracebacks</h3>
-                <button className="btn btn-secondary btn-sm" onClick={() => selectedService && loadGlitchTipDataForService(selectedService.name)}>Refresh</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => selectedService && loadGlitchTipDataForService(selectedService.name, gtWindow)}>Refresh</button>
               </div>
               
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
@@ -261,7 +264,7 @@ export function GlitchTipWorkspace() {
                   <button className="btn btn-primary btn-sm" onClick={() => setUptimeFormVisible(!uptimeFormVisible)}>
                     {uptimeFormVisible ? "Cancel" : "Add Monitor"}
                   </button>
-                  <button className="btn btn-secondary btn-sm" onClick={() => selectedService && loadGlitchTipDataForService(selectedService.name)}>Refresh</button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => selectedService && loadGlitchTipDataForService(selectedService.name, gtWindow)}>Refresh</button>
                 </div>
               </div>
 

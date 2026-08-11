@@ -354,89 +354,82 @@ def _normalize_container_record(container: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _canonical_container_status(value: Any) -> str:
+    """Map Docker's human status text to the inventory status vocabulary."""
+
+    raw = str(value or "").strip().lower()
+    if raw.startswith("up") or raw in {"running", "healthy"}:
+        return "running"
+    if raw.startswith("exited") or raw in {"exited", "stopped"}:
+        return "exited"
+    if raw.startswith("dead") or raw == "dead":
+        return "dead"
+    if raw.startswith("paused") or raw == "paused":
+        return "paused"
+    if raw.startswith("restarting") or raw == "restarting":
+        return "restarting"
+    if raw.startswith("created") or raw == "created":
+        return "created"
+    return raw or "unknown"
+
+
 def _docker_ps_local() -> tuple[list[dict[str, Any]], str | None]:
-    try:
-        # Include Networks + Labels for policy scoring (not name denylists)
-        proc = subprocess.run(
-            [
-                "docker",
-                "ps",
-                "--format",
-                '{"id":"{{.ID}}","names":"{{.Names}}","image":"{{.Image}}","ports":"{{.Ports}}","status":"{{.Status}}","networks":"{{.Networks}}","labels":"{{.Labels}}"}',
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if proc.returncode != 0:
-            return [], (proc.stderr or proc.stdout or "docker ps failed").strip()
-        containers: list[dict[str, Any]] = []
-        for line in proc.stdout.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                containers.append(json.loads(line))
-            except Exception:
-                continue
-        if not containers:
-            containers = _parse_containers_payload(proc.stdout)
-        return containers, None
-    except FileNotFoundError:
-        return [], "docker CLI not available"
-    except Exception as exc:
-        return [], str(exc)
+    from .docker_runtime import list_containers
+
+    # The SDK follows DOCKER_HOST, which is how the isolated API reaches its
+    # Docker engine.  Remote nodes never enter this function.
+    return list_containers(all_containers=True)
 
 
 def _docker_ps_remote(node: Node) -> tuple[list[dict[str, Any]], str | None]:
-    try:
+    """Run discovery on the configured SSH target; never inspect local Docker."""
+
+    inventory = (node.host or "").strip()
+    user = (node.ssh_user or "ubuntu").strip()
+    key = (node.ssh_key_path or "").strip()
+    if not inventory:
+        return [], "remote discovery requires a node host"
+    if key:
         from pathlib import Path
 
-        inventory = node.host
-        user = node.ssh_user or "ubuntu"
-        key = (node.ssh_key_path or "").strip()
-        if key and not Path(key).is_file():
-            return _docker_ps_local()
-        key_arg = ["--private-key", key] if key else []
-        # Prefer ansible shell json lines
-        cmd = [
-            "ssh",
-            "-o",
-            "BatchMode=yes",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "ConnectTimeout=10",
-        ]
-        if key:
-            cmd.extend(["-i", key])
-        cmd.append(f"{user}@{inventory}")
-        cmd.append(
-            "docker ps --format "
-            "'{\"id\":\"{{.ID}}\",\"names\":\"{{.Names}}\",\"image\":\"{{.Image}}\","
-            "\"ports\":\"{{.Ports}}\",\"status\":\"{{.Status}}\",\"networks\":\"{{.Networks}}\","
-            "\"labels\":\"{{.Labels}}\"}'"
-        )
+        if not Path(key).is_file():
+            return [], f"remote SSH key not found in control plane: {key}"
+    cmd = [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "ConnectTimeout=10",
+    ]
+    if key:
+        cmd.extend(["-i", key])
+    cmd.append(f"{user}@{inventory}")
+    cmd.append(
+        "docker ps -a --format "
+        "'{\"id\":\"{{.ID}}\",\"names\":\"{{.Names}}\",\"image\":\"{{.Image}}\","
+        "\"ports\":\"{{.Ports}}\",\"status\":\"{{.Status}}\",\"networks\":\"{{.Networks}}\","
+        "\"labels\":\"{{.Labels}}\"}'"
+    )
+    try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        if proc.returncode != 0:
-            local, local_err = _docker_ps_local()
-            if local:
-                return local, None
-            return [], (proc.stderr or proc.stdout or "remote docker ps failed").strip()[:500]
-        containers = []
-        for line in proc.stdout.splitlines():
-            line = line.strip()
-            if not line.startswith("{"):
-                continue
-            try:
-                containers.append(json.loads(line))
-            except Exception:
-                continue
-        return containers, None
     except FileNotFoundError:
-        return _docker_ps_local()
+        return [], "ssh client not available on control plane"
     except Exception as exc:
-        return [], str(exc)
+        return [], str(exc)[:500]
+    if proc.returncode != 0:
+        return [], (proc.stderr or proc.stdout or "remote docker ps failed").strip()[:500]
+    containers = []
+    for line in proc.stdout.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            containers.append(json.loads(line))
+        except Exception:
+            continue
+    return containers, None
 
 
 def resolve_connection_mode(node: Node) -> str:
@@ -455,11 +448,10 @@ def resolve_connection_mode(node: Node) -> str:
     # auto
     if host in {"localhost", "127.0.0.1", "0.0.0.0", ""}:
         return "local"
-    if (node.ssh_key_path or "").strip():
-        return "ssh"
-    if (node.environment or "").lower() == "local":
-        return "local"
-    return "ssh" if host else "local"
+    # A non-loopback host is remote even when its deployment environment is
+    # labelled ``local`` (the common bare-metal profile).  Environment is not
+    # a license to inspect the control plane's Docker daemon.
+    return "ssh"
 
 
 def discover_infrastructure(db: Session, node: Node) -> dict:
@@ -476,11 +468,8 @@ def discover_infrastructure(db: Session, node: Node) -> dict:
         containers, err = _docker_ps_local()
     else:
         containers, err = _docker_ps_remote(node)
-        if err and not containers:
-            containers, err2 = _docker_ps_local()
-            if containers:
-                err = None
-                mode = "local-fallback"
+
+    connection_host = (node.host or "localhost") if mode == "local" else (node.host or "")
 
     if err is not None and not containers:
         finish_job(db, job, ok=False, output="", error=err)
@@ -497,6 +486,8 @@ def discover_infrastructure(db: Session, node: Node) -> dict:
             "containers": [],
             "summary": f"Discover failed: {err}",
             "connection_mode": mode,
+            "connection_host": connection_host,
+            "host": connection_host,
             "policy": {"min_adopt_score": min_score},
         }
 
@@ -525,6 +516,7 @@ def discover_infrastructure(db: Session, node: Node) -> dict:
         image = rec["image"]
         ports = rec["ports"]
         status = rec["status"]
+        canonical_status = _canonical_container_status(status)
         cid = rec["id"]
         networks = rec["networks"]
         labels = rec["labels"]
@@ -534,7 +526,7 @@ def discover_infrastructure(db: Session, node: Node) -> dict:
             "names": names,
             "image": image,
             "ports": ports,
-            "status": status,
+            "status": canonical_status,
             "networks": networks,
         }
         scanned.append(entry)
@@ -546,7 +538,7 @@ def discover_infrastructure(db: Session, node: Node) -> dict:
 
         existing = by_container.get(names)
         if existing:
-            new_status = "running" if "up" in str(status).lower() else existing.status
+            new_status = canonical_status
             if existing.status != new_status or (image and existing.image != image):
                 existing.status = new_status
                 if image:
@@ -618,7 +610,7 @@ def discover_infrastructure(db: Session, node: Node) -> dict:
             kind=kind,
             container_name=names,
             image=image or contract.get("image") or "",
-            status="running" if "up" in str(status).lower() else "unknown",
+            status=canonical_status,
             config_json=json.dumps(cfg_payload),
         )
         db.add(svc)
@@ -646,6 +638,8 @@ def discover_infrastructure(db: Session, node: Node) -> dict:
                 "summary": summary,
                 "policy": policy,
                 "connection_mode": mode,
+                "connection_host": connection_host,
+                "host": connection_host,
                 "containers": scanned,
                 "adopted": adopted_names,
                 "unmatched": unmatched[:50],
@@ -667,6 +661,7 @@ def discover_infrastructure(db: Session, node: Node) -> dict:
             "unmatched": len(unmatched),
             "min_score": min_score,
             "mode": mode,
+            "connection_host": connection_host,
         },
     )
     return {
@@ -683,6 +678,8 @@ def discover_infrastructure(db: Session, node: Node) -> dict:
         "summary": summary,
         "message": summary,
         "connection_mode": mode,
+        "connection_host": connection_host,
+        "host": connection_host,
         "policy": {"min_adopt_score": min_score, "ambiguity_margin": policy.get("ambiguity_margin")},
     }
 

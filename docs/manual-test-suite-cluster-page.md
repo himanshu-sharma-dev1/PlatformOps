@@ -1,7 +1,21 @@
-# Manual Test Suite — PlatformOps Cluster Page (Browser-first)
+# Manual Test Suite — PlatformOps Cluster Page (Browser-first, historical)
 
-**Purpose:** Walk every DevOps path you care about after the two goals (functional full-parity + cPlatform UX structure).  
-**Who:** You (operator), browser + optional DevTools Network tab.  
+> **Current isolated MVP notice:** This checklist was written for an older
+> cPlatform-coupled verification environment. It is retained as a detailed
+> historical/parity checklist and has **not** been revalidated end to end
+> against the isolated MVP. Current operators should use the isolated stack on
+> **port 9004** and follow [the MVP handoff](mvp-status.md), especially its
+> verified Cluster → Node → Redis smoke path.
+>
+> Any `:9002` URL, fixed remote host/PEM, `platformops_prod_network` command,
+> or direct host Docker command below is **legacy and potentially mutating**.
+> Treat those values as cPlatform-coupled and unsafe for isolated MVP testing;
+> do not run them against the live cPlatform deployment or the isolated DinD
+> runtime without explicitly adapting and reviewing the target.
+
+**Purpose:** Walk every DevOps path you care about after the two goals
+(functional full-parity + cPlatform UX structure).
+**Who:** You (operator), browser + optional DevTools Network tab.
 **When:** After FE rebuild / hard refresh, or any deploy/config change.
 
 **Related goals**
@@ -17,12 +31,14 @@
 
 | Item | Value |
 |------|--------|
-| URL | **http://127.0.0.1:9002** (or your host) |
+| Current isolated MVP URL | **http://127.0.0.1:9004** (or your host) |
+| Optional isolated Mailpit UI | **http://127.0.0.1:9010** |
+| Legacy cPlatform-coupled URL | **http://127.0.0.1:9002** — historical only; unsafe for isolated MVP |
 | Login | **Username/email field:** `admin` · **Password:** `admin` |
-| Primary cluster | **ops-cluster-verify** (id 10) |
-| Primary node (proven) | **verify-node-1** · `65.2.63.24` · env `aws` |
-| Secondary node | **node-54-183-53-93** · `54.183.53.93` · env `aws` |
-| Default docker network | `platformops_prod_network` |
+| Legacy primary cluster | **ops-cluster-verify** (id 10) — historical data only |
+| Legacy primary node | **verify-node-1** · `65.2.63.24` · env `aws` — remote host, not isolated DinD |
+| Legacy secondary node | **node-54-183-53-93** · `54.183.53.93` · env `aws` — remote host, not isolated DinD |
+| Legacy docker network | `platformops_prod_network` — do not use for isolated MVP |
 
 ### 0.2 Browser setup
 
@@ -104,7 +120,10 @@ Use **ops-cluster-verify**.
 
 ## 4. Node actions — validate / discover / probe / live (T30–T39)
 
-Select **verify-node-1** (`65.2.63.24`). SSH/PEM must work.
+Select the **legacy remote** `verify-node-1` (`65.2.63.24`) only when
+intentionally running this historical cPlatform-coupled scenario. SSH/PEM
+must work. For the isolated MVP, use the local `mvp-dind-node` described in
+[the MVP handoff](mvp-status.md).
 
 | ID | Steps | Expected | Network / effect | P/F |
 |----|-------|----------|------------------|-----|
@@ -242,15 +261,25 @@ Pick a **configurable** service (dTrain controller preferred if present).
 
 ## 13. Optional API backup (same machine)
 
-If browser looks wrong, confirm backend still green:
+If browser looks wrong, confirm backend still green. The older `:9002` commands
+shown below are **legacy-only** and cPlatform-coupled. The current
+`cluster_api_smoke.py` defaults to `:9004` and refuses `:9002`, but its deeper
+checks still assume seeded legacy node/service IDs and direct host-Docker
+inspection; review/adapt those assumptions before using it for the isolated
+MVP.
+
+For the current isolated runtime, use `scripts/run_e2e_tests.py` (defaults to
+`:9004`) and the workflow in [the MVP handoff](mvp-status.md).
 
 ```bash
+# LEGACY ONLY — cPlatform-coupled target; do not use for isolated MVP.
 cd /home/ubuntu/PlatformOps
 python3 scripts/cluster_api_smoke.py
 # expect exit 0: discover, live, dTrain apply, deploy, patch, AIOrchestrator 409
 ```
 
 ```bash
+# LEGACY UI helper — review its target assumptions before using.
 cd /home/ubuntu/PlatformOps/apps/web && npm run test:ux   # UX helper unit tests
 ```
 

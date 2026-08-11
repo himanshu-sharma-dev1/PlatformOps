@@ -198,7 +198,7 @@ def compare_config_snapshots(
 
 
 def _read_remote_config_content(service: ServiceInstance) -> tuple[str | None, str | None]:
-    """Return (content, error). Host path first, then docker exec into container."""
+    """Return (content, error) from a mounted file or the declared node."""
     import subprocess
     from pathlib import Path
 
@@ -226,7 +226,8 @@ def _read_remote_config_content(service: ServiceInstance) -> tuple[str | None, s
             except Exception as exc:
                 return None, str(exc)
 
-    # 2) docker exec into container (works for control plane with docker.sock)
+    # 2) Read from the declared node.  Local nodes use the configured SDK
+    # engine (DOCKER_HOST in the isolated stack); remote nodes stay on SSH.
     container = (service.container_name or "").strip()
     if container:
         in_container_paths = [p for p in candidates if p.startswith("/app/")]
@@ -237,10 +238,37 @@ def _read_remote_config_content(service: ServiceInstance) -> tuple[str | None, s
                 in_container_paths.append(f"/app/config/{name}")
         if not in_container_paths:
             in_container_paths = ["/app/config/dtrain_config.yaml", "/app/config/config.yaml"]
+        node = service.node
+        from .discovery import resolve_connection_mode
+
+        connection_mode = resolve_connection_mode(node) if node is not None else "local"
         for cpath in in_container_paths:
             try:
+                if connection_mode == "local":
+                    from .docker_runtime import exec_container
+
+                    ok, output, _error = exec_container(container, ["cat", cpath])
+                    if ok and output.strip():
+                        return output, None
+                    continue
+
+                if not node.host:
+                    continue
+                command = [
+                    "ansible",
+                    f"{node.host},",
+                    "-m",
+                    "command",
+                    "-a",
+                    f"docker exec {container} cat {cpath}",
+                    "-u",
+                    node.ssh_user or "ubuntu",
+                ]
+                if node.ssh_key_path:
+                    command.extend(["--private-key", node.ssh_key_path])
                 proc = subprocess.run(
-                    ["docker", "exec", container, "cat", cpath],
+                    command,
+                    cwd=str(settings.project_root),
                     capture_output=True,
                     text=True,
                     timeout=20,
@@ -250,7 +278,7 @@ def _read_remote_config_content(service: ServiceInstance) -> tuple[str | None, s
             except Exception:
                 continue
 
-    return None, f"Config file not found (tried host paths + docker exec on {container or 'n/a'})"
+    return None, f"Config file not found (tried host paths + node container exec on {container or 'n/a'})"
 
 
 def detect_drift(db: Session, service: ServiceInstance) -> DriftReport:

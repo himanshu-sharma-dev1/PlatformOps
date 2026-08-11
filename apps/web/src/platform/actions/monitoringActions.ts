@@ -5,8 +5,7 @@ export function createMonitoringActions(s: any) {
   return {
   async loadGlitchTipIntegrationStatus() {
     try {
-      const res = await fetch("/PlatformIO/Monitoring/IntegrationStatus/");
-      const data = await res.json();
+      const data = await api("/PlatformIO/Monitoring/IntegrationStatus/");
       s.setGtIntegrationStatus(data);
     } catch (e) {
       console.error("Failed to fetch GlitchTip status:", e);
@@ -16,37 +15,29 @@ export function createMonitoringActions(s: any) {
   async loadGlitchTipDataForService(serviceName, window2 = s.gtWindow) {
     if (!serviceName) return;
     try {
-      const resIssues = await fetch("/PlatformIO/Monitoring/Issues/", {
+      const dataIssues = await api("/PlatformIO/Monitoring/Issues/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ service_name: serviceName, window: "24h" })
+        body: JSON.stringify({ service_name: serviceName, window: window2 })
       });
-      const dataIssues = await resIssues.json();
       if (dataIssues.success) {
         s.setGtIssues(dataIssues.issues || []);
         s.setGtIssuesCursor(dataIssues.cursor || dataIssues.next_cursor || null);
         s.setGtIssuesHasMore(Boolean(dataIssues.has_more || dataIssues.cursor || dataIssues.next_cursor || (dataIssues.issues || []).length >= 25));
       }
-      const resUptime = await fetch("/PlatformIO/Monitoring/Uptime/", {
+      const dataUptime = await api("/PlatformIO/Monitoring/Uptime/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ service_name: serviceName })
       });
-      const dataUptime = await resUptime.json();
       if (dataUptime.success) s.setGtUptimeMonitors(dataUptime.monitors || []);
-      const resKeys = await fetch("/PlatformIO/Monitoring/Keys/", {
+      const dataKeys = await api("/PlatformIO/Monitoring/Keys/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ service_name: serviceName })
       });
-      const dataKeys = await resKeys.json();
       if (dataKeys.success) s.setGtKeys(dataKeys.keys || []);
-      const resPerf = await fetch("/PlatformIO/Monitoring/Performance/", {
+      const dataPerf = await api("/PlatformIO/Monitoring/Performance/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ service_name: serviceName })
       });
-      const dataPerf = await resPerf.json();
       if (dataPerf.success) s.setGtTransactions(dataPerf.transactions || []);
     } catch (e) {
       console.error("Failed to load GlitchTip data for service:", e);
@@ -57,12 +48,10 @@ export function createMonitoringActions(s: any) {
     const svc = s.services.find((s) => s.id === s.gtSelectedServiceId) || s.selectedService;
     if (!svc) return;
     try {
-      const res = await fetch("/PlatformIO/Monitoring/Issues/", {
+      const data = await api("/PlatformIO/Monitoring/Issues/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ service_name: svc.name, window: s.gtWindow, cursor: s.gtIssuesCursor })
       });
-      const data = await res.json();
       if (data.success) {
         const more = data.issues || [];
         s.setGtIssues((prev) => [...prev, ...more]);
@@ -75,17 +64,15 @@ export function createMonitoringActions(s: any) {
   },
 
   async loadEventDetails(issueId) {
-    setGtSelectedIssueId(issueId);
+    s.setGtSelectedIssueId(issueId);
     s.setGtEventDetails(null);
     try {
-      const res = await fetch("/PlatformIO/Monitoring/Issues/EventDetails/", {
+      const data = await api("/PlatformIO/Monitoring/Issues/EventDetails/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ issue_id: issueId })
       });
-      const data = await res.json();
       if (data.success) {
-        setGtEventDetails(data.event);
+        s.setGtEventDetails(data.event);
       } else {
         s.setNotice(`Failed to load event details: ${data.error}`);
       }
@@ -96,12 +83,10 @@ export function createMonitoringActions(s: any) {
 
   async runIssueAction(issueId, action, serviceName) {
     try {
-      const res = await fetch("/PlatformIO/Monitoring/IssueAction/", {
+      const data = await api("/PlatformIO/Monitoring/IssueAction/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ issue_id: issueId, action })
       });
-      const data = await res.json();
       if (data.success) {
         s.setNotice(`Issue status updated to ${action}`);
         await s.loadGlitchTipDataForService(serviceName);
@@ -123,9 +108,8 @@ export function createMonitoringActions(s: any) {
       return;
     }
     try {
-      const res = await fetch("/PlatformIO/Monitoring/Uptime/Add/", {
+      const data = await api("/PlatformIO/Monitoring/Uptime/Add/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           service_name: serviceName,
           name: s.uptimeForm.name,
@@ -135,7 +119,6 @@ export function createMonitoringActions(s: any) {
           expected_status: parseInt(s.uptimeForm.expected_status || 200)
         })
       });
-      const data = await res.json();
       if (data.success) {
         s.setNotice("Uptime monitor added successfully");
         s.setUptimeFormVisible(false);
@@ -153,12 +136,10 @@ export function createMonitoringActions(s: any) {
   async runDeleteMonitor(monitorId, serviceName) {
     if (!window.confirm("Are you sure you want to delete this uptime monitor?")) return;
     try {
-      const res = await fetch("/PlatformIO/Monitoring/Uptime/Delete/", {
+      const data = await api("/PlatformIO/Monitoring/Uptime/Delete/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ monitor_id: monitorId })
       });
-      const data = await res.json();
       if (data.success) {
         s.setNotice("Uptime monitor deleted successfully");
         await s.loadGlitchTipDataForService(serviceName);
@@ -176,17 +157,10 @@ export function createMonitoringActions(s: any) {
       s.setActionBusy?.((b) => ({ ...b, patch: true, [`patch:${serviceId}`]: true }));
       s.setNotice("Running observability runtime patch (GlitchTip/Sentry inject)…");
       try {
-        const headers = { "Content-Type": "application/json" };
-        try {
-          const token = getAuthToken?.() || (typeof localStorage !== "undefined" ? localStorage.getItem("platformops.auth.token") : "");
-          if (token) headers.Authorization = `Bearer ${token}`;
-        } catch (_e) { /* ignore */ }
-        const res = await fetch("/PlatformIO/Monitoring/PatchObservability/", {
+        const data = await api("/PlatformIO/Monitoring/PatchObservability/", {
           method: "POST",
-          headers,
           body: JSON.stringify({ service_id: serviceId })
         });
-        const data = await res.json().catch(() => ({}));
         const checkedAt = new Date().toISOString();
         // Only treat explicit success:true as success — HTTP 200 with success:false is a failure.
         if (data && data.success === true) {
@@ -210,7 +184,7 @@ export function createMonitoringActions(s: any) {
         }
         const errMsg =
           (data && (data.error || data.detail || data.result?.error)) ||
-          (!res.ok ? `HTTP ${res.status}` : "Patch reported success=false");
+          "Patch reported success=false";
         const fail = `Observability patch failed: ${typeof errMsg === "string" ? errMsg : JSON.stringify(errMsg)}`;
         s.showToast?.(fail, "err") || s.setNotice(fail);
         s.setRuntimePatchStatus?.({

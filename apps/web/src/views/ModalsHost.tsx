@@ -26,6 +26,7 @@ export function ModalsHost() {
   const deleteModal = p.deleteModal;
   const deploymentModal = p.deploymentModal;
   const diagnostics = p.diagnostics;
+  const downloadArchive = p.downloadArchive;
   const executeDeploymentModal = p.executeDeploymentModal;
   const installMissingDependencies = p.installMissingDependencies;
   const job = p.job;
@@ -1049,14 +1050,13 @@ export function ModalsHost() {
             <div className="modal-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", borderTop: "1px solid var(--line)", paddingTop: "1rem", flexWrap: "wrap" }}>
               <button className="btn btn-secondary btn-sm" onClick={() => setSelectedArchive(null)}>Close Preview</button>
               {selectedService && selectedArchive && (
-                <a
+                <button
                   className="btn btn-secondary btn-sm"
-                  href={`/api/services/${selectedService.id}/diagnostics/archives/${selectedArchive.id}/download`}
-                  target="_blank"
-                  rel="noreferrer"
+                  type="button"
+                  onClick={() => downloadArchive(selectedArchive.id)}
                 >
                   Download
-                </a>
+                </button>
               )}
               <button 
                 className="btn btn-primary btn-sm" 

@@ -3,21 +3,35 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from .security import redact_json_string, redact_secrets
 
 
 class ClusterCreate(BaseModel):
     name: str
     region: str = "local"
     environment: str = "development"
+    description: str = ""
+    cluster_type: str = "standalone"
+    # ``type`` is the field name used by the cPlatform editor.  Keep it as an
+    # input alias while storing the canonical value in ``cluster_type``.
+    type: str | None = None
+    variant: str = ""
+    role: str = ""
     repo_type: str = "github"
     repo_url: str = ""
     repo_branch: str = "main"
     repo_token: str = ""
+    repo_path: str = ""
+    repo_auth: str = "pat"
     registry_type: str = "dockerhub"
     registry_url: str = ""
     registry_user: str = ""
     registry_password: str = ""
+    registry_namespace: str = ""
+    registry_auth: str = "password"
+    image_store: str = ""
 
 
 class TestGitRepoRequest(BaseModel):
@@ -34,18 +48,34 @@ class TestRegistryRequest(BaseModel):
     registry_password: str | None = None
 
 
+class NodeLaunchRequest(BaseModel):
+    ami_id: str
+    instance_type: str
+    region: str
+
+
 class ClusterUpdate(BaseModel):
     name: str | None = None
     region: str | None = None
     environment: str | None = None
+    description: str | None = None
+    cluster_type: str | None = None
+    type: str | None = None
+    variant: str | None = None
+    role: str | None = None
     repo_type: str | None = None
     repo_url: str | None = None
     repo_branch: str | None = None
     repo_token: str | None = None
+    repo_path: str | None = None
+    repo_auth: str | None = None
     registry_type: str | None = None
     registry_url: str | None = None
     registry_user: str | None = None
     registry_password: str | None = None
+    registry_namespace: str | None = None
+    registry_auth: str | None = None
+    image_store: str | None = None
 
 
 class ClusterOut(BaseModel):
@@ -53,14 +83,36 @@ class ClusterOut(BaseModel):
     name: str
     region: str
     environment: str
+    description: str = ""
+    cluster_type: str = "standalone"
+    type: str = "standalone"
+    variant: str = ""
+    role: str = ""
     repo_type: str
     repo_url: str
     repo_branch: str
     repo_token: str  # Kept masked in output representation
+    repo_path: str = ""
+    repo_auth: str = "pat"
     registry_type: str
     registry_url: str
     registry_user: str
     registry_password: str  # Kept masked in output representation
+    registry_namespace: str = ""
+    registry_auth: str = "password"
+    image_store: str = ""
+
+    @field_validator("repo_token", "registry_password", mode="before")
+    @classmethod
+    def _mask_credentials(cls, value: Any) -> str:
+        return "***" if value else ""
+
+    @model_validator(mode="after")
+    def _sync_type_alias(self):
+        if not self.cluster_type and self.type:
+            self.cluster_type = self.type
+        self.type = self.cluster_type or self.type or "standalone"
+        return self
 
     model_config = {"from_attributes": True}
 
@@ -73,6 +125,22 @@ class NodeCreate(BaseModel):
     ssh_key_path: str = ""
     ssh_private_key: str | None = None
     environment: str = "local"
+    provider: str = "dc"
+    region: str = "local"
+    availability_zone: str = ""
+    az: str | None = None
+    auth_mode: str = "ssh_key"
+    monitor_port: int = 9100
+    monitoring_port: int | None = None
+    ingress_ports: str | list[int] | list[str] = ""
+    cloud_id: str = ""
+    cloud_instance_id: str = ""
+    cloud_resource_id: str = ""
+    cloud_account_id: str = ""
+    cloud_image_id: str = ""
+    instance_id: str | None = None
+    resource_id: str | None = None
+    ami_id: str | None = None
     volume_root: str = "/tmp/platformops"
     docker_network: str = "platformops_prod_network"
     facts: dict[str, Any] = Field(default_factory=dict)
@@ -86,6 +154,22 @@ class NodeUpdate(BaseModel):
     ssh_key_path: str | None = None
     ssh_private_key: str | None = None
     environment: str | None = None
+    provider: str | None = None
+    region: str | None = None
+    availability_zone: str | None = None
+    az: str | None = None
+    auth_mode: str | None = None
+    monitor_port: int | None = None
+    monitoring_port: int | None = None
+    ingress_ports: str | list[int] | list[str] | None = None
+    cloud_id: str | None = None
+    cloud_instance_id: str | None = None
+    cloud_resource_id: str | None = None
+    cloud_account_id: str | None = None
+    cloud_image_id: str | None = None
+    instance_id: str | None = None
+    resource_id: str | None = None
+    ami_id: str | None = None
     volume_root: str | None = None
     docker_network: str | None = None
     status: str | None = None
@@ -100,10 +184,30 @@ class NodeOut(BaseModel):
     ssh_user: str
     ssh_key_path: str
     environment: str
+    provider: str = "dc"
+    region: str = "local"
+    availability_zone: str = ""
+    auth_mode: str = "ssh_key"
+    monitor_port: int = 9100
+    ingress_ports: str = ""
+    cloud_id: str = ""
+    cloud_instance_id: str = ""
+    cloud_resource_id: str = ""
+    cloud_account_id: str = ""
+    cloud_image_id: str = ""
     volume_root: str
     docker_network: str
     status: str
     facts_json: str
+
+    @field_validator("facts_json", mode="before")
+    @classmethod
+    def _mask_facts(cls, value: Any) -> str:
+        import json
+
+        if isinstance(value, str):
+            return redact_json_string(value)
+        return json.dumps(redact_secrets(value if isinstance(value, dict) else {}), separators=(",", ":"))
 
     model_config = {"from_attributes": True}
 
@@ -119,6 +223,7 @@ class ServiceCreate(BaseModel):
 class ServiceUpdate(BaseModel):
     name: str | None = None
     contract_overrides: dict[str, Any] = Field(default_factory=dict)
+    install_mode: str | None = None  # manual | ansible
 
 
 class ServiceOut(BaseModel):
@@ -131,6 +236,7 @@ class ServiceOut(BaseModel):
     container_name: str
     image: str
     status: str
+    install_mode: str = "ansible"
     # Contract highlights for cluster UI (expose / adopt) — derived from config_json
     expose_service: bool = False
     host_port: str | int | None = None
@@ -160,6 +266,9 @@ class ServiceOut(BaseModel):
         object.__setattr__(data, "expose_service", bool(cfg.get("expose_service")))
         object.__setattr__(data, "host_port", cfg.get("host_port"))
         object.__setattr__(data, "adopted", bool(cfg.get("adopted")))
+        raw_mode = cfg.get("install_mode") or cfg.get("service_install") or "ansible"
+        mode = str(raw_mode).strip().lower()
+        object.__setattr__(data, "install_mode", "manual" if mode.startswith("manual") else "ansible")
         return data
 
 
@@ -181,6 +290,8 @@ class ServiceLiveStatusOut(BaseModel):
     error: str | None = None
     checked_at: str = ""
     source: str = "docker_inspect"
+    connection_mode: str = "unknown"
+    host: str = ""
     stale: bool = False
     cache_hit: bool = False
 
@@ -192,6 +303,8 @@ class NodeServicesLiveStatusOut(BaseModel):
     items: list[ServiceLiveStatusOut]
     checked_at: str = ""
     source: str = "docker_inspect"
+    connection_mode: str = "unknown"
+    host: str = ""
 
 
 class NodeInventoryCleanupIn(BaseModel):
@@ -458,6 +571,8 @@ class DiagnosticsLiveOut(BaseModel):
     has_more_history: bool
     lines: list[DiagnosticsLogLineOut]
     generated_at: str
+    connection_mode: str = "unknown"
+    error: str | None = None
 
 
 class DiagnosticsInsightActionOut(BaseModel):
@@ -523,6 +638,11 @@ class OperationalEventOut(BaseModel):
     message: str
     metadata_json: str
     created_at: datetime
+
+    @field_validator("metadata_json", mode="before")
+    @classmethod
+    def _mask_metadata(cls, value: Any) -> str:
+        return redact_json_string(value if isinstance(value, str) else "{}")
 
     model_config = {"from_attributes": True}
 
@@ -917,6 +1037,7 @@ class DiagnosticsFileHistoryOut(BaseModel):
     total_count: int = 0
     total_pages: int = 1
     next_cursor: str | None = None
+    previous_cursor: str | None = None
     error: str | None = None
 
 
@@ -971,6 +1092,7 @@ class UserOut(BaseModel):
     user_email: str
     user_role: str
     user_number: str = ""
+    permissions: list[str] = []
     status: str
     login_count: int = 0
     last_login: str = "—"
@@ -987,6 +1109,7 @@ class UserCreate(BaseModel):
     password: str
     user_role: str = "Operational"
     user_number: str = ""
+    permissions: list[str] = []
 
 
 class UserUpdate(BaseModel):
@@ -995,6 +1118,7 @@ class UserUpdate(BaseModel):
     user_number: str | None = None
     password: str | None = None
     status: str | None = None
+    permissions: list[str] | None = None
 
 
 class UserInviteCreate(BaseModel):
@@ -1240,6 +1364,12 @@ class NodeConnectionOut(BaseModel):
     validation_job: NodeValidationJobOut | None
     recommendations: list[str]
     live_probe: dict[str, Any] | None = None
+
+    @field_validator("facts", mode="before")
+    @classmethod
+    def _mask_fact_values(cls, value: Any) -> dict[str, Any]:
+        masked = redact_secrets(value if isinstance(value, dict) else {})
+        return masked if isinstance(masked, dict) else {}
 
 
 class NodeOnboardingCheckOut(BaseModel):

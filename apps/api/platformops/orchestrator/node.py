@@ -21,6 +21,7 @@ from ..settings import settings
 from ..tasks import run_job_async
 from .common import (
     _ansible_base_command,
+    detach_resource_references,
     record_event,
 )
 
@@ -115,25 +116,16 @@ def _probe_node_ssh_docker(node: Node) -> dict[str, Any]:
         "connection_mode": "local" if _is_local_docker_host(node) else "ssh",
     }
     if _is_local_docker_host(node):
-        # Local: TCP/SSH optional; docker CLI is the real gate for live status
+        # Local: use the configured Docker SDK engine (including DOCKER_HOST).
         try:
-            proc = subprocess.run(
-                ["docker", "info", "--format", "{{.ServerVersion}}"],
-                capture_output=True,
-                text=True,
-                timeout=15,
-            )
+            from .docker_runtime import engine_version
+
+            version = engine_version()
             result["ssh_ok"] = True  # control plane can reach local runtime
-            result["docker_ok"] = proc.returncode == 0
-            result["detail"] = (proc.stdout or proc.stderr or "").strip()[:200]
-            if proc.returncode != 0:
-                result["detail"] = (proc.stderr or proc.stdout or "docker info failed").strip()[:200]
-        except FileNotFoundError:
-            result["ssh_ok"] = True
-            result["docker_ok"] = False
-            result["detail"] = "docker CLI not available on control plane"
+            result["docker_ok"] = True
+            result["detail"] = version[:200] or "Docker engine reachable"
         except Exception as exc:
-            result["ssh_ok"] = False
+            result["ssh_ok"] = True
             result["docker_ok"] = False
             result["detail"] = str(exc)[:200]
         return result
@@ -145,27 +137,15 @@ def _probe_node_ssh_docker(node: Node) -> dict[str, Any]:
         result["ssh_ok"] = False
         result["detail"] = "missing host"
         return result
-    # If PEM not mounted into control plane, fall back to local docker (honest)
+    # A remote node must never be represented by the control plane's local
+    # Docker daemon when its SSH credential is unavailable.
     from pathlib import Path
 
     if key and not Path(key).is_file():
-        try:
-            proc = subprocess.run(
-                ["docker", "info", "--format", "{{.ServerVersion}}"],
-                capture_output=True,
-                text=True,
-                timeout=15,
-            )
-            result["ssh_ok"] = True
-            result["docker_ok"] = proc.returncode == 0
-            result["detail"] = f"ssh key not in control plane; local docker probe: {(proc.stdout or proc.stderr or '').strip()[:160]}"
-            result["connection_mode"] = "local-fallback"
-            return result
-        except Exception as exc:
-            result["ssh_ok"] = False
-            result["docker_ok"] = False
-            result["detail"] = f"ssh key missing and local docker failed: {exc}"
-            return result
+        result["ssh_ok"] = False
+        result["docker_ok"] = False
+        result["detail"] = f"ssh key not found in control plane: {key}"
+        return result
     cmd = [
         "ssh",
         "-o",
@@ -188,22 +168,6 @@ def _probe_node_ssh_docker(node: Node) -> dict[str, Any]:
             result["docker_ok"] = False
         result["detail"] = out.strip()[:300]
         if proc.returncode != 0:
-            # Fall back to local docker if SSH auth fails (shared host)
-            try:
-                local = subprocess.run(
-                    ["docker", "info", "--format", "{{.ServerVersion}}"],
-                    capture_output=True,
-                    text=True,
-                    timeout=15,
-                )
-                if local.returncode == 0:
-                    result["ssh_ok"] = True
-                    result["docker_ok"] = True
-                    result["detail"] = f"ssh failed, local docker ok: {(local.stdout or '').strip()[:80]}"
-                    result["connection_mode"] = "local-fallback"
-                    return result
-            except Exception:
-                pass
             result["ssh_ok"] = False
             result["detail"] = (proc.stderr or proc.stdout or "ssh failed").strip()[:300]
     except FileNotFoundError:
@@ -342,6 +306,7 @@ def cleanup_node_inventory(
 
     removed: list[dict[str, Any]] = []
     if not dry_run:
+        detach_resource_references(db, service_ids=[int(sid) for sid in candidates])
         for sid, meta in list(candidates.items()):
             svc = db.get(ServiceInstance, sid)
             if not svc:
@@ -843,6 +808,9 @@ def launch_node_vm(db: Session, node: Node, ami_id: str, instance_type: str, reg
         if bg_node:
             if ok:
                 bg_node.status = "healthy"
+                bg_node.provider = "aws"
+                bg_node.region = region
+                bg_node.cloud_image_id = ami_id
                 facts = {
                     "provider": "aws",
                     "instance_type": instance_type,
@@ -889,6 +857,16 @@ def teardown_node_vm(db: Session, node: Node) -> DeploymentJob:
         bg_node = bg_db.get(Node, node.id)
         if bg_node:
             if ok:
+                service_ids = list(
+                    bg_db.scalars(
+                        select(ServiceInstance.id).where(ServiceInstance.node_id == bg_node.id)
+                    ).all()
+                )
+                detach_resource_references(
+                    bg_db,
+                    service_ids=service_ids,
+                    node_ids=[bg_node.id],
+                )
                 bg_db.delete(bg_node)
             else:
                 bg_node.status = "error"

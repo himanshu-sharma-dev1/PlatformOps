@@ -63,6 +63,7 @@ from ..orchestrator import (
     create_release_approval,
     create_secret_record,
     create_service_instance,
+    detach_resource_references,
     decide_force_delete_approval,
     decide_release_approval,
     delete_monitoring_uptime_check,
@@ -244,6 +245,7 @@ from ..schemas import (
     NodeInventoryCleanupIn,
     NodeInventoryCleanupOut,
     NodeCreate,
+    NodeLaunchRequest,
     NodeJobHistoryOut,
     NodeMetricsOut,
     NodeOnboardingOut,
@@ -324,8 +326,7 @@ def _get_release(db: Session, release_id: int) -> ReleaseRecord:
 
 
 def _get_incident(db: Session, incident_id: int) -> IncidentRecord:
-    incident = db.get(IncidentRecord,
-    InviteToken, incident_id)
+    incident = db.get(IncidentRecord, incident_id)
     if incident is None:
         raise HTTPException(status_code=404, detail="Incident not found")
     return incident
@@ -361,13 +362,10 @@ def _get_release_approval(db: Session, approval_id: int) -> ReleaseApproval:
 
 
 
-def _mask_cluster(cluster: Cluster) -> Cluster:
-    """Return cluster ORM object with secrets masked for API responses (mutates in-memory only)."""
-    if cluster.repo_token:
-        cluster.repo_token = "***"
-    if cluster.registry_password:
-        cluster.registry_password = "***"
-    return cluster
+def _mask_cluster(cluster: Cluster) -> ClusterOut:
+    """Build a response-safe cluster without mutating the ORM identity."""
+
+    return ClusterOut.model_validate(cluster)
 
 
 def _save_ssh_private_key(node_id: int, private_key_content: str) -> str:

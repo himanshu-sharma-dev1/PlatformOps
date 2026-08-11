@@ -4,6 +4,7 @@ import { GlassCard } from "../components/GlassCard";
 import { usePlatform } from "../platform/usePlatform";
 import { LogAnalystChat } from "./LogAnalystChat";
 import { treeNavigator } from "../components/TreeNavigator";
+import { api } from "../api/client";
 
 /** DiagnosticsView — Phase 1 extracted page JSX. */
 export function DiagnosticsView() {
@@ -18,6 +19,7 @@ export function DiagnosticsView() {
   const diagFilePath = p.diagFilePath;
   const diagLogSource = p.diagLogSource;
   const diagTab = p.diagTab;
+  const downloadArchive = p.downloadArchive;
   const diagnostics = p.diagnostics;
   const diagnosticsAnalysis = p.diagnosticsAnalysis;
   const diagnosticsLive = p.diagnosticsLive;
@@ -27,6 +29,8 @@ export function DiagnosticsView() {
   const focusDiagnosticsTarget = p.focusDiagnosticsTarget;
   const formatLocalTimestamp = p.formatLocalTimestamp;
   const historyPage = p.historyPage;
+  const historyPreviousCursor = p.historyPreviousCursor;
+  const historyCursor = p.historyCursor;
   const historyTotalPages = p.historyTotalPages;
   const ingestionStats = p.ingestionStats;
   const loadDiagnostics = p.loadDiagnostics;
@@ -51,6 +55,7 @@ export function DiagnosticsView() {
   const setDiagnosticsLive = p.setDiagnosticsLive;
   const setHistoryCursor = p.setHistoryCursor;
   const setHistoryPage = p.setHistoryPage;
+  const setHistoryPreviousCursor = p.setHistoryPreviousCursor;
   const setIngestionStats = p.setIngestionStats;
   const setLogAutoScroll = p.setLogAutoScroll;
   const setLogLevelFilters = p.setLogLevelFilters;
@@ -306,6 +311,7 @@ export function DiagnosticsView() {
                         setDiagLogSource(src);
                         setHistoryPage(1);
                         setHistoryCursor("");
+                        setHistoryPreviousCursor?.("");
                         if (selectedService) await loadDiagnosticsLive(selectedService, { source: src, page: 1, cursor: 0 });
                       }}
                       className="input"
@@ -350,15 +356,23 @@ export function DiagnosticsView() {
                     <button type="button" className="btn btn-secondary btn-xs" onClick={() => setDiagnosticsLive((prev) => prev ? { ...prev, lines: [] } : prev)}>Clear</button>
                     {(diagLogSource === "container_history" || diagLogSource === "file_history") && (
                       <>
-                        <button type="button" className="btn btn-secondary btn-xs" disabled={historyPage <= 1} onClick={async () => {
+                        <button type="button" className="btn btn-secondary btn-xs" disabled={historyPage <= 1 && !historyPreviousCursor} onClick={async () => {
                           const p = Math.max(1, historyPage - 1);
                           setHistoryPage(p);
-                          if (selectedService) await loadDiagnosticsLive(selectedService, { source: diagLogSource, page: p });
+                          if (selectedService) await loadDiagnosticsLive(selectedService, {
+                            source: diagLogSource,
+                            page: p,
+                            cursor: historyPreviousCursor || undefined,
+                          });
                         }}>Newer</button>
-                        <button type="button" className="btn btn-secondary btn-xs" onClick={async () => {
+                        <button type="button" className="btn btn-secondary btn-xs" disabled={Boolean(historyTotalPages && historyPage >= historyTotalPages && !historyCursor)} onClick={async () => {
                           const p = historyPage + 1;
                           setHistoryPage(p);
-                          if (selectedService) await loadDiagnosticsLive(selectedService, { source: diagLogSource, page: p });
+                          if (selectedService) await loadDiagnosticsLive(selectedService, {
+                            source: diagLogSource,
+                            page: p,
+                            cursor: historyCursor || undefined,
+                          });
                         }}>Older</button>
                         <small style={{ color: "var(--ink-4)" }}>Page {historyPage}{historyTotalPages ? ` / ${historyTotalPages}` : ""}</small>
                       </>
@@ -537,6 +551,7 @@ export function DiagnosticsView() {
                       <th style={{ width: "120px" }}>Size</th>
                       <th style={{ width: "120px" }}>Line count</th>
                       <th style={{ width: "100px" }}>State</th>
+                      <th style={{ width: "100px" }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -552,10 +567,12 @@ export function DiagnosticsView() {
                         try {
                           let lines: any[] = [];
                           try {
-                            const viewed = await api<any>(`/api/services/${selectedService.id}/diagnostics/archives/${arch.id}/view?max_lines=300`);
+                            const targetServiceId = diagnosticsTargets.find((target) => target.service_key === (diagnostics?.target_service_key ?? diagnosticsTargetKey))?.service_id ?? selectedService.id;
+                            const viewed = await api<any>(`/api/services/${targetServiceId}/diagnostics/archives/${arch.id}/view?max_lines=300`);
                             lines = viewed.lines || viewed.entries || viewed.content?.split?.("\n")?.map((m: string) => ({ message: m, level: "INFO", timestamp: new Date().toISOString() })) || [];
                           } catch {
-                            const data = await api<any>(`/api/services/${selectedService.id}/diagnostics/file-tail?log_path=${encodeURIComponent(arch.path)}&tail_lines=300`);
+                            const targetServiceId = diagnosticsTargets.find((target) => target.service_key === (diagnostics?.target_service_key ?? diagnosticsTargetKey))?.service_id ?? selectedService.id;
+                            const data = await api<any>(`/api/services/${targetServiceId}/diagnostics/file-tail?log_path=${encodeURIComponent(arch.path)}&tail_lines=300`);
                             lines = data.lines || data.entries || [];
                           }
                           setArchivePreviewLines(Array.isArray(lines) ? lines.map((l: any) => typeof l === "string" ? { message: l, level: "INFO", timestamp: new Date().toISOString() } : l) : []);
@@ -588,11 +605,16 @@ export function DiagnosticsView() {
                             {arch.readable}
                           </span>
                         </td>
+                        <td onClick={(e) => e.stopPropagation()}>
+                          <button type="button" className="btn btn-secondary btn-xs" onClick={() => downloadArchive(arch.id)}>
+                            Download
+                          </button>
+                        </td>
                       </tr>
                     ))}
                     {archives.length === 0 && (
                       <tr>
-                        <td colSpan={5} style={{ padding: "1.5rem", textAlign: "center", color: "var(--ink-4)" }}>No log archive folders scanned.</td>
+                        <td colSpan={6} style={{ padding: "1.5rem", textAlign: "center", color: "var(--ink-4)" }}>No log archive folders scanned.</td>
                       </tr>
                     )}
                   </tbody>

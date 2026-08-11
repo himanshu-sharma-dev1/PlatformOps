@@ -11,11 +11,62 @@ import sys
 import time
 import requests
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 
-BASE_URL = os.environ.get("PLATFORMOPS_E2E_BASE", "http://localhost:9002")
+BASE_URL = os.environ.get("PLATFORMOPS_E2E_BASE", "http://localhost:9004").rstrip("/")
+# 9002 is the current live cPlatform-coupled PlatformOps stack.  Never allow
+# this destructive lifecycle suite to run against it, even when a caller has
+# supplied an explicit base URL.
+LIVE_PLATFORMOPS_PORT = 9002
+ISOLATED_PLATFORMOPS_PORT = 9004
+
+
+def validate_e2e_target() -> None:
+    """Reject live-stack targets before any request can mutate data.
+
+    Local isolated Compose runs use localhost:9004.  A non-default target is
+    still supported for CI/remote environments only with an explicit opt-in;
+    port 9002 remains rejected unconditionally because it is the known live
+    cPlatform stack.
+    """
+    parsed = urlparse(BASE_URL)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise SystemExit(
+            "Unsafe E2E target: PLATFORMOPS_E2E_BASE must be an http(s) URL "
+            "such as http://localhost:9004."
+        )
+
+    try:
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    except ValueError as exc:
+        raise SystemExit(f"Unsafe E2E target: invalid port in {BASE_URL!r}.") from exc
+
+    if port == LIVE_PLATFORMOPS_PORT:
+        raise SystemExit(
+            "Refusing to run E2E against port 9002 (the live cPlatform stack). "
+            "Use the isolated target at http://localhost:9004."
+        )
+
+    # Keep accidental remote/default-stack execution opt-in while allowing the
+    # standard isolated host mapping without additional flags.
+    allow_non_isolated = os.environ.get("PLATFORMOPS_E2E_ALLOW_NON_ISOLATED", "")
+    if port != ISOLATED_PLATFORMOPS_PORT and allow_non_isolated.strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+    }:
+        raise SystemExit(
+            f"Refusing non-isolated E2E target {BASE_URL!r}. Expected port 9004; "
+            "set PLATFORMOPS_E2E_ALLOW_NON_ISOLATED=1 only for an explicitly "
+            "reviewed test environment (port 9002 is always blocked)."
+        )
+
+
+validate_e2e_target()
+
 GLITCHTIP_DSN = os.environ.get(
     "PLATFORMOPS_E2E_GLITCHTIP_DSN",
-    "http://766ac5ce00fd46ff8f7ea55a47be97e0@localhost:9008/4",
+    "http://766ac5ce00fd46ff8f7ea55a47be97e0@localhost:9011/4",
 )
 # Cluster-first default: skip GlitchTip exception capture (can trigger alert mail in GT).
 # Set SKIP_GLITCHTIP=0 to re-enable Phase 4 integration checks (still no mailing tests).
@@ -54,15 +105,14 @@ def login():
         timeout=30,
     )
     if r.status_code != 200:
-        print(f"🟡 Login returned {r.status_code}; continuing without token (open API?)")
-        return
+        raise SystemExit(f"Authentication failed with HTTP {r.status_code}; refusing unauthenticated E2E mutations.")
     data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
     token = data.get("token") or data.get("access_token") or data.get("session_token")
     if token:
         SESSION.headers["Authorization"] = f"Bearer {token}"
         print("🟢 Authenticated for E2E (no invite/mail flow)")
     else:
-        print("🟡 Login ok but no token field; continuing")
+        raise SystemExit("Authentication response did not contain a bearer token; refusing E2E mutations.")
 
 
 def run_tests():
@@ -562,8 +612,21 @@ def run_tests():
     )
     assert_status(r, 200)
     chat = r.json()
-    assert chat.get("success") is True or chat.get("answer"), "chat missing answer"
-    print("🟢 Diagnostics AI chat responded")
+    assert isinstance(chat, dict), "chat response must be an object"
+    assert isinstance(chat.get("success"), bool), "chat response missing boolean success"
+    assert isinstance(chat.get("answer"), str), "chat response missing string answer"
+    assert isinstance(chat.get("evidence"), list), "chat response missing evidence list"
+    assert isinstance(chat.get("chart_data"), list), "chat response missing chart_data list"
+    assert isinstance(chat.get("suggestions"), list), "chat response missing suggestions list"
+    if chat["success"]:
+        assert chat["answer"].strip(), "configured diagnostics chat returned an empty answer"
+        print(f"🟢 Diagnostics AI chat responded (provider={chat.get('provider') or 'unknown'})")
+    else:
+        chat_error = str(chat.get("error") or "")
+        if "not configured" in chat_error.lower():
+            print(f"🟡 Diagnostics AI chat unavailable: optional LLM is unconfigured ({chat_error})")
+        else:
+            raise AssertionError(f"configured diagnostics chat failed: {chat_error or chat}")
 
     # 7.12 Archives view
     r = SESSION.get(f"{BASE_URL}/api/services/{service_id}/diagnostics/archives")
@@ -608,27 +671,100 @@ def run_tests():
     assert_status(r, 200)
     job_del = r.json()
     job_del_id = job_del["id"]
+    delete_status = None
+    delete_result = None
     for _ in range(20):
         r = SESSION.get(f"{BASE_URL}/api/jobs/{job_del_id}")
         assert_status(r, 200)
-        if r.json()["status"] in ("success", "failed"):
+        delete_result = r.json()
+        delete_status = delete_result["status"]
+        if delete_status in ("success", "failed", "error"):
             break
         time.sleep(0.5)
-    print("🟢 Test service deleted successfully")
+    assert delete_status == "success", f"Service delete job failed: {delete_result}"
+    print(f"🟢 Test service delete job {job_del_id} reached terminal status={delete_status}")
 
-    # 8.2 Delete Node (with force)
+    # 8.2 Prepare policy-compliant node cleanup. The service delete is an
+    # asynchronous job, while node force deletion requires a node-scoped
+    # two-person approval and an active current-time maintenance window.
+    node_cleanup_reason = "E2E cleanup of disposable node lifecycle resources"
+    node_approval_payload = {
+        "target_type": "node",
+        "target_id": node_id,
+        "reason": node_cleanup_reason,
+        "requested_by": "test-agent",
+        "ttl_hours": 4,
+    }
+    r = SESSION.post(f"{BASE_URL}/api/lifecycle/force-approvals", json=node_approval_payload)
+    assert_status(r, 200)
+    node_approval = r.json()
+    node_approval_id = node_approval["id"]
+    created_approvals.append(node_approval_id)
+    assert node_approval.get("target_type") == "node", "Node cleanup approval has the wrong target type"
+    assert node_approval.get("target_id") == node_id, "Node cleanup approval has the wrong target"
+    print(f"🟢 Created node cleanup approval request ID {node_approval_id}")
+
+    r = SESSION.post(
+        f"{BASE_URL}/api/lifecycle/force-approvals/{node_approval_id}/decision",
+        json={
+            "approver": "admin-user",
+            "status": "approved",
+            "decision_note": "Approved disposable E2E node cleanup",
+        },
+    )
+    assert_status(r, 200)
+    assert r.json().get("status") == "approved", "Failed to approve node cleanup request"
+    print(f"🟢 Approved node cleanup request {node_approval_id}")
+
+    cleanup_window_start = datetime.utcnow() - timedelta(minutes=1)
+    cleanup_window_end = datetime.utcnow() + timedelta(minutes=30)
+    cleanup_maintenance_payload = {
+        "title": "E2E disposable node cleanup",
+        "starts_at": cleanup_window_start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "ends_at": cleanup_window_end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "impact": "disposable E2E node teardown",
+        "node_id": node_id,
+    }
+    r = SESSION.post(f"{BASE_URL}/api/maintenance", json=cleanup_maintenance_payload)
+    assert_status(r, 200)
+    cleanup_maintenance = r.json()
+    cleanup_maintenance_id = cleanup_maintenance["id"]
+    created_maintenance.append(cleanup_maintenance_id)
+    assert cleanup_maintenance.get("status") == "scheduled", "Node cleanup maintenance is not scheduled"
+    assert cleanup_maintenance.get("node_id") == node_id, "Node cleanup maintenance has the wrong target"
+    print(f"🟢 Opened active node cleanup maintenance window {cleanup_maintenance_id}")
+
+    # 8.3 Delete Node (with force, scoped approval, and maintenance window)
     print(f"👉 Force deleting test node {node_id}")
-    r = SESSION.delete(f"{BASE_URL}/api/nodes/{node_id}?force=true")
+    r = SESSION.delete(
+        f"{BASE_URL}/api/nodes/{node_id}",
+        params={
+            "force": "true",
+            "force_reason": node_cleanup_reason,
+            "force_approval_id": node_approval_id,
+        },
+    )
     assert_status(r, 200)
-    print("🟢 Test node force deleted successfully")
+    node_delete = r.json()
+    assert node_delete.get("status") == "deleted", f"Node cleanup did not reach deleted state: {node_delete}"
+    print("🟢 Test node force deleted successfully (terminal response)")
 
-    # 8.3 Delete Cluster (with force + approval)
+    # 8.4 Delete Cluster (with force + existing approval)
     print(f"👉 Force deleting cluster {cluster_id}")
-    r = SESSION.delete(f"{BASE_URL}/api/clusters/{cluster_id}?force=true&force_approval_id={approval_id}")
+    r = SESSION.delete(
+        f"{BASE_URL}/api/clusters/{cluster_id}",
+        params={
+            "force": "true",
+            "force_reason": "E2E cleanup of disposable cluster lifecycle resources",
+            "force_approval_id": approval_id,
+        },
+    )
     assert_status(r, 200)
-    print("🟢 Test cluster force deleted successfully")
+    cluster_delete = r.json()
+    assert cluster_delete.get("status") == "deleted", f"Cluster cleanup did not reach deleted state: {cluster_delete}"
+    print("🟢 Test cluster force deleted successfully (terminal response)")
 
-    # 8.4 Verify cleanup events
+    # 8.5 Verify cleanup events
     r = SESSION.get(f"{BASE_URL}/api/events?limit=50")
     assert_status(r, 200)
     print("🟢 Final lifecycle events verified")

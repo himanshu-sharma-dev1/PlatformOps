@@ -15,6 +15,11 @@ def observability_pipeline(db: Session = Depends(get_db)) -> dict:
 
 import subprocess  # noqa: E402
 
+try:  # Docker SDK is present in the runtime image, but keep status non-fatal if it is not.
+    import docker  # type: ignore  # noqa: E402
+except ImportError:  # pragma: no cover - exercised only by incomplete local installs
+    docker = None  # type: ignore[assignment]
+
 
 @router.post("/api/observability/deploy")
 def deploy_observability():
@@ -40,27 +45,53 @@ def teardown_observability():
 
 @router.get("/api/observability/status")
 def get_observability_status():
-    result = subprocess.run(
-        [
-            "docker",
-            "compose",
-            "-f",
-            "ops/compose/docker-compose.observability.yml",
-            "-p",
-            "platformops-obs",
-            "ps",
-            "--format",
-            "json",
-        ],
-        cwd="/app",
-        capture_output=True,
-        text=True,
-    )
-    containers = []
-    for line in result.stdout.strip().splitlines():
-        if line:
-            containers.append(json.loads(line))
-    return {"containers": containers}
+    """Return real status for the managed Compose project.
+
+    The control-plane image talks to its configured Docker engine through the
+    Python SDK.  The Docker CLI/Compose plugin is intentionally not required
+    for this read-only page, and an unavailable engine is represented as an
+    error payload instead of becoming an API 500.
+    """
+
+    if docker is None:
+        return {
+            "containers": [],
+            "available": False,
+            "error": "Docker SDK is not installed in the API runtime.",
+        }
+
+    client = None
+    try:
+        client = docker.from_env()
+        raw_containers = client.api.containers(
+            all=True,
+            filters={"label": "com.docker.compose.project=platformops-obs"},
+        )
+        containers = []
+        for item in raw_containers:
+            labels = item.get("Labels") or {}
+            names = item.get("Names") or []
+            name = str(names[0]).lstrip("/") if names else str(item.get("Id") or "")[:12]
+            containers.append(
+                {
+                    "ID": item.get("Id", ""),
+                    "Name": name,
+                    "Service": labels.get("com.docker.compose.service", ""),
+                    "Project": labels.get("com.docker.compose.project", "platformops-obs"),
+                    "State": item.get("State", ""),
+                    "Status": item.get("Status", ""),
+                }
+            )
+        containers.sort(key=lambda item: item["Name"])
+        return {"containers": containers, "available": True, "error": None}
+    except Exception as exc:
+        return {"containers": [], "available": False, "error": str(exc)}
+    finally:
+        if client is not None:
+            try:
+                client.close()
+            except Exception:
+                pass
 
 
 import urllib.parse  # noqa: E402
@@ -88,6 +119,5 @@ def deploy_observability_endpoint(node_id: int, db: Session = Depends(get_db)) -
         }
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
 
 

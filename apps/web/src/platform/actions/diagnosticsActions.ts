@@ -1,14 +1,24 @@
 // @ts-nocheck
-import { api, getAuthToken, setAuthToken } from "../../api/client";
+import { api, apiBlob, getAuthToken, setAuthToken } from "../../api/client";
+
+const historyCursorValue = (value: unknown): string => (
+  value === undefined || value === null || value === "" || value === 0 || value === "0" ? "" : String(value)
+);
+
 export function createDiagnosticsActions(s: any) {
   return {
   async loadDiagnostics(service, options) {
+    const previousTargetServiceKey = s.diagnosticsTargetKey;
     if (!options?.preserveSelection) {
       s.setSelectedService(service);
     }
     const targetServiceKey = options?.targetServiceKey ?? service.service_key;
     s.setDiagnosticsSourceServiceId(service.id);
     s.setDiagnosticsTargetKey(targetServiceKey);
+    if (previousTargetServiceKey && previousTargetServiceKey !== targetServiceKey) {
+      s.setSelectedArchiveIds?.([]);
+      s.setSelectedArchive?.(null);
+    }
     await s.loadServiceCapabilities(service.id);
     await s.loadServiceSummary(service.id);
     await s.loadServiceReleaseTimeline(service.id);
@@ -48,7 +58,9 @@ export function createDiagnosticsActions(s: any) {
     const targetServiceKey = options?.targetServiceKey ?? s.diagnosticsTargetKey;
     const targetId = (() => {
       if (!targetServiceKey || targetServiceKey === service.service_key) return service.id;
-      const t = s.services.find((s) => s.node_id === service.node_id && s.service_key === targetServiceKey);
+      const target = (s.diagnosticsTargets || []).find((item) => item.service_key === targetServiceKey);
+      if (target?.service_id) return target.service_id;
+      const t = s.services.find((item) => item.node_id === service.node_id && item.service_key === targetServiceKey);
       return t?.id ?? service.id;
     })();
     if (source === "container_history" || source === "file_history") {
@@ -57,7 +69,9 @@ export function createDiagnosticsActions(s: any) {
         page: String(page),
         page_size: String(s.historyPageSize || 100)
       });
-      if (s.historyCursor) params2.set("cursor", s.historyCursor);
+      const hasCursor = options && Object.prototype.hasOwnProperty.call(options, "cursor");
+      const cursor = hasCursor ? options.cursor : s.historyCursor;
+      if (cursor !== undefined && cursor !== null && cursor !== "") params2.set("cursor", String(cursor));
       const filePath = s.diagFilePath || s.diagnostics?.readiness?.paths_checked?.[0]?.path || "";
       const path = source === "container_history" ? `/api/services/${targetId}/diagnostics/container-history?${params2}` : `/api/services/${targetId}/diagnostics/file-history?${params2}${filePath ? `&log_path=${encodeURIComponent(filePath)}` : ""}`;
       try {
@@ -68,16 +82,20 @@ export function createDiagnosticsActions(s: any) {
         s.setDiagnosticsLive({
           lines,
           source_state: source,
-          next_cursor: hist.next_cursor ?? 0,
+          next_cursor: hist.next_cursor ?? null,
+          previous_cursor: hist.previous_cursor ?? null,
           total_available: hist.total ?? lines.length,
           poll_interval_ms: s.logsPollMs
         });
         s.setHistoryTotalPages(hist.total_pages || hist.history_total_pages || 0);
-        if (hist.next_cursor) s.setHistoryCursor(String(hist.next_cursor));
+        s.setHistoryCursor(historyCursorValue(hist.next_cursor));
+        s.setHistoryPreviousCursor?.(historyCursorValue(hist.previous_cursor));
         if (!options?.silent) s.setNotice(`Loaded ${lines.length} history lines (${source})`);
       } catch (e) {
         if (!options?.silent) s.setNotice(e?.message || "History query failed");
-        s.setDiagnosticsLive({ lines: [], source_state: source, next_cursor: 0, total_available: 0, poll_interval_ms: s.logsPollMs });
+        s.setDiagnosticsLive({ lines: [], source_state: source, next_cursor: null, previous_cursor: null, total_available: 0, poll_interval_ms: s.logsPollMs });
+        s.setHistoryCursor("");
+        s.setHistoryPreviousCursor?.("");
       }
       return;
     }
@@ -117,7 +135,7 @@ export function createDiagnosticsActions(s: any) {
     if (options?.append && s.diagnosticsLive) {
       s.setDiagnosticsLive({
         ...next,
-        lines: [...diagnosticsLive.lines, ...next.lines]
+        lines: [...s.diagnosticsLive.lines, ...next.lines]
       });
       return;
     }
@@ -131,28 +149,52 @@ export function createDiagnosticsActions(s: any) {
     }
     const sourceService = s.services.find((s) => s.id === s.diagnosticsSourceServiceId) ?? s.selectedService;
     const targetKey = s.diagnostics?.target_service_key ?? s.diagnosticsTargetKey;
-    const target = targetKey ? s.services.find((s) => s.node_id === sourceService.node_id && s.service_key === targetKey) : sourceService;
-    const sid = target?.id ?? sourceService.id;
+    const target = targetKey
+      ? (s.diagnosticsTargets || []).find((item) => item.service_key === targetKey)
+        ?? s.services.find((item) => item.node_id === sourceService.node_id && item.service_key === targetKey)
+      : sourceService;
+    const sid = target?.service_id ?? target?.id ?? sourceService.id;
     try {
-      const res = await fetch(`/api/services/${sid}/diagnostics/archives/bulk-download`, {
+      const blob = await apiBlob(`/api/services/${sid}/diagnostics/archives/bulk-download`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ archive_ids: s.selectedArchiveIds })
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || `Bulk download failed (${res.status})`);
-      }
-      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `archives-${sid}.zip`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
       s.setNotice(`Downloaded ${s.selectedArchiveIds.length} archives`);
     } catch (e) {
       s.setNotice(e?.message || "Bulk download failed");
+    }
+  },
+
+  async downloadArchive(archiveId) {
+    if (!s.selectedService) return;
+    const sourceService = s.services.find((service) => service.id === s.diagnosticsSourceServiceId) ?? s.selectedService;
+    const targetKey = s.diagnostics?.target_service_key ?? s.diagnosticsTargetKey;
+    const target = targetKey
+      ? (s.diagnosticsTargets || []).find((item) => item.service_key === targetKey)
+        ?? s.services.find((service) => service.node_id === sourceService.node_id && service.service_key === targetKey)
+      : sourceService;
+    const sid = target?.service_id ?? target?.id ?? sourceService.id;
+    try {
+      const blob = await apiBlob(`/api/services/${sid}/diagnostics/archives/${archiveId}/download`);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `archive-${archiveId}.log`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      s.setNotice(`Downloaded archive ${archiveId}`);
+    } catch (e) {
+      s.setNotice(e?.message || "Archive download failed");
     }
   },
 
@@ -160,8 +202,11 @@ export function createDiagnosticsActions(s: any) {
     if (!s.selectedService) return;
     const sourceService = s.services.find((service) => service.id === s.diagnosticsSourceServiceId) ?? s.selectedService;
     const targetKey = s.diagnostics?.target_service_key ?? s.diagnosticsTargetKey;
-    const target = targetKey ? s.services.find((service) => service.node_id === sourceService.node_id && service.service_key === targetKey) : sourceService;
-    const result = await api(`/api/services/${target?.id ?? sourceService.id}/diagnostics/backfill`, {
+    const target = targetKey
+      ? (s.diagnosticsTargets || []).find((item) => item.service_key === targetKey)
+        ?? s.services.find((service) => service.node_id === sourceService.node_id && service.service_key === targetKey)
+      : sourceService;
+    const result = await api(`/api/services/${target?.service_id ?? target?.id ?? sourceService.id}/diagnostics/backfill`, {
       method: "POST"
     });
     s.setJob(result.job);

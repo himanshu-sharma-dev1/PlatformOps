@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -32,6 +33,7 @@ from ...models import (
 )
 from ...settings import settings
 from ...tasks import run_job_async
+from ...query import escape_query_regex_literal
 from ..common import (
     RUNNING_STATUSES,
     _ansible_base_command,
@@ -179,27 +181,10 @@ def service_diagnostics(
         "target_service_key": service.service_key,
         "target_service_name": service.name,
     }
-    recent_logs = [
-        {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "level": "INFO",
-            "message": f"{service.name} diagnostics target is ready for {service.container_name}.",
-        },
-        {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "level": "INFO",
-            "message": "Local mode is recording Ansible commands instead of changing Docker state."
-            if settings.local_mode
-            else f"{service.name} diagnostics target check requested.",
-        },
-        {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "level": "WARN" if not backfill_ready else "INFO",
-            "message": "File-log backfill readiness check complete."
-            if backfill_ready
-            else "File-log backfill is not ready until required paths and Loki endpoint are available.",
-        },
-    ]
+    # Do not manufacture diagnostic messages. The summary carries a small real
+    # snapshot when the container can be reached and an honest empty list when
+    # it cannot; the detailed live endpoint includes the underlying error.
+    recent_logs = service_live_logs(db, service, tail_lines=20, page_size=20).get("lines", [])[-20:]
     return {
         "service_id": service.id,
         "source_service_id": source.id,
@@ -224,33 +209,82 @@ def service_live_logs(
     safe_tail = max(10, min(tail_lines, 1000))
     safe_page = max(10, min(page_size, 1000))
     safe_cursor = max(0, cursor)
-
-    event_statement = select(OperationalEvent).where(
-        OperationalEvent.service_id == service.id,
-        OperationalEvent.category.in_(("diagnostics", "monitoring", "deployment", "config", "lifecycle")),
-    )
-    total_available = int(db.scalar(select(func.count()).select_from(event_statement.subquery())) or 0)
     fetch_size = safe_tail if safe_cursor == 0 else safe_page
-    events = list(
-        db.scalars(
-            event_statement.order_by(OperationalEvent.created_at.desc()).offset(safe_cursor).limit(fetch_size)
-        ).all()
-    )
-
     lines: list[dict[str, str]] = []
-    for item in events:
-        lines.append(
-            {
-                "timestamp": item.created_at.isoformat() if item.created_at else datetime.utcnow().isoformat() + "Z",
-                "level": (item.level or "INFO").upper(),
-                "message": item.message,
-                "source": item.category,
-            }
-        )
+    error: str | None = None
+    connection_mode = "unknown"
+    node = service.node
 
-    next_cursor = safe_cursor + len(events)
-    has_more_history = next_cursor < total_available
-    source_state = "streaming" if service.status in RUNNING_STATUSES else "snapshot"
+    if node is None:
+        error = "Service has no assigned node."
+    else:
+        from ..discovery import resolve_connection_mode
+
+        connection_mode = resolve_connection_mode(node)
+        container = service.container_name or service.service_key
+        try:
+            if connection_mode == "local":
+                from ..docker_runtime import container_logs
+
+                output, local_error = container_logs(container, tail=fetch_size)
+                if local_error:
+                    raise RuntimeError(local_error)
+                raw_lines = output.decode("utf-8", errors="replace").splitlines()
+            else:
+                if not node.host:
+                    raise RuntimeError("Remote node has no host address.")
+                command = [
+                    "ansible",
+                    f"{node.host},",
+                    "-m",
+                    "command",
+                    "-a",
+                    f"docker logs --timestamps --tail {fetch_size} {container}",
+                    "-u",
+                    node.ssh_user or "ubuntu",
+                ]
+                if node.ssh_key_path:
+                    command.extend(["--private-key", node.ssh_key_path])
+                result = subprocess.run(
+                    command,
+                    cwd=str(settings.project_root),
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=False,
+                )
+                if result.returncode != 0:
+                    raise RuntimeError((result.stderr or result.stdout or "Container log command failed.").strip())
+                raw_lines = (result.stdout or "").splitlines()
+                # docker logs may write to stderr depending on the logging driver.
+                if not raw_lines and result.stderr:
+                    raw_lines = result.stderr.splitlines()
+            for raw in raw_lines[-fetch_size:]:
+                message = raw.strip()
+                if not message or message.endswith(" | SUCCESS => {") or message == "}":
+                    continue
+                timestamp = datetime.utcnow().isoformat() + "Z"
+                first, separator, remainder = message.partition(" ")
+                if separator and "T" in first and first[:4].isdigit():
+                    timestamp = first
+                    message = remainder
+                lines.append(
+                    {
+                        "timestamp": timestamp,
+                        "level": _detect_log_level(message),
+                        "message": message,
+                        "source": "container_stdout",
+                    }
+                )
+        except Exception as exc:
+            error = str(exc)
+
+    # This endpoint is a bounded real tail, not a fabricated pageable event
+    # feed. Cursor values remain for response compatibility.
+    total_available = len(lines)
+    next_cursor = safe_cursor + len(lines)
+    has_more_history = False
+    source_state = "streaming" if not error and service.status in RUNNING_STATUSES else "unavailable" if error else "snapshot"
     defaults = observability_catalog().get("defaults", {})
     poll_interval_ms = int(defaults.get("poll_interval_ms", 2500))
 
@@ -266,6 +300,8 @@ def service_live_logs(
         "total_available": total_available,
         "has_more_history": has_more_history,
         "lines": lines,
+        "connection_mode": connection_mode,
+        "error": error,
         "generated_at": datetime.utcnow().isoformat() + "Z",
     }
 
@@ -297,6 +333,7 @@ def service_container_history(
     lines: list[dict[str, Any]] = []
     total_count = 0
     next_cursor = None
+    previous_cursor = None
     loki_reachable = False
     used_selector = selector
 
@@ -322,33 +359,42 @@ def service_container_history(
     if loki_reachable:
         try:
             end_ns = str(int(time.time()) * 1_000_000_000)
-            params = {
-                "query": used_selector,
-                "limit": str(page_size),
-                "direction": "backward",
-                "end": end_ns,
-            }
+            direction = "older"
+            anchor_ns = end_ns
             if cursor:
                 try:
                     cursor_data = json.loads(base64.b64decode(cursor))
-                    params["end"] = str(cursor_data.get("anchor_ts_ns", end_ns))
+                    direction = "newer" if cursor_data.get("direction") == "newer" else "older"
+                    anchor_ns = str(cursor_data.get("anchor_ts_ns", end_ns))
                 except Exception:
-                    pass
+                    direction = "older"
+                    anchor_ns = end_ns
+            params = {
+                "query": used_selector,
+                "limit": str(page_size),
+                "direction": "forward" if direction == "newer" else "backward",
+            }
+            params["start" if direction == "newer" else "end"] = anchor_ns
             resp = requests.get(f"{loki_url}/loki/api/v1/query_range", params=params, timeout=10)
             if resp.status_code == 200:
-                last_ts_ns = None
+                timestamped_lines: list[tuple[int, dict[str, Any]]] = []
                 for stream in resp.json().get("data", {}).get("result") or []:
                     for ts_ns, msg in stream.get("values") or []:
-                        last_ts_ns = ts_ns
-                        lines.append({
+                        timestamped_lines.append((int(ts_ns), {
                             "timestamp": datetime.utcfromtimestamp(int(ts_ns) / 1e9).strftime("%Y-%m-%dT%H:%M:%S"),
                             "level": _detect_log_level(msg),
                             "message": msg,
                             "source": "container_history",
-                        })
-                if lines and last_ts_ns is not None:
-                    payload = {"anchor_ts_ns": int(last_ts_ns) - 1, "direction": "older", "page": page + 1}
-                    next_cursor = base64.b64encode(json.dumps(payload).encode()).decode()
+                        }))
+                timestamped_lines.sort(key=lambda item: item[0])
+                lines = [item[1] for item in timestamped_lines]
+                if timestamped_lines:
+                    oldest_ns = timestamped_lines[0][0]
+                    newest_ns = timestamped_lines[-1][0]
+                    next_payload = {"anchor_ts_ns": oldest_ns - 1, "direction": "older", "page": page + 1}
+                    previous_payload = {"anchor_ts_ns": newest_ns + 1, "direction": "newer", "page": max(1, page - 1)}
+                    next_cursor = base64.b64encode(json.dumps(next_payload).encode()).decode()
+                    previous_cursor = base64.b64encode(json.dumps(previous_payload).encode()).decode()
         except Exception:
             pass
 
@@ -361,6 +407,7 @@ def service_container_history(
         "total_count": total_count,
         "total_pages": total_pages,
         "next_cursor": next_cursor,
+        "previous_cursor": previous_cursor,
         "loki_reachable": loki_reachable,
         "error": None if (loki_reachable or lines) else "No container history from Loki",
     }
@@ -1235,15 +1282,46 @@ def index_log_archives(db: Session, service: ServiceInstance) -> list[LogArchive
         db.delete(archive)
     db.commit()
 
+    discovered: dict[str, int] = {}
+    from pathlib import Path
+
+    for configured_path in log_paths:
+        container_path = _container_path_for_host_path(service, configured_path)
+        if container_path:
+            ok, output, _error = _run_container_command(
+                service,
+                ["find", container_path, "-maxdepth", "1", "-type", "f", "-printf", "%p\t%s\n"],
+            )
+            if ok:
+                for row in output.splitlines():
+                    raw_path, separator, raw_size = row.rpartition("\t")
+                    if not separator or not raw_path.startswith("/"):
+                        continue
+                    try:
+                        size = int(raw_size.strip())
+                    except ValueError:
+                        continue
+                    discovered[_host_path_for_container_path(service, raw_path.strip())] = size
+                continue
+
+        local_path = Path(configured_path)
+        candidates = [local_path] if local_path.is_file() else list(local_path.glob("*")) if local_path.is_dir() else []
+        for candidate in candidates:
+            if candidate.is_file():
+                try:
+                    discovered[str(candidate)] = candidate.stat().st_size
+                except OSError:
+                    continue
+
     archives: list[LogArchive] = []
-    for index, path in enumerate(log_paths, start=1):
+    for path, size_bytes in sorted(discovered.items()):
         archive = LogArchive(
             service_id=service.id,
-            path=f"{path.rstrip('/')}/{service.service_key}-{index}.log",
-            size_bytes=0,
+            path=path,
+            size_bytes=size_bytes,
             line_count=0,
-            readable="unknown",
-            reason="indexed path only; sizes require remote scan",
+            readable="yes",
+            reason="measured on declared service target",
         )
         db.add(archive)
         archives.append(archive)
@@ -1270,17 +1348,18 @@ def backfill_service_logs(db: Session, service: ServiceInstance) -> dict[str, An
     )
     job = create_job(db, action="log-backfill", command=command, service_id=service.id, node_id=service.node_id)
     ready = bool(requirements.get("ready"))
-    output = (
-        f"Backfilled file logs for {service.container_name} into {requirements.get('loki_url', 'configured Loki')}."
-        if ready
-        else f"Backfill not ready: {', '.join(requirements.get('missing', [])) or 'requirements incomplete'}."
-    )
-    finished = finish_job(db, job, ok=ready, output=output, error="" if ready else output)
+    output = f"Backfill not ready: {', '.join(requirements.get('missing', [])) or 'requirements incomplete'}."
+    if ready:
+        current_job = run_job_async(db, job, cwd=settings.project_root)
+        summary = f"Log backfill job #{job.id} started for {service.container_name}."
+    else:
+        current_job = finish_job(db, job, ok=False, output="", error=output)
+        summary = output
     record_event(
         db,
         category="diagnostics",
         level="info" if ready else "warning",
-        message=f"Log backfill {'completed' if ready else 'blocked'} for {service.name}",
+        message=f"Log backfill {'started' if ready else 'blocked'} for {service.name}",
         service_id=service.id,
         node_id=service.node_id,
         metadata={"ready": ready, "missing": requirements.get("missing", [])},
@@ -1289,8 +1368,8 @@ def backfill_service_logs(db: Session, service: ServiceInstance) -> dict[str, An
         "service_id": service.id,
         "ready": ready,
         "requirements": requirements,
-        "job": finished,
-        "summary": output,
+        "job": current_job,
+        "summary": summary,
     }
 
 
@@ -1299,13 +1378,6 @@ def deploy_observability_stack(db: Session, node: Node) -> DeploymentJob:
 
     command = f"{_ansible_base_command(node, 'observability_stack.yml')}"
     job = create_job(db, action="deploy-observability", command=command, node_id=node.id)
-
-    if settings.local_mode:
-        node.status = "healthy"
-        db.commit()
-        return finish_job(
-            db, job, ok=True, output="Observability stack deployed successfully on its own network platformops-net."
-        )
 
     return run_job_async(db, job, cwd=settings.project_root)
 
@@ -1327,12 +1399,102 @@ def _service_log_path(db: Session, service: "ServiceInstance", log_path: str = "
     return f"/var/log/{service.service_key}/app.log"
 
 
+def _service_volume_mappings(service: "ServiceInstance") -> list[tuple[str, str]]:
+    """Return rendered host-to-container volume mappings from the saved contract."""
+    try:
+        contract = json.loads(service.config_json or "{}")
+    except json.JSONDecodeError:
+        contract = {}
+    mappings: list[tuple[str, str]] = []
+    for volume in contract.get("volumes") or []:
+        if isinstance(volume, str):
+            parts = volume.split(":")
+            if len(parts) >= 2 and parts[0] and parts[1]:
+                mappings.append((parts[0].rstrip("/"), parts[1].rstrip("/")))
+        elif isinstance(volume, dict):
+            source = str(volume.get("source") or volume.get("host") or "").rstrip("/")
+            target = str(volume.get("target") or volume.get("container") or "").rstrip("/")
+            if source and target:
+                mappings.append((source, target))
+    return mappings
+
+
+def _container_path_for_host_path(service: "ServiceInstance", path: str) -> str | None:
+    normalized = path.rstrip("/")
+    for source, target in _service_volume_mappings(service):
+        if normalized == source:
+            return target
+        if normalized.startswith(source + "/"):
+            return target + normalized[len(source):]
+    return None
+
+
+def _host_path_for_container_path(service: "ServiceInstance", path: str) -> str:
+    normalized = path.rstrip("/")
+    for source, target in _service_volume_mappings(service):
+        if normalized == target:
+            return source
+        if normalized.startswith(target + "/"):
+            return source + normalized[len(target):]
+    return path
+
+
+def _run_container_command(
+    service: "ServiceInstance",
+    args: list[str],
+    *,
+    timeout: int = 30,
+) -> tuple[bool, str, str]:
+    """Run a non-shell docker command on the service's declared node only."""
+    node = service.node
+    if node is None:
+        return False, "", "Service has no assigned node."
+    from ..discovery import resolve_connection_mode
+
+    mode = resolve_connection_mode(node)
+    container = service.container_name or service.service_key
+    if mode == "local":
+        from ..docker_runtime import exec_container
+
+        return exec_container(container, args)
+    else:
+        if not node.host:
+            return False, "", "Remote node has no host address."
+        remote_command = " ".join(["docker", "exec", container, *args])
+        command = [
+            "ansible",
+            f"{node.host},",
+            "-m",
+            "command",
+            "-a",
+            remote_command,
+            "-u",
+            node.ssh_user or "ubuntu",
+        ]
+        if node.ssh_key_path:
+            command.extend(["--private-key", node.ssh_key_path])
+    try:
+        result = subprocess.run(
+            command,
+            cwd=str(settings.project_root),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except Exception as exc:
+        return False, "", str(exc)
+    if result.returncode != 0:
+        return False, result.stdout or "", (result.stderr or result.stdout or "Container command failed.").strip()
+    return True, result.stdout or "", ""
+
+
 def _archive_filename(archive: LogArchive) -> str:
     path = getattr(archive, "path", "") or ""
     return path.rsplit("/", 1)[-1] if path else f"archive-{archive.id}.log"
 
 
-def get_ingestion_stats() -> dict:
+def get_ingestion_stats(db: Session | None = None) -> dict:
     """Query Loki for live ingestion rate, hourly error rate, and projected archive size."""
     try:
         from ...settings import settings
@@ -1345,6 +1507,14 @@ def get_ingestion_stats() -> dict:
     error_count_previous = 0
     archive_size_bytes = 0
     loki_reachable = False
+
+    if db is not None:
+        archive_size_bytes = int(
+            db.scalar(
+                select(func.coalesce(func.sum(LogArchive.size_bytes), 0)).where(LogArchive.readable == "yes")
+            )
+            or 0
+        )
 
     # Query 1: Live ingestion rate
     try:
@@ -1419,14 +1589,40 @@ def get_ingestion_stats() -> dict:
 
 
 def service_file_tail(db: Session, service: "ServiceInstance", log_path: str = "", tail_lines: int = 100) -> dict:
-    """Tail a log file on the remote node via Ansible ad-hoc or local simulation."""
+    """Tail a real bound log file from the service container or its host."""
     node = service.node
     if not node:
         return {"lines": [], "source": "file_live", "error": "Service has no assigned node", "log_path": log_path or "", "node": "", "total_lines": 0}
 
     log_path = _service_log_path(db, service, log_path)
-    service_name = service.name
+    safe_tail = max(1, min(int(tail_lines), 5000))
     node_label = getattr(node, "host", None) or getattr(node, "name", None) or str(node.id)
+
+    container_path = _container_path_for_host_path(service, log_path)
+    if container_path:
+        ok, output, container_error = _run_container_command(
+            service,
+            ["tail", "-n", str(safe_tail), container_path],
+        )
+        if ok:
+            raw_lines = [line for line in output.splitlines() if line.strip()]
+            now = datetime.utcnow()
+            lines = [
+                {
+                    "timestamp": (now - timedelta(seconds=(len(raw_lines) - index))).strftime("%Y-%m-%dT%H:%M:%S"),
+                    "level": _detect_log_level(message),
+                    "message": message,
+                    "source": f"file:{log_path}",
+                }
+                for index, message in enumerate(raw_lines[-safe_tail:])
+            ]
+            return {
+                "lines": lines,
+                "source": "file_live",
+                "log_path": log_path,
+                "node": node_label,
+                "total_lines": len(lines),
+            }
 
     # Real remote tail when not in local_mode
     if not settings.local_mode and node.environment != "local":
@@ -1442,7 +1638,7 @@ def service_file_tail(db: Session, service: "ServiceInstance", log_path: str = "
                 "-m",
                 "shell",
                 "-a",
-                f"tail -n {int(tail_lines)} {log_path}",
+                f"tail -n {safe_tail} {log_path}",
                 "-u",
                 user,
                 *key_arg,
@@ -1452,7 +1648,7 @@ def service_file_tail(db: Session, service: "ServiceInstance", log_path: str = "
                 raw_lines = [ln for ln in proc.stdout.splitlines() if ln.strip() and not ln.startswith(inventory)]
                 lines = []
                 now = datetime.utcnow()
-                for i, msg in enumerate(raw_lines[-tail_lines:]):
+                for i, msg in enumerate(raw_lines[-safe_tail:]):
                     # Strip ansible host prefix if present
                     if " | " in msg and msg.split(" | ", 1)[0].strip() in (inventory, "CHANGED", "SUCCESS"):
                         continue
@@ -1491,7 +1687,7 @@ def service_file_tail(db: Session, service: "ServiceInstance", log_path: str = "
             # Efficient-ish: read last N lines
             with path.open("r", errors="replace") as fh:
                 content = fh.readlines()
-            selected = content[-int(tail_lines):]
+            selected = content[-safe_tail:]
             now = datetime.utcnow()
             lines = []
             for i, msg in enumerate(selected):
@@ -1525,7 +1721,7 @@ def service_file_tail(db: Session, service: "ServiceInstance", log_path: str = "
         "log_path": log_path,
         "node": node_label,
         "total_lines": 0,
-        "error": "Log file not available on this host and remote tail was not used",
+        "error": container_error if container_path else "Log file not available on the declared node",
     }
 
 
@@ -1561,11 +1757,12 @@ def service_file_history(
         _LOKI_PAGE_CACHE.pop(k, None)
 
     basename = log_path.split("/")[-1]
-    selector = "{" + f'filename=~".*{re.escape(basename)}.*"' + "}"
+    selector = "{" + f'filename=~".*{escape_query_regex_literal(basename)}.*"' + "}"
 
     lines: list[dict[str, Any]] = []
     total_count = 0
     next_cursor = None
+    previous_cursor = None
     loki_reachable = False
 
     try:
@@ -1587,18 +1784,22 @@ def service_file_history(
     if loki_reachable:
         try:
             end_ns = str(int(time.time()) * 1_000_000_000)
-            params = {
-                "query": selector,
-                "limit": str(page_size),
-                "direction": "backward",
-                "end": end_ns,
-            }
+            direction = "older"
+            anchor_ns = end_ns
             if cursor:
                 try:
                     cursor_data = json.loads(base64.b64decode(cursor))
-                    params["end"] = str(cursor_data.get("anchor_ts_ns", end_ns))
+                    direction = "newer" if cursor_data.get("direction") == "newer" else "older"
+                    anchor_ns = str(cursor_data.get("anchor_ts_ns", end_ns))
                 except Exception:
-                    pass
+                    direction = "older"
+                    anchor_ns = end_ns
+            params = {
+                "query": selector,
+                "limit": str(page_size),
+                "direction": "forward" if direction == "newer" else "backward",
+            }
+            params["start" if direction == "newer" else "end"] = anchor_ns
 
             resp = requests.get(
                 f"{loki_url}/loki/api/v1/query_range",
@@ -1607,23 +1808,32 @@ def service_file_history(
             )
             if resp.status_code == 200:
                 streams = resp.json().get("data", {}).get("result", [])
-                last_ts_ns = None
+                timestamped_lines: list[tuple[int, dict[str, Any]]] = []
                 for stream in streams:
                     for ts_ns, msg in stream.get("values", []):
-                        last_ts_ns = ts_ns
-                        lines.append({
+                        timestamped_lines.append((int(ts_ns), {
                             "timestamp": datetime.utcfromtimestamp(int(ts_ns) / 1e9).strftime("%Y-%m-%dT%H:%M:%S"),
                             "level": _detect_log_level(msg),
                             "message": msg,
                             "source": "file_history",
-                        })
-                if lines and last_ts_ns is not None:
+                        }))
+                timestamped_lines.sort(key=lambda item: item[0])
+                lines = [item[1] for item in timestamped_lines]
+                if timestamped_lines:
+                    oldest_ns = timestamped_lines[0][0]
+                    newest_ns = timestamped_lines[-1][0]
                     cursor_payload = {
-                        "anchor_ts_ns": int(last_ts_ns) - 1,
+                        "anchor_ts_ns": oldest_ns - 1,
                         "direction": "older",
                         "page": page + 1,
                     }
                     next_cursor = base64.b64encode(json.dumps(cursor_payload).encode()).decode()
+                    previous_payload = {
+                        "anchor_ts_ns": newest_ns + 1,
+                        "direction": "newer",
+                        "page": max(1, page - 1),
+                    }
+                    previous_cursor = base64.b64encode(json.dumps(previous_payload).encode()).decode()
         except Exception:
             pass
 
@@ -1636,6 +1846,7 @@ def service_file_history(
         "total_count": total_count,
         "total_pages": total_pages,
         "next_cursor": next_cursor,
+        "previous_cursor": previous_cursor,
         "error": None if (loki_reachable or lines) else "No file history from Loki",
     }
     _LOKI_PAGE_CACHE[cache_key] = (now_ts, payload)
@@ -1693,6 +1904,28 @@ def view_log_archive(db: Session, service: "ServiceInstance", archive_id: int, m
                 "truncated": False,
             }
 
+    container_path = _container_path_for_host_path(service, archive.path)
+    if container_path:
+        safe_max = max(1, min(int(max_lines), 5000))
+        ok, output, error = _run_container_command(service, ["head", "-n", str(safe_max + 1), container_path])
+        if ok:
+            all_lines = output.splitlines()
+            return {
+                "archive_id": archive_id,
+                "filename": filename,
+                "lines": all_lines[:safe_max],
+                "total_lines": len(all_lines[:safe_max]),
+                "truncated": len(all_lines) > safe_max,
+            }
+        return {
+            "archive_id": archive_id,
+            "filename": filename,
+            "lines": [],
+            "total_lines": 0,
+            "truncated": False,
+            "error": error,
+        }
+
     return {
         "archive_id": archive_id,
         "filename": filename,
@@ -1717,6 +1950,27 @@ def download_log_archive(db: Session, service: "ServiceInstance", archive_id: in
     path = Path(archive.path)
     content_type = "application/gzip" if filename.endswith(".gz") else "text/plain"
     if not path.is_file():
+        container_path = _container_path_for_host_path(service, archive.path)
+        if container_path and not filename.endswith(".gz"):
+            ok, output, error = _run_container_command(service, ["cat", container_path], timeout=60)
+            if ok:
+                return {
+                    "archive_id": archive_id,
+                    "filename": filename,
+                    "path": None,
+                    "content_type": content_type,
+                    "ready": True,
+                    "content": output,
+                }
+            return {
+                "archive_id": archive_id,
+                "filename": filename,
+                "path": None,
+                "content_type": content_type,
+                "ready": False,
+                "error": error,
+                "content": None,
+            }
         return {
             "archive_id": archive_id,
             "filename": filename,
@@ -1748,14 +2002,24 @@ def bulk_download_log_archives(db: Session, service: "ServiceInstance", archive_
         if not archive:
             continue
         path = Path(archive.path)
-        if not path.is_file():
+        if path.is_file():
+            archives.append({
+                "archive_id": aid,
+                "filename": _archive_filename(archive),
+                "path": str(path),
+                "content": None,
+            })
             continue
-        archives.append({
-            "archive_id": aid,
-            "filename": _archive_filename(archive),
-            "path": str(path),
-            "content": None,
-        })
+        container_path = _container_path_for_host_path(service, archive.path)
+        if container_path and not archive.path.endswith(".gz"):
+            ok, output, _error = _run_container_command(service, ["cat", container_path], timeout=60)
+            if ok:
+                archives.append({
+                    "archive_id": aid,
+                    "filename": _archive_filename(archive),
+                    "path": None,
+                    "content": output,
+                })
 
     if not archives:
         return {

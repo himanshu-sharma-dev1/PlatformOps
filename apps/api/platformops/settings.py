@@ -59,8 +59,15 @@ class Settings(BaseSettings):
     bootstrap_admin_password: str = "admin"
     bootstrap_admin_name: str = "admin"
     public_base_url: str = "http://localhost:9002"
+    cors_origins: list[str] = ["http://localhost:9004", "http://127.0.0.1:9004"]
     auth_session_hours: int = 72
     max_users: int = 50
+    smtp_host: str = ""
+    smtp_port: int = 1025
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "platformops@localhost"
+    smtp_starttls: bool = False
 
     model_config = SettingsConfigDict(env_prefix="PLATFORMOPS_", env_file=".env", extra="ignore")
 

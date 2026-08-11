@@ -9,7 +9,7 @@ Provide a detailed summary of the architectural or infrastructure modifications 
 ## Verification checklist
 Please confirm you have executed the following checks locally:
 - [ ] `make lint` passes cleanly (no python formatting issues)
-- [ ] `make check` executes compilation, seeds database, and passes the operational integration tests
+- [ ] `make check` passes the non-mutating Python compilation, shipped unit tests, and isolated static verification (it does **not** seed or drop a database)
 - [ ] Docker image builds successfully (`make docker-build`)
 - [ ] Frontend React bundle compiles successfully (`cd apps/web && npm run build`)
 

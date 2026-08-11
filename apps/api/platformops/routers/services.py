@@ -77,13 +77,16 @@ def list_services(node_id: int | None = None, db: Session = Depends(get_db)) -> 
 @router.post("/api/services", response_model=ServiceOut)
 def create_service(payload: ServiceCreate, db: Session = Depends(get_db)) -> ServiceInstance:
     node = _get_node(db, payload.node_id)
+    overrides = dict(payload.contract_overrides or {})
+    if payload.install_mode is not None:
+        overrides["install_mode"] = payload.install_mode
     try:
         return create_service_instance(
             db,
             node=node,
             service_key=payload.service_key,
             name=payload.name,
-            contract_overrides=payload.contract_overrides,
+            contract_overrides=overrides,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -92,12 +95,15 @@ def create_service(payload: ServiceCreate, db: Session = Depends(get_db)) -> Ser
 @router.patch("/api/services/{service_id}", response_model=ServiceOut)
 def update_service(service_id: int, payload: ServiceUpdate, db: Session = Depends(get_db)) -> ServiceInstance:
     service = _get_service(db, service_id)
+    overrides = dict(payload.contract_overrides or {})
+    if payload.install_mode is not None:
+        overrides["install_mode"] = payload.install_mode
     try:
         return update_service_instance(
             db,
             service,
             name=payload.name,
-            contract_overrides=payload.contract_overrides,
+            contract_overrides=overrides,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -546,7 +552,8 @@ def diagnostics_container_history(
         "total_count": result.get("total_count") or 0,
         "total_pages": result.get("total_pages") or 1,
         "next_cursor": result.get("next_cursor"),
-        "error": None,
+        "previous_cursor": result.get("previous_cursor"),
+        "error": result.get("error"),
     }
 
 
@@ -890,5 +897,3 @@ def get_service_lifecycle_impact_endpoint(service_id: int, db: Session = Depends
         return lifecycle_impact(db, "service", service_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-

@@ -8,6 +8,13 @@ globals().update({k: getattr(_ops_common, k) for k in dir(_ops_common) if not k.
 
 router = APIRouter(tags=["clusters"])
 
+
+def _cluster_type(payload: ClusterCreate | ClusterUpdate) -> str | None:
+    """Accept both cPlatform's ``type`` and the canonical ``cluster_type``."""
+
+    value = getattr(payload, "type", None) or getattr(payload, "cluster_type", None)
+    return str(value).strip() if value is not None else None
+
 @router.post("/api/clusters", response_model=ClusterOut)
 def create_cluster(payload: ClusterCreate, db: Session = Depends(get_db)) -> Cluster:
     existing = db.scalar(select(Cluster).where(Cluster.name == payload.name))
@@ -17,14 +24,23 @@ def create_cluster(payload: ClusterCreate, db: Session = Depends(get_db)) -> Clu
         name=payload.name,
         region=payload.region,
         environment=payload.environment,
+        description=payload.description,
+        cluster_type=_cluster_type(payload) or "standalone",
+        variant=payload.variant,
+        role=payload.role,
         repo_type=payload.repo_type or "github",
         repo_url=payload.repo_url or "",
         repo_branch=payload.repo_branch or "main",
         repo_token=payload.repo_token or "",
+        repo_path=payload.repo_path or "",
+        repo_auth=payload.repo_auth or "pat",
         registry_type=payload.registry_type or "dockerhub",
         registry_url=payload.registry_url or "",
         registry_user=payload.registry_user or "",
         registry_password=payload.registry_password or "",
+        registry_namespace=payload.registry_namespace or "",
+        registry_auth=payload.registry_auth or "password",
+        image_store=payload.image_store or "",
     )
     db.add(cluster)
     db.commit()
@@ -49,6 +65,10 @@ def list_clusters(db: Session = Depends(get_db)) -> list[Cluster]:
 def update_cluster(cluster_id: int, payload: ClusterUpdate, db: Session = Depends(get_db)) -> Cluster:
     cluster = _get_cluster(db, cluster_id)
     updates = payload.model_dump(exclude_none=True)
+    if "type" in updates:
+        # ``type`` is a public compatibility alias; persist one canonical
+        # value and avoid sending an unknown ORM attribute to setattr below.
+        updates["cluster_type"] = updates.pop("type")
     if not updates:
         return _mask_cluster(cluster)
     if "name" in updates:
@@ -134,9 +154,19 @@ def delete_cluster(
     nodes = db.scalars(select(Node).where(Node.cluster_id == cluster.id)).all()
     node_count = len(nodes)
     service_count = 0
+    services_by_node: dict[int, list[ServiceInstance]] = {}
     for n in nodes:
         services = db.scalars(select(ServiceInstance).where(ServiceInstance.node_id == n.id)).all()
+        services_by_node[n.id] = services
         service_count += len(services)
+
+    detach_resource_references(
+        db,
+        service_ids=[service.id for services in services_by_node.values() for service in services],
+        node_ids=[node.id for node in nodes],
+    )
+    for n in nodes:
+        services = services_by_node[n.id]
         for s in services:
             db.delete(s)
         db.delete(n)
@@ -207,5 +237,3 @@ def test_cluster_registry_connection_endpoint(payload: TestRegistryRequest = Bod
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
