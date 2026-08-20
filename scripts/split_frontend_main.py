@@ -231,7 +231,7 @@ export function usePlatform(): PlatformApi {{
     (ROOT / "types" / "index.ts").write_text(types_out)
 
     api_out = '''/* API client + auth token storage */
-export const API = import.meta.env.VITE_API_URL ?? (typeof window !== "undefined" ? window.location.origin : "http://localhost:9004");
+export const API = import.meta.env.VITE_API_URL ?? (typeof window !== "undefined" ? window.location.origin : "http://localhost:9020");
 
 '''
     if api_client_body:

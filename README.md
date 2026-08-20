@@ -12,12 +12,14 @@ A FastAPI/React DevOps and SRE control plane being ported from the legacy
 MVP: the UI can remain visually different while the operator workflows use
 real isolated Docker/Ansible operations and cPlatform-compatible behavior.
 
-See [the MVP handoff](docs/mvp-status.md) for the current acceptance scope,
-verified Cluster → Node → Service workflow, runtime boundaries, limitations,
-and test strategy. The [isolated runtime guide](docs/isolated-platformops.md)
-contains the Compose lifecycle details.
+See [the MVP status handoff](docs/mvp-status.md) for the evidence-scoped
+acceptance status and limitations, the [selected-page functional parity
+mapping](docs/selected-page-functional-parity.md) for authoritative behavior
+coverage, and the [next validation plan](docs/next-validation-plan.md) for the
+ordered fresh-fixture acceptance run. The [isolated runtime
+guide](docs/isolated-platformops.md) contains the Compose lifecycle details.
 
-> **Current runtime:** PlatformOps uses host port **9004**. Optional Mailpit
+> **Current runtime:** PlatformOps uses host port **9020**. Optional Mailpit
 > uses **9010**. The existing cPlatform deployment and its network are kept
 > untouched.
 
@@ -70,7 +72,7 @@ make build
 PLATFORMOPS_ENABLE_MAILPIT=1 PLATFORMOPS_SMTP_HOST=mailpit make isolated-up
 ```
 
-Open `http://127.0.0.1:9004` and sign in with the development bootstrap
+Open `http://127.0.0.1:9020` and sign in with the development bootstrap
 credentials `admin` / `admin`. Mailpit is available at
 `http://127.0.0.1:9010`. Stop the stack with `make isolated-down`; its named
 volumes are retained.

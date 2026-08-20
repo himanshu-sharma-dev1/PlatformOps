@@ -4,7 +4,7 @@
 > cPlatform-coupled verification environment. It is retained as a detailed
 > historical/parity checklist and has **not** been revalidated end to end
 > against the isolated MVP. Current operators should use the isolated stack on
-> **port 9004** and follow [the MVP handoff](mvp-status.md), especially its
+> **port 9020** and follow [the MVP status](mvp-status.md), especially its
 > verified Cluster → Node → Redis smoke path.
 >
 > Any `:9002` URL, fixed remote host/PEM, `platformops_prod_network` command,
@@ -31,7 +31,7 @@
 
 | Item | Value |
 |------|--------|
-| Current isolated MVP URL | **http://127.0.0.1:9004** (or your host) |
+| Current isolated MVP URL | **http://127.0.0.1:9020** (or your host) |
 | Optional isolated Mailpit UI | **http://127.0.0.1:9010** |
 | Legacy cPlatform-coupled URL | **http://127.0.0.1:9002** — historical only; unsafe for isolated MVP |
 | Login | **Username/email field:** `admin` · **Password:** `admin` |
@@ -263,13 +263,13 @@ Pick a **configurable** service (dTrain controller preferred if present).
 
 If browser looks wrong, confirm backend still green. The older `:9002` commands
 shown below are **legacy-only** and cPlatform-coupled. The current
-`cluster_api_smoke.py` defaults to `:9004` and refuses `:9002`, but its deeper
+`cluster_api_smoke.py` defaults to `:9020` and refuses `:9002`, but its deeper
 checks still assume seeded legacy node/service IDs and direct host-Docker
 inspection; review/adapt those assumptions before using it for the isolated
 MVP.
 
-For the current isolated runtime, use `scripts/run_e2e_tests.py` (defaults to
-`:9004`) and the workflow in [the MVP handoff](mvp-status.md).
+For the current isolated runtime, use `scripts/run_e2e_tests.py` with the
+`:9020` target and the workflow in [the MVP status](mvp-status.md).
 
 ```bash
 # LEGACY ONLY — cPlatform-coupled target; do not use for isolated MVP.

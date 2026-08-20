@@ -4,6 +4,11 @@
 **Scope:** **Cluster page only** — Cluster → Node → Services, plus **APIs and flows entered from the cluster surface** (deploy modal, install schema, config apply entry, live status, events, performance entry, GlitchTip/runtime patch entry, AIOrchestrator bootstrap).  
 **Not in scope:** standalone Config Manager, Diagnostics, Monitoring, Performance, Users product pages (except deep-links *from* cluster).
 
+> **Runtime-port context:** cPlatform/live endpoint examples in this reference,
+> including legacy port `9002` where shown, are historical/reference-only and
+> must not be treated as current PlatformOps endpoints. The current isolated
+> PlatformOps UI/API is `http://127.0.0.1:9020`.
+
 **Canonical path:** `docs/features/cluster-page-complete-reference.md`  
 **Related short inventory:** `docs/features/cluster-page-detailed-features.md`  
 **Functional goal (DONE):** [`docs/goal-cluster-page-full-parity.md`](../goal-cluster-page-full-parity.md)  

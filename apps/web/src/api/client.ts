@@ -1,5 +1,5 @@
 /* API client + auth token storage */
-export const API = import.meta.env.VITE_API_URL ?? (typeof window !== "undefined" ? window.location.origin : "http://localhost:9002");
+export const API = import.meta.env.VITE_API_URL ?? (typeof window !== "undefined" ? window.location.origin : "http://localhost:9020");
 
 export const AUTH_TOKEN_KEY = "platformops.auth.token.v1";
 

@@ -95,11 +95,11 @@ services:
       dockerfile: ops/docker/web-api/Dockerfile
     profiles: ["isolated"]
     ports:
-      - "9004:8000"
+      - "9020:8000"
     environment:
       PLATFORMOPS_DATABASE_URL: postgresql+psycopg://${PLATFORMOPS_POSTGRES_USER:-platformops}:${PLATFORMOPS_POSTGRES_PASSWORD:-platformops}@postgres:5432/${PLATFORMOPS_POSTGRES_DB:-platformops}
       PLATFORMOPS_LOCAL_MODE: "false"
-      PLATFORMOPS_PUBLIC_BASE_URL: http://localhost:9004
+      PLATFORMOPS_PUBLIC_BASE_URL: http://localhost:9020
       PLATFORMOPS_GLITCHTIP_BASE_URL: http://glitchtip:8000
       PLATFORMOPS_PROMETHEUS_BASE_URL: http://prometheus:9090
       PLATFORMOPS_LOKI_BASE_URL: http://loki:3100

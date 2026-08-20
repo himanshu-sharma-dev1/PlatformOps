@@ -4,9 +4,9 @@ import json
 import sys
 from urllib.parse import urlparse
 
-BASE_URL = os.environ.get("PLATFORMOPS_BASE", "http://localhost:9004").rstrip("/")
+BASE_URL = os.environ.get("PLATFORMOPS_BASE", "http://localhost:9020").rstrip("/")
 LIVE_PLATFORMOPS_PORT = 9002
-ISOLATED_PLATFORMOPS_PORT = 9004
+ISOLATED_PLATFORMOPS_PORT = 9020
 ALLOW_NON_ISOLATED = "PLATFORMOPS_LIVE_API_ALLOW_NON_ISOLATED"
 
 endpoints = [
@@ -43,7 +43,7 @@ def validate_target() -> None:
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise SystemExit(
             "Unsafe live API target: PLATFORMOPS_BASE must be an http(s) URL "
-            "such as http://localhost:9004."
+            "such as http://localhost:9020."
         )
     try:
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
@@ -52,7 +52,7 @@ def validate_target() -> None:
     if port == LIVE_PLATFORMOPS_PORT:
         raise SystemExit(
             "Refusing live API verification against port 9002 (the live cPlatform stack). "
-            "Use the isolated target at http://localhost:9004."
+            "Use the isolated target at http://localhost:9020."
         )
     if port != ISOLATED_PLATFORMOPS_PORT and os.environ.get(ALLOW_NON_ISOLATED, "").strip().lower() not in {
         "1",
@@ -60,7 +60,7 @@ def validate_target() -> None:
         "yes",
     }:
         raise SystemExit(
-            f"Refusing non-isolated API target {BASE_URL!r}. Expected port 9004; "
+            f"Refusing non-isolated API target {BASE_URL!r}. Expected port 9020; "
             f"set {ALLOW_NON_ISOLATED}=1 only for an explicitly reviewed environment."
         )
 

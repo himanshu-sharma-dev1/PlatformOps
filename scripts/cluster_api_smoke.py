@@ -17,9 +17,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-BASE = os.environ.get("PLATFORMOPS_BASE", "http://127.0.0.1:9004").rstrip("/")
+BASE = os.environ.get("PLATFORMOPS_BASE", "http://127.0.0.1:9020").rstrip("/")
 LIVE_PLATFORMOPS_PORT = 9002
-ISOLATED_PLATFORMOPS_PORT = 9004
+ISOLATED_PLATFORMOPS_PORT = 9020
 ALLOW_NON_ISOLATED = "PLATFORMOPS_CLUSTER_SMOKE_ALLOW_NON_ISOLATED"
 SCRATCH = pathlib.Path(os.environ.get("SCRATCH", "/tmp/grok-goal-d145cade8fa9/implementer"))
 SCRATCH.mkdir(parents=True, exist_ok=True)
@@ -35,7 +35,7 @@ def validate_target() -> None:
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise SystemExit(
             "Unsafe cluster smoke target: PLATFORMOPS_BASE must be an http(s) URL "
-            "such as http://127.0.0.1:9004."
+            "such as http://127.0.0.1:9020."
         )
     try:
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
@@ -44,7 +44,7 @@ def validate_target() -> None:
     if port == LIVE_PLATFORMOPS_PORT:
         raise SystemExit(
             "Refusing cluster smoke against port 9002 (the live cPlatform stack). "
-            "Use the isolated target at http://127.0.0.1:9004."
+            "Use the isolated target at http://127.0.0.1:9020."
         )
     if port != ISOLATED_PLATFORMOPS_PORT and os.environ.get(ALLOW_NON_ISOLATED, "").strip().lower() not in {
         "1",
@@ -52,7 +52,7 @@ def validate_target() -> None:
         "yes",
     }:
         raise SystemExit(
-            f"Refusing non-isolated cluster smoke target {BASE!r}. Expected port 9004; "
+            f"Refusing non-isolated cluster smoke target {BASE!r}. Expected port 9020; "
             f"set {ALLOW_NON_ISOLATED}=1 only for an explicitly reviewed environment."
         )
 

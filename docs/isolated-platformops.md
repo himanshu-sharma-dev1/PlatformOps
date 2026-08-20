@@ -2,7 +2,8 @@
 
 This is the recommended runtime for the selected-page MVP. For the complete
 scope, verified workflow, and honest limitations, see the
-[MVP handoff](mvp-status.md).
+[MVP status](mvp-status.md). The ordered fresh-fixture run is in the
+[next validation plan](next-validation-plan.md).
 
 The isolated verification stack is defined by
 `ops/compose/docker-compose.isolated.yml`. It is deliberately separate from
@@ -13,7 +14,7 @@ The isolated project has these boundaries:
 
 - The combined production image builds `apps/web` with Node and serves its
   output from `/app/dist` in the FastAPI container.
-- PlatformOps is published only on `http://localhost:9004` (use the host
+- PlatformOps is published only on `http://localhost:9020` (use the host
   address instead of `localhost` when accessing a remote machine).
 - Postgres, Redis, RabbitMQ, Prometheus, Loki, and the Docker engine have no
   host port mappings. Compose creates their network and named volumes within
@@ -45,7 +46,7 @@ data.
 ## Build and run
 
 Prerequisites are Docker Engine with Compose v2, permission to run a
-privileged DinD container, free host port 9004 (and 9010 when Mailpit is
+privileged DinD container, free host port 9020 (and 9010 when Mailpit is
 enabled), and network access for image pulls/build dependencies.
 
 ```sh
@@ -70,12 +71,12 @@ removal is intentionally outside the standard non-destructive targets.
 The lifecycle E2E suite defaults to the isolated endpoint:
 
 ```sh
-python3 scripts/run_e2e_tests.py
+PLATFORMOPS_E2E_BASE=http://localhost:9020 python3 scripts/run_e2e_tests.py
 ```
 
-It rejects port 9002 unconditionally. Non-9004 targets require an explicit
-`PLATFORMOPS_E2E_ALLOW_NON_ISOLATED=1` opt-in after reviewing the target; this
-guard exists to prevent a test run from mutating the current live stack.
+It rejects port 9002 unconditionally. The canonical isolated target for this
+runtime is `http://localhost:9020`; do not point the lifecycle suite at the
+legacy 9002 stack.
 
 ## MVP smoke path
 

@@ -58,8 +58,8 @@ class Settings(BaseSettings):
     bootstrap_admin_email: str = "admin"
     bootstrap_admin_password: str = "admin"
     bootstrap_admin_name: str = "admin"
-    public_base_url: str = "http://localhost:9002"
-    cors_origins: list[str] = ["http://localhost:9004", "http://127.0.0.1:9004"]
+    public_base_url: str = "http://localhost:9020"
+    cors_origins: list[str] = ["http://localhost:9020", "http://127.0.0.1:9020"]
     auth_session_hours: int = 72
     max_users: int = 50
     smtp_host: str = ""

@@ -13,18 +13,18 @@ import requests
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
-BASE_URL = os.environ.get("PLATFORMOPS_E2E_BASE", "http://localhost:9004").rstrip("/")
+BASE_URL = os.environ.get("PLATFORMOPS_E2E_BASE", "http://localhost:9020").rstrip("/")
 # 9002 is the current live cPlatform-coupled PlatformOps stack.  Never allow
 # this destructive lifecycle suite to run against it, even when a caller has
 # supplied an explicit base URL.
 LIVE_PLATFORMOPS_PORT = 9002
-ISOLATED_PLATFORMOPS_PORT = 9004
+ISOLATED_PLATFORMOPS_PORT = 9020
 
 
 def validate_e2e_target() -> None:
     """Reject live-stack targets before any request can mutate data.
 
-    Local isolated Compose runs use localhost:9004.  A non-default target is
+    Local isolated Compose runs use localhost:9020.  A non-default target is
     still supported for CI/remote environments only with an explicit opt-in;
     port 9002 remains rejected unconditionally because it is the known live
     cPlatform stack.
@@ -33,7 +33,7 @@ def validate_e2e_target() -> None:
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise SystemExit(
             "Unsafe E2E target: PLATFORMOPS_E2E_BASE must be an http(s) URL "
-            "such as http://localhost:9004."
+            "such as http://localhost:9020."
         )
 
     try:
@@ -44,7 +44,7 @@ def validate_e2e_target() -> None:
     if port == LIVE_PLATFORMOPS_PORT:
         raise SystemExit(
             "Refusing to run E2E against port 9002 (the live cPlatform stack). "
-            "Use the isolated target at http://localhost:9004."
+            "Use the isolated target at http://localhost:9020."
         )
 
     # Keep accidental remote/default-stack execution opt-in while allowing the
@@ -56,7 +56,7 @@ def validate_e2e_target() -> None:
         "yes",
     }:
         raise SystemExit(
-            f"Refusing non-isolated E2E target {BASE_URL!r}. Expected port 9004; "
+            f"Refusing non-isolated E2E target {BASE_URL!r}. Expected port 9020; "
             "set PLATFORMOPS_E2E_ALLOW_NON_ISOLATED=1 only for an explicitly "
             "reviewed test environment (port 9002 is always blocked)."
         )

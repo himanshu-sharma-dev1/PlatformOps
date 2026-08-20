@@ -1,5 +1,7 @@
 # Diagnostics Page Parity Analysis: cPlatform vs PlatformOps
 
+> **Historical/design analysis — superseded for current-state claims:** Use [the selected-page functional parity record](selected-page-functional-parity.md) for the current PlatformOps contract. The comparisons below preserve legacy context and may be stale; verify implementation details against the current source before relying on them.
+
 This document analyzes the parity between the legacy `cPlatform` Diagnostics & Logs page (`09-diagnostics.html`) and the modern `PlatformOps` orchestrator backend. The legacy UI triggered 9 distinct diagnostic `fetch` APIs which must be fulfilled by `PlatformOps` to reach full production-grade parity.
 
 ---
@@ -11,8 +13,8 @@ This document analyzes the parity between the legacy `cPlatform` Diagnostics & L
 - **Functionality**: Provided a high-level summary of active services, log streaming rates (e.g., "1.2K/s"), and hourly error rates across the entire cluster.
 
 ### Modern `PlatformOps`
-- **PlatformOps API**: Addressed via a combination of `capability_coverage_report()`, `lifecycle_audit_report()`, and `latest_monitoring_checks()`.
-- **Parity Gap**: There is no direct `get_global_diagnostics_metrics()` endpoint in `orchestrator.py` that calculates live log throughput (log rate/s). This requires querying the Loki observability plane globally, which is currently unimplemented.
+- **PlatformOps API**: `GET /api/diagnostics/ingestion-stats` calls `get_ingestion_stats()`, querying Loki for current ingestion rate and error counts and reading measured readable archive size from `LogArchive` when a database session is supplied.
+- **Current limitation**: This is not a same-name `get_global_diagnostics_metrics()` endpoint and its data is available only when Loki responds; it is the current global diagnostic-metrics equivalent, not an unimplemented capability.
 
 ---
 
@@ -23,8 +25,8 @@ This document analyzes the parity between the legacy `cPlatform` Diagnostics & L
 - **Functionality**: Fetches diagnostic health, recent error events, and status for a specific service.
 
 ### Modern `PlatformOps`
-- **PlatformOps API**: Mapped directly to `service_diagnostics()` and `service_diagnostics_analysis()`. 
-- **Parity Status**: **Exceeds Parity**. PlatformOps introduces advanced heuristic analysis that maps failure modes to actionable Runbooks (`_recommended_runbook_for_diagnostics_context`), greatly improving the operator experience over the legacy system.
+- **PlatformOps API**: Mapped to `/api/services/{service_id}/diagnostics` and `/diagnostics/analysis`, backed by `service_diagnostics()` and `service_diagnostics_analysis()`.
+- **Current status**: The analysis combines readiness, database records, telemetry, and bounded log evidence and emits runbook recommendations. Equivalence with the legacy response shape is not established by this historical document.
 
 ---
 
@@ -35,11 +37,9 @@ This document analyzes the parity between the legacy `cPlatform` Diagnostics & L
 - **Functionality**: Streams real-time `stdout/stderr` from a container to the web UI. Supports client-side filtering by log levels (INFO, WARN, ERR, DEBUG) and dynamic regex/text matching (via `live-search-input`).
 
 ### Modern `PlatformOps`
-- **PlatformOps API**: Mapped directly to `service_live_logs()`.
-- **Implementation Mechanism**: The orchestrator is designed to SSH into the remote node and run a `docker logs -f` or query `Loki` for the active stream.
-- **Parity Gap (Testing Needed)**: 
-  - We need to verify how `service_live_logs()` prevents HTTP connection blocking/hanging. A true live-tail requires WebSockets or Server-Sent Events (SSE) from the FastAPI backend, but the current backend test suite is empty so this networking behavior is unverified.
-  - The PlatformOps API needs endpoints or query-params to filter streams by log level and regex patterns directly in the backend (ideally utilizing Loki's native LogQL filters) rather than fetching all logs and filtering them on the client.
+- **PlatformOps API**: Mapped to `/api/services/{service_id}/diagnostics/live` and backed by `service_live_logs()`.
+- **Implementation Mechanism**: The endpoint performs a bounded `docker logs --tail` through the local runtime or remote Ansible command and returns a finite tail. It is not a `docker logs -f` WebSocket/SSE stream and does not query Loki for this live-tail path.
+- **Current limitation**: The integer cursor is retained for response compatibility and the implementation reports `has_more_history=false`; level/regex filtering is not exposed as backend query parameters. Separate container/file history endpoints provide Loki-backed cursor pagination.
 
 ---
 
@@ -54,10 +54,8 @@ This document analyzes the parity between the legacy `cPlatform` Diagnostics & L
 - **Functionality**: Allowed downloading or viewing historical log files directly from the UI.
 
 ### Modern `PlatformOps`
-- **PlatformOps API**: Handled via the `LogArchive` data model and the `index_log_archives()` endpoint.
-- **Parity Gap**: 
-  - `index_log_archives()` exists, but there are no explicit functions in `orchestrator.py` for downloading or viewing the raw contents of those archives.
-  - To achieve full parity, PlatformOps must implement the file transfer endpoints: `download_log_archive(archive_id)` and `read_log_archive_lines(archive_id, lines=100)`.
+- **PlatformOps API**: `index_log_archives()` rebuilds `LogArchive` rows from declared target paths. Current routes include archive listing, preview (`/archives/{archive_id}/view`), single download, and bulk ZIP download.
+- **Current limitation**: Reads/downloads are available only when the declared host path or mounted container path is accessible; remote-node and archive-format behavior still require runtime verification.
 
 ---
 
@@ -69,9 +67,8 @@ This document analyzes the parity between the legacy `cPlatform` Diagnostics & L
   - `service_log_analytics_chat` (AI-driven chat to query logs).
 
 ### Modern `PlatformOps`
-- **PlatformOps API**: `backfill_service_logs(db, service)` exists to handle the backfill logic.
-- **Parity Gap**: 
-  - The `service_log_analytics_chat` AI functionality is not natively present in `orchestrator.py`. While `service_diagnostics_analysis()` provides static AI insights, a conversational `/chat` endpoint scoped to a specific `ServiceInstance`'s logs is missing and must be ported over from the legacy codebase.
+- **PlatformOps API**: `backfill_service_logs(db, service)` is exposed at `/api/services/{service_id}/diagnostics/backfill`; `service_log_analytics_chat()` is exposed at `/diagnostics/chat` and gathers diagnostics plus a bounded live tail before calling the configured LLM.
+- **Current limitation**: Chat returns an explicit failure when the LLM provider/key is not configured or the request cannot be parsed; it is not guaranteed to produce an answer in every environment.
 
 ---
 
@@ -79,13 +76,13 @@ This document analyzes the parity between the legacy `cPlatform` Diagnostics & L
 
 To make the Diagnostics pipeline work flawlessly on a real server:
 
-1. **Loki Integration**: Verify that `bootstrap_observability_plane()` correctly installs and configures Promtail on the remote nodes to push logs to the centralized Loki instance. If this fails, neither live-tail nor diagnostics will work.
-2. **WebSocket Support**: Convert `service_live_logs` to use `fastapi.websockets` to prevent the UI from polling excessively or timing out.
-3. **File Download APIs**: Implement FastAPI `FileResponse` routes to serve the static `LogArchive` paths for the download actions.
-4. **Global Log Rate PromQL**: Write a PromQL query inside a new `global_diagnostics_metrics()` endpoint to calculate Loki's total ingestion rate for the dashboard.
+1. **Loki Integration**: Verify that `bootstrap_observability_plane()` correctly installs and configures the remote log pipeline and that the configured Loki labels are queryable. If this fails, historical file/log features will report an honest unavailable state.
+2. **Streaming semantics**: `service_live_logs` is currently a bounded HTTP tail. WebSocket/SSE support remains an optional parity gap if continuous server push is required.
+3. **Archive access**: Listing, preview, single-download, and bulk-download routes exist; verify declared host/container paths and remote-node access on a real target.
+4. **Global diagnostic metrics**: `/api/diagnostics/ingestion-stats` already issues Loki queries for ingestion rate and error counts. Validate its live response/label coverage rather than adding a duplicate endpoint; the query is LogQL, not PromQL.
 5. **Telemetry Runtime Hot-Patching**:
    - *Legacy Feature*: `service_runtime_patch` allowed dynamically patching telemetry values (e.g. DSN, traces sample rate, env name) on active containers via Ansible playbook executions (`service_runtime_patch_playbook.yml`) without complete container rebuilds.
-   - *PlatformOps Gap*: PlatformOps has no capability to hot-patch active environments without rebuilding/redeploying.
+   - *PlatformOps Status*: `/PlatformIO/Monitoring/PatchObservability/` calls `patch_service_runtime_observability()` for remote nodes; local mode explicitly returns a failure because it has no real remote target. Runtime success still needs verification.
 6. **Log Cursor Pagination**:
    - *Legacy Feature*: Supported temporal query variables like `history_cursor`, `history_direction`, `history_page`, and `page_size` to navigate back and forth chronologically through log historical records.
-   - *PlatformOps Gap*: The log streamer only returns a current tail of the logs, lacking pagination controls.
+   - *PlatformOps Status*: The live-tail route returns only a bounded current tail, but `/diagnostics/container-history` and `/diagnostics/file-history` implement older/newer cursor pagination through Loki when reachable.

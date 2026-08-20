@@ -1,229 +1,196 @@
-# PlatformOps selected-page MVP handoff
+# Selected-page MVP status
 
-**Status:** verified isolated MVP
+**As-of:** 2026-08-21 (fresh checks in Asia/Kolkata; runtime timestamps below
+are reported by the services)
 
-**Reference implementation:** the legacy `cPlatform` checkout (read-only)
+**Status:** evidence is capability-specific; this is not a blanket claim that
+the selected-page MVP is currently clean-fixture verified.
 
-**Last runtime verification:** 2026-08-10
+**Behavioral reference:** the legacy [`cPlatform`](../../cPlatform) checkout is
+read-only. The authoritative selected-page behavior map is
+[`selected-page-functional-parity.md`](selected-page-functional-parity.md).
 
-This document describes the current, working delivery scope. It is the
-operational handoff for the FastAPI/React port; the older feature inventories
-and parity plans in `docs/features/` and `docs/plan-*.md` remain useful design
-references, but they are not a claim that every advanced surface is part of
-this MVP acceptance gate.
+## Evidence states
 
-## Goal and scope
+Every claim in this handoff uses one of these states:
 
-PlatformOps is the stripped-down FastAPI/React control plane being ported from
-`cPlatform`. The current goal is functional parity for the selected operator
-pages, with the existing PlatformOps UI retained for now. Correct behavior,
-real runtime operations, and truthful empty/error states matter more than
-pixel-perfect styling in this milestone.
+- **Contract proven** — a static verifier, API shape/guard, source contract,
+  or other non-runtime check passed. This proves the declared boundary, not a
+  successful end-to-end operation.
+- **Implemented** — the code path is present, but this review has no adequate
+  runtime evidence for the behavior.
+- **Runtime-tested** — the behavior was observed against an isolated runtime;
+  the date and fixture quality are stated. Historical execution is not a fresh
+  fixture.
+- **Unverified** — no traceable execution or contract evidence is available in
+  this review.
 
-The selected pages are:
+## Selected acceptance scope
 
-- **Clusters** — the primary acceptance path and the most feature-rich page.
-- **Config** — workspace, validation, snapshots, timeline, restore, and peer
-  synchronization contracts.
-- **Diagnostics** — live logs, Loki-backed history, file tails, archives, and
-  backfill jobs.
-- **Monitoring** — configured Prometheus queries and honest empty states.
-- **Performance** — node/process metrics and loading/error handling.
-- **Users** — users, roles, permissions, invitations, and invitation delivery.
-- **Observability** — pipeline readiness and real runtime status.
+The seven selected pages are:
 
-Advanced or product-specific pages outside this acceptance gate are deferred.
-The UI can be refined after the behavior is complete.
+1. **Clusters** — authoritative path: Cluster → Node → Service.
+2. **Config** — workspace, validation, snapshots, timeline, restore, and
+   peer-synchronization contracts.
+3. **Diagnostics** — live logs, Loki-backed history, file tails, archives, and
+   backfill jobs.
+4. **Monitoring** — configured Prometheus queries and honest empty states.
+5. **Performance** — node/process metrics and loading/error handling.
+6. **Users** — users, roles, permissions, invitations, and delivery.
+7. **Observability** — pipeline readiness and runtime status.
 
-## Runtime and isolation contract
+Advanced and non-selected product pages are outside this MVP acceptance gate.
+The UI may remain visually different; this milestone is about behavior,
+runtime operations, and truthful empty/error states.
 
-Use `ops/compose/docker-compose.isolated.yml` for the verification/runtime
-stack. It is a separate Compose project named `platformops-isolated`:
+## Fresh checks — 2026-08-21
 
-```text
-PlatformOps UI/API   http://<host>:9004
-Mailpit UI           http://<host>:9010  (optional)
-```
+These checks were run read-only against the existing host. They do not prove a
+fresh lifecycle fixture.
 
-The legacy cPlatform deployment is not stopped, reconfigured, joined, or
-used as a dependency. In particular, the isolated stack does not join the
-`cplatform_iktara_cPlatform` network and does not mount the host Docker socket.
-
-The isolated services are:
-
-- PlatformOps combined frontend/API image
-- PostgreSQL
-- Redis
-- RabbitMQ
-- Prometheus
-- Loki
-- a project-owned privileged Docker-in-Docker daemon (`docker-engine`)
-- optional Mailpit for invitation email tests
-- optional GlitchTip-compatible services
-
-The API talks to the private Docker daemon through
-`DOCKER_HOST=tcp://docker-engine:2375`. Containers deployed from the Cluster
-page therefore live inside the isolated engine and cannot collide with the
-legacy cPlatform containers. Dependency services have no host port mappings;
-Compose-scoped networks and named volumes retain their data under the
-`platformops-isolated` project.
-
-## Build, start, and stop
-
-Prerequisites are Docker Engine with Compose v2, permission to run a
-privileged DinD container, free host ports 9004 (and 9010 when Mailpit is
-enabled), and network access for image/dependency pulls.
-
-From the repository root:
-
-```sh
-# Read-only contract check; does not contact Docker or mutate data.
-make isolated-verify
-
-# Build the combined Node frontend + Python/FastAPI image.
-make build
-
-# Start the base isolated stack.
-make isolated-up
-
-# Start Mailpit as well and route SMTP invites to it.
-PLATFORMOPS_ENABLE_MAILPIT=1 PLATFORMOPS_SMTP_HOST=mailpit make isolated-up
-```
-
-Open `http://127.0.0.1:9004` (or the host address on a remote machine). The
-MVP bootstrap defaults are:
-
-```text
-username: admin
-password: admin
-```
-
-These are development defaults. Set
-`PLATFORMOPS_BOOTSTRAP_ADMIN_EMAIL`,
-`PLATFORMOPS_BOOTSTRAP_ADMIN_PASSWORD`, and
-`PLATFORMOPS_BOOTSTRAP_ADMIN_NAME` before using the stack outside a local
-verification environment. Startup creates the bootstrap administrator only
-when no administrator exists; it does not reset an existing administrator on
-every restart.
-
-To stop the isolated services while retaining their project volumes:
-
-```sh
-make isolated-down
-```
-
-The normal stop target intentionally does not remove data. Volume removal is
-an explicit, separately reviewed Docker Compose operation.
-
-## Verified Cluster → Node → Service workflow
-
-The acceptance workflow was executed against the isolated runtime and left in
-place for UI inspection:
-
-| Resource | Verified value | Result |
+| Check | State | Evidence |
 | --- | --- | --- |
-| Cluster | `mvp-isolated-20260810` | created and persisted |
-| Node | `mvp-dind-node` | local node mapped to the isolated Docker engine |
-| Network | `platformops_mvp_network` | private service network |
-| Service | `MVP Redis` / `redis-core` | created with stable external ID `SERV1001` |
-| Image | `redis:7-alpine` | deployed by the Ansible service path |
-| Snapshot | `MVP deployed baseline` | created and listed in Config |
+| Isolated safety contract | **Contract proven** | `make isolated-verify` passed. It checked Compose project scoping, DinD wiring, ports, host-socket exclusion, image assets, and the 9002 E2E guard. |
+| Compose syntax | **Contract proven** | `docker compose -f ops/compose/docker-compose.isolated.yml --profile isolated --profile mailpit config --quiet` exited 0. |
+| Isolated API health | **Runtime-tested** | `GET http://127.0.0.1:9020/api/health` returned HTTP 200 and `{"status":"ok","service":"platformops-api"}`. Representative protected GETs returned HTTP 401 without a bearer token. |
+| Runtime boundary | **Runtime-tested** | Compose project `platformops-isolated` was running with PlatformOps on 9020 and Mailpit on 9010. Its network was `platformops-isolated_default`; the legacy `cplatform_iktara_cPlatform` network remained separate. The API container uses the project DinD engine; DinD contained `node-1-redis-core`. |
+| Current runtime health | **Runtime-tested** | The API container was recreated during the 2026-08-21 audit and was healthy on port 9020 at the latest check. This recreation does not reset retained database state. |
+| Current persisted fixture | **Runtime-tested** | Read-only Postgres counts: 1 cluster, 1 node, 2 service instances, 19 deployment jobs, 2 users, 1 config snapshot, 1 invite token, 157 operational events, 12 monitoring checks, and 0 log archives. The latest read-only Mailpit check returned zero messages. The data is retained state, not clean-fixture evidence. |
+| Host test tools | **Unverified** | Host Python is 3.10.12 with no `pytest` or `ruff` modules. `npm` is available, but no fresh frontend build was claimed. Do not report a current host `pytest` run. |
 
-The tested operator sequence is:
+### Long-lived runtime contradiction
 
-1. Create or open the isolated cluster.
-2. Add the local node and inspect its facts and connection state.
-3. Create a catalog-backed Redis service on that node.
-4. Run dependency preflight.
-5. Deploy the service and follow the persisted asynchronous job.
-6. Refresh live status and discover containers through the isolated Docker
-   SDK connection.
-7. Open live diagnostics and read actual Redis container output.
-8. Open Config, validate YAML, create a snapshot, and inspect its timeline.
+The retained fixture is useful for diagnosis only. It contains cluster
+`mvp-isolated-20260810`, node `mvp-dind-node` (`status=unknown`), service
+`SERV1001`/`redis-core` (`status=running`), and one retained invite token. The
+latest read-only Mailpit API check returned an empty message list; no current
+delivery claim is made from retained database state.
 
-The deployed Redis container reported `running: true`, and its live stream
-included the real Redis readiness line `Ready to accept connections tcp`.
-Node discovery, connection probing, service status, job history, and service
-logs all came from the isolated runtime rather than simulated database events.
+The latest retained jobs (database timestamps 2026-08-20) include:
 
-## What is working in the selected-page MVP
+- `apply-config` — `success`, but output says the target container was absent
+  for the copy step (`node-6-option-copilot`).
+- `restore-config` — `failed`, with `Instance ... is not bound to a Session;
+  attribute refresh operation cannot proceed`.
+- `delete` — `success`, while its callback also records the same detached
+  `ServiceInstance` error.
 
-- Authenticated UI/API calls, including raw requests and downloads.
-- Cluster and node data persistence, including the fields displayed by the
-  editor and masked secret handling.
-- Stable service external IDs and cPlatform-compatible install-mode handling.
-- Deep service configuration updates that preserve unedited nested values.
-- Local Docker SDK operations for inspect, list/discovery, logs, exec, restart,
-  and connection/version probing.
-- Local Ansible deployment without requiring `sudo` inside the API container;
-  remote SSH paths retain privilege escalation where applicable.
-- Persisted asynchronous jobs and job output for deployment actions.
-- Config workspace, validation, snapshots, paging, restore, and peer-sync
-  request contracts.
-- Real local service logs, target-aware diagnostics, Loki cursors, archive
-  enumeration/download paths, and asynchronous backfill jobs.
-- Configured Prometheus and Loki query paths with node scoping and safe query
-  literals.
-- Users, role/permission persistence, invites, resend/revoke/accept paths,
-  and SMTP delivery to Mailpit when enabled.
-- Observability pipeline/readiness reporting and Docker-SDK runtime status;
-  no fake local-mode success is returned when an operation is unavailable.
-- Production frontend build inside the combined API image.
+These records are exact observations, not a diagnosed root cause. They prevent
+the retained runtime from being treated as proof that config apply/restore and
+cleanup are currently green. Re-run those behaviors on a fresh fixture under
+[`next-validation-plan.md`](next-validation-plan.md).
 
-## Honest empty states and remaining parity
+## Historical execution — 2026-08-10/11
 
-This is an MVP milestone, not a claim of exhaustive cPlatform parity across
-every catalog card and infrastructure provider.
+The previous isolated run used a disposable `platformops-isolated` stack and
+reported the following. Its historical 2026-08-10/11 API target was host port **9004**;
+the canonical current target is **9020**. It remains useful evidence, but is
+explicitly historical and must not be conflated with the fresh checks above.
 
-- Prometheus and process metric arrays are empty until exporters/collectors
-  are deployed on the target node.
-- Loki history is empty until a log collector ships container/file streams to
-  Loki; current local live logs still work directly from the container.
-- GlitchTip is optional and was not enabled in the verified base stack.
-- Remote SSH-node, cloud VM launch/teardown, and provider-credential paths
-  still need real-environment verification.
-- Every catalog service type, dependency graph, config apply/restore edge
-  case, and advanced selected-page action still needs exhaustive parity
-  testing against cPlatform.
-- The complete pytest suite was not run on the host because its Python
-  environment did not contain pytest and SQLAlchemy together. Run it in a
-  dependency-complete environment or test image.
-- Advanced non-selected pages and production credential rotation/deployment
-  hardening are outside this MVP handoff.
+| Capability | State | Historical evidence and boundary |
+| --- | --- | --- |
+| Cluster → Node → Service lifecycle | **Runtime-tested** | The run created cluster `mvp-isolated-20260810`, node `mvp-dind-node`, and Redis service `SERV1001`/`redis-core`; the DinD container was running and its live output included `Ready to accept connections tcp`. |
+| Service IDs, install mode, deep-merge persistence, and local Docker adapter | **Runtime-tested** | The 2026-08-10/11 E2E and containerized API tests exercised the isolated service path and endpoint guards. This is not fresh evidence for the retained fixture. |
+| Config workspace/snapshots/validate/compare/drift/timeline | **Runtime-tested** | The historical E2E traversed these paths. Apply/restore terminal success was not asserted strongly enough to override the retained failed restore job; fresh proof is pending. |
+| Live diagnostics | **Runtime-tested** | The historical run read actual Redis container output through the isolated Docker path. |
+| Loki history, archives, and collector-backed backfill | **Implemented** | Routes and runtime code exist, but the historical base stack had no shipped Loki history/collector evidence; the current database has zero log archives. |
+| Prometheus and process metrics | **Implemented** | Query routes exist and honest empty/unavailable paths are implemented. Exporter-backed non-empty telemetry was not established. |
+| Users and invitation delivery | **Runtime-tested** | The historical 2026-08-10/11 run on port 9004 produced a Mailpit invitation message and pending invite record. The current Mailpit check is empty, no clean invite/accept/login flow was run during this audit, and the main E2E script explicitly excludes SMTP/invite mail. |
+| Observability pipeline/status | **Runtime-tested** | The historical E2E read the pipeline/status endpoints. Collector ingestion and non-empty metrics remain unproven. |
+| Production image/frontend build | **Runtime-tested** | The 2026-08-10/11 run reported a successful combined production-image build. No fresh build is claimed here. |
+| Containerized API tests | **Runtime-tested** | Historical report: `24 passed`, four deprecation warnings, in a dependency-complete image. Host pytest is unavailable today. |
+| GlitchTip integration | **Unverified** | It was optional and skipped/read-only in the historical cluster-first run; the isolated GlitchTip profile was not part of the fresh 2026-08-21 runtime snapshot. |
+| Remote SSH/cloud/provider paths | **Unverified** | No disposable remote node, VM lifecycle, or provider credential environment was exercised. |
 
-The implementation deliberately reports these conditions as unavailable or
-empty rather than manufacturing telemetry, logs, deployments, or external
-service success.
+## Source and verification references
 
-## Verification strategy
+The fresh static/runtime evidence came from `scripts/verify_isolated_runtime.py`,
+`ops/compose/docker-compose.isolated.yml`, the live 9020 `/api/health` and protected
+route checks, Docker/Compose inspection, and read-only queries in the isolated
+Postgres/DinD/Mailpit containers. Historical behavior evidence is recorded by
+`scripts/run_e2e_tests.py`, `scripts/cluster_api_smoke.py`,
+`apps/api/tests/`, `ops/docker/web-api/Dockerfile`, and the 2026-08-10/11
+containerized verification report. The main E2E source explicitly excludes
+invite/SMTP and makes GlitchTip optional; those exclusions are part of the
+evidence boundary.
 
-The repository provides separate non-mutating and runtime checks:
+## Proven achievements and present implementation boundary
+
+The evidence supports these bounded achievements:
+
+- The isolated Compose contract is statically proven and its live project is
+  physically separate from cPlatform. PlatformOps uses `DOCKER_HOST=tcp://docker-engine:2375`;
+  the isolated Compose file does not mount the host Docker socket or join the
+  cPlatform network.
+- A historical clean isolated run proved the primary Cluster → Node → Service
+  workflow with a real Redis container, asynchronous deployment job, service
+  discovery, live status, and real container diagnostics.
+- Source and historical tests cover stable service external IDs,
+  cPlatform-compatible install-mode aliases, deep-merge service updates,
+  authenticated frontend/API transport, secret redaction, remote/local Docker
+  endpoint separation, and lifecycle foreign-key cleanup.
+- The selected-page API contracts for Config, Diagnostics, Monitoring,
+  Performance, Users, and Observability are implemented and expose honest
+  unavailable/empty responses where integrations are absent.
+
+The following remain implemented but are not runtime-proven in a fresh,
+traceable fixture: config apply/restore terminal semantics; exporter-backed
+Prometheus/process metrics; Loki ingestion/history and backfill; a complete
+invite → Mailpit → preview → accept → login flow; optional GlitchTip; remote
+SSH/cloud/provider actions; exhaustive catalog/dependency edge cases; and full
+browser coverage.
+
+## Exact known limitations
+
+- The API container was recreated during the 2026-08-21 audit and was healthy
+  on port 9020. Its retained Postgres state still dates from the prior run and
+  is non-clean; API recreation does not reset entities, jobs, or volumes.
+- The latest read-only Mailpit check returned zero messages. This is a current
+  empty state, not proof of invitation delivery.
+- The retained database contains a failed `restore-config` job and detached
+  SQLAlchemy callback errors as described above. The evidence does not establish
+  whether the failure is reproducible on a fresh fixture or what code change it
+  would require.
+- Prometheus and process metric arrays can be empty until exporters/collectors
+  are deployed. Loki history and archives can be empty until a collector ships
+  logs. Empty state is not telemetry proof.
+- The main E2E suite (`scripts/run_e2e_tests.py`) deliberately does not call
+  invite/resend/accept or SMTP endpoints. Its optional GlitchTip phase is
+  read-only and skipped by default.
+- Remote SSH nodes, cloud VM launch/teardown, provider credentials, optional
+  GlitchTip, and every catalog service/dependency edge case are not established
+  by this handoff.
+- Host `pytest` and `ruff` are unavailable (Python 3.10.12 environment), so
+  no current host unit-test claim is made. The historical containerized result
+  does not substitute for a fresh run.
+- This is not exhaustive cPlatform parity and does not include advanced
+  non-selected pages or production credential/deployment hardening.
+
+## Isolation and verification contract
+
+Use only `ops/compose/docker-compose.isolated.yml` with Compose project
+`platformops-isolated` for destructive or lifecycle validation:
 
 ```sh
-# Static Compose/Dockerfile/E2E isolation contract.
 make isolated-verify
-
-# Python compilation, shipped unit tests, and isolated static checks.
-make check
-
-# Frontend TypeScript/Vite production build.
-cd apps/web && npm run build
-
-# Lifecycle E2E defaults to port 9004 and refuses the live 9002 target.
-cd ../..
-python3 scripts/run_e2e_tests.py
+make build
+make isolated-up
+PLATFORMOPS_ENABLE_MAILPIT=1 PLATFORMOPS_SMTP_HOST=mailpit make isolated-up
+PLATFORMOPS_E2E_BASE=http://localhost:9020 python3 scripts/run_e2e_tests.py
 ```
 
-`make check` does not seed or drop a database. The explicit `make seed` target
-is separate and mutating. Before runtime work, confirm that 9004/9010 are
-available and use only the `platformops-isolated` Compose project.
+PlatformOps is published on host port **9020**. Mailpit is optional on **9010**
+and keeps SMTP internal at `mailpit:1025`. Never target cPlatform's port 9002,
+join `cplatform_iktara_cPlatform`, or mount the host Docker socket. The normal
+`make isolated-down` retains volumes; removing them is an explicit destructive
+fixture-reset step. See [`next-validation-plan.md`](next-validation-plan.md) for
+the ordered acceptance run.
 
 ## Related documents
 
-- [Isolated runtime guide](isolated-platformops.md) — Compose boundaries and
-  lifecycle commands.
-- [Cluster page reference](features/cluster-page-complete-reference.md) —
-  detailed cPlatform behavior inventory.
-- [Cluster manual test suite](manual-test-suite-cluster-page.md) — browser/API
-  regression checklist (review its legacy port defaults before running it).
-- [Architecture overview](architecture.md) — broader PlatformOps structure.
+- [Selected-page functional parity mapping](selected-page-functional-parity.md)
+- [Next validation plan](next-validation-plan.md)
+- [Isolated runtime guide](isolated-platformops.md)
+- [Cluster page reference](features/cluster-page-complete-reference.md)
+- [Cluster manual test suite](manual-test-suite-cluster-page.md)
+- [Architecture overview](architecture.md)

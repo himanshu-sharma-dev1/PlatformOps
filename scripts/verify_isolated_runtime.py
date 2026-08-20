@@ -26,6 +26,7 @@ E2E_PATH = ROOT / "scripts/run_e2e_tests.py"
 CLUSTER_SMOKE_PATH = ROOT / "scripts/cluster_api_smoke.py"
 LIVE_API_SMOKE_PATH = ROOT / "scripts/test_live_api.py"
 FRONTEND_SPLITTER_PATH = ROOT / "scripts/split_frontend_main.py"
+FRONTEND_CLIENT_PATH = ROOT / "apps/web/src/api/client.ts"
 ISOLATED_CONFIG_DIR = ROOT / "ops/compose/isolated"
 
 
@@ -137,8 +138,8 @@ def verify_compose() -> None:
 
         for port in raw_service.get("ports") or []:
             published = host_port(port)
-            if name == "platformops" and published != 9004:
-                fail(f"PlatformOps host port must be 9004, found {port!r}")
+            if name == "platformops" and published != 9020:
+                fail(f"PlatformOps host port must be 9020, found {port!r}")
             if name == "mailpit" and published != 9010:
                 fail(f"Mailpit UI host port must be 9010, found {port!r}")
             if name not in {"platformops", "mailpit"}:
@@ -147,13 +148,14 @@ def verify_compose() -> None:
     platformops_env = env_map(services["platformops"])
     expected_env = {
         "DOCKER_HOST": "tcp://docker-engine:2375",
-        "PLATFORMOPS_PUBLIC_BASE_URL": "http://localhost:9004",
         "PLATFORMOPS_PROMETHEUS_BASE_URL": "http://prometheus:9090",
         "PLATFORMOPS_LOKI_BASE_URL": "http://loki:3100",
     }
     for key, expected in expected_env.items():
         if platformops_env.get(key) != expected:
             fail(f"PlatformOps environment {key} must be {expected!r}")
+    if platformops_env.get("PLATFORMOPS_PUBLIC_BASE_URL") != "http://localhost:9020":
+        fail("PlatformOps environment PLATFORMOPS_PUBLIC_BASE_URL must target http://localhost:9020")
     if platformops_env.get("DOCKER_TLS_CERTDIR") != "":
         fail("PlatformOps must disable DinD TLS when using the isolated 2375 endpoint")
 
@@ -208,8 +210,8 @@ def verify_dockerfile() -> None:
 
 def verify_e2e_guard() -> None:
     text = E2E_PATH.read_text(encoding="utf-8")
-    if '"http://localhost:9004"' not in text:
-        fail("E2E default target must be http://localhost:9004")
+    if '"http://localhost:9020"' not in text:
+        fail("E2E default target must be http://localhost:9020")
     if "LIVE_PLATFORMOPS_PORT = 9002" not in text or "port == LIVE_PLATFORMOPS_PORT" not in text:
         fail("E2E suite must reject the live PlatformOps port 9002")
     if '"not configured" in chat_error.lower()' not in text or "configured diagnostics chat failed" not in text:
@@ -225,13 +227,13 @@ def verify_e2e_guard() -> None:
 
 
 def verify_smoke_guards() -> None:
-    for path, label, default_url in (
-        (CLUSTER_SMOKE_PATH, "cluster API smoke", "http://127.0.0.1:9004"),
-        (LIVE_API_SMOKE_PATH, "live API smoke", "http://localhost:9004"),
+    for path, label in (
+        (CLUSTER_SMOKE_PATH, "cluster API smoke"),
+        (LIVE_API_SMOKE_PATH, "live API smoke"),
     ):
         text = path.read_text(encoding="utf-8")
-        if default_url not in text:
-            fail(f"{label} must default to the isolated port 9004")
+        if "http://127.0.0.1:9020" not in text and "http://localhost:9020" not in text:
+            fail(f"{label} must default to the isolated port 9020")
         if "LIVE_PLATFORMOPS_PORT = 9002" not in text or "port == LIVE_PLATFORMOPS_PORT" not in text:
             fail(f"{label} must reject the live PlatformOps port 9002")
         if "Authorization" not in text and path == CLUSTER_SMOKE_PATH:
@@ -239,11 +241,16 @@ def verify_smoke_guards() -> None:
         if "Bearer {token}" not in text and path == LIVE_API_SMOKE_PATH:
             fail(f"{label} must send bearer authentication for protected requests")
 
-    generated_frontend = FRONTEND_SPLITTER_PATH.read_text(encoding="utf-8")
-    if '"http://localhost:9002"' in generated_frontend:
-        fail("Generated frontend API fallback must not target the live port 9002")
-    if '"http://localhost:9004"' not in generated_frontend:
-        fail("Generated frontend API fallback must target the isolated port 9004")
+    frontend_sources = (
+        (FRONTEND_SPLITTER_PATH, "Generated frontend splitter"),
+        (FRONTEND_CLIENT_PATH, "Frontend API client"),
+    )
+    for path, label in frontend_sources:
+        text = path.read_text(encoding="utf-8")
+        if '"http://localhost:9002"' in text:
+            fail(f"{label} API fallback must not target the live port 9002")
+        if '"http://localhost:9020"' not in text:
+            fail(f"{label} API fallback must target the isolated port 9020")
 
 
 def verify_supporting_yaml() -> None:
@@ -265,7 +272,7 @@ def main() -> int:
     print("isolated-verify: PASS — Compose, image, and E2E safety contracts are valid.")
     print("Prerequisites for an actual run:")
     print("  - Docker Engine with Docker Compose v2 and permission to run privileged DinD.")
-    print("  - Free host port 9004 for PlatformOps; Mailpit UI additionally uses 9010 when enabled.")
+    print("  - Free host port 9020 for PlatformOps; Mailpit UI additionally uses 9010 when enabled.")
     print("  - Network access for image pulls and the Node/Python production image build.")
     print("  - Run `make build` before `make isolated-up` when the image is not already cached.")
     print("  - `make isolated-down` retains project volumes; remove them only by explicit review.")

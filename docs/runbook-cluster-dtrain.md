@@ -7,8 +7,8 @@
 > isolated DinD stack. Those commands can reach or mutate the legacy
 > deployment; do not run them for isolated MVP testing.
 >
-> Current operators should use [the isolated MVP handoff](mvp-status.md),
-> PlatformOps on port `9004`, optional Mailpit on `9010`, and its verified local
+> Current operators should use [the isolated MVP status](mvp-status.md),
+> PlatformOps on port `9020`, optional Mailpit on `9010`, and its verified local
 > Cluster → Node → Redis workflow. dTrain/cloud/remote-node verification is a
 > remaining parity task, not a current MVP acceptance result.
 
