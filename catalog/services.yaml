@@ -62,9 +62,10 @@ services:
     volumes:
       - "{volume_root}/redis/data:/data"
       - "{volume_root}/redis/logs:/var/log/redis"
-      - "{project_root}/ops/docker/configs/redis.conf:/usr/local/etc/redis/redis.conf:ro"
+      - "{volume_root}/redis/config/redis.conf:/usr/local/etc/redis/redis.conf"
     config_files:
-      - "{project_root}/ops/docker/configs/redis.conf"
+      - "{volume_root}/redis/config/redis.conf"
+    runtime_config_path: "/usr/local/etc/redis/redis.conf"
     log_paths:
       - "{volume_root}/redis/logs"
     healthcheck:

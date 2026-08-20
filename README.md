@@ -15,8 +15,10 @@ real isolated Docker/Ansible operations and cPlatform-compatible behavior.
 See [the MVP status handoff](docs/mvp-status.md) for the evidence-scoped
 acceptance status and limitations, the [selected-page functional parity
 mapping](docs/selected-page-functional-parity.md) for authoritative behavior
-coverage, and the [next validation plan](docs/next-validation-plan.md) for the
-ordered fresh-fixture acceptance run. The [isolated runtime
+coverage, the [current-page implementation plan](docs/current-pages-cplatform-parity-plan.md)
+for the fixed seven-page delivery scope, the [golden Redis fixture](docs/redis-seven-page-acceptance-fixture.md)
+for the authoritative cross-page acceptance run, and the [next validation
+plan](docs/next-validation-plan.md) for immediate execution. The [isolated runtime
 guide](docs/isolated-platformops.md) contains the Compose lifecycle details.
 
 > **Current runtime:** PlatformOps uses host port **9020**. Optional Mailpit
@@ -24,6 +26,11 @@ guide](docs/isolated-platformops.md) contains the Compose lifecycle details.
 > untouched.
 
 ## Key Subsystems & Features
+
+> This section inventories existing repository functionality. It is not the
+> cPlatform parity backlog. Current parity work is limited to the seven pages
+> named in the implementation plan; PlatformOps-only and Advanced features must
+> not be used to claim cPlatform completion.
 
 ### 1. Dependency-Aware Lifecycle Governance
 - **Deletion Safety Modal**: Prevents accidental deletes of services, nodes, or clusters by running a real-time impact assessment.

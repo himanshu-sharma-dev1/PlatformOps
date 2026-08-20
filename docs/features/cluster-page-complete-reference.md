@@ -1,7 +1,7 @@
 # Cluster Page — Complete Reference (PlatformOps ↔ cPlatform)
 
-**Status:** living reference (written 2026-07-14)  
-**Scope:** **Cluster page only** — Cluster → Node → Services, plus **APIs and flows entered from the cluster surface** (deploy modal, install schema, config apply entry, live status, events, performance entry, GlitchTip/runtime patch entry, AIOrchestrator bootstrap).  
+**Status:** living reference (written 2026-07-14)
+**Scope:** **Cluster page only** — Cluster → Node → Services, plus **APIs and flows entered from the cluster surface** (deploy modal, install schema, config apply entry, live status, events, performance entry, GlitchTip/runtime patch entry, AIOrchestrator bootstrap).
 **Not in scope:** standalone Config Manager, Diagnostics, Monitoring, Performance, Users product pages (except deep-links *from* cluster).
 
 > **Runtime-port context:** cPlatform/live endpoint examples in this reference,
@@ -9,11 +9,11 @@
 > must not be treated as current PlatformOps endpoints. The current isolated
 > PlatformOps UI/API is `http://127.0.0.1:9020`.
 
-**Canonical path:** `docs/features/cluster-page-complete-reference.md`  
-**Related short inventory:** `docs/features/cluster-page-detailed-features.md`  
-**Functional goal (DONE):** [`docs/goal-cluster-page-full-parity.md`](../goal-cluster-page-full-parity.md)  
-**Next UX goal (ACTIVE planning):** [`docs/goal-cluster-page-cplatform-ux-clone.md`](../goal-cluster-page-cplatform-ux-clone.md) + [`docs/features/cluster-page-cplatform-ux-parity-spec.md`](./cluster-page-cplatform-ux-parity-spec.md) — cPlatform interaction model with PlatformOps visual tokens  
-**Implementation plans:** `docs/plan-cluster-page-production.md`, `docs/plan-cluster-part-a-hardening.md`  
+**Canonical path:** `docs/features/cluster-page-complete-reference.md`
+**Related short inventory:** `docs/features/cluster-page-detailed-features.md`
+**Functional goal (DONE):** [`docs/goal-cluster-page-full-parity.md`](../goal-cluster-page-full-parity.md)
+**Next UX goal (ACTIVE planning):** [`docs/goal-cluster-page-cplatform-ux-clone.md`](../goal-cluster-page-cplatform-ux-clone.md) + [`docs/features/cluster-page-cplatform-ux-parity-spec.md`](./cluster-page-cplatform-ux-parity-spec.md) — cPlatform interaction model with PlatformOps visual tokens
+**Implementation plans:** `docs/plan-cluster-page-production.md`, `docs/plan-cluster-part-a-hardening.md`
 **Verification runbook:** `docs/runbook-cluster-dtrain.md`
 
 ---
@@ -88,9 +88,9 @@ cPlatform’s cluster surface is the operator home. PlatformOps reimplements it 
 
 cPlatform stepper labels:
 
-1. **Identity**  
-2. **Repository**  
-3. **Image store**  
+1. **Identity**
+2. **Repository**
+3. **Image store**
 4. **Review**
 
 | Step | Fields | Actions |
@@ -200,7 +200,7 @@ cPlatform does **not** use REST resource URLs for most cluster ops. The page POS
 | `discover_infrastructure` | docker ps + adopt matching services |
 | `node_event` | List node events (`NodeEvent.node_get_event_info`) |
 
-**Dedicated URL (performance entry):**  
+**Dedicated URL (performance entry):**
 `GET /PlatformIO/GetNodePerformance/` — used from cluster detail for utilization / perf widgets.
 
 ### 2.3 Service lifecycle
@@ -231,21 +231,21 @@ cPlatform does **not** use REST resource URLs for most cluster ops. The page POS
 
 ### 2.5 Discover / adopt (cPlatform)
 
-1. Ansible/Python discovery on node → container list (name, image, ports, volumes, labels, status).  
-2. Match against infra catalog + dForm service types (scored tokens, port hints, image version).  
-3. On match: create Service with `adopted=True`, map ports/volumes, skip full deploy.  
+1. Ansible/Python discovery on node → container list (name, image, ports, volumes, labels, status).
+2. Match against infra catalog + dForm service types (scored tokens, port hints, image version).
+3. On match: create Service with `adopted=True`, map ports/volumes, skip full deploy.
 4. Multi-instance controlled per type; equivalents map (e.g. glitchtip aliases).
 
 ### 2.6 Live status (cPlatform)
 
-- `service_get_live_status` / install helper inspect.  
-- Cache keyed by service; **TTL 5 seconds**.  
+- `service_get_live_status` / install helper inspect.
+- Cache keyed by service; **TTL 5 seconds**.
 - UI paints green/yellow/red; detail Live Status tab shows inspect fields.
 
 ### 2.7 expose_service / host_port (cPlatform)
 
-- Infra may default **internal** (`expose_service=false`).  
-- When exposing, host port bound; UI shows `:port` or `internal`.  
+- Infra may default **internal** (`expose_service=false`).
+- When exposing, host port bound; UI shows `:port` or `internal`.
 - Collision checker: `check_port_and_name_availability` (and related).
 
 ---
@@ -256,78 +256,77 @@ Auth: session/token via `/api/auth/login` (`email` + `password`). Most routes re
 
 ### 3.1 Clusters — `apps/api/platformops/routers/clusters.py`
 
-| Method | Path | Role |
-|--------|------|------|
-| POST | `/api/clusters` | Create |
-| GET | `/api/clusters` | List |
-| PUT | `/api/clusters/{id}` | Update |
-| DELETE | `/api/clusters/{id}` | Delete (impact rules) |
-| GET | `/api/clusters/{id}/summary` | Aggregate summary |
-| GET | `/api/clusters/{id}/operations` | Operations feed |
-| GET | `/api/clusters/{id}/lifecycle-impact` | Delete impact |
-| POST | `/api/clusters/test-repo` | Wizard test repo |
-| POST | `/api/clusters/test-registry` | Wizard test registry |
+| Method | Path | Role | Key Parameters / Payload |
+|--------|------|------|--------------------------|
+| POST | `/api/clusters` | Create | `name`, `region`, `environment`, `description`, `cluster_type` (alias `type`), `variant`, `role`, `image_store`, `repo_*`, `registry_*` |
+| GET | `/api/clusters` | List | Returns `list[ClusterOut]` ordered by `created_at.desc()` |
+| PUT | `/api/clusters/{id}` | Update | `ClusterUpdate` (empty or `"***"` retains existing secrets) |
+| DELETE | `/api/clusters/{id}` | Delete (governed) | Query params: `force: bool = False`, `force_reason: str` (min 12 chars), `force_approval_id: int` |
+| GET | `/api/clusters/{id}/summary` | Aggregate summary | `ClusterSummary` read model |
+| GET | `/api/clusters/{id}/operations` | Operations feed | Query param: `limit: int = 40` |
+| GET | `/api/clusters/{id}/lifecycle-impact` | Delete impact | Pre-delete risk assessment (`can_delete_without_force`, warnings, blockers) |
+| POST | `/api/clusters/test-repo` | Wizard test repo | `TestGitRepoRequest` (`repo_type`, `repo_url`, `repo_branch`, `repo_token`) |
+| POST | `/api/clusters/test-registry` | Wizard test registry | `TestRegistryRequest` (`registry_type`, `registry_url`, `registry_user`, `registry_password`) |
 
 **ClusterOut fields:** id, name, region, environment, repo_*, registry_* (secrets masked).
 
 ### 3.2 Nodes — `routers/nodes.py`
 
-| Method | Path | Role |
-|--------|------|------|
-| GET | `/api/nodes` | List |
-| POST | `/api/nodes` | Create (+ **AIOrchestrator bootstrap** on first node) |
-| PUT | `/api/nodes/{id}` | Update |
-| DELETE | `/api/nodes/{id}` | Delete |
-| POST | `/api/nodes/{id}/validate` | Ansible validate-node job |
-| GET | `/api/nodes/{id}/connection` | Connection report + `live_probe` |
-| GET | `/api/nodes/{id}/onboarding-readiness` | Checklist |
-| POST | `/api/nodes/{id}/onboarding-remediate` | Remediation action |
-| POST | `/api/nodes/{id}/discover` | Discover + adopt |
-| GET | `/api/nodes/{id}/live-status` | Batch live status for node services |
-| POST | `/api/nodes/{id}/inventory/cleanup` | Soft inventory cleanup (DB rows) |
-| GET | `/api/nodes/{id}/jobs` | Job history |
-| GET | `/api/nodes/{id}/summary` | Node summary |
-| GET | `/api/nodes/{id}/metrics` | Utilization (Prometheus-backed when available) |
-| GET | `/api/nodes/{id}/lifecycle-impact` | Delete impact |
-| GET | `/api/nodes/{id}/deployment-plan/{service_key}` | Ordered deploy plan |
-| GET | `/api/nodes/{id}/check-port-and-name` | Collision check |
-| POST | `/api/nodes/{id}/launch-vm` | Cloud launch (API; UI advanced/deferred) |
-| POST | `/api/nodes/{id}/teardown-vm` | Cloud teardown |
-| POST | `/api/nodes/{id}/observability/bootstrap` | Obs plane bootstrap |
-| GET | `/api/nodes/{id}/artifacts/inventory` | Generated inventory artifact |
-| GET | `/api/nodes/{id}/artifacts/compose` | Generated compose artifact |
-| POST | `/api/nodes/{id}/capacity` | Capacity report |
-| GET | `/api/nodes/{id}/subsystems/{subsystem}/rollout-plan` | Subsystem plan |
-| POST | `/api/nodes/{id}/subsystems/{subsystem}/deploy` | Subsystem deploy |
-
-**NodeCreate defaults (schema):**
-
-- `host=localhost`, `ssh_user=ubuntu`  
-- `volume_root=/tmp/platformops`  
-- `docker_network=platformops_prod_network`  
-- `environment=local`  
-- `facts={}`
-
-**AIOrchestrator bootstrap:** `_bootstrap_ai_orchestrator_if_needed` on node create when cluster has no `ai-orchestrator` / `AIOrchestrator` / `cplatform` service and node is first/only — creates MANUAL registration (`install_mode=manual`, `bootstrap=true`).
+| Method | Path | Role | Key Parameters / Payload |
+|--------|------|------|--------------------------|
+| GET | `/api/nodes` | List | Query param: `cluster_id: int \| None` |
+| POST | `/api/nodes` | Create (+ **AIOrchestrator bootstrap**) | `NodeCreate` (saves PEM key to `runtime/ssh_keys/node_{id}.pem` with `0600` permissions) |
+| PUT | `/api/nodes/{id}` | Update | `NodeUpdate` (key re-upload, facts merge, ingress port normalization) |
+| DELETE | `/api/nodes/{id}` | Delete (governed) | Query params: `force: bool = False`, `force_reason: str`, `force_approval_id: int` |
+| POST | `/api/nodes/{id}/validate` | Ansible validate-node job | Triggers `validate_node.yml` playbook and live SSH probe |
+| GET | `/api/nodes/{id}/connection` | Connection report | Returns `connection_state` (`validated`, `ssh-ok`, `unreachable`), `live_probe`, recommendations |
+| GET | `/api/nodes/{id}/onboarding-readiness` | 9-rule checklist | Returns `pass_count`, `warn_count`, `fail_count`, `next_actions`, `suggested_actions` |
+| POST | `/api/nodes/{id}/onboarding-remediate` | Remediation action | `NodeOnboardingRemediationRequest(action)` (`apply-aws-general-preset`, `apply-aws-gpu-preset`, `apply-local-preset`, `run-validation`) |
+| POST | `/api/nodes/{id}/discover` | Discover + adopt | `catalog/discovery.yaml` token scoring, SERV#### allocation |
+| GET | `/api/nodes/{id}/live-status` | Batch live status | Query param: `via: str \| None` (`via="ssh"` or `"remote"` forces true remote SSH Docker inspect) |
+| POST | `/api/nodes/{id}/inventory/cleanup` | Soft inventory cleanup | `NodeInventoryCleanupIn(modes=["weak","stale","duplicates","all"], dry_run=True, protect_orchestrator=True)` |
+| GET | `/api/nodes/{id}/jobs` | Job history | Query param: `limit: int = 12` (returns total, deployment, config, validation, failed breakdown) |
+| GET | `/api/nodes/{id}/summary` | Node summary | Counts by kind, docker network, volume root, capacity status |
+| GET | `/api/nodes/{id}/metrics` | Utilization metrics | Query param: `window: str = "1h"` (CPU, memory, disk, network Rx/Tx) |
+| GET | `/api/nodes/{id}/lifecycle-impact` | Delete impact | Evaluates dependent services, active orchestrator, cascading risk |
+| GET | `/api/nodes/{id}/deployment-plan/{service_key}` | Ordered deploy plan | Ordered dependency DAG steps with container names and Ansible preview |
+| GET | `/api/nodes/{id}/check-port-and-name` | Collision check | Query params: `port: int \| None`, `name: str \| None` |
+| POST | `/api/nodes/{id}/launch-vm` | Cloud launch | Triggers Terraform in `ops/terraform/aws` (deferred UI stub) |
+| POST | `/api/nodes/{id}/teardown-vm` | Cloud teardown | Destroys Terraform cloud instance |
+| POST | `/api/nodes/{id}/observability/bootstrap` | Obs plane bootstrap | Bootstraps node_exporter/Alloy collectors |
+| GET | `/api/nodes/{id}/artifacts/inventory` | Inventory artifact | Generates Ansible INI inventory artifact |
+| GET | `/api/nodes/{id}/artifacts/compose` | Compose artifact | Generates Docker Compose YAML artifact |
+| POST | `/api/nodes/{id}/capacity` | Capacity report | Real-time hardware/container capacity analysis |
+| GET | `/api/nodes/{id}/subsystems/{subsystem}/rollout-plan` | Subsystem plan | Topological subsystem deployment order |
+| POST | `/api/nodes/{id}/subsystems/{subsystem}/deploy` | Subsystem deploy | Batch subsystem deployment execution |
 
 ### 3.3 Services — `routers/services.py` (cluster-entry subset)
 
+| Method | Path | Role | Key Parameters / Payload |
+|--------|------|------|--------------------------|
+| GET | `/api/services` | List all | Query param: `node_id: int \| None` |
+| POST | `/api/services` | Create/register card | `ServiceCreate` (merges catalog defaults, allocates SERV####) |
+| PATCH | `/api/services/{id}` | Update overrides | `ServiceUpdate` (name, contract_overrides, install_mode) |
+| POST | `/api/services/{id}/preflight` | Dependency preflight | Returns `ok`, `required`, `missing`, `stopped`, `details` |
+| POST | `/api/services/{id}/dependencies/install-missing` | Deploy missing deps | Auto-creates and deploys missing dependencies sequentially |
+| POST | `/api/services/{id}/deploy` | Deploy job | Launches Ansible `docker_service.yml` deployment job |
+| POST | `/api/services/{id}/deployment/execute` | Plan + auto deps + deploy | `DeploymentExecuteIn(auto_install_dependencies=True)` |
+| POST | `/api/services/{id}/delete` | Delete service | Query params: `force: bool`, `force_reason: str`, `force_approval_id: int` (AIOrchestrator deletion guard) |
+| GET | `/api/services/{id}/live-status` | Single service live | Inspects runtime state (cached with **5-second TTL**) |
+| GET | `/api/services/{id}/capabilities` | Capability flags | `configurable`, `diagnostics_supported`, `backup_supported`, etc. |
+| GET | `/api/services/{id}/config` | Config workspace | Returns `ConfigWorkspaceOut` (current YAML, paths, snapshots) |
+| POST | `/api/services/{id}/config/direct-apply` | Apply YAML (UI path) | Validates, captures pre-snapshot, writes host/container, reloads/restarts, captures post-snapshot |
+| GET | `/api/services/placement/recommendations/{key}` | Placement advisor | Queries scored candidate nodes (health, capacity, affinity, spread) |
+| POST | `/api/services/placement/deploy/{key}` | Auto-placement deploy | Selects optimal node and triggers automated deployment |
+
+### 3.4 Governance & Lifecycle Approvals — `routers/sre.py`
+
 | Method | Path | Role |
 |--------|------|------|
-| GET | `/api/services` | List all |
-| POST | `/api/services` | Create/register card |
-| PATCH | `/api/services/{id}` | Update overrides |
-| POST | `/api/services/{id}/preflight` | Dependency preflight |
-| POST | `/api/services/{id}/dependencies/install-missing` | Deploy missing deps |
-| POST | `/api/services/{id}/deploy` | Deploy job |
-| POST | `/api/services/{id}/deployment/execute` | Plan + auto deps + target deploy |
-| POST | `/api/services/{id}/delete` | Uninstall job |
-| GET | `/api/services/{id}/live-status` | Single service live |
-| GET | `/api/services/{id}/capabilities` | diagnostics/config/backup flags |
-| GET | `/api/services/{id}/config` | Config workspace (cluster Config button) |
-| POST | `/api/services/{id}/config/direct-apply` | Apply YAML (UI path) |
-| POST | `/api/services/{id}/config/apply` | Apply job (async script path) |
-| … | snapshots, drift, migration, rename, restore | Config manager APIs (entry from cluster) |
+| POST | `/api/lifecycle/force-approvals` | Create 2-person force-delete approval request (`target_type`, `target_id`, `reason`, `requested_by`, `ttl_hours`) |
+| GET | `/api/lifecycle/force-approvals` | List approvals filtered by `target_type`, `target_id`, `status` |
+| POST | `/api/lifecycle/force-approvals/{id}/decision` | Decide approval (`approver`, `status` [approved/rejected], `decision_note`) |
+| POST | `/api/lifecycle/force-approvals/{id}/revoke` | Revoke approval (`actor`, `note`) |
 | GET | `/api/jobs/{id}` | Poll job |
 | GET | `/api/jobs/{id}/logs` | Job logs |
 
@@ -445,9 +444,9 @@ DeploymentJob / OperationalEvent / ConfigSnapshot
 
 ### 5.4 Config apply path (cluster Config button)
 
-1. FE: Config icon → `loadConfig(service)` → Config view (cluster entry).  
-2. Apply: `POST /api/services/{id}/config/direct-apply` with `{ content, apply_mode }`.  
-3. Backend: validate YAML → snapshot → write host `config_files` paths → `docker cp` to `runtime_config_path` → restart if needed → job **success** if write landed.  
+1. FE: Config icon → `loadConfig(service)` → Config view (cluster entry).
+2. Apply: `POST /api/services/{id}/config/direct-apply` with `{ content, apply_mode }`.
+3. Backend: validate YAML → snapshot → write host `config_files` paths → `docker cp` to `runtime_config_path` → restart if needed → job **success** if write landed.
 4. Proven service: **dTrain controller** host `/tmp/platformops/dtrain/controller/config/dtrain_config.yaml` → container `/app/config/dtrain_config.yaml`.
 
 Ansible helper `service_config_apply.sh` uses `maybe_sudo` when sudo absent (API container).
@@ -503,12 +502,12 @@ sequenceDiagram
 
 ### 6.4 Catalog onboard → deploy or config
 
-1. Open catalog → `openCatalogOnboarding(card)`.  
-2. `GET /api/catalog/services/{key}/install-schema?node_id=`.  
-3. User sets MANUAL/ANSIBLE + dForm fields + expose/host_port.  
-4. `POST /api/services` with overrides.  
-5. Next action: **config** → loadConfig; **deploy** → openDeploymentModal.  
-6. Deploy: preflight → optional install-missing → `deployment/execute` or `deploy`.  
+1. Open catalog → `openCatalogOnboarding(card)`.
+2. `GET /api/catalog/services/{key}/install-schema?node_id=`.
+3. User sets MANUAL/ANSIBLE + dForm fields + expose/host_port.
+4. `POST /api/services` with overrides.
+5. Next action: **config** → loadConfig; **deploy** → openDeploymentModal.
+6. Deploy: preflight → optional install-missing → `deployment/execute` or `deploy`.
 7. Jobs poll until success/fail; live status updates pills.
 
 ### 6.5 Config apply (real container)
@@ -527,8 +526,8 @@ sequenceDiagram
 
 ### 6.6 Delete with safety
 
-1. `requestDelete` → lifecycle-impact API.  
-2. Confirm modal; force-delete approval path if required.  
+1. `requestDelete` → lifecycle-impact API.
+2. Confirm modal; force-delete approval path if required.
 3. Service delete runs Ansible remove; node/cluster blocked when children exist.
 
 ---
@@ -592,14 +591,14 @@ Legend: **Y** = present · **P** = partial · **N** = missing · **D** = deferre
 
 ### 8.2 GlitchTip / runtime patch
 
-- cPlatform: `service_runtime_patch` / `service_runtime_patch_status` from cluster JS.  
-- PlatformOps: monitoring actions (`runPatchObservability`, etc.) exist for Monitoring surface; **not first-class on Clusters service card**.  
+- cPlatform: `service_runtime_patch` / `service_runtime_patch_status` from cluster JS.
+- PlatformOps: monitoring actions (`runPatchObservability`, etc.) exist for Monitoring surface; **not first-class on Clusters service card**.
 - Future cluster parity: service card action → patch API → restart → live status refresh.
 
 ### 8.3 Performance connection
 
-- cPlatform: `GetNodePerformance` from detail JS.  
-- PlatformOps: Overview shows metrics if loaded; else **Open Performance** switches `activeView`.  
+- cPlatform: `GetNodePerformance` from detail JS.
+- PlatformOps: Overview shows metrics if loaded; else **Open Performance** switches `activeView`.
 - Cluster-owned piece: wire metrics load on node select (partially done via controller effects).
 
 ---
@@ -610,32 +609,32 @@ Ordered for maximum cPlatform visual/behavioral parity on **this page only**:
 
 ### P0 — Operator truthfulness (mostly done; keep green)
 
-1. Live status real docker inspect + poll  
-2. Discover score-only (no illegal denylist)  
-3. Config apply success when host/container written  
-4. Deploy ports normalized; deps install works  
-5. Buttons use real `s.setNotice` wiring  
+1. Live status real docker inspect + poll
+2. Discover score-only (no illegal denylist)
+3. Config apply success when host/container written
+4. Deploy ports normalized; deps install works
+5. Buttons use real `s.setNotice` wiring
 
 ### P1 — UX structure parity with cPlatform detail — **DONE**
 
-1. **Service/Node detail drawer** with tabs: Overview | Events | Live Status — **DONE**  
-2. **Node Events** and **Service Events** panels (`GET /api/events` scoped) — **DONE**  
-3. **Edit service** expose/host_port on drawer — **DONE**  
-4. **AIOrchestrator** delete guard + first-node bootstrap — **DONE**  
+1. **Service/Node detail drawer** with tabs: Overview | Events | Live Status — **DONE**
+2. **Node Events** and **Service Events** panels (`GET /api/events` scoped) — **DONE**
+3. **Edit service** expose/host_port on drawer — **DONE**
+4. **AIOrchestrator** delete guard + first-node bootstrap — **DONE**
 
 ### P2 — Advanced cluster-entry features
 
-1. GlitchTip / runtime patch from service card — **DONE** (toast only when `success===true`)  
-2. Performance entry from Overview — **DONE** (deep-link + metrics when available)  
-3. Launch VM UI — **DEFERRED**  
-4. Port collision on catalog onboard — **DONE**  
-5. PEM mount for true remote SSH — ops optional  
+1. GlitchTip / runtime patch from service card — **DONE** (toast only when `success===true`)
+2. Performance entry from Overview — **DONE** (deep-link + metrics when available)
+3. Launch VM UI — **DEFERRED**
+4. Port collision on catalog onboard — **DONE**
+5. PEM mount for true remote SSH — ops optional
 
 ### P3 — Visual polish (deferred)
 
-1. Density/spacing match `clusterDetail.css` — deferred  
-2. Catalog categories / drag-drop if required — deferred  
-3. Secret replace UX for cluster settings — simpler replace OK  
+1. Density/spacing match `clusterDetail.css` — deferred
+2. Catalog categories / drag-drop if required — deferred
+3. Secret replace UX for cluster settings — simpler replace OK
 
 ---
 
@@ -695,29 +694,29 @@ Environment used in production hardening sessions:
 
 **Minimum smoke checklist**
 
-1. Login → list clusters → open cluster → select node.  
-2. Probe → connection_state + live_probe.  
-3. Discover → summary with scanned/adopted; cPlatform containers may appear.  
-4. Live status → running_count matches docker.  
-5. Config (dTrain) → apply marker → host + container contain marker; job **success**.  
-6. Preflight → ok when deps running.  
-7. Deploy dTrain → Ansible job **success**.  
-8. Events/jobs tabs populate for node-scoped activity.  
+1. Login → list clusters → open cluster → select node.
+2. Probe → connection_state + live_probe.
+3. Discover → summary with scanned/adopted; cPlatform containers may appear.
+4. Live status → running_count matches docker.
+5. Config (dTrain) → apply marker → host + container contain marker; job **success**.
+6. Preflight → ok when deps running.
+7. Deploy dTrain → Ansible job **success**.
+8. Events/jobs tabs populate for node-scoped activity.
 9. Delete impact checks prevent unsafe deletes.
 
 **Known operational shortcuts**
 
-- API container may lack PEM → `connection_mode: local-fallback` with host docker socket.  
-- `deployment/execute` may return `ok: false` while target job still **running**; poll job to terminal state.  
+- API container may lack PEM → `connection_mode: local-fallback` with host docker socket.
+- `deployment/execute` may return `ok: false` while target job still **running**; poll job to terminal state.
 - Greenfield image pull/deploy still depends on host images and network.
 
 ---
 
 ## 12. How to use this document later
 
-1. **Adding a cluster UI control** → find cPlatform control in §1 → user-action in §2 → add REST+FE in §3 style → update parity matrix §7.  
-2. **Debugging discover/deploy/config** → §5 hardcodes + §6 flows + §11 smoke.  
-3. **Prioritizing work** → §9 backlog; do not expand to other pages.  
+1. **Adding a cluster UI control** → find cPlatform control in §1 → user-action in §2 → add REST+FE in §3 style → update parity matrix §7.
+2. **Debugging discover/deploy/config** → §5 hardcodes + §6 flows + §11 smoke.
+3. **Prioritizing work** → §9 backlog; do not expand to other pages.
 4. **Never** treat Config/Diagnostics full product docs as cluster scope; only cluster **entry points**.
 
 ---

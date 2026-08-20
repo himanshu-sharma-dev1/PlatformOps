@@ -834,11 +834,40 @@ def rename_config_snapshot(
 
 
 def restore_config_snapshot(db: Session, service: ServiceInstance, snapshot: ConfigSnapshot) -> DeploymentJob:
-    # Write snapshot content to temporary file
+    service_id = int(service.id)
+    node_id = int(service.node_id) if service.node_id else None
+    snapshot_version = int(snapshot.version)
+    snapshot_content = str(snapshot.content or "{}")
+    snapshot_name = str(snapshot.name or f"v{snapshot_version}")
+    service_name = str(service.name)
+
+    # Validate snapshot YAML
+    validation = validate_config(snapshot_content, service=service)
+    if not validation["ok"]:
+        job = create_job(
+            db, action="restore-config-blocked", command="validate-yaml", service_id=service_id, node_id=node_id
+        )
+        return finish_job(db, job, ok=False, error=validation["message"])
+
+    # Directly execute apply_config with restart apply_mode
+    job = apply_config(db, service, content=snapshot_content, apply_mode="restart")
+    if job.status == "success":
+        record_event(
+            db,
+            category="config",
+            level="info",
+            message=f"Restored configuration to snapshot version {snapshot_version} ({snapshot_name}) for {service_name}",
+            service_id=service_id,
+            node_id=node_id,
+            metadata={"job_id": job.id, "snapshot_version": snapshot_version},
+        )
+        return job
+
+    # If direct apply didn't complete immediately, use async runner with detached-safe callback
     runtime_dir = settings.resolve(settings.runtime_dir)
     runtime_dir.mkdir(parents=True, exist_ok=True)
-    temp_yaml = runtime_dir / f"config-restore-{service.id}-{int(datetime.utcnow().timestamp())}.yml"
-    temp_yaml.write_text(snapshot.content or "{}", encoding="utf-8")
+    temp_yaml = runtime_dir / f"config-restore-{service_id}-{int(datetime.utcnow().timestamp())}.yml"
+    temp_yaml.write_text(snapshot_content, encoding="utf-8")
 
     if not settings.local_mode:
         script_path = settings.resolve(settings.ansible_dir) / "playbooks" / "service_config_apply.sh"
@@ -849,23 +878,25 @@ def restore_config_snapshot(db: Session, service: ServiceInstance, snapshot: Con
             f"--service-name {service.service_key} "
             f"--apply-mode restart"
         )
-        job = create_job(db, action="restore-config", command=command, service_id=service.id, node_id=service.node_id)
+        job = create_job(db, action="restore-config", command=command, service_id=service_id, node_id=node_id)
 
         def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
-            bg_service = bg_db.get(ServiceInstance, service.id)
+            bg_service = bg_db.get(ServiceInstance, service_id)
             if bg_service:
                 if ok:
                     with contextlib.suppress(Exception):
-                        bg_service.config_json = json.dumps(yaml.safe_load(snapshot.content or "{}"))
+                        bg_service.config_json = json.dumps(yaml.safe_load(snapshot_content))
+                        bg_db.add(bg_service)
+                        bg_db.commit()
                 record_event(
                     bg_db,
                     category="config",
                     level="info" if ok else "error",
-                    message=f"Restored configuration to snapshot version {snapshot.version} for {bg_service.name}"
+                    message=f"Restored configuration to snapshot version {snapshot_version} for {service_name}"
                     if ok
-                    else f"Configuration restore failed for {bg_service.name}",
-                    service_id=bg_service.id,
-                    node_id=bg_service.node_id,
+                    else f"Configuration restore failed for {service_name}",
+                    service_id=service_id,
+                    node_id=node_id,
                     metadata={"job_id": bg_job.id},
                 )
 

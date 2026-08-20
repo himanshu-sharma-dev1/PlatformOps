@@ -1,28 +1,27 @@
 # Cluster Page — cPlatform UX Structure Parity Spec
 
-**Status:** planning / design source of truth  
-**Created:** 2026-07-15  
-**Scope:** Cluster list + cluster detail only (not Config/Diagnostics/Monitoring product pages except entry points)  
-**Visual skin:** Keep **PlatformOps** fonts, colors, spacing tokens, glass cards where they already exist  
-**UX contract:** Match **cPlatform** interaction model — what opens where, drawers vs modals, spinners, loading shells, toast kinds, event panels, catalog flow, detail drawer tabs, button busy states  
+**Status:** IMPLEMENTED / LIVING UX SPECIFICATION
+**Scope:** Cluster list + cluster detail only (not Config/Diagnostics/Monitoring product pages except entry points)
+**Visual skin:** Keep **PlatformOps** fonts, colors, spacing tokens, glass cards where they already exist
+**UX contract:** Implemented in `apps/web/src/views/ClustersView.tsx`, `apps/web/src/views/DrawersHost.tsx`, and `apps/web/src/views/ModalsHost.tsx` (drawers vs modals, spinners, loading shells, toast kinds, event panels, catalog flow, detail drawer tabs, button busy states)
 
 **Related:**
 
 | Doc | Role |
 |-----|------|
-| `docs/features/cluster-page-complete-reference.md` | Functional APIs + feature inventory already completed |
-| `docs/goal-cluster-page-cplatform-ux-clone.md` | Execution goal for this UX work |
-| `docs/goal-cluster-page-full-parity.md` | Prior functional parity goal (DONE) |
+| `docs/features/cluster-page-complete-reference.md` | Functional APIs + feature inventory |
+| `docs/selected-page-functional-parity.md` | Master 7-page action inventory |
+| `docs/redis-seven-page-acceptance-fixture.md` | Authoritative 7-page acceptance fixture |
 | cPlatform sources (read-only) | `02-clusters.html`, `04-cluster-detail.html`, `clusterDetail.js`, `cluster.css`, `clusterDetail.css` |
 
 ---
 
 ## 0. Design principles (locked)
 
-1. **Tokens stay PlatformOps** — `--navy-*`, `--ink-*`, GlassCard, existing button/pill classes; do **not** re-skin the whole app to cPlatform colors.  
-2. **Interaction is cPlatform** — same open/close targets, same step wizards as drawers (not ad-hoc page jumps), same busy/spinner patterns, same detail-drawer triad (Overview | Events | Live Status) for node **and** service.  
-3. **No fake UX** — loading states only while real API work runs; toasts reflect real outcomes (`ok` / `err` / `warn`).  
-4. **Build on existing FE** — `ClustersView`, `ModalsHost`, `DrawersHost`, platform actions; prefer refactor of structure over rewrite of business logic.  
+1. **Tokens stay PlatformOps** — `--navy-*`, `--ink-*`, GlassCard, existing button/pill classes; do **not** re-skin the whole app to cPlatform colors.
+2. **Interaction is cPlatform** — same open/close targets, same step wizards as drawers (not ad-hoc page jumps), same busy/spinner patterns, same detail-drawer triad (Overview | Events | Live Status) for node **and** service.
+3. **No fake UX** — loading states only while real API work runs; toasts reflect real outcomes (`ok` / `err` / `warn`).
+4. **Build on existing FE** — `ClustersView`, `ModalsHost`, `DrawersHost`, platform actions; prefer refactor of structure over rewrite of business logic.
 5. **Pixel clone means layout + density + motion**, not CSS variable identity: column split, drawer width, catalog slide-in, card stacking, footer action bars.
 
 ---
@@ -85,10 +84,10 @@
 
 Keep PO field set if already sufficient; **layout** must match step panes:
 
-1. **Identity** — name, region select, env select, description  
-2. **Repository** — provider cards, URL, branch, path, auth tabs (PAT/SSH/none), Replace secret, Test connection  
-3. **Image store** — provider cards, URL, namespace, auth tabs, Test connection  
-4. **Review** — review rows + confirm  
+1. **Identity** — name, region select, env select, description
+2. **Repository** — provider cards, URL, branch, path, auth tabs (PAT/SSH/none), Replace secret, Test connection
+3. **Image store** — provider cards, URL, namespace, auth tabs, Test connection
+4. **Review** — review rows + confirm
 
 **Busy:** Create/Save uses `setButtonLoading`; drawer body `is-busy` during submit.
 
@@ -164,7 +163,7 @@ Keep PO field set if already sufficient; **layout** must match step panes:
 
 ### 3.5 Node provision drawer
 
-cPlatform multi-step (cloud vs bare metal, credentials, config, ports).  
+cPlatform multi-step (cloud vs bare metal, credentials, config, ports).
 PO has stepper drawer — **align step labels, foot buttons, busy state**; keep PEM path fields.
 
 ### 3.6 Action blocker modal
@@ -205,11 +204,11 @@ Events are **fetched on open tab/drawer**, not only global dump. Empty and loadi
 
 ### 4.3 Target UX parity for events
 
-1. Opening **Events** always triggers scoped fetch + loading status text.  
-2. Status line: `Not loaded` → `Loading…` → `N events` / empty message.  
-3. Each row: level pill + message + timestamp (and optional trigger category).  
-4. Detail drawer and node Events button open the **same** event renderer.  
-5. After Discover/Deploy/Config/Delete, optionally **refresh** open events panel.  
+1. Opening **Events** always triggers scoped fetch + loading status text.
+2. Status line: `Not loaded` → `Loading…` → `N events` / empty message.
+3. Each row: level pill + message + timestamp (and optional trigger category).
+4. Detail drawer and node Events button open the **same** event renderer.
+5. After Discover/Deploy/Config/Delete, optionally **refresh** open events panel.
 6. Do not invent fake events; only operational events from API.
 
 ---
@@ -273,13 +272,13 @@ Events are **fetched on open tab/drawer**, not only global dump. Empty and loadi
 
 For **cluster list + detail only**:
 
-1. Every primary cPlatform control that we implement opens the **same class of surface** (drawer vs modal vs inline).  
-2. No primary action lacks busy/spinner feedback when async.  
-3. Node and service detail use **one** wide drawer with Overview | Events | Live Status.  
-4. Events always scoped-load with status line.  
-5. Catalog open/close/search/select matches cP flow (DnD optional).  
-6. PlatformOps visual tokens retained; layout density approaches cP clusterDetail.  
-7. Existing functional APIs continue to work (no regression of smoke: discover, deploy, config apply, AIOrchestrator guard).  
+1. Every primary cPlatform control that we implement opens the **same class of surface** (drawer vs modal vs inline).
+2. No primary action lacks busy/spinner feedback when async.
+3. Node and service detail use **one** wide drawer with Overview | Events | Live Status.
+4. Events always scoped-load with status line.
+5. Catalog open/close/search/select matches cP flow (DnD optional).
+6. PlatformOps visual tokens retained; layout density approaches cP clusterDetail.
+7. Existing functional APIs continue to work (no regression of smoke: discover, deploy, config apply, AIOrchestrator guard).
 
 **Out of scope for this UX goal:** pixel-identical colors/fonts; full Config Manager page rebuild; Launch VM unless product opts in.
 

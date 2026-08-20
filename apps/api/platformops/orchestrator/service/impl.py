@@ -696,16 +696,21 @@ def delete_service(db: Session, service: ServiceInstance) -> DeploymentJob:
             ),
         )
 
+    service_id = int(service.id)
+    service_name = str(service.name)
+
     def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
-        bg_service = bg_db.get(ServiceInstance, service.id)
+        bg_service = bg_db.get(ServiceInstance, service_id)
         if bg_service:
             bg_service.status = "deleted" if ok else "error"
+            bg_db.add(bg_service)
+            bg_db.commit()
             record_event(
                 bg_db,
                 category="lifecycle",
                 level="info" if ok else "error",
-                message=f"Delete finished for {bg_service.name} with status {bg_service.status}",
-                service_id=bg_service.id,
+                message=f"Delete finished for {service_name} with status {bg_service.status}",
+                service_id=service_id,
                 node_id=bg_service.node_id,
                 metadata={"job_id": bg_job.id},
             )

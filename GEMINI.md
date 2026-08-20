@@ -1,190 +1,138 @@
-# GEMINI.md — PlatformOps SRE Orchestrator
+# GEMINI.md — PlatformOps current-page cPlatform parity
 
-## 1. Project Overview
+## Mission and scope
 
-PlatformOps is a **production-grade SRE and DevOps control plane** built with FastAPI + React + SQLite. It distills the core infrastructure orchestration capabilities of the legacy `cPlatform` Django monolith into a modern, decoupled architecture.
+PlatformOps is a FastAPI/React port of selected cPlatform operator behavior.
+The active goal is exact end-to-end functional parity for only seven existing
+pages: Clusters, Config Manager, Users, Monitoring, Performance, Diagnostics,
+and Observability.
 
-**Primary Goal:** Achieve exact feature parity with cPlatform's SRE workspace pages — no more, no less.
+UI styling may remain different. Validation, defaults, persistence, jobs,
+runtime side effects, errors, lifecycle, and operator reachability must match.
 
-**Tech Stack:**
-- **Backend:** Python 3.12, FastAPI, SQLAlchemy 2.0, SQLite, Pydantic v2
-- **Frontend:** React 18, Vite, TypeScript (single-page `main.tsx`)
-- **Automation:** Ansible playbooks + Python wrapper scripts
-- **Observability:** GlitchTip (Sentry fork), Grafana Loki, Prometheus, Alloy, node_exporter, process-exporter
-- **IaC:** Docker Compose, Terraform (mock), Helm 3
+Do not add Batch I/O, Stream I/O, Model Train, Model Deploy, Model Compare,
+Applications, DB-pull inference, or other cPlatform pages during this program.
+Do not implement PlatformOps Advanced pages (Topology, Policy, Audit,
+Reliability) as parity deliverables.
 
----
+cPlatform has no standalone Observability Stack page. Only behavior derived
+from cPlatform Monitoring, SystemMonitoring, Diagnostics, ClusterConfig, and
+their helpers belongs in Observability parity. PlatformOps-only stack
+management, incidents, SLOs, policy, secrets, maintenance, capacity, and
+runbooks do not count toward completion.
 
-## 2. Directory Structure
+## Sources of truth
 
-```
-PlatformOps/
-├── apps/
-│   ├── api/                          # FastAPI backend
-│   │   └── platformops/
-│   │       ├── main.py               # All route handlers (~2156 lines, ~97 endpoints)
-│   │       ├── models.py             # SQLAlchemy 2.0 ORM models (~358 lines)
-│   │       ├── schemas.py            # Pydantic request/response models (~1149 lines)
-│   │       ├── settings.py           # Pydantic settings (GlitchTip URL, tokens, catalog paths)
-│   │       ├── db.py                 # Database engine, session, Base
-│   │       └── orchestrator/         # Business logic package (~7157 lines total)
-│   │           ├── __init__.py       # Re-exports all public functions (~309 lines)
-│   │           ├── common.py         # Shared helpers: record_event, list_events, ansible utils (~176 lines)
-│   │           ├── config.py         # Config snapshots, drift, apply, restore, migration (~807 lines)
-│   │           ├── diagnostics.py    # Live logs, log archives, backfill, AI analysis (~1219 lines)
-│   │           ├── discovery.py      # Infrastructure auto-discovery via Docker PS (~69 lines)
-│   │           ├── monitoring.py     # GlitchTip proxy, metrics, sweep, uptime, perf (~998 lines)
-│   │           ├── node.py           # Node validation, onboarding, VM lifecycle (~602 lines)
-│   │           ├── reports.py        # SRE: incidents, SLOs, policy, secrets, maintenance (~1722 lines)
-│   │           └── service.py        # Catalog, topology, placement, deploy, compose gen (~1255 lines)
-│   └── web/                          # React + Vite frontend
-│       └── src/
-│           ├── main.tsx              # Entire SPA rendering logic (~8316 lines)
-│           └── components/
-│               ├── Layout.tsx        # Shell layout wrapper
-│               ├── Sidebar.tsx       # Navigation sidebar
-│               └── GlassCard.tsx     # Reusable card component
-├── catalog/
-│   ├── services.yaml                 # Declarative service card contracts (40+ services)
-│   ├── dependencies.yaml             # Dependency graph definitions
-│   └── observability.yaml            # Observability stack definitions
-├── docs/
-│   ├── features/                     # Feature parity specification documents
-│   │   ├── cluster-page-detailed-features.md
-│   │   ├── config-manager-detailed-features.md
-│   │   ├── monitoring-page-detailed-features.md
-│   │   ├── diagnostics-page-detailed-features.md
-│   │   └── performance-page-detailed-features.md
-│   └── cplatform-distillation-audit.md
-├── ops/
-│   ├── ansible/playbooks/            # Ansible playbook YAML files
-│   ├── compose/                      # docker-compose.local.yml, docker-compose.observability.yml
-│   ├── docker/                       # Multi-stage Dockerfile
-│   ├── terraform/aws/                # Mock Terraform config
-│   └── helm/platformops/             # Helm 3 chart
-├── scripts/
-│   └── run_e2e_tests.py              # E2E test suite (62 functional targets)
-├── data/                             # SQLite DB, runtime artifacts (gitignored)
-├── Makefile                          # Dev shortcuts: make api, make check, make lint
-└── .venv/                            # Python virtual environment
-```
+Read in this order:
 
----
+1. `docs/current-pages-cplatform-parity-plan.md` — phased implementation and
+   acceptance plan.
+2. `docs/selected-page-functional-parity.md` — authoritative action mapping and
+   current gaps.
+3. `docs/redis-seven-page-acceptance-fixture.md` — the single-service runtime
+   fixture, scenario sequence, evidence bundle, failures, and cleanup contract.
+4. `docs/mvp-status.md` — evidence ledger and runtime limitations.
+5. `docs/next-validation-plan.md` — immediate proof sequence.
+6. `docs/features/*.md` — detailed references when they agree with source.
 
-## 3. Architecture & Schema Mapping (cPlatform → PlatformOps)
+The references at `/root/cPlatform` and `/home/ubuntu/cplatform_master` are
+read-only. Current source wins over stale parity documents. Never edit either
+reference checkout.
 
-| cPlatform Django Model | PlatformOps SQLAlchemy Table | Purpose |
-|---|---|---|
-| `Cluster` | `clusters` | Physical/cloud regions, environments, repository types |
-| `Node` | `nodes` | Host IPs, volume roots, monitoring ports, GPU state, `facts_json` |
-| `Service` | `service_instances` | Service registrations, `config_json`, ports, container status |
-| `NodeEvent` + `ServiceEvent` | `operational_events` | Unified event feed with category/level/search |
-| `ReportInfo` + `ReportLog` | `monitoring_checks` + `slo_reports` | Health sweeps, SLO evaluations |
-| `DataFlowLogs` + `DataflowBatchConfig` | `log_archives` + `drift_reports` | Log file indexes, config drift tracking |
+## Architecture
 
----
+- React/TypeScript pages and shared state under `apps/web/src/` call `/api`.
+- FastAPI routers under `apps/api/platformops/routers/` validate requests and
+  delegate to orchestrators.
+- SQLAlchemy models/jobs/events persist control-plane state.
+- Orchestrators under `apps/api/platformops/orchestrator/` call Docker, Ansible,
+  SSH, Prometheus, Loki, GlitchTip, and email adapters.
+- Catalog assets under `catalog/` define service/dependency/form behavior.
+- The production API image serves the compiled frontend.
 
-## 4. Orchestrator Module Responsibilities
+Keep interfaces typed and modules cohesive. Put behavior in the appropriate
+router, schema, model, and orchestrator module; do not rebuild a monolithic
+`main.py`.
 
-| Module | Key Functions | What It Does |
-|---|---|---|
-| `common.py` | `record_event`, `list_events`, `test_git_connection`, `test_registry_connection` | Shared event logging, connection tests |
-| `config.py` | `config_workspace`, `create_config_snapshot`, `apply_config`, `detect_drift`, `compare_config_snapshots`, `restore_config_snapshot`, `sync_peer_config` | Full config lifecycle management |
-| `diagnostics.py` | `service_diagnostics`, `service_live_logs`, `service_diagnostics_analysis`, `index_log_archives`, `backfill_service_logs`, `deploy_observability_stack` | Log tailing, archive indexing, AI analysis |
-| `discovery.py` | `discover_infrastructure` | Auto-discovers Docker containers on nodes, matches to catalog |
-| `monitoring.py` | `run_monitoring_sweep`, `query_monitoring_issues`, `get_monitoring_performance`, `add_monitoring_uptime_check`, `patch_service_runtime_observability`, `get_node_metrics`, `get_service_metrics` | GlitchTip proxy, metrics, uptime, health sweeps |
-| `node.py` | `validate_node`, `get_node_onboarding_report`, `remediate_node_onboarding`, `launch_node_vm`, `teardown_node_vm` | Node lifecycle, SSH validation |
-| `reports.py` | `run_policy_scan`, `evaluate_slos`, `create_incident`, `execute_runbook`, `generate_capacity_report`, `schedule_maintenance`, `observability_pipeline_report`, `lifecycle_impact` | SRE governance, incidents, capacity, policy |
-| `service.py` | `catalog_cards`, `topological_sort`, `placement_recommendations`, `deploy_service`, `generate_compose`, `dependency_preflight`, `bootstrap_observability_plane` | Service catalog, deployment, topology |
+## Runtime safety
 
----
+- Compose project: `platformops-isolated`.
+- Current API: `http://127.0.0.1:9020`.
+- Optional Mailpit: `http://127.0.0.1:9010`.
+- Private DinD: `tcp://docker-engine:2375`.
+- Never use live cPlatform port `9002`, its network, containers, volumes, state,
+  or the host Docker socket.
+- Remote SSH/provider failures must never fall back to local DinD.
+- Destructive validation uses unique disposable records and proves cleanup.
 
-## 5. External Integrations
+## Completion model
 
-| System | Host | Port | Usage |
-|---|---|---|---|
-| **GlitchTip** (Sentry fork) | `54.183.53.93` | `9008` | Error tracking, uptime monitors, APM transactions, DSN keys |
-| **Grafana Loki** | localhost | `9021` (read) / `9011` (write) | Log aggregation, LogQL queries |
-| **Prometheus** | localhost | `9022` | Node/process metrics scraping |
-| **Alloy** | localhost | `12345` | Log collection agent (Promtail replacement) |
+Track every cPlatform action separately:
 
-Settings are configured via `apps/api/platformops/settings.py` using `pydantic_settings` with `PLATFORMOPS_` env prefix.
+- **Mapped**: legacy route/view/helper/input/output/side effect identified.
+- **Implemented**: reachable PlatformOps UI/API/persistence/orchestrator path.
+- **Contract-tested**: validation, payloads, auth, events, and failures tested.
+- **Runtime-proven**: real isolated side effect and terminal state observed.
+- **Parity-complete**: every prior gate passes.
 
----
+Do not use broad percentages or “done” labels. HTTP 200/202 and job creation are
+not runtime proof. Poll terminal jobs and verify database, container/file,
+email, Prometheus/Loki/GlitchTip, or cleanup evidence as appropriate.
 
-## 6. Feature Parity Status
+## Non-regression rules
 
-| Page | Status | Feature Docs |
-|---|---|---|
-| **Cluster** | ✅ Done | `docs/features/cluster-page-detailed-features.md` |
-| **Config Manager** | ✅ Done | `docs/features/config-manager-detailed-features.md` |
-| **Monitoring** | 🔧 In Progress | `docs/features/monitoring-page-detailed-features.md` |
-| **Diagnostics** | 🔧 In Progress | `docs/features/diagnostics-page-detailed-features.md` |
-| **Performance** | 🔧 In Progress | `docs/features/performance-page-detailed-features.md` |
+- Preserve unknown valid service configuration with deep merge.
+- Redact passwords, tokens, private keys, connection strings, and sensitive log
+  material from responses, events, jobs, and test artifacts.
+- Every mutation records an operational event.
+- Enforce authorization in the API, not only the UI.
+- Keep cluster/node/service selection canonical across all seven pages.
+- Represent missing integrations as unavailable, not empty success or sample
+  data.
+- Never weaken tests, assertions, terminal polling, or cleanup checks.
+- Authoritative E2E uses one canonical `redis-core` target across Clusters,
+  Config, Monitoring, Performance, Diagnostics, and Observability. Users uses
+  the same run with Mailpit. Exporters, Prometheus, Loki/Alloy, GlitchTip, and
+  Mailpit are evidence infrastructure, not additional feature targets.
 
----
+After backend changes, run targeted tests, API compilation, backend tests,
+`make isolated-verify`, and the affected isolated scenario. After frontend
+changes, run targeted tests and `npm run build`. Before a milestone, run the
+full seven-page suite from a fresh fixture. If host tools are missing, use the
+production image and state the limitation honestly.
 
-## 7. Legacy Reference Codebase
+## Page execution order
 
-The **original cPlatform source** is checked out at `/home/ubuntu/cplatform_master` (master branch). This is a **read-only reference** — never make edits there. Key reference files:
+1. Freeze the seven-page action manifest and baseline.
+2. Complete Cluster → Node → Service and Users/invite reachability.
+3. Prove Config apply/drift/restore against a real runtime file.
+4. Complete Diagnostics tails/cursors/archives/backfill/Loki evidence.
+5. Complete Monitoring health/GlitchTip and Performance exporters/PromQL.
+6. Restrict Observability to cPlatform-derived integrated readiness.
+7. Run the complete clean-fixture seven-page regression and cleanup audit.
 
-- **Django views:** `cPlatform/cPlatformIO/views.py`
-- **Service config logic:** `cPlatform/cPlatformIO/src/ServiceConfig.py`
-- **Service diagnostics:** `cPlatform/cPlatformIO/src/ServiceDiagnostics.py`
-- **Frontend templates:** `cPlatform/templates_new/PlatformIO/`
-- **Frontend JS:** `cPlatform/static/javascript/`
-- **Ansible playbooks:** `platform/ansible/playbook/`
-- **Observability stack:** `platform/observability/`
-- **Service catalog:** `cPlatform/config/service_install.yaml`
-- **Sibling packages:** `CutilJS/`, `MCPClient/`, `CommonUtils/`, `ModelStore/`, `Subsytems/`
+## Known current gaps
 
----
+- Retained isolated state is not a clean acceptance fixture.
+- Config apply/restore lacks successful fresh runtime proof; a retained restore
+  job failed with a detached-session error.
+- Invite acceptance routing has depended on a nonexistent controller renderer
+  and needs explicit reachability proof.
+- Optional GlitchTip and populated Prometheus/Loki flows need disposable proof.
+- Some Performance response fields are placeholders and must not be presented
+  as measured telemetry.
+- Observability contains PlatformOps-native behavior that must be separated
+  from the cPlatform-derived parity gate.
 
-## 8. Development Workflow
+## Git and documentation
 
-### Start Backend API
-```bash
-cd /home/ubuntu/PlatformOps
-source .venv/bin/activate
-make check   # Seed DB
-make api     # uvicorn on :8000
+Use commit identity:
+
+```text
+himanshu-sharma-dev1
+himanshu-sharma-dev1@users.noreply.github.com
 ```
 
-### Start Frontend
-```bash
-cd /home/ubuntu/PlatformOps/apps/web
-npm install
-npm run dev  # Vite on :5173
-```
-
-### Run E2E Tests
-```bash
-cd /home/ubuntu/PlatformOps
-.venv/bin/python scripts/run_e2e_tests.py
-```
-
-### Verify Build
-```bash
-make check
-cd apps/web && npm run build  # Must compile with zero errors
-```
-
----
-
-## 9. Coding Conventions
-
-### Python (Backend)
-- **Style:** 4-space indent, `snake_case` functions/variables, `PascalCase` classes.
-- **Imports:** All orchestrator functions must be imported via `from .orchestrator import ...` in `main.py`.
-- **Schemas:** All API responses must use Pydantic models from `schemas.py`. Use `Optional[...]` for fields that may be absent.
-- **Events:** Every mutating operation must call `record_event(db, ...)` to create an audit trail in `operational_events`.
-- **New orchestrator functions:** Add to the appropriate module (`monitoring.py`, `diagnostics.py`, etc.) and export via `__init__.py`.
-
-### TypeScript/React (Frontend)
-- **Structure:** The entire SPA lives in `main.tsx` with render functions per page (e.g., `renderMonitoringView()`, `renderGlitchTipWorkspace()`).
-- **API calls:** Use `fetch()` with the FastAPI base URL. Handle loading/error states.
-- **Components:** Reusable components go in `src/components/`. Keep them focused.
-
-### Service Catalog
-- **Location:** `catalog/services.yaml`
-- **Adding a new service:** Add an entry with `key`, `display_name`, `kind`, `image`, `dependencies`, `ports`, `healthcheck`, `backup_strategy`, `log_paths`.
+Preserve unrelated work. Update the action matrix and `docs/mvp-status.md` with
+exact commands and evidence whenever a row advances. Do not overwrite
+historical evidence; label it by date, commit, image, environment, and port.

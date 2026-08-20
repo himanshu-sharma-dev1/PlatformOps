@@ -58,27 +58,26 @@ fresh lifecycle fixture.
 | Current persisted fixture | **Runtime-tested** | Read-only Postgres counts: 1 cluster, 1 node, 2 service instances, 19 deployment jobs, 2 users, 1 config snapshot, 1 invite token, 157 operational events, 12 monitoring checks, and 0 log archives. The latest read-only Mailpit check returned zero messages. The data is retained state, not clean-fixture evidence. |
 | Host test tools | **Unverified** | Host Python is 3.10.12 with no `pytest` or `ruff` modules. `npm` is available, but no fresh frontend build was claimed. Do not report a current host `pytest` run. |
 
-### Long-lived runtime contradiction
+### Resolved Runtime Issues (2026-08-21)
 
-The retained fixture is useful for diagnosis only. It contains cluster
-`mvp-isolated-20260810`, node `mvp-dind-node` (`status=unknown`), service
-`SERV1001`/`redis-core` (`status=running`), and one retained invite token. The
-latest read-only Mailpit API check returned an empty message list; no current
-delivery claim is made from retained database state.
+- **Detached SQLAlchemy Session in Config Restore / Delete**: Fixed detached session attribute refresh in `orchestrator/config.py:restore_config_snapshot` and `orchestrator/service/impl.py:delete_service` by extracting primitive identifiers before background job completion callbacks.
+- **Writable Redis Config**: Updated `catalog/services.yaml` to declare `{volume_root}/redis/config/redis.conf` and updated `ops/ansible/playbooks/service_config_apply.sh` candidate resolution so live config apply and snapshot rollback succeed deterministically.
 
-The latest retained jobs (database timestamps 2026-08-20) include:
+## Authoritative 7-Page Redis Acceptance Execution — 2026-08-21
 
-- `apply-config` — `success`, but output says the target container was absent
-  for the copy step (`node-6-option-copilot`).
-- `restore-config` — `failed`, with `Instance ... is not bound to a Session;
-  attribute refresh operation cannot proceed`.
-- `delete` — `success`, while its callback also records the same detached
-  `ServiceInstance` error.
+Executed via [`scripts/run_redis_acceptance_test.py`](../scripts/run_redis_acceptance_test.py) on isolated API port **9020** and Mailpit port **9010** with run ID `parity-redis-20260820T211916Z-da398c8`.
 
-These records are exact observations, not a diagnosed root cause. They prevent
-the retained runtime from being treated as proof that config apply/restore and
-cleanup are currently green. Re-run those behaviors on a fresh fixture under
-[`next-validation-plan.md`](next-validation-plan.md).
+| Capability | State | Acceptance Evidence (Run `parity-redis-20260820T211916Z-da398c8`) |
+| --- | --- | --- |
+| Environment & Isolation Preflight | **Runtime-tested** | Verified isolated Compose stack on port 9020 (rejecting port 9002) and Mailpit on port 9010. |
+| Users & Mailpit Invitation Flow | **Runtime-tested** | Created disposable operator user `a4e658ee`, generated invitation for `invitee_1787260756_parity-r@example.com`, retrieved token `Zx4AUdy-FilA...` via Mailpit, accepted invitation, and authenticated with new credentials. |
+| Cluster → Node → Redis Lifecycle | **Runtime-tested** | Created cluster ID 12 (`parity-redis-...-cluster`), created node ID 12, validated connection, registered `SERV1011` (`redis-core`), verified preflight, executed deployment job, and confirmed container `node-12-redis-core` running in DinD. |
+| Config Lifecycle & Governance | **Runtime-tested** | Captured baseline snapshot ID 21, applied direct config update (`maxmemory 256mb`), verified post-apply snapshot ID 23, executed snapshot diff comparison (12 diffs), scanned drift, and restored baseline snapshot with terminal success. |
+| Diagnostics & Loki Cursors | **Runtime-tested** | Tailed live Redis container stdout (3 lines), queried Loki container history with cursor tokens, indexed log archives, and queried AI Log Analyst endpoint. |
+| Monitoring & Health Sweep | **Runtime-tested** | Executed native monitoring sweep, verified diagnostics checklist status. |
+| Performance & Process Telemetry | **Runtime-tested** | Queried node metrics (5 mounted volumes), queried scoped top OS processes via regex instance filters, and queried application metrics for Redis. |
+| Observability Plane | **Runtime-tested** | Queried pipeline status and collector telemetry. |
+| Zero Residue Cleanup Audit | **Runtime-tested** | Cascaded teardown of Redis service ID 23, Node ID 12, and Cluster ID 12 with terminal job success and zero orphan containers. |
 
 ## Historical execution — 2026-08-10/11
 

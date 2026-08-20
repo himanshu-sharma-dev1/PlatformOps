@@ -192,6 +192,21 @@ EOF
 /iktara/optionCopilot/config/optionCopilotConfig.yaml
 EOF
       ;;
+    redis|redis-core|infraredis)
+      cat <<EOF
+/usr/local/etc/redis/redis.conf
+/etc/redis/redis.conf
+/etc/redis.conf
+/app/config/redis.conf
+EOF
+      ;;
+    postgres|postgresql|postgres-core|infrapostgres)
+      cat <<EOF
+/var/lib/postgresql/data/postgresql.conf
+/etc/postgresql/postgresql.conf
+/app/config/postgresql.conf
+EOF
+      ;;
     cplatform|aiorchestrator)
       cat <<EOF
 /iktara/cPlatform/cPlatform/config/cPlatform_config.yaml

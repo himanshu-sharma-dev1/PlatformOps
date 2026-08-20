@@ -6,3 +6,6 @@ dist/
 .env
 data/*.db
 data/runtime/job-vars/
+agent_docs/
+.codex_workflow_hidden_resources/
+AGENTS.md

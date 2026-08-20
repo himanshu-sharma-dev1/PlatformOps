@@ -1,95 +1,81 @@
-# Legacy cPlatform: Service Monitoring Page Feature Inventory
+# PlatformOps: Service Monitoring & GlitchTip Technical Specification
 
-This document provides a highly detailed breakdown of the user interface features, interactive controls, integration keys, error lists, and APM performance traces that power the legacy `cPlatform` **Service Monitoring (`Monitoring.html`)** workspace.
-
----
-
-## 1. Monitoring Header & Connection Status
-
-Controls global monitoring variables and validates integrations with the external error tracking platform.
-
-- **GlitchTip Connection Badge (`#gtStatusBadge`)**:
-  - Displays real-time connectivity status: **GlitchTip Connected** (green pulsing badge) or **GlitchTip Not Configured** (red caution badge) indicating if Sentry-compatible endpoints are active.
-- **Header Action Controls**:
-  - **Refresh Group**: Dropdown select list to toggle time ranges for error tracking: **Last 24 Hours** or **Last 7 Days**.
-  - **Auto-Refresh Toggle (`#refreshToggle`)**: Schedules background telemetry sweeps every **30 seconds** (`startAutoRefresh`).
-  - **Refresh Now (`#refreshNowBtn`)**: Forcefully queries endpoints immediately, bypassing cache.
-- **Infrastructure Context Meta-Strip**:
-  - Aggregates overall Cluster Count, Node Count, Node Online Count, and GPU Nodes Count for context.
+**Canonical Path:** `docs/features/monitoring-page-detailed-features.md`
+**Related Parity Action Matrix:** [`docs/selected-page-functional-parity.md`](../selected-page-functional-parity.md) §4
+**Authoritative E2E Test Fixture:** [`docs/redis-seven-page-acceptance-fixture.md`](../redis-seven-page-acceptance-fixture.md) (Phase 6 & 8)
 
 ---
 
-## 2. Interactive Service Selection Rail
+## 1. Architectural Overview & Workspaces
 
-The Services tree panel (`#treeList`) filters out systems to navigate down to application levels.
+The PlatformOps Service Monitoring surface consists of two coordinating layers:
+1. **Application Workspace (`apps/web/src/views/MonitoringView.tsx`)**: Service hierarchy navigation rail with infrastructure filtering (`s.kind !== "infrastructure"`), integration status badges, and time window controls.
+2. **GlitchTip Workspace (`apps/web/src/views/GlitchTipWorkspace.tsx`)**: Sentry-compatible APM, issue triage, uptime monitors, and DSN key management.
 
-- **Infrastructure Exclusions**:
-  - Statically maps services and filters out database/logging nodes to show only application runtimes in primary views.
-- **Search Filters (`#treeSearch`)**:
-  - Text input filters items in the tree view in real time.
-
----
-
-## 3. GlitchTip Workspace Tab 1: Issues (Exceptions & Stack Traces)
-
-Fetches, displays, and triages exceptions, unhandled runtime crashes, and error logs collected from active services.
-
-- **Exception Checklist**:
-  - Lists issues showing: Exception Type (e.g. `ZeroDivisionError`), Message description, File location, occurrence count, unique users impacted, and relative time (e.g., "5 minutes ago").
-- **Triage Action Controls (`executeIssueAction`)**:
-  - **Resolve**: Marks the issue as closed. Removes it from active lists.
-  - **Ignore**: Mutes future notifications for this specific error signature.
-  - **Delete**: Clears the issue from history.
-- **Infinite Pagination (`loadMoreIssues`)**:
-  - Exposes a **Load More** button to paginate through historical issue registries.
-- **Interactive Stack Trace Detail Drawer (`toggleIssueDetails` / `renderDetailedEvent`)**:
-  - Expanding an issue reveals:
-    - **Stack Trace Grid**: Filename, class functions, line numbers, and actual lines of code surrounding the exception with highlighted syntax.
-    - **User Context Metadata**: Captures OS version, browser version, client IP address, request method (GET/POST), URL query params, and HTTP headers.
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Service Monitoring Workspace                        │
+├───────────────────┬─────────────────────────────────────────────────────────┤
+│ Left Service Tree │ Main Workspace Tabs:                                    │
+│ - Cluster Nodes   │ 1. [Issues]       — Stack traces, breadcrumbs, triage   │
+│ - App Service     │ 2. [Uptime]       — Synthetic pings & 48-block timeline │
+│   (e.g. redis-core│ 3. [Performance]  — APM latency, throughput, failures   │
+│     SERV1000)     │ 4. [SDK Keys]     — DSN tokens & code integration guide │
+└───────────────────┴─────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 4. GlitchTip Workspace Tab 2: Uptime Monitors
+## 2. REST API Inventory
 
-Dynamic interface to schedule, verify, and maintain synthetic endpoint ping checks.
+Backed by routers `apps/api/platformops/routers/glitchtip.py` (cPlatform compatibility layer) and `apps/api/platformops/routers/monitoring.py` (native SRE sweeps).
 
-- **Add Monitor Form (`submitAddMonitor` / `toggleAddMonitorForm`)**:
-  - Input field forms to add a new check:
-    - **Monitor Name**: Descriptor label.
-    - **Target URL**: The HTTP route to ping (e.g. `http://<node_ip>:8000/health`).
-    - **Check Interval**: Interval timing (e.g. 60 seconds).
-    - **Timeout**: Timeout threshold.
-- **Availability Block Grid**:
-  - Renders a horizontal timeline of status blocks (green for online, red for downtime) representing historical availability checks.
-- **Response Latency Chart (`renderChart`)**:
-  - Draws dynamic SVG line/area charts mapping response latency (in milliseconds) over time.
-- **Delete Check (`executeDeleteMonitor`)**:
-  - Removes synthetic monitoring checkpoints.
-
----
-
-## 5. GlitchTip Workspace Tab 3: Performance APM (Transactions)
-
-Displays Application Performance Monitoring (APM) traces, helping engineers analyze latency bottlenecks.
-
-- **HTTP Transaction Table (`renderPerformanceTransactions`)**:
-  - Lists HTTP endpoints (e.g., `POST /api/v1/infer`).
-  - Columns: Endpoint URI, Average Latency (seconds), Throughput (transactions/minute), and Failure Rate %.
-- **Table Sorters (`sortTransactionsFromSelect` / `toggleTransactionTableHeaderSort`)**:
-  - Dropdown and column headers toggle sorting orders: Sort by **Throughput**, **Latency**, or **Failure Rate**.
-- **Trace Details Link**:
-  - Tunnels directly into GlitchTip's APM tool for deep span breakdown.
+| Method | Endpoint Path | Description | Implementation Reference |
+|---|---|---|---|
+| `GET`/`POST` | `/PlatformIO/Monitoring/IntegrationStatus/` | Returns GlitchTip connectivity state (`configured`, `healthy`, `endpoint_url`) | `routers/glitchtip.py:163-168` |
+| `POST` | `/PlatformIO/Monitoring/Health/` | Returns issue aggregates, open/resolved counts, and uptime health | `routers/glitchtip.py:11-49` |
+| `POST` | `/PlatformIO/Monitoring/Issues/` | Lists issues with filters (`service_name`, `window`, `cursor`) | `routers/glitchtip.py:51-66` |
+| `POST` | `/PlatformIO/Monitoring/Issues/EventDetails/` | Retrieves deep exception stack trace, code lines, and local variables | `routers/glitchtip.py:68-78` |
+| `POST` | `/PlatformIO/Monitoring/IssueAction/` | Triages issue (`resolve`, `ignore`, `delete`) | `routers/glitchtip.py:80-88` |
+| `POST` | `/PlatformIO/Monitoring/Performance/` | Fetches APM transaction throughput and latency metrics | `routers/glitchtip.py:90-105` |
+| `POST` | `/PlatformIO/Monitoring/Keys/` | Retrieves client DSN tokens and language SDK setup code | `routers/glitchtip.py:107-118` |
+| `POST` | `/PlatformIO/Monitoring/Uptime/` | Lists synthetic uptime check targets and latency data | `routers/glitchtip.py:120-136` |
+| `POST` | `/PlatformIO/Monitoring/Uptime/Add/` | Registers new synthetic HTTP healthcheck monitor | `routers/glitchtip.py:138-149` |
+| `POST` | `/PlatformIO/Monitoring/Uptime/Delete/` | Removes synthetic uptime healthcheck monitor | `routers/glitchtip.py:151-161` |
+| `POST` | `/PlatformIO/Monitoring/PatchObservability/` | Injects Sentry/GlitchTip runtime SDK into service container | `routers/glitchtip.py:170-176` |
+| `POST` | `/api/monitoring/sweep` | Executes native SRE sweep across services and stores `MonitoringCheck` | `routers/monitoring.py:118-121` |
+| `GET` | `/api/monitoring/checks` | Queries stored `MonitoringCheck` audit records | `routers/monitoring.py:123-125` |
 
 ---
 
-## 6. GlitchTip Workspace Tab 4: Keys & Integration SDK Guide
+## 3. Core Subsystem Mechanics
 
-Provides developers with credentials and code snippets to link their custom applications to the monitoring stack.
+### 3.1 Exception Stack Trace & Context Inspector
+When an issue is selected in `GlitchTipWorkspace.tsx:155-242`:
+* **Code Frame Highlighting**: Renders source code surrounding the crash with line numbers and red-border highlight on the exact failing line (`context_line`).
+* **Runtime Local Variables Table (`frame.vars`)**: Inspects variable states in memory at the moment of exception execution.
+* **Breadcrumbs Timeline**: Step-by-step user actions, database queries, and log statements leading up to the error.
+* **Triage Controls**: Instant actions ("Mark Resolved", "Ignore / Mute") updating state and refreshing metrics.
 
-- **DSN Token Manager (`loadNativeKeys`)**:
-  - Lists Sentry-compatible DSN URLs and allows copying them to the clipboard (`copyToClipboard`).
-- **SDK Integration Tabs (`switchGuideTab`)**:
-  - Displays code snippets for easy integration in different languages:
-    - **Python**: Shows `sentry_sdk.init(dsn="...")` setups.
-    - **JavaScript/Node**: Displays framework init codes.
-    - **Go**: Displays backend integrations.
+### 3.2 48-Unit Uptime Availability Blocks & SVG Latency Chart
+* **Availability Timeline**: Renders 48 horizontal color-coded status blocks (green for OK 2xx, red for failure/downtime) representing chronological checks.
+* **Response Latency Series**: Renders dynamic SVG line/area time-series chart with vertical hover crosshairs and millisecond tooltips (`charts.tsx:140-176`).
+
+### 3.3 APM Performance Transaction Sorter
+In `GlitchTipWorkspace.tsx:378-420`, HTTP transaction traces can be dynamically sorted:
+* **Latency**: Sorted by average duration descending (`avgDuration`).
+* **Throughput**: Sorted by transaction volume descending (`count`).
+* **Failure Rate**: Sorted by error rate percentage descending (`failureRate`).
+
+### 3.4 Infrastructure Service Filtering
+* `MonitoringView.tsx:76-85` filters the navigation tree with `s.kind !== "infrastructure"` and `{ appServicesOnly: true }`.
+* Prevents internal infrastructure daemons (e.g. RabbitMQ, ClickHouse, Prometheus, Loki) from cluttering application-level monitoring.
+
+---
+
+## 4. Authoritative Verification via Golden Fixture (Redis Target)
+
+Authoritative Monitoring verification follows Phase 6 & 8 of `docs/redis-seven-page-acceptance-fixture.md`:
+1. **Health & Uptime**: Register synthetic health check pointing to `redis-core` $\to$ assert green availability blocks and valid latency chart.
+2. **Failure Injection**: Inject `docker pause` on Redis container $\to$ trigger monitoring sweep $\to$ assert health transitions to Degraded/Down and red block appears in uptime timeline.
+3. **Recovery**: Unpause/restart container $\to$ assert recovery to healthy state.

@@ -4,7 +4,11 @@ This is an ordered behavior-validation plan, not a hardening backlog. Every
 mutating step uses a disposable isolated fixture and records terminal API/job
 states, returned payloads, and runtime evidence. The selected-page behavior
 mapping is [here](selected-page-functional-parity.md); the evidence ledger is
-[`mvp-status.md`](mvp-status.md).
+[`mvp-status.md`](mvp-status.md). The authoritative milestone run uses the
+single canonical Redis target and ordered phases in
+[`redis-seven-page-acceptance-fixture.md`](redis-seven-page-acceptance-fixture.md).
+Redis is the one managed subject for the six operational pages; Users uses the
+same run with disposable accounts and Mailpit.
 
 ## Preconditions and safety gate
 
@@ -58,6 +62,13 @@ provenance is unclear, stop and reset rather than interpreting retained state.
 ## 2. Cluster-first authoritative E2E
 
 Purpose: prove the primary operator path before testing secondary pages.
+
+The current `scripts/run_e2e_tests.py` remains a useful regression baseline,
+but it is not by itself the final seven-page proof: it excludes invite mail and
+does not yet implement the complete golden Redis evidence/cleanup contract.
+Use it until the modular golden-fixture harness exists, then make it a wrapper
+or compatibility entry point for that harness rather than maintaining two
+different definitions of success.
 
 ```sh
 PLATFORMOPS_E2E_BASE=http://localhost:9020 python3 scripts/run_e2e_tests.py
