@@ -17,7 +17,9 @@ acceptance status and limitations, the [selected-page functional parity
 mapping](docs/selected-page-functional-parity.md) for authoritative behavior
 coverage, the [current-page implementation plan](docs/current-pages-cplatform-parity-plan.md)
 for the fixed seven-page delivery scope, the [golden Redis fixture](docs/redis-seven-page-acceptance-fixture.md)
-for the authoritative cross-page acceptance run, and the [next validation
+for the authoritative cross-page acceptance run, the [per-page execution
+plans](docs/page-plans/README.md) for implementation and regression detail, and
+the [next validation
 plan](docs/next-validation-plan.md) for immediate execution. The [isolated runtime
 guide](docs/isolated-platformops.md) contains the Compose lifecycle details.
 

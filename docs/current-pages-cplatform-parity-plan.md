@@ -52,6 +52,20 @@ Prometheus, Loki/Alloy, optional GlitchTip, and Mailpit are supporting evidence
 infrastructure, not additional parity targets. Users uses the same run but is
 proved with disposable accounts and Mailpit rather than Redis behavior.
 
+Detailed execution plans live under [`page-plans/`](page-plans/README.md):
+
+- [Clusters](page-plans/clusters.md)
+- [Config Manager](page-plans/config-manager.md)
+- [Users](page-plans/users.md)
+- [Monitoring](page-plans/monitoring.md)
+- [Performance](page-plans/performance.md)
+- [Diagnostics](page-plans/diagnostics.md)
+- [Observability](page-plans/observability.md)
+
+The page files own implementation detail and page-specific acceptance. This
+document owns shared scope, order, and cross-page gates. If they conflict, stop
+and reconcile them against current cPlatform source before implementation.
+
 ## 2. Evidence and completion model
 
 Track every action separately:

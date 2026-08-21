@@ -128,6 +128,9 @@ git config user.email "himanshu-sharma-dev1@users.noreply.github.com"
   Advanced pages as part of this parity program.
 - Follow `docs/current-pages-cplatform-parity-plan.md`; use
   `docs/selected-page-functional-parity.md` as the authoritative action map.
+- Use `docs/page-plans/README.md` to choose the page package, then read that
+  page's complete plan before editing. The page plan owns detailed actions,
+  failures, evidence, and exit gates; shared scope remains in the main plan.
 - Observability includes only behavior traceable to cPlatform Monitoring,
   SystemMonitoring, Diagnostics, ClusterConfig, or their helpers. PlatformOps-
   only stack/SRE features do not count toward parity.
@@ -154,6 +157,9 @@ git config user.email "himanshu-sharma-dev1@users.noreply.github.com"
   Monitoring, Performance, Diagnostics, and Observability. Users is proved in
   the same run with disposable accounts and Mailpit. Exporters/telemetry/mail
   components are supporting infrastructure, not extra parity targets.
+- A green harness banner or commit message is not proof. Reconcile matrix labels
+  and rerun against the current HEAD-built image; warnings, empty required data,
+  or HTTP-only success cannot advance an evidence state.
 
 ## Testing Discipline
 - After backend changes, run targeted tests, API compilation, backend tests,

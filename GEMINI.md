@@ -31,9 +31,11 @@ Read in this order:
    current gaps.
 3. `docs/redis-seven-page-acceptance-fixture.md` — the single-service runtime
    fixture, scenario sequence, evidence bundle, failures, and cleanup contract.
-4. `docs/mvp-status.md` — evidence ledger and runtime limitations.
-5. `docs/next-validation-plan.md` — immediate proof sequence.
-6. `docs/features/*.md` — detailed references when they agree with source.
+4. `docs/page-plans/README.md` and the selected page plan — detailed action
+   packages, failure matrix, required evidence, and page exit gate.
+5. `docs/mvp-status.md` — evidence ledger and runtime limitations.
+6. `docs/next-validation-plan.md` — immediate proof sequence.
+7. `docs/features/*.md` — detailed references when they agree with source.
 
 The references at `/root/cPlatform` and `/home/ubuntu/cplatform_master` are
 read-only. Current source wins over stale parity documents. Never edit either
@@ -94,6 +96,9 @@ email, Prometheus/Loki/GlitchTip, or cleanup evidence as appropriate.
   Config, Monitoring, Performance, Diagnostics, and Observability. Users uses
   the same run with Mailpit. Exporters, Prometheus, Loki/Alloy, GlitchTip, and
   Mailpit are evidence infrastructure, not additional feature targets.
+- Never infer parity from a green script banner or commit subject. Reconcile
+  every action row and rerun the HEAD-built image. Warnings, empty required
+  results, and response-key checks are not scientific proof.
 
 After backend changes, run targeted tests, API compilation, backend tests,
 `make isolated-verify`, and the affected isolated scenario. After frontend
