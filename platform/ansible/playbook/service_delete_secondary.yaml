@@ -1,0 +1,44 @@
+- name: Delete only containers with 'SERV' in their name in a specific Docker network
+  hosts: all
+  become: true
+  vars:
+    docker_network_name: cplatform_iktara_cPlatform
+
+  tasks:
+    - name: Get Docker network details
+      community.docker.docker_network_info:
+        name: "{{ docker_network_name }}"
+      register: docker_network_info
+
+    - name: Print Docker network info (for debugging)
+      debug:
+        var: docker_network_info
+
+    - name: Fail if network not found or has no containers
+      fail:
+        msg: "Docker network '{{ docker_network_name }}' not found or has no containers."
+      when: >
+        docker_network_info.network is not defined or
+        (docker_network_info.network.Containers | default({}) | length == 0)
+
+    - name: Extract container names with 'SERV' in their name
+      set_fact:
+        container_ids: >-
+          {{ docker_network_info.network.Containers
+             | dict2items
+             | map(attribute='value.Name')
+             | select('search', 'SERV')
+             | list }}
+
+    - name: Debug filtered SERV containers (optional)
+      debug:
+        var: container_ids
+
+    - name: Remove containers on the network with 'SERV' in name
+      community.docker.docker_container:
+        name: "{{ item }}"
+        state: absent
+        force_kill: true
+      loop: "{{ container_ids }}"
+      when: container_ids | length > 0
+      ignore_errors: true

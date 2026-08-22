@@ -1,0 +1,245 @@
+- name: Infrastructure Service Install Playbook
+  hosts: all
+  become: yes
+
+  vars:
+    docker_network_name: "{{ network_name | default(infra_contract.Network_Name | default('cplatform_iktara_cPlatform')) }}"
+    docker_network_subnet: "{{ network_subnet | default(infra_contract.Network_Subnet | default('180.75.0.0/24')) }}"
+    default_log_driver: json-file
+    expose_service: "{{ expose_service }}"
+    host_port: "{{ host_port }}"
+    default_log_options:
+      max-size: "10m"
+      max-file: "3"
+    infra_contract: "{{ infra_contract_b64 | b64decode | from_json }}"
+    infra_image: >-
+      {{
+        infra_contract.Image_Name
+        if infra_contract.Image_Tag_Includes_Version | default(false)
+        else infra_contract.Image_Name ~ '-' ~ (infra_contract.Image_Ver | default('1.0.0'))
+      }}
+    bind_path_ownership:
+      rabbitmqLogs:
+        owner: '100'
+        group: '101'
+      postgresDB:
+        owner: '999'
+        group: '999'
+      postgresLogs:
+        owner: '999'
+        group: '999'
+      redisDB:
+        owner: '999'
+        group: '999'
+      redisLogs:
+        owner: '999'
+        group: '999'
+      clickHouseDB:
+        owner: '101'
+        group: '101'
+      clickHouseLogs:
+        owner: '101'
+        group: '101'
+
+  tasks:
+    - name: Install pip3 (Debian/Ubuntu)
+      apt:
+        name: python3-pip
+        state: present
+        update_cache: no
+
+    - name: Ensure Docker SDK is up-to-date (>=4.3.0)
+      become: true
+      pip:
+        name: "docker>=4.3.0"
+        state: latest
+        executable: pip3
+        extra_args: >-
+          --upgrade
+          {{ '--break-system-packages' if (ansible_distribution == 'Ubuntu' and ansible_distribution_version is version('24.04', '>=')) else '' }}
+
+    - name: Login to Docker Hub using raw shell command
+      become: yes
+      ansible.builtin.shell: sudo docker login -u iktaraai -p IKTARA@321
+
+    - name: Check if network {{ docker_network_name }} exists
+      community.docker.docker_network_info:
+        name: "{{ docker_network_name }}"
+      register: network_info
+
+    - name: Set Fact for network {{ docker_network_name }} existence
+      set_fact:
+        network_exists: "{{ network_info.exists | default(false) }}"
+
+    - name: Create Docker bridge network if it does not exist
+      community.docker.docker_network:
+        name: "{{ docker_network_name }}"
+        state: present
+        driver: bridge
+        ipam_config:
+          - subnet: "{{ docker_network_subnet }}"
+      when: not network_exists
+
+    - name: Ensure host bind paths exist for infrastructure volumes
+      file:
+        path: >-
+          {{
+            (
+              item.split(':', 1)[0].endswith('.conf')
+              or item.split(':', 1)[0].endswith('.yaml')
+              or item.split(':', 1)[0].endswith('.yml')
+              or item.split(':', 1)[0].endswith('.json')
+            )
+            | ternary(
+              item.split(':', 1)[0] | dirname,
+              item.split(':', 1)[0]
+            )
+          }}
+        state: directory
+        mode: '0755'
+      loop: "{{ infra_contract.Volumes | default([]) }}"
+      when:
+        - item is string
+        - item.startswith('/')
+        - item.split(':', 1)[0] not in ['/proc', '/sys', '/dev']
+
+    - name: Ensure infrastructure bind paths use container-compatible ownership
+      file:
+        path: "{{ host_bind_path }}"
+        state: directory
+        owner: "{{ bind_path_ownership[path_key].owner }}"
+        group: "{{ bind_path_ownership[path_key].group }}"
+        mode: '0755'
+        recurse: yes
+      vars:
+        host_bind_path: >-
+          {{
+            (
+              item.split(':', 1)[0].endswith('.conf')
+              or item.split(':', 1)[0].endswith('.yaml')
+              or item.split(':', 1)[0].endswith('.yml')
+              or item.split(':', 1)[0].endswith('.json')
+            )
+            | ternary(
+              item.split(':', 1)[0] | dirname,
+              item.split(':', 1)[0]
+            )
+          }}
+        path_key: "{{ host_bind_path | basename }}"
+      loop: "{{ infra_contract.Volumes | default([]) }}"
+      when:
+        - item is string
+        - item.startswith('/')
+        - host_bind_path not in ['/proc', '/sys', '/dev']
+        - path_key in bind_path_ownership
+
+    - name: Ensure additional infrastructure config directories exist
+      file:
+        path: "{{ item.dest | dirname }}"
+        state: directory
+        mode: '0755'
+      loop: "{{ infra_contract.Config_Files | default([]) }}"
+
+    - name: Copy additional infrastructure config files
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        mode: "{{ item.mode | default('0644') }}"
+      loop: "{{ infra_contract.Config_Files | default([]) }}"
+
+    - name: Ensure infrastructure bootstrap asset directories exist
+      file:
+        path: "{{ item.dest | dirname }}"
+        state: directory
+        mode: '0755'
+      loop: "{{ infra_contract.Bootstrap_Files | default([]) }}"
+
+    - name: Copy infrastructure bootstrap assets
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        mode: "{{ item.mode | default('0644') }}"
+      loop: "{{ infra_contract.Bootstrap_Files | default([]) }}"
+
+    - name: Ensure infrastructure volume directories exist on host with open permissions
+      ansible.builtin.file:
+        path: "{{ item.split(':')[0] if '.' not in (item.split(':')[0] | basename) else (item.split(':')[0] | dirname) }}"
+        state: directory
+        mode: '0777'
+      loop: "{{ infra_contract.Volumes | default([]) }}"
+
+    - name: Deploy infrastructure container without publishing host ports
+      become: true
+      become_user: root
+      community.docker.docker_container:
+        name: "{{ infra_container_name }}"
+        image: "{{ infra_image }}"
+        pull: "{{ infra_contract.Pull_Image | default(false) | bool }}"
+        state: started
+        recreate: false
+        published_ports: >-
+          {{
+            [host_port | string ~ ':' ~ infra_contract.Int_Port | string]
+            if expose_service | bool and (host_port | string | trim | length) > 0
+            else omit
+          }}
+        restart_policy: "{{ infra_contract.Restart_Policy | default('always') }}"
+        command: "{{ infra_contract.Command | default(omit) }}"
+        volumes: "{{ infra_contract.Volumes | default(omit) }}"
+        privileged: "{{ infra_contract.Privileged | default(omit) }}"
+        device_requests: "{{ [{'driver': 'nvidia', 'count': -1, 'capabilities': ['gpu', 'nvidia']}] if infra_role == 'dcgmExporter' else omit }}"
+        capabilities: "{{ infra_contract.capabilities | default(omit) }}"
+        networks:
+          - name: "{{ docker_network_name }}"
+            ipv4_address: "{{ infra_contract.Int_IP_Addr | default(omit, true) }}"
+            aliases: "{{ infra_contract.Network_Aliases | default(omit) }}"
+        env: "{{ infra_contract.Environment | default({}) }}"
+        log_driver: "{{ default_log_driver }}"
+        log_options: "{{ default_log_options }}"
+
+    - name: Wait for Kafka broker before creating declared topics
+      ansible.builtin.command:
+        argv:
+          - docker
+          - exec
+          - "{{ infra_container_name }}"
+          - "{{ (infra_contract.Kafka_Bin | default('/opt/bitnami/kafka/bin')) }}/kafka-topics.sh"
+          - --bootstrap-server
+          - "127.0.0.1:{{ infra_contract.Int_Port }}"
+          - --list
+      register: kafka_topics_ready
+      until: kafka_topics_ready.rc == 0
+      retries: 30
+      delay: 2
+      changed_when: false
+      when:
+        - infra_role == 'Kafka'
+        - (infra_contract.Topics | default([]) | length) > 0
+
+    - name: Create declared Kafka topics idempotently
+      ansible.builtin.command:
+        argv:
+          - docker
+          - exec
+          - "{{ infra_container_name }}"
+          - "{{ (infra_contract.Kafka_Bin | default('/opt/bitnami/kafka/bin')) }}/kafka-topics.sh"
+          - --bootstrap-server
+          - "127.0.0.1:{{ infra_contract.Int_Port }}"
+          - --create
+          - --if-not-exists
+          - --topic
+          - "{{ item.Name }}"
+          - --partitions
+          - "{{ item.Partitions | int }}"
+          - --replication-factor
+          - "{{ item.Replication_Factor | int }}"
+          - --config
+          - "cleanup.policy={{ item.Cleanup_Policy | default('delete') }}"
+          - --config
+          - "retention.ms={{ item.Retention_MS | int }}"
+      loop: "{{ infra_contract.Topics | default([]) }}"
+      register: kafka_topic_create
+      changed_when: "'Created topic' in (stdout | default(''))"
+      when:
+        - infra_role == 'Kafka'
+        - (infra_contract.Topics | default([]) | length) > 0

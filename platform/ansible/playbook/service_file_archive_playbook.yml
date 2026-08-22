@@ -1,0 +1,33 @@
+---
+- name: Inspect service file archives on target node
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Copy file archive helper to target host
+      ansible.builtin.copy:
+        src: "{{ script_src }}"
+        dest: /tmp/service_file_archive.py
+        mode: "0755"
+
+    - name: Execute file archive helper
+      ansible.builtin.command:
+        argv:
+          - python3
+          - /tmp/service_file_archive.py
+          - --mode
+          - "{{ mode }}"
+          - --log_paths_b64
+          - "{{ log_paths_b64 | default('') }}"
+          - --file_path_b64
+          - "{{ file_path_b64 | default('') }}"
+          - --limit
+          - "{{ limit | default('300') }}"
+      register: archive_output
+      changed_when: false
+      failed_when: false
+
+    - name: Print archive payload
+      ansible.builtin.debug:
+        msg: >-
+          'payload_b64': '{{ archive_output.stdout | b64encode }}'

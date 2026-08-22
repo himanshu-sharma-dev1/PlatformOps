@@ -1,0 +1,21 @@
+---
+- name: Discover infrastructure containers
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Copy infrastructure discovery script
+      copy:
+        src: "{{ script_src }}"
+        dest: /tmp/service_infra_discovery.py
+        mode: "0755"
+
+    - name: Run infrastructure discovery script
+      command: python3 /tmp/service_infra_discovery.py
+      register: script_output
+      changed_when: false
+
+    - name: Show infrastructure discovery output
+      debug:
+        msg:
+          payload_b64: "{{ script_output.stdout | b64encode }}"

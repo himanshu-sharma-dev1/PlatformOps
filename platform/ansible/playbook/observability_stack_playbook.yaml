@@ -1,0 +1,190 @@
+- name: Deploy cPlatform observability stack
+  hosts: all
+  become: yes
+  vars:
+    observability_repo_root: "{{ observability_repo_root | default(playbook_dir + '/../../..') }}"
+    observability_machine_volume: "{{ machine_volume | default('/home/ubuntu/Backup_Platform') }}"
+    observability_root: "{{ observability_root | default(observability_machine_volume ~ '/iktara/observability') }}"
+    observability_compose_dir: "{{ observability_compose_dir | default(observability_machine_volume ~ '/iktara/observability-stack') }}"
+    observability_environment: "{{ observability_environment | default('validation') }}"
+    observability_node_id: "{{ observability_node_id | default(node_id | default('NODE1002')) }}"
+    observability_node_ip: "{{ observability_node_ip | default(ansible_host | default(inventory_hostname)) }}"
+    observability_network_name: cplatform_iktara_cPlatform
+    observability_network_subnet: 180.75.0.0/24
+    observability_network_gateway: 180.75.0.1
+    glitchtip_image: "{{ glitchtip_image | default('iktaraai/services:glitchtip-iktara-6.1.9') }}"
+    glitchtip_env:
+      SECRET_KEY: "{{ glitchtip_secret_key | default('change-me-before-deploy') }}"
+      PORT: '8000'
+      GLITCHTIP_DOMAIN: "{{ glitchtip_domain | default('https://glitchtip.example.com') }}"
+      DEFAULT_FROM_EMAIL: "{{ glitchtip_default_from_email | default('glitchtip@example.com') }}"
+      ENABLE_OPEN_USER_REGISTRATION: "{{ glitchtip_enable_open_user_registration | default('False') }}"
+      EMAIL_URL: "{{ glitchtip_email_url | default('') }}"
+      EMAIL_HOST: "{{ glitchtip_email_host | default('') }}"
+      EMAIL_PORT: "{{ glitchtip_email_port | default('587') }}"
+      EMAIL_HOST_USER: "{{ glitchtip_email_host_user | default('') }}"
+      EMAIL_HOST_PASSWORD: "{{ glitchtip_email_host_password | default('') }}"
+      EMAIL_USE_TLS: "{{ glitchtip_email_use_tls | default('True') }}"
+    observability_directories:
+      - path: "{{ observability_root }}/loki"
+        owner: '10001'
+        group: '10001'
+        mode: '0755'
+      - path: "{{ observability_root }}/alloy"
+        owner: root
+        group: root
+        mode: '0755'
+      - path: "{{ observability_root }}/glitchtip/postgres"
+        owner: root
+        group: root
+        mode: '0755'
+      - path: "{{ observability_root }}/glitchtip/valkey"
+        owner: root
+        group: root
+        mode: '0755'
+      - path: "{{ observability_compose_dir }}"
+        owner: root
+        group: root
+        mode: '0755'
+  tasks:
+    - name: Inspect control-plane Docker network
+      ansible.builtin.command:
+        cmd: docker network inspect {{ observability_network_name }}
+      register: observability_network_inspect
+      failed_when: false
+      changed_when: false
+
+    - name: Create control-plane Docker network when missing
+      ansible.builtin.command:
+        cmd: >
+          docker network create --driver bridge
+          --subnet {{ observability_network_subnet }}
+          --gateway {{ observability_network_gateway }}
+          {{ observability_network_name }}
+      when: observability_network_inspect.rc != 0
+
+    - name: Parse control-plane Docker network metadata
+      ansible.builtin.set_fact:
+        observability_network_data: "{{ (observability_network_inspect.stdout | from_json)[0] }}"
+      when: observability_network_inspect.rc == 0
+
+    - name: Validate control-plane Docker network shape
+      ansible.builtin.assert:
+        that:
+          - observability_network_data.IPAM.Config is defined
+          - observability_network_data.IPAM.Config | length > 0
+          - observability_network_data.IPAM.Config[0].Subnet == observability_network_subnet
+          - observability_network_data.IPAM.Config[0].Gateway == observability_network_gateway
+        fail_msg: >-
+          Docker network {{ observability_network_name }} exists with incompatible subnet/gateway.
+      when: observability_network_inspect.rc == 0
+
+    - name: Ensure observability directories exist
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
+        mode: "{{ item.mode }}"
+      loop: "{{ observability_directories }}"
+
+    - name: Ensure Loki storage ownership is correct
+      ansible.builtin.file:
+        path: "{{ observability_root }}/loki"
+        state: directory
+        owner: '10001'
+        group: '10001'
+        mode: '0755'
+        recurse: yes
+
+    - name: Render observability docker compose file
+      ansible.builtin.template:
+        src: ../templates/observability/docker-compose.yml.j2
+        dest: "{{ observability_compose_dir }}/docker-compose.yml"
+        mode: '0644'
+
+    - name: Generate Alloy configuration from service contracts
+      ansible.builtin.command:
+        cmd: >-
+          python3 {{ observability_repo_root }}/scripts/prepare_cplatform_runtime.py
+          --emit-config
+          --repo-root {{ observability_repo_root }}
+          --machine-volume {{ observability_machine_volume }}
+          --node-id {{ observability_node_id }}
+          --node-ip {{ observability_node_ip }}
+          --environment {{ observability_environment }}
+          --host-mount-prefix /host-volume
+          --skip-source-path-check
+      delegate_to: localhost
+      become: false
+      register: generated_alloy_config
+      changed_when: false
+
+    - name: Write generated Alloy configuration
+      ansible.builtin.copy:
+        content: "{{ generated_alloy_config.stdout }}"
+        dest: "{{ observability_compose_dir }}/config.alloy"
+        mode: '0644'
+
+    - name: Copy Loki configuration
+      ansible.builtin.copy:
+        src: ../../observability/loki-config.yaml
+        dest: "{{ observability_compose_dir }}/loki-config.yaml"
+        mode: '0644'
+
+    - name: Copy GlitchTip schema patch script
+      ansible.builtin.copy:
+        src: ../../observability/patch_glitchtip_schema.py
+        dest: "{{ observability_compose_dir }}/patch_glitchtip_schema.py"
+        mode: '0644'
+
+    - name: Render GlitchTip env file
+      ansible.builtin.template:
+        src: ../templates/observability/glitchtip.env.j2
+        dest: "{{ observability_compose_dir }}/glitchtip.env"
+        mode: '0600'
+
+    - name: Start Loki, Alloy, GlitchTip Postgres and Valkey
+      ansible.builtin.command:
+        cmd: docker compose up -d loki alloy glitchtip-postgres glitchtip-valkey
+        chdir: "{{ observability_compose_dir }}"
+
+    - name: Run GlitchTip migrations
+      ansible.builtin.command:
+        cmd: docker compose run --rm glitchtip-migrate
+        chdir: "{{ observability_compose_dir }}"
+
+    - name: Start GlitchTip web and worker
+      ansible.builtin.command:
+        cmd: docker compose up -d glitchtip-web glitchtip-worker
+        chdir: "{{ observability_compose_dir }}"
+
+    - name: Wait for Loki health endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:9011/ready
+        method: GET
+        status_code: 200
+      register: loki_health
+      retries: 20
+      delay: 3
+      until: loki_health.status == 200
+
+    - name: Wait for Alloy health endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:12345/-/ready
+        method: GET
+        status_code: 200
+      register: alloy_health
+      retries: 20
+      delay: 3
+      until: alloy_health.status == 200
+
+    - name: Wait for GlitchTip web endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:9008/
+        method: GET
+        status_code: [200, 302]
+      register: glitchtip_health
+      retries: 20
+      delay: 3
+      until: glitchtip_health.status in [200, 302]

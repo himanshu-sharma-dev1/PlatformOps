@@ -1,0 +1,196 @@
+{
+  "flow_name": "noc-alarm-ftp-local-to-kafka",
+  "flow_version": "1",
+  "description": "Read alarm rows from FTP or a local path, preserve each row as JSON, and publish it to Kafka.",
+  "topic": "noc.alarm.raw.v1",
+  "value_format": "raw-row-json",
+  "parameters": {
+    "Input Mode": "${NOC_INPUT_MODE:-local}",
+    "Cycle ID": "${NOC_CYCLE_ID:-}",
+    "Local Input Directory": "${NOC_LOCAL_INPUT_DIR:-/opt/nifi/data/incoming}",
+    "FTP Host": "${NOC_FTP_HOST:-}",
+    "FTP Port": "${NOC_FTP_PORT:-21}",
+    "FTP Username": "${NOC_FTP_USERNAME:-}",
+    "FTP Password": "${NOC_FTP_PASSWORD:-}",
+    "FTP Remote Path": "${NOC_FTP_REMOTE_PATH:-/}",
+    "File Pattern": "${NOC_FILE_PATTERN:-.*\\.(csv|json|jsonl)}",
+    "Kafka Bootstrap Servers": "${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}",
+    "Stream ID": "${NOC_STREAM_ID:-noc-alarm-demo}",
+    "Events Per Second": "${NOC_EVENTS_PER_SECOND:-100}",
+    "Continuous Replay": "${NOC_CONTINUOUS_REPLAY:-true}",
+    "Replay Mode": "${NOC_REPLAY_MODE:-continuous}",
+    "Keep Source File": "${NOC_KEEP_SOURCE_FILE:-false}"
+  },
+  "replay_contract": {
+    "events_per_second": { "minimum": 1, "maximum": 1000, "default": 100 },
+    "continuous": true,
+    "mode": "continuous",
+    "cycle_id_header": "cycle_id",
+    "cycle_id_strategy": "monotonic"
+  },
+  "csv_contract": {
+    "preamble_lines": 2,
+    "header_line_after_preamble": true,
+    "format": "Aviat alarm export"
+  },
+  "controller_services": [
+    {
+      "id": "kafka-connection",
+      "type": "org.apache.nifi.kafka.service.Kafka3ConnectionService",
+      "name": "NOC Kafka Connection",
+      "properties": {
+        "bootstrap.servers": "#{Kafka Bootstrap Servers}",
+        "security.protocol": "PLAINTEXT",
+        "isolation.level": "read_committed",
+        "max.poll.records": "10000",
+        "default.api.timeout.ms": "60 sec",
+        "max.block.ms": "5 sec",
+        "ack.wait.time": "5 sec"
+      }
+    },
+    {
+      "id": "csv-reader",
+      "type": "org.apache.nifi.csv.CSVReader",
+      "name": "NOC Aviat CSV Reader",
+      "properties": {
+        "Schema Access Strategy": "infer-schema",
+        "Treat First Line as Header": "true"
+      }
+    },
+    {
+      "id": "json-tree-reader",
+      "type": "org.apache.nifi.json.JsonTreeReader",
+      "name": "NOC JSON Tree Reader",
+      "properties": {
+        "Schema Access Strategy": "infer-schema"
+      }
+    },
+    {
+      "id": "json-record-writer",
+      "type": "org.apache.nifi.json.JsonRecordSetWriter",
+      "name": "NOC JSON Record Writer",
+      "properties": {
+        "Schema Write Strategy": "no-schema"
+      }
+    }
+  ],
+  "processors": [
+    {
+      "id": "get-file",
+      "type": "org.apache.nifi.processors.standard.GetFile",
+      "name": "Read local alarm files",
+      "input_mode": "local",
+      "position": { "x": 0, "y": 0 },
+      "properties": {
+        "Input Directory": "#{Local Input Directory}",
+        "File Filter": ".*\\.csv",
+        "Keep Source File": "#{Keep Source File}",
+        "Recurse Subdirectories": "true",
+        "Polling Interval": "1 sec"
+      },
+      "auto_terminated_relationships": ["failure"]
+    },
+    {
+      "id": "get-ftp",
+      "type": "org.apache.nifi.processors.standard.GetFTP",
+      "name": "Read FTP alarm files",
+      "input_mode": "ftp",
+      "position": { "x": 0, "y": 260 },
+      "properties": {
+        "Hostname": "#{FTP Host}",
+        "Port": "#{FTP Port}",
+        "Username": "#{FTP Username}",
+        "Password": "#{FTP Password}",
+        "Remote Path": "#{FTP Remote Path}",
+        "File Filter Regex": ".*\\.csv",
+        "Connection Mode": "Passive",
+        "Transfer Mode": "Binary",
+        "Delete Original": "false",
+        "Polling Interval": "1 sec"
+      },
+      "auto_terminated_relationships": ["failure"]
+    },
+    {
+      "id": "strip-preamble",
+      "type": "org.apache.nifi.processors.standard.ReplaceText",
+      "name": "Strip two Aviat CSV preamble lines",
+      "position": { "x": 210, "y": 130 },
+      "properties": {
+        "Evaluation Mode": "Entire text",
+        "Replacement Strategy": "Regex Replace",
+        "Search Value": "(?s)\\A[^\\r\\n]*(?:\\r?\\n|$)[^\\r\\n]*(?:\\r?\\n|$)",
+        "Replacement Value": ""
+      },
+      "auto_terminated_relationships": ["failure"]
+    },
+    {
+      "id": "split-record",
+      "type": "org.apache.nifi.processors.standard.SplitRecord",
+      "name": "Split into raw alarm rows",
+      "position": { "x": 420, "y": 130 },
+      "properties": {
+        "Record Reader": "csv-reader",
+        "Record Writer": "json-record-writer",
+        "Records Per Split": "1"
+      },
+      "auto_terminated_relationships": ["failure", "original"]
+    },
+    {
+      "id": "control-rate",
+      "type": "org.apache.nifi.processors.standard.ControlRate",
+      "name": "Limit replay rate",
+      "position": { "x": 590, "y": 130 },
+      "properties": {
+        "Rate Control Criteria": "flowfile count",
+        "Maximum Rate": "#{Events Per Second}",
+        "Time Duration": "1 sec"
+      },
+      "auto_terminated_relationships": ["failure"]
+    },
+    {
+      "id": "update-cycle",
+      "type": "org.apache.nifi.processors.attributes.UpdateAttribute",
+      "name": "Attach replay headers",
+      "position": { "x": 760, "y": 130 },
+      "properties": {
+        "stream_id": "#{Stream ID}",
+        "cycle_id": "#{Cycle ID}",
+        "row_index": "${fragment.index}",
+        "source": "cplatform_nifi",
+        "source_file": "${filename}",
+        "content_type": "application/json",
+        "replay_eps": "#{Events Per Second}",
+        "continuous_replay": "#{Continuous Replay}",
+        "replay_mode": "#{Replay Mode}"
+      }
+    },
+    {
+      "id": "publish-kafka",
+      "type": "org.apache.nifi.kafka.processors.PublishKafka",
+      "name": "Publish raw alarm JSON",
+      "position": { "x": 1100, "y": 130 },
+      "properties": {
+        "Kafka Connection Service": "kafka-connection",
+        "Topic Name": "noc.alarm.raw.v1",
+        "acks": "all",
+        "Record Reader": "json-tree-reader",
+        "Record Writer": "json-record-writer",
+        "Publish Strategy": "USE_VALUE",
+        "Kafka Key": "${stream_id}",
+        "FlowFile Attribute Header Pattern": "^(stream_id|cycle_id|row_index|content_type|source|source_file|replay_mode)$",
+        "Header Encoding": "UTF-8",
+        "Transactions Enabled": "false"
+      },
+      "auto_terminated_relationships": ["success", "failure"]
+    }
+  ],
+  "connections": [
+    { "source": "get-file", "destination": "strip-preamble", "relationships": ["success"] },
+    { "source": "get-ftp", "destination": "strip-preamble", "relationships": ["success"] },
+    { "source": "strip-preamble", "destination": "split-record", "relationships": ["success"] },
+    { "source": "split-record", "destination": "control-rate", "relationships": ["splits"] },
+    { "source": "control-rate", "destination": "update-cycle", "relationships": ["success"] },
+    { "source": "update-cycle", "destination": "publish-kafka", "relationships": ["success"] }
+  ],
+  "required_headers": ["stream_id", "cycle_id", "row_index", "content_type", "source", "source_file", "replay_mode"]
+}

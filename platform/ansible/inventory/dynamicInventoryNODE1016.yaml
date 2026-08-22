@@ -1,0 +1,9 @@
+aiworkbench:
+  hosts:
+    172.236.115.95:
+      ansible_become_password: DataJam!1024
+      ansible_connection: ssh
+      ansible_ssh_extra_args: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+      ansible_ssh_pass: DataJam!1024
+      ansible_user: root
+  vars: {}

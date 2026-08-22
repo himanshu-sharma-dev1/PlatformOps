@@ -1,0 +1,45 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - 180.75.0.13:9090
+        labels:
+          service: prometheus
+
+  - job_name: nifi
+    metrics_path: /nifi-api/flow/metrics/prometheus
+    static_configs:
+      - targets:
+          - 180.75.0.10:8883
+        labels:
+          service: nifi
+
+  - job_name: noc-kafka
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - 180.75.0.63:9308
+        labels:
+          service: kafka-exporter
+
+  - job_name: agenticnoc
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - 180.75.0.7:8000
+          - 180.75.0.70:8000
+        labels:
+          service: agenticnoc
+
+  - job_name: process-exporter
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - 180.75.0.62:9256
+        labels:
+          service: process-exporter

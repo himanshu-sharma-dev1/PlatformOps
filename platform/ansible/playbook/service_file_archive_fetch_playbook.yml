@@ -1,0 +1,34 @@
+---
+- name: Fetch service file archive from target node
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Ensure local fetch directory exists on cPlatform runtime
+      ansible.builtin.file:
+        path: "{{ local_fetch_dir }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Fetch requested archive file
+      ansible.builtin.fetch:
+        src: "{{ remote_file_path }}"
+        dest: "{{ local_fetch_dir + '/' }}"
+        flat: false
+      register: fetched_archive
+
+    - name: Print fetched archive path
+      ansible.builtin.debug:
+        msg: >-
+          'Fetched to': '{{ fetched_archive.dest }}'
+
+    - name: Ensure fetched archive is readable by cPlatform runtime
+      ansible.builtin.file:
+        path: "{{ fetched_archive.dest }}"
+        mode: "0644"
+      delegate_to: localhost
+      become: false
+      when: fetched_archive.dest is defined

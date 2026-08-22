@@ -1,0 +1,9 @@
+aiworkbench:
+  hosts:
+    216.48.189.217:
+      ansible_become_password: DDRPVP@ecjkt457
+      ansible_connection: ssh
+      ansible_ssh_extra_args: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+      ansible_ssh_pass: DDRPVP@ecjkt457
+      ansible_user: root
+  vars: {}

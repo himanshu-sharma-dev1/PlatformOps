@@ -1,0 +1,79 @@
+services:
+  kafka:
+    image: bitnami/kafka:3.8.1
+    container_name: cplatform_demo_kafka
+    hostname: kafka
+    restart: unless-stopped
+    ports:
+      - "19092:19092"
+    environment:
+      # One broker and one controller are enough for the isolated demo.  This
+      # is explicitly KRaft; no ZooKeeper container is required.
+      KAFKA_CFG_NODE_ID: "1"
+      KAFKA_CFG_PROCESS_ROLES: "broker,controller"
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
+      KAFKA_CFG_LISTENERS: "CONTROLLER://:9093,INTERNAL://:9092,EXTERNAL://:19092"
+      KAFKA_CFG_ADVERTISED_LISTENERS: "INTERNAL://kafka:9092,EXTERNAL://localhost:19092"
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: "INTERNAL"
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "false"
+      # Keep the broker default aligned with the explicit topic contract even
+      # though auto-creation is disabled and topic-init creates all names.
+      KAFKA_CFG_NUM_PARTITIONS: "3"
+      KAFKA_CFG_DEFAULT_REPLICATION_FACTOR: "1"
+      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    volumes:
+      - cplatform_demo_kafka_data:/bitnami/kafka
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  kafka-topic-init:
+    image: bitnami/kafka:3.8.1
+    container_name: cplatform_demo_kafka_topic_init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-ec"]
+    command:
+      - >-
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092
+        --create --if-not-exists --topic noc.alarm.raw.v1 --partitions 3
+        --replication-factor 1 --config cleanup.policy=delete
+        --config retention.ms=86400000;
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092
+        --create --if-not-exists --topic noc.alarm.normalized.v1 --partitions 3
+        --replication-factor 1 --config cleanup.policy=delete
+        --config retention.ms=86400000;
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092
+        --create --if-not-exists --topic noc.incident.candidate.v1 --partitions 3
+        --replication-factor 1 --config cleanup.policy=delete
+        --config retention.ms=86400000;
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092
+        --create --if-not-exists --topic noc.alarm.dlq.v1 --partitions 3
+        --replication-factor 1 --config cleanup.policy=delete
+        --config retention.ms=604800000;
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092
+        --create --if-not-exists --topic noc.alarm.events.v2 --partitions 3
+        --replication-factor 1 --config cleanup.policy=delete
+        --config retention.ms=86400000;
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092
+        --describe --topic noc.alarm.raw.v1;
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092
+        --describe --topic noc.alarm.normalized.v1;
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092
+        --describe --topic noc.incident.candidate.v1;
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092
+        --describe --topic noc.alarm.dlq.v1;
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092
+        --describe --topic noc.alarm.events.v2
+    restart: "no"
+
+volumes:
+  cplatform_demo_kafka_data:

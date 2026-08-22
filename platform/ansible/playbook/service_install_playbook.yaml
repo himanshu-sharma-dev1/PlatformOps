@@ -1,0 +1,357 @@
+- name: Service Install Playbook
+  hosts: all
+  become: yes
+  vars_files:
+    - ../../../cPlatform/config/service_install.yaml
+
+  vars:
+    docker_network_name: "cplatform_iktara_cPlatform"
+    docker_network_subnet: "180.75.0.0/24"
+    default_log_driver: json-file
+    default_log_options:
+      max-size: "10m"
+      max-file: "3"
+    bind_path_ownership:
+      rabbitmqLogs:
+        owner: '100'
+        group: '101'
+      postgresDB:
+        owner: '999'
+        group: '999'
+      postgresLogs:
+        owner: '999'
+        group: '999'
+      redisDB:
+        owner: '999'
+        group: '999'
+      redisLogs:
+        owner: '999'
+        group: '999'
+      clickHouseDB:
+        owner: '101'
+        group: '101'
+      clickHouseLogs:
+        owner: '101'
+        group: '101'
+    airflow_node_fragment: "{{ node_id | default('node') | string | lower }}"
+    airflow_container_names:
+      PostgreSQL: "node-{{ airflow_node_fragment }}-airflow-postgresql"
+      redis: "node-{{ airflow_node_fragment }}-airflow-redis"
+      Airflow-Scheduler: "node-{{ airflow_node_fragment }}-airflow-scheduler"
+      Airflow-Worker: "node-{{ airflow_node_fragment }}-airflow-worker"
+      Airflow-DagProcessor: "node-{{ airflow_node_fragment }}-airflow-dagprocessor"
+      Airflow-Triggerer: "node-{{ airflow_node_fragment }}-airflow-triggerer"
+      AirflowInit: "node-{{ airflow_node_fragment }}-airflow-init"
+
+  tasks:
+
+    - name: Install pip3 (Debian/Ubuntu)
+      apt:
+        name: python3-pip
+        state: present
+        update_cache: no
+
+    - name: Ensure Docker SDK is up-to-date (>=4.3.0)
+      become: true
+      pip:
+        name: "docker>=4.3.0"
+        state: latest
+        executable: pip3
+        extra_args: >-
+          --upgrade
+          {{ '--break-system-packages' if (ansible_distribution == 'Ubuntu' and ansible_distribution_version is version('24.04', '>=')) else '' }}
+
+    - name: Login to Docker Hub using raw shell command
+      become: yes
+      ansible.builtin.shell: sudo  docker login -u iktaraai -p IKTARA@321
+
+    - name: Check if network {{ docker_network_name }} exists
+      community.docker.docker_network_info:
+        name: "{{ docker_network_name }}"
+      register: network_info
+
+    - name: Set Fact for network {{ docker_network_name }} existence
+      set_fact:
+          network_exists: "{{ network_info.exists | default(false) }}"
+
+    - name: Create Docker bridge network if it does not exist
+      community.docker.docker_network:
+          name: "{{ docker_network_name }}"
+          state: present
+          driver: bridge
+          ipam_config:
+            - subnet: "{{ docker_network_subnet }}"
+      when: not network_exists
+
+    - name: Extract existing container IPs from network
+      set_fact:
+          existing_ips: >-
+            {{
+              network_info.network.Containers.values()
+              | map(attribute='IPv4Address')
+              | map('regex_replace', '/.*$', '')
+              | list
+            }}
+      when: network_exists
+
+    # Set the service config dynamically based on the provided service name
+    - name: Set selected service config
+      set_fact:
+        service_config: "{{ services[service] }}"
+
+    - name: Ensure destination path exists
+      file:
+        path: "{{ image_store_path }}"
+        state: directory
+        mode: '0755'
+      when: image_store_path | length > 0
+
+    - name: Ensure env path exists
+      file:
+        path:  "/{{ machine_volume }}/iktara/Repository/{{ service }}/{{ version }}/"
+        state: directory
+        mode: '0755'
+      when: machine_volume is defined and machine_volume | length > 0
+
+    - name: Ensure host bind paths exist for service volumes
+      file:
+        path: >-
+          {{
+            (
+              '.' in (item.1.split(':', 1)[0] | basename)
+            )
+            | ternary(
+              item.1.split(':', 1)[0] | dirname,
+              item.1.split(':', 1)[0]
+            )
+          }}
+        state: directory
+        mode: '0755'
+      loop: "{{ query('subelements', services[service]['Docker_Info'] | dict2items, 'value.Volumes', {'skip_missing': True}) }}"
+      when:
+        - item.1 is string
+        - item.1.startswith('/')
+        - service == 'Airflow' or item.0.key == service
+
+    - name: Ensure dependency bind paths use container-compatible ownership
+      file:
+        path: "{{ host_bind_path }}"
+        state: directory
+        owner: "{{ bind_path_ownership[path_key].owner }}"
+        group: "{{ bind_path_ownership[path_key].group }}"
+        mode: '0755'
+        recurse: yes
+      vars:
+        host_bind_path: >-
+          {{
+            (
+              item.1.split(':', 1)[0].endswith('.conf')
+            )
+            | ternary(
+              item.1.split(':', 1)[0] | dirname,
+              item.1.split(':', 1)[0]
+            )
+          }}
+        path_key: "{{ host_bind_path | basename }}"
+      loop: "{{ query('subelements', services[service]['Docker_Info'] | dict2items, 'value.Volumes', {'skip_missing': True}) }}"
+      when:
+        - item.1 is string
+        - item.1.startswith('/')
+        - path_key in bind_path_ownership
+        - service == 'Airflow' or item.0.key == service
+
+    - name: Copy the Env File to the target machine
+      ansible.builtin.copy:
+        src: "{{ DJANGO_ENV_FILE }}"
+        dest: "/{{ machine_volume }}/iktara/Repository/{{ service }}/{{ version }}/deployment.env"
+        mode: '0755'
+        # AgenticNOC's node file is the small runtime secret hand-off.  The
+        # catalog intentionally contains placeholders; once the node file is
+        # provisioned, a later UI redeploy must not overwrite its resolved
+        # DATABASE_URL with that placeholder again.
+        force: "{{ service != 'AgenticNOC' }}"
+
+    - name: Copy diagnostics env file to the target machine when provided
+      ansible.builtin.copy:
+        src: "{{ DIAGNOSTICS_ENV_FILE }}"
+        dest: "/{{ machine_volume }}/iktara/Repository/{{ service }}/{{ version }}/diagnostics.env"
+        mode: '0644'
+      when:
+        - DIAGNOSTICS_ENV_FILE is defined
+        - DIAGNOSTICS_ENV_FILE | length > 0
+
+    - name: Copy images to destination path
+      copy:
+        src: "{{ image_store_path }}/"
+        dest: "{{ service_volume }}/iktara/Repository/"
+        mode: '0755'
+      when: image_store_path | length > 0
+
+    - name: Load docker images
+      community.docker.docker_image_load:
+        path: "{{ item.value.Tar_File }}"
+      loop: "{{ services[service]['Docker_Info'] | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      when:
+        - image_store_path | length > 0
+        - service == 'Airflow' or item.key == service
+
+    - name: Set Ollama related variables
+      set_fact:
+        ollama_models: "{{ Ollama_Models | default([]) }}"
+      when: service_config.Requires_Ollama | default(false)
+
+    - name: Include Ollama setup tasks
+      include_tasks: setup_ollama_service.yaml
+      when: service_config.Requires_Ollama | default(false)
+
+    - name: Ensure additional service config directories exist
+      file:
+        path: "{{ item.1.dest | dirname }}"
+        state: directory
+        mode: '0755'
+      loop: "{{ query('subelements', services[service]['Docker_Info'] | dict2items, 'value.Config_Files', {'skip_missing': True}) }}"
+      when: service == 'Airflow' or item.0.key == service
+
+    - name: Copy additional service config files
+      ansible.builtin.copy:
+        src: "{{ item.1.src }}"
+        dest: "{{ item.1.dest }}"
+        mode: "{{ item.1.mode | default('0644') }}"
+      loop: "{{ query('subelements', services[service]['Docker_Info'] | dict2items, 'value.Config_Files', {'skip_missing': True}) }}"
+      when: service == 'Airflow' or item.0.key == service
+
+    - name: Wait for explicit Airflow infrastructure dependency ports
+      ansible.builtin.wait_for:
+        host: "{{ services[service]['Docker_Info'][airflow_dependency].Int_IP_Addr }}"
+        port: "{{ services[service]['Docker_Info'][airflow_dependency].Int_Port }}"
+        delay: 2
+        timeout: 120
+      loop:
+        - PostgreSQL
+        - redis
+      loop_control:
+        loop_var: airflow_dependency
+      when:
+        - service == 'Airflow'
+        - airflow_dependency in services[service]['Docker_Info']
+
+    - name: Deploy Airflow init container
+      become: true
+      become_user: root
+      community.docker.docker_container:
+        name: "{{ airflow_container_names['AirflowInit'] }}"
+        image: "{{ services[service]['Docker_Info']['AirflowInit'].Image_Name }}-{{ services[service]['Docker_Info']['AirflowInit'].Image_Ver | default('1.0.0') }}"
+        state: started
+        recreate: true
+        restart_policy: "{{ services[service]['Docker_Info']['AirflowInit'].Restart_Policy | default('no') }}"
+        command: "{{ services[service]['Docker_Info']['AirflowInit'].Command | default(omit) }}"
+        volumes: "{{ services[service]['Docker_Info']['AirflowInit'].Volumes | default(omit) }}"
+        networks:
+          - name: "{{ docker_network_name }}"
+            ipv4_address: "{{ services[service]['Docker_Info']['AirflowInit'].Int_IP_Addr }}"
+            aliases: "{{ services[service]['Docker_Info']['AirflowInit'].Network_Aliases | default(omit) }}"
+        env: "{{ services[service]['Docker_Info']['AirflowInit'].Environment | default({}) }}"
+        log_driver: "{{ default_log_driver }}"
+        log_options: "{{ default_log_options }}"
+      when:
+        - service == 'Airflow'
+        - "'AirflowInit' in services[service]['Docker_Info']"
+
+    - name: Deploy additional service containers
+      become: true
+      become_user: root
+      community.docker.docker_container:
+          name: "{{ airflow_container_names[item.key] | default(service_id ~ '-' ~ item.key) }}"
+          image: >-
+            {{
+              (item.key == service)
+              | ternary(item.value.Image_Name ~ '-' ~ version, item.value.Image_Name ~ '-1.0.0')
+            }}
+          state: started
+          recreate: "{{ service == 'Airflow' }}"
+          restart_policy: "{{ item.value.Restart_Policy | default('always') }}"
+          command: "{{ item.value.Command | default(omit) }}"
+          volumes: "{{ item.value.Volumes | default(omit) }}"
+          device_requests: "{{ [{'driver': 'nvidia', 'count': -1, 'capabilities': ['gpu', 'nvidia']}]
+                  if item.key == 'dcgmExporter' else omit }}"
+          capabilities: "{{ item.value.capabilities if item.key == 'dcgmExporter' else omit }}"
+          networks:
+            - name: "{{ docker_network_name }}"
+              ipv4_address: "{{ item.value.Int_IP_Addr }}"
+              aliases: "{{ item.value.Network_Aliases | default(omit) }}"
+          env: "{{ item.value.Environment | default({}) }}"
+          #published_ports: "{{ item.value.Int_Port }}:{{ item.value.Int_Port }}"
+          log_driver: "{{ default_log_driver }}"
+          log_options: "{{ default_log_options }}"
+      loop: "{{ services[service]['Docker_Info'] | dict2items }}"
+      when:
+        - service == 'Airflow'
+        - item.key != service
+        - item.key not in ['PostgreSQL', 'redis', 'AirflowInit']
+        - item.value.Int_IP_Addr not in existing_ips | default([])
+        - item.key != 'dcgmExporter' or services[service]['SW_Info'].get('NVIDIA Container Toolkit Installed', 'No') == 'Yes'
+
+    - name: Wait for Airflow init container completion
+      ansible.builtin.command:
+        cmd: "docker wait {{ airflow_container_names['AirflowInit'] }}"
+      register: airflow_init_wait
+      changed_when: false
+      when: service == "Airflow"
+
+    - name: Fail if Airflow init container failed
+      ansible.builtin.fail:
+        msg: "Airflow init failed for {{ airflow_container_names['AirflowInit'] }} with exit code {{ airflow_init_wait.stdout }}"
+      when:
+        - service == "Airflow"
+        - airflow_init_wait.stdout | default('1') != '0'
+
+
+
+    # Deploy main service container
+    - name: Deploy main service container
+      become: true
+      become_user: root
+      community.docker.docker_container:
+        name: "{{ service_id }}"
+        image: >-
+          {{
+            services[service]['Docker_Info'][service].Image_Name
+            if services[service]['Docker_Info'][service].Image_Tag_Includes_Version | default(false) | bool
+            else services[service]['Docker_Info'][service].Image_Name ~ '-' ~ version
+          }}
+        state: started
+        recreate: "{{ service == 'Airflow' }}"
+        restart_policy: always
+        command: "{{ services[service]['Docker_Info'][service].Command | default(omit) }}"
+        env: >-
+          {{
+            (services[service]['Docker_Info'][service].Environment | default({}))
+            | combine({
+                'DJANGO_ENV_FILE': '/iktara/Repository/' ~ service ~ '/' ~ version ~ '/deployment.env',
+                'DIAGNOSTICS_ENV_FILE': (
+                  (DIAGNOSTICS_ENV_FILE is defined and DIAGNOSTICS_ENV_FILE | length > 0)
+                  | ternary('/iktara/Repository/' ~ service ~ '/' ~ version ~ '/diagnostics.env', '')
+                )
+              })
+          }}
+        published_ports:
+          - "{{ service_port }}:{{ services[service]['Docker_Info'][service].Int_Port }}"
+        volumes: "{{ services[service]['Docker_Info'][service].Volumes | default([]) }}"
+        device_requests: "{{ [{'driver': 'nvidia', 'count': -1, 'capabilities': ['gpu', 'nvidia']}]
+        if services[service]['SW_Info'].get('NVIDIA Container Toolkit Installed', 'No') == 'Yes' else omit }}"
+        networks:
+          - name: "{{ docker_network_name }}"
+            ipv4_address: "{{ services[service]['Docker_Info'][service].Int_IP_Addr }}"
+            aliases: "{{ services[service]['Docker_Info'][service].Network_Aliases | default(omit) }}"
+        etc_hosts:
+          host.docker.internal: host-gateway
+        memory: "{{ memory }}g"
+        memory_swap: "{{ memory }}g"
+        cpus: "{{ cpus }}"
+        cpu_shares: "{{cpu_shares}}"
+        log_driver: "{{ default_log_driver }}"
+        log_options: "{{ default_log_options }}"
+      when:
+        - service == 'Airflow' or services[service]['Docker_Info'][service].Int_IP_Addr not in existing_ips | default([])

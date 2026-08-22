@@ -1,0 +1,335 @@
+{
+  "flow_name": "noc-alarm-http-to-agenticnoc-v1",
+  "flow_version": "1",
+  "description": "Additive HTTP row ingress: validate one multi-vendor CSV row, map it to the versioned JSON contract, route duplicates and failures, and POST canonical events to AgenticNOC.",
+  "contract": "noc-alarm-mapped.v1",
+  "contract_schema": "../contracts/noc_alarm_mapped_v1.schema.json",
+  "documented_api": {
+    "method": "POST",
+    "path": "/api/ingestion/v2/alarms/",
+    "body": "one noc-alarm-mapped.v1 object",
+    "source": "AgenticNOC apps/ingestion/urls.py"
+  },
+  "input": {
+    "processor": "ListenHTTP",
+    "port": 9080,
+    "base_path": "aviat",
+    "content_type": "text/csv",
+    "one_row_per_request": true,
+    "required_headers": ["X-Original-Filename", "X-Row-Number", "X-Vendor"],
+    "source_lineage_headers": {
+      "source_file": "X-Original-Filename",
+      "source_row": "X-Row-Number",
+      "stream_id": "X-Stream-ID",
+      "replay_cycle_id": "X-Replay-Cycle-ID",
+      "replay_sequence": "X-Replay-Sequence",
+      "vendor": "X-Vendor",
+      "source_system": "X-Source-System"
+    }
+  },
+  "parameters": {
+    "ListenHTTP Port": "${NOC_HTTP_LISTEN_PORT:-9080}",
+    "ListenHTTP Base Path": "${NOC_HTTP_BASE_PATH:-aviat}",
+    "AgenticNOC Ingest URL": "${AGENTICNOC_INGEST_URL:-http://agenticnoc:8000/api/ingestion/v2/alarms/}",
+    "Mapped Alarm Schema": "${NOC_MAPPED_ALARM_SCHEMA:-/opt/nifi/nifi-current/templates/contracts/noc_alarm_mapped_v1.avsc}",
+    "DLQ Directory": "${NOC_HTTP_DLQ_DIRECTORY:-/opt/nifi/nifi-current/logs/noc-dlq}",
+    "Source System": "${NOC_HTTP_SOURCE_SYSTEM:-cplatform-http-simulator}",
+    "Vendor": "${NOC_VENDOR:-aviat}",
+    "Duplicate Cache Service": "noc-http-duplicate-cache",
+    "Duplicate Cache Server Host": "${NOC_DUPLICATE_CACHE_HOST:-127.0.0.1}",
+    "Duplicate Cache Server Port": "${NOC_DUPLICATE_CACHE_PORT:-4557}"
+  },
+  "canonicalization": {
+    "input_fields": {
+      "Event": "event_description",
+      "Object": "object",
+      "Site": "site_id",
+      "Raised": "source_event_time",
+      "Severity": "severity",
+      "State": "state",
+      "Cleared": "nms_cleared_at",
+      "Event ID": "external_alarm_id",
+      "Device Raised": "device_raised_at",
+      "Device Cleared": "device_cleared_at",
+      "ProbableCause": "probable_cause_raw",
+      "SpecificProblem": "specific_problem"
+    },
+    "fixed_fields": {
+      "schema_version": 1,
+      "contract": "noc-alarm-mapped.v1",
+      "vendor": "selected_vendor",
+      "canonical_category": "UNKNOWN"
+    },
+    "identity": "event_id is the supplied Event ID when present; alarm_key is vendor:site:event_id. Missing identity fields fail validation and are written to the DLQ.",
+    "classification_owner": "AgenticNOC"
+  },
+  "duplicate_cache": {
+    "client_service": "noc-http-duplicate-cache",
+    "server_service": "noc-http-duplicate-cache-server",
+    "key": "event_id:alarm_key:external_alarm_id",
+    "scope": "HTTP process-group",
+    "retention": "bounded by DistributedMapCacheServer maximum entries"
+  },
+  "controller_services": [
+    {
+      "id": "csv-reader",
+      "type": "org.apache.nifi.csv.CSVReader",
+      "name": "NOC HTTP CSV Reader",
+      "properties": {
+        "Schema Access Strategy": "infer-schema",
+        "Treat First Line as Header": "true",
+        "Ignore CSV Header Column Names": "false"
+      }
+    },
+    {
+      "id": "json-tree-reader",
+      "type": "org.apache.nifi.json.JsonTreeReader",
+      "name": "NOC HTTP JSON Reader",
+      "properties": { "Schema Access Strategy": "infer-schema" }
+    },
+    {
+      "id": "json-record-writer",
+      "type": "org.apache.nifi.json.JsonRecordSetWriter",
+      "name": "NOC HTTP JSON Writer",
+      "properties": { "Schema Write Strategy": "no-schema" }
+    },
+    {
+      "id": "http-context-map",
+      "type": "org.apache.nifi.http.StandardHttpContextMap",
+      "name": "NOC HTTP Context Map",
+      "properties": {}
+    },
+    {
+      "id": "noc-http-duplicate-cache-server",
+      "type": "org.apache.nifi.distributed.cache.server.map.MapCacheServer",
+      "name": "NOC HTTP Duplicate Cache Server",
+      "properties": {
+        "Port": "#{Duplicate Cache Server Port}",
+        "Maximum Cache Entries": "1000000"
+      }
+    },
+    {
+      "id": "noc-http-duplicate-cache",
+      "type": "org.apache.nifi.distributed.cache.client.MapCacheClientService",
+      "name": "NOC HTTP Duplicate Cache",
+      "properties": {
+        "Server Hostname": "#{Duplicate Cache Server Host}",
+        "Server Port": "#{Duplicate Cache Server Port}",
+        "Communications Timeout": "30 secs"
+      }
+    }
+  ],
+  "processors": [
+    {
+      "id": "listen-http",
+      "type": "org.apache.nifi.processors.standard.ListenHTTP",
+      "name": "ListenHTTP /aviat row ingress",
+      "position": { "x": 0, "y": 0 },
+      "properties": {
+        "Listening Port": "#{ListenHTTP Port}",
+        "Base Path": "#{ListenHTTP Base Path}",
+        "HTTP Headers for Attributes": "(?i)^(X-Original-Filename|X-Row-Number|X-Stream-ID|X-Replay-Cycle-ID|X-Replay-Sequence|X-Vendor|X-Source-System)$"
+      },
+      "auto_terminated_relationships": []
+    },
+    {
+      "id": "convert-csv",
+      "type": "org.apache.nifi.processors.standard.ConvertRecord",
+      "name": "Parse one CSV row",
+      "position": { "x": 280, "y": 0 },
+      "properties": {
+        "Record Reader": "csv-reader",
+        "Record Writer": "json-record-writer"
+      }
+    },
+    {
+      "id": "split-record",
+      "type": "org.apache.nifi.processors.standard.SplitRecord",
+      "name": "Enforce one record per FlowFile",
+      "position": { "x": 560, "y": 0 },
+      "auto_terminated_relationships": ["original"],
+      "properties": {
+        "Record Reader": "json-tree-reader",
+        "Record Writer": "json-record-writer",
+        "Records Per Split": "1"
+      }
+    },
+    {
+      "id": "map-canonical",
+      "type": "org.apache.nifi.processors.jolt.JoltTransformJSON",
+      "name": "Map to noc-alarm-mapped.v1",
+      "position": { "x": 840, "y": 0 },
+      "properties": {
+        "Jolt Transform": "jolt-transform-chain",
+        "Jolt Specification": "[{\"operation\":\"shift\",\"spec\":{\"Event\":\"event_description\",\"Message\":\"event_description\",\"EventText\":\"event_description\",\"AlarmName\":\"event_description\",\"ALARM_TYPE\":\"event_description\",\"Event Name\":\"event_description\",\"SpecificProblem\":\"event_description\",\"Object\":\"object\",\"Slot_Port\":\"object\",\"OEM\":\"object\",\"Site\":\"site_id\",\"Site_Name\":\"site_id\",\"Source\":\"site_id\",\"NEName\":\"site_id\",\"DEVICE\":\"site_id\",\"Device Name\":\"site_id\",\"System Name\":\"site_id\",\"Device_Name\":\"node_id\",\"DeviceName\":\"node_id\",\"Raised\":\"source_event_time\",\"Raise_Time\":\"source_event_time\",\"Raised Time\":\"source_event_time\",\"RAISED\":\"source_event_time\",\"Raised At\":\"source_event_time\",\"Date\":\"source_event_time\",\"RaiseDate\":\"source_event_date\",\"Severity\":\"Severity\",\"SEVERITY\":\"Severity\",\"State\":\"State\",\"Alarm Status\":\"State\",\"AlarmState\":\"State\",\"AlarmStatus\":\"State\",\"ALARM_STATUS\":\"State\",\"Cleared\":\"Cleared\",\"CLEARED\":\"Cleared\",\"Clear_Time\":\"Cleared\",\"Cleared At\":\"Cleared\",\"ClearDate\":\"Cleared\",\"Event ID\":\"external_alarm_id\",\"Alarm_ID\":\"external_alarm_id\",\"AlarmID\":\"external_alarm_id\",\"Alarm ID\":\"external_alarm_id\",\"SERIAL_NO\":\"external_alarm_id\",\"Device Raised\":\"device_raised_at\",\"Device Cleared\":\"device_cleared_at\",\"ProbableCause\":\"ProbableCause\",\"Specific Problem\":\"SpecificProblem\"}},{\"operation\":\"default\",\"spec\":{\"schema_version\":1,\"contract\":\"noc-alarm-mapped.v1\",\"vendor\":\"aviat\",\"canonical_category\":\"UNKNOWN\"}}]"
+      }
+    },
+    {
+      "id": "enrich-canonical",
+      "type": "org.apache.nifi.processors.groovyx.ExecuteGroovyScript",
+      "name": "Add deterministic identity and delivery metadata",
+      "position": { "x": 980, "y": 0 },
+      "properties": {
+        "Script Body": "import groovy.json.JsonOutput\nimport groovy.json.JsonSlurper\nimport java.security.MessageDigest\n\ndef flowFile = session.get()\nif (flowFile == null) return\ndef text = ''\nsession.read(flowFile, { input -> text = input.getText('UTF-8') } as InputStreamCallback)\ndef parsed = new JsonSlurper().parseText(text)\ndef row = (parsed instanceof List && !parsed.isEmpty()) ? parsed[0] : (parsed instanceof Map ? parsed : [:])\ndef site = (row.site_id ?: row.Site ?: row.DEVICE ?: row['Device Name'] ?: row['System Name'] ?: row.node_id ?: '').toString().trim()\ndef ext = (row.external_alarm_id ?: row.AlarmID ?: row['Alarm ID'] ?: row['Event ID'] ?: row.SERIAL_NO ?: '').toString().trim()\ndef description = (row.event_description ?: row.Event ?: row.ALARM_TYPE ?: row['Event Name'] ?: row.SpecificProblem ?: row['Alarm Name'] ?: '').toString().trim()\ndef objectName = (row.object ?: row.Object ?: row.OEM ?: row.Slot_Port ?: '').toString().trim()\ndef now = new Date().format(\"yyyy-MM-dd'T'HH:mm:ss'Z'\", TimeZone.getTimeZone('UTC'))\ndef raised = (row.source_event_time ?: row.Raised ?: row.RAISED ?: row['Raised At'] ?: row.Date ?: now).toString().trim()\ndef clearedRaw = (row.Cleared ?: row.CLEARED ?: row['Cleared At'] ?: '').toString().trim()\ndef cleared = (clearedRaw == '-' || clearedRaw == 'null' || clearedRaw == '') ? null : clearedRaw\ndef stateRaw = (row.State ?: row.ALARM_STATUS ?: '').toString().trim()\ndef isClear = stateRaw.toLowerCase().contains('clear') || stateRaw.toLowerCase().contains('inactive') || cleared != null\ndef state = isClear ? 'cleared' : (stateRaw.toLowerCase().contains('ack') ? 'acknowledged' : 'active')\ndef eventType = isClear ? 'clear' : 'raise'\ndef sevRaw = (row.Severity ?: row.SEVERITY ?: 'indeterminate').toString().trim().toLowerCase()\ndef severity = isClear ? 'cleared' : sevRaw\nif (!(severity in ['critical','major','minor','warning','indeterminate','cleared'])) severity = 'indeterminate'\ndef vendor = (flowFile.getAttribute('X-Vendor') ?: row.OEM ?: row.vendor ?: 'aviat').toString().trim().toLowerCase()\nif (!(vendor in ['aviat','cambium','radwin','ceragon'])) vendor = 'aviat'\ndef alarmKey = vendor + ':' + site + ':' + (ext ?: 'unknown')\ndef identity = [alarm_key: alarmKey, event_type: eventType, state: state, severity: severity, raised: raised, cleared: cleared, event: description, object: objectName]\ndef digest = MessageDigest.getInstance('SHA-256').digest(JsonOutput.toJson(identity).getBytes('UTF-8')).encodeHex().toString()\ndef sourceFile = flowFile.getAttribute('X-Original-Filename') ?: flowFile.getAttribute('http.headers.x-original-filename') ?: flowFile.getAttribute('filename') ?: 'unknown.csv'\ndef sourceRowText = flowFile.getAttribute('X-Row-Number') ?: flowFile.getAttribute('http.headers.x-row-number') ?: '1'\ndef sourceRow = sourceRowText.isInteger() ? sourceRowText.toInteger() : 1\ndef streamId = flowFile.getAttribute('X-Stream-Id') ?: flowFile.getAttribute('X-Stream-ID') ?: flowFile.getAttribute('http.headers.x-stream-id') ?: flowFile.getAttribute('stream_id') ?: ''\ndef replayCycleId = flowFile.getAttribute('X-Replay-Cycle-Id') ?: flowFile.getAttribute('X-Replay-Cycle-ID') ?: flowFile.getAttribute('http.headers.x-replay-cycle-id') ?: flowFile.getAttribute('replay_cycle_id') ?: ''\ndef replaySequenceText = flowFile.getAttribute('X-Replay-Sequence') ?: flowFile.getAttribute('http.headers.x-replay-sequence') ?: sourceRowText\ndef replaySequence = replaySequenceText.isInteger() ? replaySequenceText.toInteger() : null\ndef out = [schema_version: 1, contract: 'noc-alarm-mapped.v1', vendor: vendor, source_system: context.getProperty('Source System').evaluateAttributeExpressions(flowFile).getValue(), source_file: sourceFile, source_row: sourceRow, event_id: 'sha256:' + digest, alarm_key: alarmKey, external_alarm_id: ext ?: vendor + '-' + digest[0..23], event_description: description, object: objectName, site_id: site, node_id: site ?: null, severity: severity, state: state, event_type: eventType, canonical_category: 'UNKNOWN', probable_cause_raw: row.ProbableCause ?: description, specific_problem: row.SpecificProblem ?: '', source_event_time: raised, effective_event_time: (isClear ? cleared : raised), device_raised_at: row.device_raised_at, device_cleared_at: row.device_cleared_at, nms_cleared_at: cleared, ingested_at: now, trace_id: 'http:' + sourceFile + ':' + sourceRow, stream_id: streamId, replay_cycle_id: replayCycleId, replay_sequence: replaySequence, Circle: site.size() > 1 ? site[0..1] : site, Cleared: cleared, SpecificProblem: row.SpecificProblem ?: '', ProbableCause: row.ProbableCause ?: description, AlarmID: ext ?: vendor + '-' + digest[0..23], Site: site, Severity: severity.capitalize(), State: isClear ? 'Cleared by network' : state.capitalize(), AlarmName: description, Raised: raised]\nflowFile = session.write(flowFile, { output -> output.write(JsonOutput.toJson(out).getBytes('UTF-8')) } as OutputStreamCallback)\nflowFile = session.putAttribute(flowFile, 'replay_cycle_id', (replayCycleId ?: '').toString())\nflowFile = session.putAttribute(flowFile, 'event_id', ('sha256:' + digest).toString())\nflowFile = session.putAttribute(flowFile, 'alarm_key', alarmKey.toString())\nflowFile = session.putAttribute(flowFile, 'external_alarm_id', (ext ?: vendor + '-' + digest[0..23]).toString())\nflowFile = session.putAttribute(flowFile, 'vendor', vendor.toString())\nflowFile = session.putAttribute(flowFile, 'source_file', (sourceFile ?: '').toString())\nflowFile = session.putAttribute(flowFile, 'source_row', sourceRow.toString())\nsession.transfer(flowFile, REL_SUCCESS)",
+        "Source System": "#{Source System}"
+      }
+    },
+    {
+      "id": "validate-json",
+      "type": "org.apache.nifi.processors.standard.ValidateRecord",
+      "name": "Validate mapped alarm contract",
+      "position": { "x": 1120, "y": 0 },
+      "properties": {
+        "Record Reader": "json-tree-reader",
+        "Record Writer": "json-record-writer",
+        "Schema Access Strategy": "schema-text-property",
+        "Schema Text": "#{Mapped Alarm Schema}"
+      }
+    },
+    {
+      "id": "extract-identity",
+      "type": "org.apache.nifi.processors.standard.EvaluateJsonPath",
+      "name": "Extract duplicate identity attributes",
+      "position": { "x": 1260, "y": 0 },
+      "properties": {
+        "Destination": "flowfile-attribute",
+        "Return Type": "scalar",
+        "Path Not Found Behavior": "skip",
+        "Null Value Representation": "empty string",
+        "event_id": "$[0].event_id",
+        "alarm_key": "$[0].alarm_key",
+        "external_alarm_id": "$[0].external_alarm_id",
+        "source_file": "$[0].source_file",
+        "source_row": "$[0].source_row",
+        "replay_cycle_id": "$[0].replay_cycle_id",
+        "stream_id": "$[0].stream_id"
+      }
+    },
+    {
+      "id": "detect-duplicate",
+      "type": "org.apache.nifi.processors.standard.DetectDuplicate",
+      "name": "Route duplicate alarm rows",
+      "position": { "x": 1400, "y": 0 },
+      "properties": {
+        "Cache Entry Identifier": "${stream_id}:${replay_cycle_id}:${source_file}:${source_row}",
+        "Distributed Cache Service": "noc-http-duplicate-cache"
+      }
+    },
+    {
+      "id": "duplicate-metric",
+      "type": "org.apache.nifi.processors.attributes.UpdateAttribute",
+      "name": "Duplicate metric route",
+      "position": { "x": 1680, "y": -180 },
+      "properties": {
+        "noc.route": "duplicate",
+        "noc.metric": "noc_http_alarm_duplicates_total",
+        "http.status.code": "200",
+        "mime.type": "application/json"
+      },
+      "auto_terminated_relationships": []
+    },
+    {
+      "id": "post-agenticnoc",
+      "type": "org.apache.nifi.processors.standard.InvokeHTTP",
+      "name": "POST canonical alarm to AgenticNOC",
+      "position": { "x": 1680, "y": 0 },
+      "properties": {
+        "HTTP Method": "POST",
+        "HTTP URL": "#{AgenticNOC Ingest URL}",
+        "Request Content-Type": "application/json",
+        "Request Body Enabled": "true",
+        "X-AgenticNOC-Vendor": "${vendor:replaceNull('aviat')}"
+      },
+      "auto_terminated_relationships": ["Original"]
+    },
+    {
+      "id": "route-response",
+      "type": "org.apache.nifi.processors.standard.RouteOnAttribute",
+      "name": "Route AgenticNOC response",
+      "position": { "x": 1960, "y": 0 },
+      "properties": {
+        "accepted": "${invokehttp.status.code:startsWith('2')}",
+        "rejected": "${invokehttp.status.code:matches('4.*')}",
+        "unavailable": "${invokehttp.status.code:matches('5.*')}"
+      }
+    },
+    {
+      "id": "success-metric",
+      "type": "org.apache.nifi.processors.attributes.UpdateAttribute",
+      "name": "Accepted metric route",
+      "position": { "x": 2240, "y": -120 },
+      "properties": {
+        "noc.route": "accepted",
+        "noc.metric": "noc_http_alarm_posts_total",
+        "http.status.code": "202",
+        "mime.type": "application/json"
+      },
+      "auto_terminated_relationships": []
+    },
+    {
+      "id": "dlq-metric",
+      "type": "org.apache.nifi.processors.attributes.UpdateAttribute",
+      "name": "DLQ metric route",
+      "position": { "x": 1680, "y": 280 },
+      "properties": {
+        "noc.route": "dlq",
+        "noc.metric": "noc_http_alarm_dlq_total",
+        "http.status.code": "400",
+        "dlq.reason": "validation_or_http_failure"
+      }
+    },
+    {
+      "id": "put-dlq",
+      "type": "org.apache.nifi.processors.standard.PutFile",
+      "name": "Persist failed alarm to DLQ",
+      "position": { "x": 1960, "y": 280 },
+      "properties": {
+        "Directory": "#{DLQ Directory}",
+        "Conflict Resolution Strategy": "replace"
+      },
+      "auto_terminated_relationships": ["failure"]
+    },
+    {
+      "id": "respond-http",
+      "type": "org.apache.nifi.processors.standard.HandleHttpResponse",
+      "name": "RespondToHTTP",
+      "position": { "x": 2240, "y": 280 },
+      "properties": {
+        "HTTP Context Map": "http-context-map",
+        "HTTP Status Code": "${http.status.code:orElse('202')}"
+      },
+      "auto_terminated_relationships": ["success", "failure"]
+    }
+  ],
+  "connections": [
+    { "source": "listen-http", "destination": "convert-csv", "relationships": ["success"] },
+    { "source": "convert-csv", "destination": "split-record", "relationships": ["success"] },
+    { "source": "convert-csv", "destination": "dlq-metric", "relationships": ["failure", "original"] },
+    { "source": "split-record", "destination": "enrich-canonical", "relationships": ["splits"] },
+    { "source": "split-record", "destination": "dlq-metric", "relationships": ["failure"] },
+    { "source": "enrich-canonical", "destination": "validate-json", "relationships": ["success"] },
+    { "source": "enrich-canonical", "destination": "dlq-metric", "relationships": ["failure"] },
+    { "source": "validate-json", "destination": "extract-identity", "relationships": ["valid"] },
+    { "source": "validate-json", "destination": "dlq-metric", "relationships": ["invalid", "failure"] },
+    { "source": "extract-identity", "destination": "detect-duplicate", "relationships": ["matched"] },
+    { "source": "extract-identity", "destination": "dlq-metric", "relationships": ["unmatched", "failure"] },
+    { "source": "detect-duplicate", "destination": "duplicate-metric", "relationships": ["duplicate"] },
+    { "source": "detect-duplicate", "destination": "post-agenticnoc", "relationships": ["non-duplicate"] },
+    { "source": "detect-duplicate", "destination": "dlq-metric", "relationships": ["failure"] },
+    { "source": "post-agenticnoc", "destination": "route-response", "relationships": ["Response"] },
+    { "source": "post-agenticnoc", "destination": "dlq-metric", "relationships": ["Retry", "No Retry", "Failure"] },
+    { "source": "route-response", "destination": "success-metric", "relationships": ["accepted"] },
+    { "source": "success-metric", "destination": "respond-http", "relationships": ["success"] },
+    { "source": "duplicate-metric", "destination": "respond-http", "relationships": ["success"] },
+    { "source": "route-response", "destination": "dlq-metric", "relationships": ["rejected", "unavailable", "unmatched"] },
+    { "source": "dlq-metric", "destination": "put-dlq", "relationships": ["success"] },
+    { "source": "put-dlq", "destination": "respond-http", "relationships": ["success"] }
+  ],
+  "invariants": [
+    "This flow has no PublishKafka processor and never publishes noc.alarm.raw.v1.",
+    "Every successful HTTP request contains one CSV data row; SplitRecord is a defensive guard.",
+    "Only valid, non-duplicate mapped JSON reaches InvokeHTTP.",
+    "Validation, duplicate, and HTTP failures are observable through noc.route/noc.metric attributes and retained under the DLQ directory.",
+    "Source lineage is copied from X-Original-Filename/X-Row-Number and optional replay headers into the mapped contract."
+  ]
+}

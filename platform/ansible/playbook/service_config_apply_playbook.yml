@@ -1,0 +1,61 @@
+---
+- name: Apply migrated service config on running container
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Copy apply script to target host
+      ansible.builtin.copy:
+        src: "{{ script_src }}"
+        dest: /tmp/service_config_apply.sh
+        mode: "0755"
+
+    - name: Copy migrated config YAML to target host
+      ansible.builtin.copy:
+        src: "{{ migrated_config_src }}"
+        dest: /tmp/migrated_config_input.yaml
+        mode: "0644"
+
+    - name: Execute apply script
+      ansible.builtin.command:
+        argv:
+          - bash
+          - /tmp/service_config_apply.sh
+          - --container-name
+          - "{{ container_name }}"
+          - --service-name
+          - "{{ service_name | default('') }}"
+          - --node-volume
+          - "{{ node_volume | default('') }}"
+          - --version
+          - "{{ version | default('') }}"
+          - --config-path
+          - "{{ config_path | default('') }}"
+          - --artifact-id
+          - "{{ artifact_id | default('') }}"
+          - --apply-mode
+          - "{{ apply_mode | default('reload') }}"
+          - --config-yaml
+          - /tmp/migrated_config_input.yaml
+      register: apply_output
+      changed_when: true
+      failed_when: apply_output.rc != 0
+
+    - name: Print output
+      ansible.builtin.debug:
+        var: apply_output.stdout
+
+    - name: Fail if apply script failed
+      ansible.builtin.fail:
+        msg: "Apply script reported failure. Check stdout."
+      when: "'status=applied' not in apply_output.stdout"
+
+    - name: Cleanup apply script
+      ansible.builtin.file:
+        path: /tmp/service_config_apply.sh
+        state: absent
+
+    - name: Cleanup migrated config
+      ansible.builtin.file:
+        path: /tmp/migrated_config_input.yaml
+        state: absent

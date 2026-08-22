@@ -1,0 +1,51 @@
+System Name,AlarmID,SpecificProblem,Severity,State,Raised,Cleared
+CERASITE001,CRG-0001,RSL Threshold,Warning,Active,2026-08-15 08:30:00,
+CERASITE002,CRG-0002,Power Supply Fault,Major,Active,2026-08-15 08:30:00,
+CERASITE003,CRG-0003,Radio Link Unavailable,Warning,Active,2026-08-15 08:30:00,
+CERASITE004,CRG-0004,RSL Threshold,Critical,Active,2026-08-15 08:30:00,
+CERASITE005,CRG-0005,Power Supply Fault,Warning,Active,2026-08-15 08:30:00,
+CERASITE006,CRG-0006,Radio Link Unavailable,Major,Cleared,2026-08-15 08:30:00,2026-08-15 12:00:00
+CERASITE007,CRG-0007,RSL Threshold,Warning,Active,2026-08-15 08:30:00,
+CERASITE008,CRG-0008,Power Supply Fault,Critical,Active,2026-08-15 08:30:00,
+CERASITE009,CRG-0009,Radio Link Unavailable,Warning,Active,2026-08-15 08:30:00,
+CERASITE010,CRG-0010,RSL Threshold,Major,Active,2026-08-15 08:30:00,
+CERASITE011,CRG-0011,Power Supply Fault,Warning,Active,2026-08-15 08:30:00,
+CERASITE012,CRG-0012,Radio Link Unavailable,Critical,Cleared,2026-08-15 08:30:00,2026-08-15 12:00:00
+CERASITE013,CRG-0013,RSL Threshold,Warning,Active,2026-08-15 08:30:00,
+CERASITE014,CRG-0014,Power Supply Fault,Major,Active,2026-08-15 08:30:00,
+CERASITE015,CRG-0015,Radio Link Unavailable,Warning,Active,2026-08-15 08:30:00,
+CERASITE016,CRG-0016,RSL Threshold,Critical,Active,2026-08-15 08:30:00,
+CERASITE017,CRG-0017,Power Supply Fault,Warning,Active,2026-08-15 08:30:00,
+CERASITE018,CRG-0018,Radio Link Unavailable,Major,Cleared,2026-08-15 08:30:00,2026-08-15 12:00:00
+CERASITE019,CRG-0019,RSL Threshold,Warning,Active,2026-08-15 08:30:00,
+CERASITE020,CRG-0020,Power Supply Fault,Critical,Active,2026-08-15 08:30:00,
+CERASITE021,CRG-0021,Radio Link Unavailable,Warning,Active,2026-08-15 08:30:00,
+CERASITE022,CRG-0022,RSL Threshold,Major,Active,2026-08-15 08:30:00,
+CERASITE023,CRG-0023,Power Supply Fault,Warning,Active,2026-08-15 08:30:00,
+CERASITE024,CRG-0024,Radio Link Unavailable,Critical,Cleared,2026-08-15 08:30:00,2026-08-15 12:00:00
+CERASITE025,CRG-0025,RSL Threshold,Warning,Active,2026-08-15 08:30:00,
+CERASITE026,CRG-0026,Power Supply Fault,Major,Active,2026-08-15 08:30:00,
+CERASITE027,CRG-0027,Radio Link Unavailable,Warning,Active,2026-08-15 08:30:00,
+CERASITE028,CRG-0028,RSL Threshold,Critical,Active,2026-08-15 08:30:00,
+CERASITE029,CRG-0029,Power Supply Fault,Warning,Active,2026-08-15 08:30:00,
+CERASITE030,CRG-0030,Radio Link Unavailable,Major,Cleared,2026-08-15 08:30:00,2026-08-15 12:00:00
+CERASITE031,CRG-0031,RSL Threshold,Warning,Active,2026-08-15 08:30:00,
+CERASITE032,CRG-0032,Power Supply Fault,Critical,Active,2026-08-15 08:30:00,
+CERASITE033,CRG-0033,Radio Link Unavailable,Warning,Active,2026-08-15 08:30:00,
+CERASITE034,CRG-0034,RSL Threshold,Major,Active,2026-08-15 08:30:00,
+CERASITE035,CRG-0035,Power Supply Fault,Warning,Active,2026-08-15 08:30:00,
+CERASITE036,CRG-0036,Radio Link Unavailable,Critical,Cleared,2026-08-15 08:30:00,2026-08-15 12:00:00
+CERASITE037,CRG-0037,RSL Threshold,Warning,Active,2026-08-15 08:30:00,
+CERASITE038,CRG-0038,Power Supply Fault,Major,Active,2026-08-15 08:30:00,
+CERASITE039,CRG-0039,Radio Link Unavailable,Warning,Active,2026-08-15 08:30:00,
+CERASITE040,CRG-0040,RSL Threshold,Critical,Active,2026-08-15 08:30:00,
+CERASITE041,CRG-0041,Power Supply Fault,Warning,Active,2026-08-15 08:30:00,
+CERASITE042,CRG-0042,Radio Link Unavailable,Major,Cleared,2026-08-15 08:30:00,2026-08-15 12:00:00
+CERASITE043,CRG-0043,RSL Threshold,Warning,Active,2026-08-15 08:30:00,
+CERASITE044,CRG-0044,Power Supply Fault,Critical,Active,2026-08-15 08:30:00,
+CERASITE045,CRG-0045,Radio Link Unavailable,Warning,Active,2026-08-15 08:30:00,
+CERASITE046,CRG-0046,RSL Threshold,Major,Active,2026-08-15 08:30:00,
+CERASITE047,CRG-0047,Power Supply Fault,Warning,Active,2026-08-15 08:30:00,
+CERASITE048,CRG-0048,Radio Link Unavailable,Critical,Cleared,2026-08-15 08:30:00,2026-08-15 12:00:00
+CERASITE049,CRG-0049,RSL Threshold,Warning,Active,2026-08-15 08:30:00,
+CERASITE050,CRG-0050,Power Supply Fault,Major,Active,2026-08-15 08:30:00,

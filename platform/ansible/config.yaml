@@ -1,0 +1,8 @@
+images:
+  training_server:
+    version: "1.0.0"
+    service_type: "TrainingServer"
+
+  ans:
+    version: "1.0.0"
+    service_type: "ans"

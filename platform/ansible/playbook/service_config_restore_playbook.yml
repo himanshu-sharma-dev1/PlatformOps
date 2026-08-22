@@ -1,0 +1,39 @@
+---
+- name: Restore migrated service config from backup on running container
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Copy apply script to target host
+      ansible.builtin.copy:
+        src: "{{ script_src }}"
+        dest: /tmp/service_config_apply.sh
+        mode: "0755"
+
+    - name: Execute restore script (uses backup file already on node)
+      ansible.builtin.command:
+        argv:
+          - bash
+          - /tmp/service_config_apply.sh
+          - --container-name
+          - "{{ container_name }}"
+          - --service-name
+          - "{{ service_name | default('') }}"
+          - --version
+          - "{{ version | default('') }}"
+          - --config-path
+          - "{{ config_path }}"
+          - --apply-mode
+          - "{{ apply_mode | default('reload') }}"
+          - --node-volume
+          - "{{ node_volume | default('') }}"
+          - --config-yaml
+          - "{{ backup_path }}"
+      register: restore_output
+      changed_when: true
+      failed_when: restore_output.rc != 0
+
+    - name: Print restore result
+      debug:
+        msg: >
+          'Script output': '{{ restore_output.stdout }}'

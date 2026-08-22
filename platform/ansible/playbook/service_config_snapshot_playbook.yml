@@ -1,0 +1,75 @@
+---
+- name: Snapshot service config from running container
+  hosts: all
+  become: true
+  gather_facts: false
+  vars:
+    default_local_fetch_dir: "/iktara/cPlatform/cPlatform/logs/config_snapshots"
+  tasks:
+    - name: Copy snapshot script to target host
+      ansible.builtin.copy:
+        src: "{{ script_src }}"
+        dest: /tmp/service_config_snapshot.sh
+        mode: "0755"
+
+    - name: Execute snapshot script
+      ansible.builtin.command:
+        argv:
+          - bash
+          - /tmp/service_config_snapshot.sh
+          - --container-name
+          - "{{ container_name }}"
+          - --service-name
+          - "{{ service_name | default('') }}"
+          - --node-volume
+          - "{{ node_volume }}"
+          - --version
+          - "{{ version | default('') }}"
+          - --config-path
+          - "{{ config_path | default('') }}"
+      register: snapshot_output
+      changed_when: false
+      failed_when: snapshot_output.rc != 0
+
+    - name: Print snapshot result
+      debug:
+        msg: >
+          'Script output': '{{ snapshot_output.stdout }}'
+
+    - name: Extract remote snapshot path from script output
+      ansible.builtin.set_fact:
+        remote_snapshot_path: "{{ snapshot_output.stdout | regex_search('(?m)^snapshot_path=(.+)$', '\\1') | first | default('') }}"
+
+    - name: Fail when snapshot path is missing in output
+      ansible.builtin.fail:
+        msg: "Could not parse snapshot_path from script output: {{ snapshot_output.stdout }}"
+      when: remote_snapshot_path | length == 0
+
+    - name: Ensure local fetch directory exists on cPlatform container
+      ansible.builtin.file:
+        path: "{{ local_fetch_dir | default(default_local_fetch_dir) }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Fetch snapshot file from node to cPlatform container
+      ansible.builtin.fetch:
+        src: "{{ remote_snapshot_path }}"
+        dest: "{{ (local_fetch_dir | default(default_local_fetch_dir)) + '/' }}"
+        flat: false
+      register: fetched_snapshot
+
+    - name: Print fetched local path
+      debug:
+        msg: >
+          'Fetched to': '{{ fetched_snapshot.dest }}'
+
+    - name: Ensure fetched snapshot is readable by cPlatform runtime
+      ansible.builtin.file:
+        path: "{{ fetched_snapshot.dest }}"
+        mode: "0644"
+      delegate_to: localhost
+      become: false
+      when: fetched_snapshot.dest is defined

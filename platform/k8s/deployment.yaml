@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cplatform-iktara-cplatform
+spec:
+  selector:
+    matchLabels:
+      app: cplatform-iktara-cplatform
+  template:
+    metadata:
+      labels:
+        app: cplatform-iktara-cplatform
+    spec:
+      nodeSelector: # Add this section for node selector
+        node-type: worker            # The label value to match the master node
+      imagePullSecrets:
+        - name: docker-login-secret  # Reference the Docker login secret
+      containers:
+      - name: iktara-cplatform
+        image: iktara/cplatform:cplatform
+        imagePullPolicy: Always
+        command: ["bash", "entrypoint_script.sh"]  # Add your entry point command here
+        resources:
+          limits:
+            memory: "4024Mi"
+            cpu: "2000m"
+        ports:
+        - containerPort: 80
+        - containerPort: 443
+        env:  # Add environment variables here
+          - name: PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: docker-login-secret
+                key: password
+        volumeMounts:                   # Add this section to mount the volume
+        - name: shared-data-volume-project-data      # The name should match the volume name below
+          mountPath: /cPlatform/ProjectData                  # Add this section to mount the volume
+        - name: shared-data-volume-model-store      # The name should match the volume name below
+          mountPath: /cPlatform/ModelStore  # Mount path inside the container
+      volumes:
+      - name: shared-data-volume-project-data
+        hostPath:
+          path: /Backup_Platform/ProjectData
+      - name: shared-data-volume-model-store
+        hostPath:
+          path: /Backup_Platform/ModelStore
+      restartPolicy: Always
+
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cplatform-iktara-mariadb
+spec:
+  selector:
+    matchLabels:
+      app: cplatform-iktara-mariadb
+  template:
+    metadata:
+      labels:
+        app: cplatform-iktara-mariadb
+    spec:
+      nodeSelector: # Add this section for node selector
+        node-type: worker            # The label value to match the master node
+      containers:
+      - name: iktara-mariadb
+        image: mariadb:latest
+        env:
+        - name: MARIADB_ROOT_PASSWORD
+          value: "root"
+        resources:
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+        ports:
+        - containerPort: 3306
+        volumeMounts:                   # Add this section to mount the volume
+        - name: mariadb-data-volume      # The name should match the volume name below
+          mountPath: /var/lib/mysql      # Mount path inside the container
+      volumes:                         # Add the volume definition here
+      - name: mariadb-data-volume       # The name should match the volume name above
+        hostPath:
+          path: /Backup_Platform/db  # The host path of the volume on the host machine
+      restartPolicy: Always
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cplatform-iktara-rabbitmq
+spec:
+  selector:
+    matchLabels:
+      app: cplatform-iktara-rabbitmq
+  template:
+    metadata:
+      labels:
+        app: cplatform-iktara-rabbitmq
+    spec:
+      nodeSelector: # Add this section for node selector
+        node-type: worker            # The label value to match the master node
+      containers:
+      - name: iktara-rabbitmq
+        image: rabbitmq:3-management-alpine
+        env:
+          - name: RABBITMQ_DEFAULT_USER
+            value: "admin"
+          - name: RABBITMQ_DEFAULT_PASS
+            value: "admin"
+#        command: ["/bin/bash"]
+#        args: ["-c", "rabbitmq-plugins enable rabbitmq_mqtt"]
+        resources:
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+        ports:
+        - containerPort: 15672
+      restartPolicy: Always

@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cplatform-iktara-training
+spec:
+  selector:
+    matchLabels:
+      app: cplatform-iktara-training
+  template:
+    metadata:
+      labels:
+        app: cplatform-iktara-training
+    spec:
+      nodeSelector:                  # Add this section for node selector
+        node-type: worker            # The label value to match the master node
+      imagePullSecrets:
+        - name: docker-login-secret  # Reference the Docker login secret
+      containers:
+        - name: iktara-cplatform-training
+          image: iktara/cplatform:training
+          imagePullPolicy: Always
+          command: ["bash", "training_script.sh"]
+          resources:
+            limits:
+              memory: "10024Mi"
+              cpu: "3000m"
+          ports:
+            - containerPort: 7002
+          env:
+            - name: PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: docker-login-secret
+                  key: password
+          volumeMounts:
+            - name: shared-data-volume-project-data
+              mountPath: /ProjectData
+            - name: shared-data-volume-model-store
+              mountPath: /ModelStore
+        volumes:
+          - name: shared-data-volume-project-data
+            hostPath:
+              path: /Backup_Platform/ProjectData
+          - name: shared-data-volume-model-store
+            hostPath:
+              path: /Backup_Platform/ModelStore
+      restartPolicy: Always
+

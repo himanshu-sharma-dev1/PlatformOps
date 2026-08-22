@@ -1,0 +1,54 @@
+# Service for iktara-cplatform
+apiVersion: v1
+kind: Service
+metadata:
+  name: iktara-cplatform-service
+spec:
+  selector:
+    app: cplatform-iktara-cplatform
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+  - name: https
+    port: 443
+    targetPort: 443      
+    nodePort: 31000
+  type: NodePort
+
+---
+
+# Service for iktara-mariadb
+apiVersion: v1
+kind: Service
+metadata:
+  name: iktara-mariadb-service
+spec:
+  selector:
+    app: cplatform-iktara-mariadb
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iktara-rabbitmq-service
+spec:
+  selector:
+    app: cplatform-iktara-rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+      protocol: TCP
+      targetPort: 5672
+#      nodePort: 32759
+    - name: http    
+      port: 15672
+      protocol: TCP
+      targetPort: 15672
+#      nodePort: 32760
+  type: NodePort

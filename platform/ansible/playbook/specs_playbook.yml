@@ -1,0 +1,46 @@
+
+---
+- name: Run System Info Script and Capture Output
+  hosts: all
+  become: yes
+  tasks:
+
+    - name: check pip3 is installed or not
+      ansible.builtin.package:
+        name: python3-pip
+        state: present
+
+    - name: Ensure Python Docker SDK is installed
+      pip:
+        name: docker
+        state: present
+        extra_args: "{{ '--break-system-packages' if (ansible_distribution == 'Ubuntu' and ansible_distribution_version is version('24.04', '>=')) else '' }}"
+      become: yes
+
+
+    - name: Install required Python packages
+      ansible.builtin.pip:
+        name:
+          - psutil
+          - GPUtil
+          - distro
+        executable: pip3
+        extra_args: "{{ '--break-system-packages' if (ansible_distribution == 'Ubuntu' and ansible_distribution_version is version('24.04', '>=')) else '' }}"
+
+    - name: Copy the Python script to the target machine
+      ansible.builtin.copy:
+        src: "{{ script_src }}"
+        dest: /tmp/sys_info.py
+        mode: '0755'
+
+    - name: Execute the script and capture output
+      ansible.builtin.command: python3 /tmp/sys_info.py
+      register: script_output
+
+
+    - name: Print the results
+      debug:
+        msg:  >
+              'Python script output': '{{ script_output.stdout }}'
+
+

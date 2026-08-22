@@ -1,0 +1,103 @@
+version: '3.9'
+
+services:
+  loki:
+    image: grafana/loki:3.2.1
+    command: -config.file=/etc/loki/config.yaml
+    ports:
+      - "9011:3100"
+    volumes:
+      - ./loki-config.yaml:/etc/loki/config.yaml:ro
+      - /home/ubuntu/Backup_Platform/iktara/observability/loki:/loki
+    restart: unless-stopped
+
+  alloy:
+    image: grafana/alloy:v1.5.1
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+    ports:
+      - "12345:12345"
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/ubuntu/Backup_Platform:/host-volume:ro
+      - /home/ubuntu/Backup_Platform/iktara/observability/alloy:/var/lib/alloy
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  glitchtip-postgres:
+    image: postgres:16
+    container_name: cplatform_glitchtip_postgres
+    environment:
+      POSTGRES_DB: glitchtip
+      POSTGRES_USER: glitchtip
+      POSTGRES_PASSWORD: change-me
+    volumes:
+      - /home/ubuntu/Backup_Platform/iktara/observability/glitchtip/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  glitchtip-valkey:
+    image: valkey/valkey:7.2
+    container_name: cplatform_glitchtip_valkey
+    command: valkey-server --save 60 1000 --appendonly yes
+    volumes:
+      - /home/ubuntu/Backup_Platform/iktara/observability/glitchtip/valkey:/data
+    restart: unless-stopped
+
+  glitchtip-migrate:
+    image: ${CPLATFORM_GLITCHTIP_IMAGE:-iktaraai/services:glitchtip-iktara-6.1.9}
+    container_name: cplatform_glitchtip_migrate
+    env_file:
+      - ./glitchtip.env
+    environment:
+      DATABASE_URL: postgresql://glitchtip:change-me@180.75.0.46:5432/glitchtip
+      REDIS_URL: redis://180.75.0.47:6379/0
+    depends_on:
+      - glitchtip-postgres
+      - glitchtip-valkey
+    command: ./manage.py migrate
+    restart: "no"
+
+  glitchtip-web:
+    image: ${CPLATFORM_GLITCHTIP_IMAGE:-iktaraai/services:glitchtip-iktara-6.1.9}
+    container_name: cplatform_glitchtip_web
+    user: root
+    env_file:
+      - ./glitchtip.env
+    environment:
+      DATABASE_URL: postgresql://glitchtip:change-me@180.75.0.46:5432/glitchtip
+      REDIS_URL: redis://180.75.0.47:6379/0
+    depends_on:
+      - glitchtip-postgres
+      - glitchtip-valkey
+    ports:
+      - "9008:8000"
+    volumes:
+      - ./patch_glitchtip_schema.py:/tmp/patch_glitchtip_schema.py:ro
+      - ./glitchtip_runtime_map.yaml:/tmp/glitchtip_runtime_map.yaml:ro
+      - ../../cPlatform/static/Iktara:/tmp/iktara-assets:ro
+    command: sh -lc "python /tmp/patch_glitchtip_schema.py && ./bin/start.sh"
+    restart: unless-stopped
+
+  glitchtip-worker:
+    image: ${CPLATFORM_GLITCHTIP_IMAGE:-iktaraai/services:glitchtip-iktara-6.1.9}
+    container_name: cplatform_glitchtip_worker
+    user: root
+    env_file:
+      - ./glitchtip.env
+    environment:
+      DATABASE_URL: postgresql://glitchtip:change-me@180.75.0.46:5432/glitchtip
+      REDIS_URL: redis://180.75.0.47:6379/0
+      SERVER_ROLE: worker
+    depends_on:
+      - glitchtip-postgres
+      - glitchtip-valkey
+    volumes:
+      - ./patch_glitchtip_schema.py:/tmp/patch_glitchtip_schema.py:ro
+      - ./glitchtip_runtime_map.yaml:/tmp/glitchtip_runtime_map.yaml:ro
+      - ../../cPlatform/static/Iktara:/tmp/iktara-assets:ro
+    command: sh -lc "python /tmp/patch_glitchtip_schema.py && ./bin/start.sh"
+    restart: unless-stopped

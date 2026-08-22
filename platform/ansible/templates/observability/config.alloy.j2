@@ -1,0 +1,197 @@
+local.file_match "cplatform_logs" {
+  path_targets = [{
+    __path__     = "/var/log/cplatform/*.log*",
+    service_name = "cPlatform",
+    service_type = "AIOrchestrator",
+    environment  = "{{ observability_environment }}",
+    source_type  = "file",
+  }]
+}
+
+local.file_match "optioncopilot_logs" {
+  path_targets = [{
+    __path__     = "/var/log/optioncopilot/*.log*",
+    service_name = "optionCopilot",
+    service_type = "optionCopilot",
+    environment  = "{{ observability_environment }}",
+    source_type  = "file",
+  }]
+}
+
+local.file_match "dtrain_logs" {
+  path_targets = [{
+    __path__     = "/var/log/dtrain/*.log*",
+    service_name = "dTrain",
+    service_type = "TrainingServer",
+    environment  = "{{ observability_environment }}",
+    source_type  = "file",
+  }]
+}
+
+local.file_match "dinfer_logs" {
+  path_targets = [{
+    __path__     = "/var/log/dinfer/*.log*",
+    service_name = "dInfer",
+    service_type = "InferenceServer",
+    environment  = "{{ observability_environment }}",
+    source_type  = "file",
+  }]
+}
+
+local.file_match "clickhouse_logs" {
+  path_targets = [{
+    __path__     = "/var/log/clickhouse-server/*.log*",
+    service_name = "ClickHouse",
+    service_type = "ClickHouse",
+    environment  = "{{ observability_environment }}",
+    source_type  = "file",
+  }]
+}
+
+local.file_match "rabbitmq_logs" {
+  path_targets = [{
+    __path__     = "/var/log/rabbitmq/*.log*",
+    service_name = "RabbitMQ",
+    service_type = "RabbitMQ",
+    environment  = "{{ observability_environment }}",
+    source_type  = "file",
+  }]
+}
+
+local.file_match "postgres_logs" {
+  path_targets = [{
+    __path__     = "/var/log/postgresql/*.log*",
+    service_name = "PostgreSQL",
+    service_type = "PostgreSQL",
+    environment  = "{{ observability_environment }}",
+    source_type  = "file",
+  }]
+}
+
+local.file_match "redis_logs" {
+  path_targets = [{
+    __path__     = "/var/log/redis/*.log*",
+    service_name = "redis",
+    service_type = "redis",
+    environment  = "{{ observability_environment }}",
+    source_type  = "file",
+  }]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://180.75.0.43:3100/loki/api/v1/push"
+  }
+}
+
+loki.process "docker_enrich" {
+  forward_to = [loki.write.default.receiver]
+
+  stage.static_labels {
+    values = {
+      environment = "{{ observability_environment }}",
+      node_id     = "{{ observability_node_id }}",
+      node_ip     = "{{ observability_node_ip }}",
+      source_type = "docker_container",
+    }
+  }
+}
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "docker_logs" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container_name"
+    replacement   = "$1"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_id"]
+    target_label  = "container_id"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "compose_service"
+  }
+
+  rule {
+    replacement  = "{{ observability_environment }}"
+    target_label = "environment"
+  }
+
+  rule {
+    replacement  = "{{ observability_node_id }}"
+    target_label = "node_id"
+  }
+
+  rule {
+    replacement  = "{{ observability_node_ip }}"
+    target_label = "node_ip"
+  }
+
+  rule {
+    replacement  = "docker_container"
+    target_label = "source_type"
+  }
+}
+
+loki.source.file "cplatform" {
+  targets       = local.file_match.cplatform_logs.targets
+  forward_to    = [loki.write.default.receiver]
+  tail_from_end = true
+}
+
+loki.source.file "optioncopilot" {
+  targets       = local.file_match.optioncopilot_logs.targets
+  forward_to    = [loki.write.default.receiver]
+  tail_from_end = true
+}
+
+loki.source.file "dtrain" {
+  targets       = local.file_match.dtrain_logs.targets
+  forward_to    = [loki.write.default.receiver]
+  tail_from_end = false
+}
+
+loki.source.file "dinfer" {
+  targets       = local.file_match.dinfer_logs.targets
+  forward_to    = [loki.write.default.receiver]
+  tail_from_end = false
+}
+
+loki.source.file "clickhouse" {
+  targets       = local.file_match.clickhouse_logs.targets
+  forward_to    = [loki.write.default.receiver]
+  tail_from_end = false
+}
+
+loki.source.file "rabbitmq" {
+  targets       = local.file_match.rabbitmq_logs.targets
+  forward_to    = [loki.write.default.receiver]
+  tail_from_end = true
+}
+
+loki.source.file "postgres" {
+  targets       = local.file_match.postgres_logs.targets
+  forward_to    = [loki.write.default.receiver]
+  tail_from_end = true
+}
+
+loki.source.file "redis" {
+  targets       = local.file_match.redis_logs.targets
+  forward_to    = [loki.write.default.receiver]
+  tail_from_end = true
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.docker_logs.output
+  forward_to = [loki.process.docker_enrich.receiver]
+}

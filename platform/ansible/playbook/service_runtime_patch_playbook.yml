@@ -1,0 +1,48 @@
+---
+- name: Runtime patch Python service container for GlitchTip/Sentry
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Copy runtime patch script to target host
+      ansible.builtin.copy:
+        src: "{{ script_src }}"
+        dest: /tmp/service_runtime_patch.py
+        mode: '0755'
+
+    - name: Execute runtime patch script
+      ansible.builtin.command:
+        argv:
+          - python3
+          - /tmp/service_runtime_patch.py
+          - --container_name
+          - "{{ container_name }}"
+          - --service_type
+          - "{{ service_type }}"
+          - --service_name
+          - "{{ service_name }}"
+          - --service_id
+          - "{{ service_id }}"
+          - --sentry_dsn
+          - "{{ sentry_dsn }}"
+          - --glitchtip_enabled
+          - "{{ glitchtip_enabled | default('true') }}"
+          - --node_id
+          - "{{ node_id | default('') }}"
+          - --node_ip
+          - "{{ node_ip | default('') }}"
+          - --environment
+          - "{{ glitchtip_environment | default('validation') }}"
+          - --release
+          - "{{ glitchtip_release | default('') }}"
+          - --traces_sample_rate
+          - "{{ traces_sample_rate | default('0.0') }}"
+          - --restart
+          - "{{ restart_service | default('true') }}"
+      register: runtime_patch_output
+      changed_when: false
+      failed_when: false
+
+    - name: Emit runtime patch payload
+      ansible.builtin.debug:
+        msg: >
+          'payload_b64': '{{ runtime_patch_output.stdout | b64encode }}'

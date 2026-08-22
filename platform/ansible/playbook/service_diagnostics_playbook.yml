@@ -1,0 +1,30 @@
+---
+- name: Fetch service diagnostics from target node
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Copy diagnostics script to target host
+      copy:
+        src: "{{ script_src }}"
+        dest: /tmp/service_diagnostics.py
+        mode: '0755'
+
+    - name: Execute diagnostics script
+      command:
+        argv:
+          - python3
+          - /tmp/service_diagnostics.py
+          - --container_name
+          - "{{ container_name }}"
+          - --since_hours
+          - "{{ since_hours | default('') }}"
+          - --tail_lines
+          - "{{ tail_lines | default('250') }}"
+      register: diagnostics_output
+      changed_when: false
+      failed_when: false
+
+    - name: Print diagnostics payload
+      debug:
+        msg: >
+          'payload_b64': '{{ diagnostics_output.stdout | b64encode }}'

@@ -1,0 +1,40 @@
+- name: Delete Primary container of a service
+  hosts: all
+  become: true
+  vars:
+    service: "{{ service | default(omit) }}"
+    service_id: "{{ service_id | default(omit) }}"
+    node_id: "{{ node_id | default('node') }}"
+    container_name: "{{ container_name | default(service_id) }}"
+    airflow_node_fragment: "{{ node_id | string | lower }}"
+    airflow_container_names:
+      - "node-{{ airflow_node_fragment }}-airflow-scheduler"
+      - "node-{{ airflow_node_fragment }}-airflow-worker"
+      - "node-{{ airflow_node_fragment }}-airflow-dagprocessor"
+      - "node-{{ airflow_node_fragment }}-airflow-triggerer"
+      - "node-{{ airflow_node_fragment }}-airflow-init"
+
+  vars_files:
+    - ../../../cPlatform/config/service_install.yaml
+
+  tasks:
+    - name: Set selected service config
+      set_fact:
+        service_config: "{{ services[service] }}"
+      when: service in services
+
+    - name: Delete Primary container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        state: absent
+        force_kill: true
+      ignore_errors: true
+
+    - name: Delete bundled Airflow helper containers
+      community.docker.docker_container:
+        name: "{{ item }}"
+        state: absent
+        force_kill: true
+      loop: "{{ airflow_container_names }}"
+      when: service == "Airflow"
+      ignore_errors: true

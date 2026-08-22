@@ -1,0 +1,33 @@
+---
+- name: Backfill service file logs to Loki from target node
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Copy backfill script to target host
+      ansible.builtin.copy:
+        src: "{{ script_src }}"
+        dest: /tmp/service_log_backfill.py
+        mode: '0755'
+
+    - name: Execute backfill script
+      ansible.builtin.command:
+        argv:
+          - python3
+          - /tmp/service_log_backfill.py
+          - --loki_url
+          - "{{ loki_url }}"
+          - --log_paths_b64
+          - "{{ log_paths_b64 }}"
+          - --labels_b64
+          - "{{ labels_b64 }}"
+          - --allow_full_file
+          - "{{ allow_full_file | default('true') }}"
+      register: backfill_output
+      changed_when: false
+      failed_when: false
+
+    - name: Print backfill payload
+      ansible.builtin.debug:
+        msg: >-
+          'payload_b64': '{{ backfill_output.stdout | b64encode }}'
