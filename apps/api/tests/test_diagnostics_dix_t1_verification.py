@@ -23,6 +23,8 @@ from platformops.db import Base  # noqa: E402
 from platformops.models import Cluster, Node, ServiceInstance  # noqa: E402
 from platformops.orchestrator.diagnostics import impl  # noqa: E402
 from platformops.orchestrator import llm  # noqa: E402
+from platformops.routers import services as services_router  # noqa: E402
+from platformops.schemas import DiagnosticsChatRequest  # noqa: E402
 from platformops.settings import settings  # noqa: E402
 
 
@@ -72,6 +74,34 @@ def _chat_doubles(monkeypatch: pytest.MonkeyPatch, line: dict[str, Any]) -> None
         "platformops.orchestrator.monitoring.impl.query_monitoring_issues",
         lambda *_a, **_k: {"issues": []},
     )
+
+
+def test_public_fallback_has_exact_legacy_chat_shape(
+    monkeypatch: pytest.MonkeyPatch, db: Session,
+):
+    service = _service(db)
+    line = {
+        "timestamp": "2025-01-01T00:00:01Z",
+        "level": "INFO",
+        "message": "run=canonical marker-normal",
+        "source": "container_stdout",
+    }
+    _chat_doubles(monkeypatch, line)
+    monkeypatch.setattr("platformops.orchestrator.llm.is_llm_configured", lambda: False)
+
+    result = services_router.diagnostics_chat(
+        service.id,
+        DiagnosticsChatRequest(question="Analyze marker-normal"),
+        db,
+    )
+
+    assert set(result) == {
+        "success", "answer", "evidence", "chart_data", "suggestions", "error", "provider",
+    }
+    assert result["success"] is True
+    assert result["error"] is None
+    assert result["provider"] is None
+    assert result["evidence"] == [{"t": "00:00:01", "lvl": "INFO", "msg": line["message"]}]
 
 
 def test_configured_answer_cannot_reflect_cross_service_marker(
