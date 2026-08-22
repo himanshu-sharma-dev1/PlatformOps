@@ -170,7 +170,11 @@ export function createConfigActions(s: any) {
     if (!serviceId) return;
     const report = await api(`/api/services/${serviceId}/config/drift`, {
       method: "POST"
+    }).catch((error) => {
+      if (isCurrentConfigRequest(serviceId)) s.setNotice(`Drift check failed: ${errorMessage(error)}`);
+      return null;
     });
+    if (!report) return;
     if (!isCurrentConfigRequest(serviceId)) return;
     s.setDrift(report);
     s.setNotice(`Drift status: ${report.status}`);
@@ -180,10 +184,14 @@ export function createConfigActions(s: any) {
   async captureSnapshot() {
     const service = s.selectedService;
     if (!service) return;
-    await api(`/api/services/${service.id}/config/snapshots`, {
+    const captured = await api(`/api/services/${service.id}/config/snapshots`, {
       method: "POST",
       body: JSON.stringify({ source: "ui-capture", requested_by: "platform-operator" })
+    }).catch((error) => {
+      if (isCurrentConfigRequest(service.id)) s.setNotice(`Snapshot capture failed: ${errorMessage(error)}`);
+      return null;
     });
+    if (!captured) return;
     if (!isCurrentConfigRequest(service.id)) return;
     await s.loadConfig(service, s.configSource);
     s.setNotice("Captured configuration snapshot");
@@ -201,7 +209,11 @@ export function createConfigActions(s: any) {
         expected_content_hash: workspace.live_content_hash || workspace.content_hash || "",
         requested_by: "platform-operator",
       })
+    }).catch((error) => {
+      if (isCurrentConfigRequest(service.id)) s.setNotice(`Config apply failed: ${errorMessage(error)}`);
+      return null;
     });
+    if (!result) return;
     if (!isCurrentConfigRequest(service.id)) return;
     s.setJob(result.job);
     const checkpoint = result.after_snapshot
@@ -224,7 +236,11 @@ export function createConfigActions(s: any) {
         left_snapshot_id: s.compareSnapshotLeft,
         right_snapshot_id: s.compareSnapshotRight
       })
+    }).catch((error) => {
+      if (isCurrentConfigRequest(service.id)) s.setNotice(`Migration preparation failed: ${errorMessage(error)}`);
+      return null;
     });
+    if (!prepared) return;
     if (!isCurrentConfigRequest(service.id)) return;
     s.setMigrationArtifactId(prepared.artifact_id);
     s.setMigrationContent(prepared.final_content);
@@ -270,7 +286,11 @@ export function createConfigActions(s: any) {
         apply_mode: s.configApplyMode,
         expected_content_hash: s.config?.live_content_hash || s.config?.content_hash || "",
       })
+    }).catch((error) => {
+      if (isCurrentConfigRequest(service.id)) s.setNotice(`Migration apply failed: ${errorMessage(error)}`);
+      return null;
     });
+    if (!result) return;
     if (!isCurrentConfigRequest(service.id)) return;
     s.setMigrationApplyResult(result);
     s.setJob(result.job);
@@ -288,7 +308,11 @@ export function createConfigActions(s: any) {
     const result = await api(`/api/services/${service.id}/config/migration/restore`, {
       method: "POST",
       body: JSON.stringify({ artifact_id: s.migrationArtifactId, apply_mode: s.configApplyMode, expected_content_hash: s.config?.live_content_hash || s.config?.content_hash || "" })
+    }).catch((error) => {
+      if (isCurrentConfigRequest(service.id)) s.setNotice(`Migration restore failed: ${errorMessage(error)}`);
+      return null;
     });
+    if (!result) return;
     if (!isCurrentConfigRequest(service.id)) return;
     s.setMigrationApplyResult(result);
     s.setJob(result.job);
@@ -350,7 +374,11 @@ export function createConfigActions(s: any) {
         requested_by: "platform-operator",
         expected_content_hash: s.config?.live_content_hash || s.config?.content_hash || "",
       })
+    }).catch((error) => {
+      if (isCurrentConfigRequest(service.id)) s.setNotice(`Snapshot restore failed: ${errorMessage(error)}`);
+      return null;
     });
+    if (!nextJob) return;
     if (!isCurrentConfigRequest(service.id)) return;
     s.setJob(nextJob);
     s.setNotice(`Snapshot restore ${nextJob.status}`);

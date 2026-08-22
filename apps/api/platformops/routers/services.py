@@ -828,8 +828,7 @@ def prepare_config_migration_endpoint(
     try:
         return prepare_config_migration(db, service, left_snapshot=left_snapshot, right_snapshot=right_snapshot)
     except ValueError as exc:
-        status = 409 if "Stale config target" in str(exc) else 400
-        raise HTTPException(status_code=status, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/api/services/{service_id}/config/migration/apply", response_model=ConfigMigrationApplyOut)
