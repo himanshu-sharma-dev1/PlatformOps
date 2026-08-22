@@ -8,7 +8,6 @@ import os
 import posixpath
 import re
 import shlex
-import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -354,25 +353,12 @@ def service_live_logs(
             else:
                 if not node.host:
                     raise RuntimeError("Remote node has no host address.")
-                command = [
-                    "ansible",
-                    f"{node.host},",
-                    "-m",
-                    "command",
-                    "-a",
-                    f"docker logs --timestamps --tail {fetch_size} {container}",
-                    "-u",
-                    node.ssh_user or "ubuntu",
-                ]
-                if node.ssh_key_path:
-                    command.extend(["--private-key", node.ssh_key_path])
-                result = subprocess.run(
-                    command,
-                    cwd=str(settings.project_root),
-                    capture_output=True,
-                    text=True,
+                from ..remote import run_ssh
+
+                result = run_ssh(
+                    node,
+                    ["docker", "logs", "--timestamps", "--tail", str(fetch_size), container],
                     timeout=30,
-                    check=False,
                 )
                 if result.returncode != 0:
                     raise RuntimeError((result.stderr or result.stdout or "Container log command failed.").strip())
@@ -2028,31 +2014,11 @@ def _run_container_command(
     else:
         if not node.host:
             return False, "", "Remote node has no host address."
-        # The Ansible command module receives one free-form command string;
-        # quote every argument so Unicode, spaces, and path metacharacters do
-        # not change the target or the command being executed.
-        remote_command = " ".join(["docker", "exec", shlex.quote(container), *(shlex.quote(arg) for arg in args)])
-        command = [
-            "ansible",
-            f"{node.host},",
-            "-m",
-            "command",
-            "-a",
-            remote_command,
-            "-u",
-            node.ssh_user or "ubuntu",
-        ]
-        if node.ssh_key_path:
-            command.extend(["--private-key", node.ssh_key_path])
+        from ..remote import run_ssh
+
+        command = ["docker", "exec", container, *args]
     try:
-        result = subprocess.run(
-            command,
-            cwd=str(settings.project_root),
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
+        result = run_ssh(node, command, timeout=timeout)
     except Exception as exc:
         return False, "", str(exc)
     if result.returncode != 0:
@@ -2253,33 +2219,14 @@ def service_file_tail(db: Session, service: "ServiceInstance", log_path: str = "
     # never read a similarly named host file as a fallback.
     if connection_mode != "local":
         try:
-            import subprocess
+            from ..remote import run_ssh
 
-            inventory = node.host
-            user = node.ssh_user or "ubuntu"
-            key_arg = ["--private-key", node.ssh_key_path] if node.ssh_key_path else []
-            cmd = [
-                "ansible",
-                inventory,
-                "-m",
-                "shell",
-                "-a",
-                f"tail -n {safe_tail} {log_path}",
-                "-u",
-                user,
-                *key_arg,
-            ]
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=str(settings.project_root))
+            proc = run_ssh(node, ["tail", "-n", str(safe_tail), log_path], timeout=30)
             if proc.returncode == 0 and proc.stdout:
-                raw_lines = [ln for ln in proc.stdout.splitlines() if not ln.startswith(inventory)]
+                raw_lines = proc.stdout.splitlines()
                 lines = []
                 now = datetime.utcnow()
                 for i, msg in enumerate(raw_lines[-safe_tail:]):
-                    # Strip ansible host prefix if present
-                    if " | " in msg and msg.split(" | ", 1)[0].strip() in (inventory, "CHANGED", "SUCCESS"):
-                        continue
-                    if ">>" in msg:
-                        msg = msg.split(">>", 1)[-1].lstrip()
                     lines.append({
                         "timestamp": _timestamp_text(_parse_log_timestamp(msg.split(" ", 1)[0]) or (now - timedelta(seconds=(len(raw_lines) - i)))),
                         "level": _detect_log_level(msg),
@@ -2295,6 +2242,18 @@ def service_file_tail(db: Session, service: "ServiceInstance", log_path: str = "
                         "total_lines": len(lines),
                         "error": None,
                     }
+            return {
+                "lines": [],
+                "source": "file_live",
+                "log_path": log_path,
+                "node": node_label,
+                "total_lines": 0,
+                "error": (
+                    (proc.stderr or proc.stdout or "Remote log file is empty").strip()
+                    if proc.returncode != 0
+                    else "Remote log file is empty"
+                ),
+            }
         except Exception as exc:
             return {
                 "lines": [],
@@ -2302,7 +2261,7 @@ def service_file_tail(db: Session, service: "ServiceInstance", log_path: str = "
                 "log_path": log_path,
                 "node": node_label,
                 "total_lines": 0,
-                "error": f"SSH/Ansible tail failed: {exc}",
+                "error": f"Strict SSH tail failed: {exc}",
             }
 
     # Local host: try real file tail if path exists.

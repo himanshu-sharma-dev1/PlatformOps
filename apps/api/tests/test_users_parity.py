@@ -4,6 +4,7 @@ from __future__ import annotations
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from email.message import EmailMessage
 
 import pytest
 from sqlalchemy import create_engine, select
@@ -221,3 +222,52 @@ def test_self_delete_purges_session_and_last_admin_guard_is_deterministic(db: Se
     ok, message = users.delete_user(db, second["user_id"], initiated_by="second-admin@example.test")
     assert ok is False
     assert message == "Cannot delete the last System_Admin."
+
+
+def test_invitation_mail_matches_legacy_subject_html_body_and_direct_url(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Mailpit acceptance compares the delivered message to cPlatform's template."""
+    captured: dict[str, EmailMessage] = {}
+
+    class FakeSMTP:
+        def __init__(self, host: str, port: int, timeout: int):
+            assert host == "mailpit"
+            assert port == 1025
+            assert timeout == 10
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def send_message(self, message: EmailMessage):
+            captured["message"] = message
+
+    monkeypatch.setattr(users.settings, "smtp_host", "mailpit")
+    monkeypatch.setattr(users.settings, "smtp_port", 1025)
+    monkeypatch.setattr(users.settings, "public_base_url", "http://localhost:9020")
+    monkeypatch.setattr(users.smtplib, "SMTP", FakeSMTP)
+
+    delivered, message = users._send_invite_email(
+        recipient="invitee@example.test",
+        recipient_name="Invitee",
+        token="legacy-token",
+        invited_by="admin@example.test",
+        role="Management",
+    )
+
+    assert delivered is True
+    assert message == "Invitation email sent"
+    sent = captured["message"]
+    assert sent["Subject"] == "You're invited to join YantrAI"
+    body = sent.get_body(preferencelist=("html", "plain")).get_content()
+    assert "You've Been Invited by YantrAI!" in body
+    assert "Invitee" in body
+    assert "admin@example.test" in body
+    assert "Management" in body
+    assert "Click the button below to accept your invitation" in body
+    assert "http://localhost:9020/invite/accept/legacy-token/" in body
+    assert "This invitation link expires in" in body
+    assert "If you weren't expecting this invitation" in body

@@ -156,26 +156,22 @@ def _remote_container_exec(node: Node, container_name: str, args: list[str]) -> 
     control-plane engine cannot be evidence for an SSH-selected target.
     """
 
-    host = str(node.host or "").strip()
-    user = str(node.ssh_user or "ubuntu").strip()
-    if not host:
+    if not str(getattr(node, "host", "") or "").strip():
         return False, "", "remote node host is missing"
-    cmd = [
-        "ssh",
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        "StrictHostKeyChecking=no",
-        "-o",
-        "ConnectTimeout=8",
-    ]
-    if node.ssh_key_path:
-        cmd.extend(["-i", node.ssh_key_path])
-    cmd.extend([f"{user}@{host}", "docker", "exec", container_name, *args])
+    # Keep all SSH construction in the target-bound adapter.  It validates a
+    # pinned host fingerprint, resolves only approved secret references, and
+    # deliberately has no local-Docker fallback.
+    from ..remote import RemoteAuthError, run_ssh
+
+    command = ["docker", "exec", container_name, *args]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=20, check=False)
+        proc = run_ssh(node, command, timeout=8)
     except FileNotFoundError:
         return False, "", "ssh client is not available"
+    except RemoteAuthError as exc:
+        return False, "", str(exc)[:400]
+    except Exception as exc:
+        return False, "", str(exc)[:400]
     output = (proc.stdout or "").strip()
     error = (proc.stderr or "").strip() or output
     return proc.returncode == 0, output, error[:400]
@@ -258,21 +254,24 @@ def _direct_service_probe(db: Session, service: ServiceInstance) -> dict[str, An
 
 
 METRIC_WINDOW_PRESETS: dict[str, dict[str, int]] = {
-    "15m": {"points": 6, "step_minutes": 3, "range_seconds": 15 * 60},
-    "1h": {"points": 12, "step_minutes": 5, "range_seconds": 3600},
-    "6h": {"points": 12, "step_minutes": 30, "range_seconds": 6 * 3600},
-    "24h": {"points": 24, "step_minutes": 60, "range_seconds": 24 * 3600},
-    "7d": {"points": 28, "step_minutes": 360, "range_seconds": 7 * 86400},
-    "1m": {"points": 30, "step_minutes": 1440, "range_seconds": 30 * 86400},
-    "3m": {"points": 36, "step_minutes": 3600, "range_seconds": 90 * 86400},
+    # cPlatform's MachineStats cadence.  Keep the step explicit instead of
+    # deriving it from an arbitrary point count: consumers compare PromQL
+    # range timestamps and labels directly.
+    "15m": {"points": 15, "step_minutes": 1, "range_seconds": 15 * 60},
+    "1h": {"points": 60, "step_minutes": 1, "range_seconds": 3600},
+    "6h": {"points": 72, "step_minutes": 5, "range_seconds": 6 * 3600},
+    "24h": {"points": 96, "step_minutes": 15, "range_seconds": 24 * 3600},
+    "7d": {"points": 84, "step_minutes": 120, "range_seconds": 7 * 86400},
+    "1m": {"points": 90, "step_minutes": 480, "range_seconds": 30 * 86400},
+    "3m": {"points": 90, "step_minutes": 1440, "range_seconds": 90 * 86400},
 }
 
 
 def _normalize_metric_window(window: str | None) -> str:
-    candidate = (window or "1h").strip().lower()
-    # Accept UI aliases
+    raw = str(window or "1h").strip()
+    # Accept cPlatform's case-sensitive labels and lower-case API aliases.
     aliases = {"1M": "1m", "3M": "3m", "30d": "1m", "90d": "3m"}
-    candidate = aliases.get(candidate, candidate)
+    candidate = aliases.get(raw, aliases.get(raw.lower(), raw.lower()))
     return candidate if candidate in METRIC_WINDOW_PRESETS else "1h"
 
 
@@ -338,7 +337,7 @@ def _prom_query_range(query: str, window: str, timeout: float = 8.0) -> tuple[bo
     preset = METRIC_WINDOW_PRESETS[_normalize_metric_window(window)]
     end = int(time.time())
     start = end - int(preset["range_seconds"])
-    step = max(30, int(preset["range_seconds"] / max(preset["points"], 1)))
+        step = max(1, int(preset["step_minutes"] * 60))
     try:
         resp = requests.get(
             f"{_prometheus_base()}/api/v1/query_range",
@@ -387,7 +386,7 @@ def _prom_observe(query: str, *, range_window: str | None = None, timeout: float
     if range_window:
         preset = METRIC_WINDOW_PRESETS[_normalize_metric_window(range_window)]
         start = end - int(preset["range_seconds"])
-        params.update({"start": start, "end": end, "step": max(30, int(preset["range_seconds"] / max(preset["points"], 1)))})
+        params.update({"start": start, "end": end, "step": max(1, int(preset["step_minutes"] * 60))})
     try:
         response = requests.get(f"{_prometheus_base()}{endpoint}", params=params, timeout=timeout)
     except Exception as exc:
@@ -643,24 +642,53 @@ def _fetch_mounted_volumes(node: Node) -> list[dict[str, Any]]:
             pass
     else:
         try:
-            inventory = node.host
-            user = node.ssh_user or "ubuntu"
-            key_arg = ["--private-key", node.ssh_key_path] if node.ssh_key_path else []
-            cmd = ["ansible", inventory, "-m", "shell", "-a", "df -hP", "-u", user, *key_arg]
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=str(settings.project_root))
+            from ..remote import RemoteAuthError, run_ssh
+
+            proc = run_ssh(node, ["df", "-hP"], timeout=12)
             if proc.returncode == 0:
-                # Strip ansible chatter; keep df lines
-                lines = []
-                for line in proc.stdout.splitlines():
-                    if line.lower().startswith("filesystem") or line.startswith("/") or " " in line:
-                        lines.append(line)
-                parsed = _parse_df("\n".join(lines))
+                parsed = _parse_df(proc.stdout or "")
                 if parsed:
                     return parsed
+        except (RemoteAuthError, FileNotFoundError, OSError):
+            pass
         except Exception:
             pass
 
     return []
+
+
+def _promql_label_value(value: Any) -> str:
+    """Escape a user/inventory value before putting it in a PromQL matcher."""
+
+    return str(value or "").replace("\\", "\\\\").replace('"', '\\"').strip()
+
+
+def _prometheus_instance_match(node: Any) -> str:
+    """Return a target-bound instance matcher, never a global fallback.
+
+    Prometheus exporters commonly expose ``host:port`` while inventory may
+    contain a DNS name, IP, or an explicit exporter instance in facts.  The
+    regex deliberately accepts those representations but returns a matching
+    nothing selector when no identity is available, preventing a different
+    node's samples from being presented as the selected target.
+    """
+
+    facts: dict[str, Any] = {}
+    try:
+        raw = getattr(node, "facts_json", "") or "{}"
+        facts = json.loads(raw) if isinstance(raw, str) else (raw if isinstance(raw, dict) else {})
+    except (TypeError, ValueError):
+        facts = {}
+    values = [
+        facts.get("prometheus_instance"),
+        facts.get("node_exporter_instance"),
+        getattr(node, "host", ""),
+        getattr(node, "name", ""),
+    ]
+    values = [_promql_label_value(value) for value in values if str(value or "").strip()]
+    if not values:
+        return 'instance=~"^$"'
+    return 'instance=~".*(' + "|".join(re.escape(value) for value in values) + ').*"'
 
 
 def get_node_metrics(db: Session, node_id: int, window: str = "1h") -> dict[str, Any]:
@@ -671,17 +699,7 @@ def get_node_metrics(db: Session, node_id: int, window: str = "1h") -> dict[str,
     metric_window = _normalize_metric_window(window)
     mounted_volumes = _fetch_mounted_volumes(node)
 
-    try:
-        node_facts = json.loads(node.facts_json or "{}")
-    except json.JSONDecodeError:
-        node_facts = {}
-    identity_values = [
-        str(node_facts.get("prometheus_instance") or ""),
-        str(node.host or ""),
-        str(node.name or ""),
-    ]
-    identity_pattern = "|".join(escape_query_regex_literal(value) for value in identity_values if value)
-    instance_match = f'instance=~".*({identity_pattern}).*"' if identity_pattern else 'instance=~".+"'
+    instance_match = _prometheus_instance_match(node)
 
     cpu_q = f'100 - (avg(rate(node_cpu_seconds_total{{mode="idle",{instance_match}}}[5m])) * 100)'
     mem_q = f'(1 - node_memory_MemAvailable_bytes{{{instance_match}}} / node_memory_MemTotal_bytes{{{instance_match}}}) * 100'

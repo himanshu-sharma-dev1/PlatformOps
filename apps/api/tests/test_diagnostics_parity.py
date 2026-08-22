@@ -158,10 +158,51 @@ def test_file_tail_rejects_traversal_and_remote_never_falls_back_to_host(
         stdout = ""
         stderr = "ssh unavailable"
 
-    monkeypatch.setattr(impl.subprocess, "run", lambda *_args, **_kwargs: FailedProcess())
+    monkeypatch.setattr("platformops.orchestrator.remote.run_ssh", lambda *_args, **_kwargs: FailedProcess())
     remote = impl.service_file_tail(db, service, log_path=str(local_shadow))
     assert remote["lines"] == []
     assert "not available" in remote["error"].lower() or "ssh" in remote["error"].lower()
+
+
+def test_remote_diagnostics_rejects_bad_fingerprint_without_local_fallback(
+    monkeypatch: pytest.MonkeyPatch, db: Session
+):
+    service = _service(db)
+    service.node.environment = "remote"
+    service.node.host = "remote.example"
+    service.node.host_key_fingerprint = "SHA256:not-a-valid-fingerprint"
+    monkeypatch.setattr("platformops.orchestrator.discovery.resolve_connection_mode", lambda _node: "remote")
+    monkeypatch.setattr(
+        "platformops.orchestrator.docker_runtime.container_logs",
+        lambda *_args, **_kwargs: pytest.fail("remote diagnostics fell back to local Docker"),
+    )
+    result = impl.service_live_logs(db, service)
+    assert result["lines"] == []
+    assert "fingerprint" in result["error"].lower()
+
+
+def test_remote_diagnostics_rejects_inline_credential_reference(
+    monkeypatch: pytest.MonkeyPatch, db: Session, tmp_path: Path
+):
+    from platformops.orchestrator import remote
+
+    service = _service(db)
+    service.node.environment = "remote"
+    service.node.host = "remote.example"
+    key_line = "remote.example ssh-ed25519 " + base64.b64encode(bytes(range(32))).decode("ascii")
+    known_hosts = tmp_path / "known_hosts"
+    known_hosts.write_text(key_line + "\n", encoding="utf-8")
+    service.node.host_key_fingerprint = remote._fingerprint(key_line)
+    service.node.known_hosts_ref = f"file://{known_hosts}"
+    service.node.ssh_secret_ref = "inline-secret-is-forbidden"
+    monkeypatch.setattr("platformops.orchestrator.discovery.resolve_connection_mode", lambda _node: "remote")
+    monkeypatch.setattr(
+        "platformops.orchestrator.docker_runtime.container_logs",
+        lambda *_args, **_kwargs: pytest.fail("credential failure fell back to local Docker"),
+    )
+    result = impl.service_live_logs(db, service)
+    assert result["lines"] == []
+    assert "env:// or file://" in result["error"]
 
 
 def test_loki_history_has_stable_bidirectional_cursors_and_rejects_mismatch(monkeypatch: pytest.MonkeyPatch, db: Session):
