@@ -1208,6 +1208,9 @@ class ServiceMetricsOut(BaseModel):
     checked_at: str | None = None
     latest_sample_at: str | None = None
     units: dict[str, str] = {}
+    # Fields listed here are intentionally omitted from measured telemetry;
+    # clients must render an unavailable state rather than a zero/empty chart.
+    unavailable_fields: list[str] = []
     commands_series: list[MetricSeriesPointOut] = []
     error: str | None = None
 

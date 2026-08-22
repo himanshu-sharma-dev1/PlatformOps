@@ -385,12 +385,43 @@ def test_workspace_checkpoint_source_capabilities_and_snapshot_pages(
 
     page = config.list_config_snapshots_page(db, redis_service, limit=2, offset=1)
     assert page["total"] == 3
-    assert [item["version"] for item in page["items"]] == [2, 1]
+    assert [item.version for item in page["items"]] == [2, 1]
     assert page["has_more"] is False
-    assert config.list_config_snapshots_page(db, redis_service, source_filter="manual")["total"] == 0
+    assert config.list_config_snapshots_page(db, redis_service, source_filter="pre-apply")["total"] == 0
     search = config.list_config_snapshots_page(db, redis_service, search="back")
-    assert [item["id"] for item in search["items"]] == [third.id]
+    assert [item.id for item in search["items"]] == [third.id]
     assert config.get_config_snapshot_detail(db, first)["content_hash"] == hashlib.sha256(first.content.encode()).hexdigest()
+
+
+def test_timeline_is_deterministic_and_supports_action_actor_search_and_pagination(
+    db: Session, redis_service: ServiceInstance, monkeypatch: pytest.MonkeyPatch
+):
+    from platformops.orchestrator import config
+
+    baseline = "maxmemory 2mb\nappendonly no\n"
+    desired = "maxmemory 4mb\nappendonly no\nloglevel warning\n"
+    _stateful_runtime(monkeypatch, {redis_service.container_name: baseline})
+    first = config.create_config_snapshot(db, redis_service, name="baseline", requested_by="alice")
+    target = config.create_config_snapshot(db, redis_service, name="target", requested_by="alice", content_override=desired)
+    config.rename_config_snapshot(db, target, name="renamed-target", requested_by="bob")
+    result = config.apply_config_direct(db, redis_service, content=desired, apply_mode="restart", requested_by="alice")
+    assert result["job"].status == "success"
+
+    latest = config.get_config_timeline_page(db, redis_service, limit=1, offset=0)
+    assert latest["total"] >= 5
+    assert latest["has_more"] is True
+    assert latest["items"][0]["action"] == "captured"
+    assert latest["items"][0]["actor"] == "alice"
+    applied = config.get_config_timeline_page(db, redis_service, action_filter="applied", actor_filter="alice")
+    assert applied["total"] == 1
+    assert applied["items"][0]["action"] == "applied"
+    renamed = config.get_config_timeline_page(db, redis_service, action_filter="renamed", actor_filter="bob", search="Renamed")
+    assert renamed["total"] == 1
+    assert renamed["items"][0]["metadata"]["snapshot_id"] == target.id
+    second = config.get_config_timeline_page(db, redis_service, limit=1, offset=1)
+    assert second["items"][0]["id"] < latest["items"][0]["id"]
+    assert set(("captured", "renamed", "applied")).issubset(set(latest["available_actions"]))
+    assert first.id != target.id
 
 
 def test_redis_validation_preserves_comments_order_and_rejects_boundaries(

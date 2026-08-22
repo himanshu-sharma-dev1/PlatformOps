@@ -1,21 +1,24 @@
 // @ts-nocheck
 import { api } from "../../api/client";
 export function createPerformanceActions(s: any) {
-  let metricsGeneration = 0;
+  let serviceGeneration = 0;
+  let nodeGeneration = 0;
+  let processGeneration = 0;
   return {
   async loadServiceMetrics(serviceId, window2 = s.serviceMetricsWindow) {
-    const generation = ++metricsGeneration;
+    const generation = ++serviceGeneration;
     s.setLoadingMetrics?.(true);
     s.setMetricsStatus?.("loading");
     s.setMetricsError?.(null);
+    s.setServiceMetrics?.(null);
     try {
       const metrics = await api(`/api/services/${serviceId}/metrics?window=${encodeURIComponent(window2)}`);
-      if (generation !== metricsGeneration) return;
+      if (generation !== serviceGeneration || s.selectedService?.id !== serviceId) return;
       s.setServiceMetrics(metrics);
       s.setMetricsStatus?.(metrics.availability || (metrics.prometheus_reachable ? "available" : "unavailable"));
       s.setMetricsError?.(metrics.error || null);
     } catch (_error) {
-      if (generation !== metricsGeneration) return;
+      if (generation !== serviceGeneration || s.selectedService?.id !== serviceId) return;
       s.setServiceMetrics(null);
       s.setMetricsStatus?.("error");
       s.setMetricsError?.(_error?.message || "Prometheus request failed");
@@ -25,18 +28,19 @@ export function createPerformanceActions(s: any) {
   },
 
   async loadNodeMetrics(nodeId, window2 = s.nodeMetricsWindow) {
-    const generation = ++metricsGeneration;
+    const generation = ++nodeGeneration;
     s.setLoadingMetrics?.(true);
     s.setMetricsStatus?.("loading");
     s.setMetricsError?.(null);
+    s.setNodeMetrics?.(null);
     try {
       const metrics = await api(`/api/nodes/${nodeId}/metrics?window=${encodeURIComponent(window2)}`);
-      if (generation !== metricsGeneration) return;
+      if (generation !== nodeGeneration || s.selectedNode?.id !== nodeId) return;
       s.setNodeMetrics(metrics);
       s.setMetricsStatus?.(metrics.availability || (metrics.prometheus_reachable ? "available" : "unavailable"));
       s.setMetricsError?.(metrics.error || null);
     } catch (_error) {
-      if (generation !== metricsGeneration) return;
+      if (generation !== nodeGeneration || s.selectedNode?.id !== nodeId) return;
       s.setNodeMetrics(null);
       s.setMetricsStatus?.("error");
       s.setMetricsError?.(_error?.message || "Prometheus request failed");
@@ -46,24 +50,14 @@ export function createPerformanceActions(s: any) {
   },
 
   async loadNodeMetricsData(nodeId) {
-    const generation = ++metricsGeneration;
+    const generation = ++processGeneration;
     s.setLoadingMetrics?.(true);
+    s.setProcessMetrics?.([]);
     try {
       if (nodeId) {
-        const [dataNode, dataProc] = await Promise.all([
-          api(`/api/nodes/${nodeId}/metrics?window=${encodeURIComponent(s.nodeMetricsWindow || "1h")}`),
-          api(`/api/metrics/processes?node_id=${encodeURIComponent(nodeId)}`)
-        ]);
-        if (generation !== metricsGeneration) return;
-        s.setMetricsStatus?.(dataNode?.availability || (dataNode?.prometheus_reachable ? "available" : "unavailable"));
-        s.setMetricsError?.(dataNode?.error || dataProc?.error || null);
-        if (dataNode && dataNode.availability !== "error") {
-          s.setRealtimeNodeMetrics({
-            cpu: dataNode.cpu_percent,
-            memory: dataNode.memory_percent,
-            disk: dataNode.disk_percent
-          });
-        }
+        const dataProc = await api(`/api/metrics/processes?node_id=${encodeURIComponent(nodeId)}&sort=${encodeURIComponent(s.perfProcessSort || "cpu")}`);
+        if (generation !== processGeneration || s.selectedNode?.id !== nodeId) return;
+        s.setMetricsError?.(dataProc?.error || null);
         if (dataProc && dataProc.processes) {
           s.setProcessMetrics((dataProc.processes || []).map((p) => ({
             name: p.name || p.group || "proc",
@@ -78,7 +72,7 @@ export function createPerformanceActions(s: any) {
         s.setMetricsError?.("A target node is required for process telemetry");
       }
     } catch (e) {
-      if (generation === metricsGeneration) {
+      if (generation === processGeneration && (!nodeId || s.selectedNode?.id === nodeId)) {
         s.setMetricsStatus?.("error");
         s.setMetricsError?.(e?.message || "Prometheus request failed");
       }

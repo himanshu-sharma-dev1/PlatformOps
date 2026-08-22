@@ -337,7 +337,7 @@ def _prom_query_range(query: str, window: str, timeout: float = 8.0) -> tuple[bo
     preset = METRIC_WINDOW_PRESETS[_normalize_metric_window(window)]
     end = int(time.time())
     start = end - int(preset["range_seconds"])
-        step = max(1, int(preset["step_minutes"] * 60))
+    step = max(1, int(preset["step_minutes"] * 60))
     try:
         resp = requests.get(
             f"{_prometheus_base()}/api/v1/query_range",
@@ -791,6 +791,7 @@ def get_service_metrics(db: Session, service_id: int, window: str = "1h") -> dic
         "db_metrics": None,
         "broker_metrics": None,
         "custom_charts": [],
+        "unavailable_fields": ["log_error_rate", "queue_depth", "restart_count", "latency_ms_p95"],
         "prometheus_reachable": any(item.get("reachable") for item in observations),
         "availability": availability,
         "source": "prometheus",
@@ -799,7 +800,7 @@ def get_service_metrics(db: Session, service_id: int, window: str = "1h") -> dic
         # collected below.  cAdvisor may be absent while Redis or another
         # collector still provides measured samples.
         "latest_sample_at": None,
-        "units": {"cpu_percent": "%", "memory_mb": "MiB", "log_error_rate": "events/s", "queue_depth": "items", "latency_ms_p95": "ms"},
+        "units": {"cpu_percent": "%", "memory_mb": "MiB"},
         "error": first_error,
     }
 
@@ -814,37 +815,39 @@ def get_service_metrics(db: Session, service_id: int, window: str = "1h") -> dic
 
     if service_key in ("postgres-core", "postgres", "clickhouse-core"):
         values, db_obs = _prom_values({
-            "active_connections": 'pg_stat_activity_count{state="active"}',
-            "idle_connections": 'pg_stat_activity_count{state="idle"}',
-            "read_ops": "rate(pg_stat_database_tup_fetched[5m])",
-            "write_ops": "rate(pg_stat_database_tup_inserted[5m]) + rate(pg_stat_database_tup_updated[5m])",
-            "cache_hit_ratio": "sum(pg_stat_database_blks_hit) / clamp_min(sum(pg_stat_database_blks_hit + pg_stat_database_blks_read), 1) * 100",
-            "transaction_locks": "sum(pg_locks_count)",
+            "active_connections": f'pg_stat_activity_count{{state="active",{instance_match}}}',
+            "idle_connections": f'pg_stat_activity_count{{state="idle",{instance_match}}}',
+            "read_ops": f"rate(pg_stat_database_tup_fetched{{{instance_match}}}[5m])",
+            "write_ops": f"rate(pg_stat_database_tup_inserted{{{instance_match}}}[5m]) + rate(pg_stat_database_tup_updated{{{instance_match}}}[5m])",
+            "cache_hit_ratio": f"sum(pg_stat_database_blks_hit{{{instance_match}}}) / clamp_min(sum(pg_stat_database_blks_hit{{{instance_match}}} + pg_stat_database_blks_read{{{instance_match}}}), 1) * 100",
+            "transaction_locks": f"sum(pg_locks_count{{{instance_match}}})",
         })
         result["db_metrics"] = values
         observations.extend(db_obs)
     elif service_key in ("redis-core", "redis", "airflow-redis"):
         values, db_obs = _prom_values({
-            "active_connections": "redis_connected_clients",
-            "read_ops": "rate(redis_commands_processed_total[5m])",
-            "cache_hit_ratio": "redis_keyspace_hits_total / clamp_min(redis_keyspace_hits_total + redis_keyspace_misses_total, 1) * 100",
+            "active_connections": f"redis_connected_clients{{{instance_match}}}",
+            "read_ops": f"rate(redis_commands_processed_total{{{instance_match}}}[5m])",
+            "cache_hit_ratio": f"redis_keyspace_hits_total{{{instance_match}}} / clamp_min(redis_keyspace_hits_total{{{instance_match}}} + redis_keyspace_misses_total{{{instance_match}}}, 1) * 100",
         })
         result["db_metrics"] = {**values, "idle_connections": None, "write_ops": None, "transaction_locks": None}
         observations.extend(db_obs)
-        cmd_series = _prom_observe("rate(redis_commands_processed_total[5m])", range_window=metric_window)
+        cmd_series = _prom_observe(f"rate(redis_commands_processed_total{{{instance_match}}}[5m])", range_window=metric_window)
         result["commands_series"] = cmd_series.get("series", [])
         observations.append(cmd_series)
     elif service_key in ("rabbitmq-core", "rabbitmq"):
         values, broker_obs = _prom_values({
-            "ingestion_rate": "rate(rabbitmq_global_messages_received_total[5m])",
-            "delivery_rate": "rate(rabbitmq_global_messages_delivered_total[5m])",
-            "queued_ready": "sum(rabbitmq_queue_messages_ready)",
-            "queued_unacked": "sum(rabbitmq_queue_messages_unacked)",
-            "consumer_count": "sum(rabbitmq_queue_consumers)",
+            "ingestion_rate": f"rate(rabbitmq_global_messages_received_total{{{instance_match}}}[5m])",
+            "delivery_rate": f"rate(rabbitmq_global_messages_delivered_total{{{instance_match}}}[5m])",
+            "queued_ready": f"sum(rabbitmq_queue_messages_ready{{{instance_match}}})",
+            "queued_unacked": f"sum(rabbitmq_queue_messages_unacked{{{instance_match}}})",
+            "consumer_count": f"sum(rabbitmq_queue_consumers{{{instance_match}}})",
         })
         result["broker_metrics"] = values
         result["queue_depth"] = values.get("queued_ready")
-        queue_series = _prom_observe("sum(rabbitmq_queue_messages_ready)", range_window=metric_window)
+        result["unavailable_fields"] = ["log_error_rate", "restart_count", "latency_ms_p95"]
+        result["units"]["queue_depth"] = "items"
+        queue_series = _prom_observe(f"sum(rabbitmq_queue_messages_ready{{{instance_match}}})", range_window=metric_window)
         result["queue_depth_series"] = queue_series.get("series", [])
         observations.extend(broker_obs + [queue_series])
 
@@ -1118,6 +1121,12 @@ def _glitchtip_config() -> tuple[str, str, str, bool]:
     return base_url, org, token, bool(base_url and org and token)
 
 
+def _glitchtip_error(exc: BaseException, token: str = "") -> str:
+    """Bound and redact adapter errors before exposing them to API clients."""
+
+    return redact_text(str(exc), secrets=(token,) if token else ())[:400]
+
+
 def _resolve_glitchtip_project_id(
     base_url: str, org: str, token: str, project_slug: str, *, timeout: float = 8.0
 ) -> tuple[int | None, str | None]:
@@ -1143,7 +1152,7 @@ def _resolve_glitchtip_project_id(
             timeout=timeout,
         )
     except Exception as exc:
-        return None, str(exc)[:400]
+        return None, _glitchtip_error(exc, token)
     if response.status_code != 200:
         return None, f"GlitchTip project lookup HTTP {response.status_code}"
     try:
@@ -1239,13 +1248,13 @@ def _fetch_monitoring_transaction_groups(
         try:
             response = requests.get(endpoint, headers=headers, params=current_params, timeout=timeout)
         except Exception as exc:
-            return None, str(exc)[:400], None
+            return None, _glitchtip_error(exc, token), None
         if response.status_code != 200:
             return None, f"GlitchTip transaction-groups HTTP {response.status_code}", response
         try:
             payload = response.json() or []
         except Exception as exc:
-            return None, f"GlitchTip returned invalid transaction-groups JSON: {exc}"[:400], response
+            return None, f"GlitchTip returned invalid transaction-groups JSON: {_glitchtip_error(exc, token)}"[:400], response
         normalized = _transaction_groups_from_payload(payload)
         if normalized is None:
             return None, "GlitchTip returned a malformed transaction-groups payload", response
@@ -1358,6 +1367,21 @@ def get_monitoring_integration_status() -> dict[str, Any]:
     }
 
 
+def _issue_items_from_payload(payload: Any) -> tuple[list[dict[str, Any]] | None, str | None]:
+    """Normalize GlitchTip list and cursor-paginated issue responses."""
+
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)], None
+    if not isinstance(payload, dict):
+        return None, None
+    for key in ("issues", "items", "results", "data"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            cursor = payload.get("next_cursor") or payload.get("nextCursor") or payload.get("next")
+            return [item for item in value if isinstance(item, dict)], str(cursor) if cursor else None
+    return None, None
+
+
 def query_monitoring_issues(db: Session, service_name: str, window: str, cursor: str = None) -> dict[str, Any]:
     import re
     import requests
@@ -1374,7 +1398,7 @@ def query_monitoring_issues(db: Session, service_name: str, window: str, cursor:
         return empty
 
     stats_period = "24h" if str(window).lower() in {"24h", "1d"} else "7d"
-    url = f"{base_url}/api/0/projects/{org}/{project_slug}/issues/"
+    url = f"{base_url}/api/0/projects/{quote(org, safe='')}/{quote(str(project_slug), safe='')}/issues/"
     headers = {"Authorization": f"Bearer {token}"}
     params: dict[str, Any] = {"statsPeriod": stats_period, "query": ""}
     if cursor:
@@ -1383,8 +1407,12 @@ def query_monitoring_issues(db: Session, service_name: str, window: str, cursor:
         resp = requests.get(url, headers=headers, params=params, timeout=10)
         if resp.status_code != 200:
             return {**empty, "error": f"GlitchTip HTTP {resp.status_code}"}
-        issues = resp.json() or []
-        if not isinstance(issues, list):
+        try:
+            payload = resp.json() or []
+        except Exception as exc:
+            return {**empty, "error": f"GlitchTip returned invalid issues JSON: {_glitchtip_error(exc, token)}"}
+        issues, payload_cursor = _issue_items_from_payload(payload)
+        if issues is None:
             return {**empty, "error": "GlitchTip returned a malformed issues payload"}
         normalized = []
         for issue in issues[:20]:
@@ -1412,13 +1440,14 @@ def query_monitoring_issues(db: Session, service_name: str, window: str, cursor:
             match = re.search(r'<[^>]*[?&]cursor=([^&>]+)[^>]*>;\s*rel="next"', link_header)
             if match:
                 next_cursor = match.group(1)
+        next_cursor = next_cursor or payload_cursor
 
         return {
             "issues": normalized, "next_cursor": next_cursor, "has_more": bool(next_cursor),
             "availability": "available", "source": "glitchtip", "checked_at": checked_at, "error": None,
         }
     except Exception as exc:
-        return {**empty, "error": str(exc)[:400]}
+        return {**empty, "error": _glitchtip_error(exc, token)}
 
 
 def get_monitoring_issue_event_details(issue_id: str) -> dict[str, Any]:
@@ -1440,14 +1469,17 @@ def get_monitoring_issue_event_details(issue_id: str) -> dict[str, Any]:
         return {**empty, "availability": "unavailable", "source": "glitchtip", "checked_at": checked_at, "error": "GlitchTip integration is not configured"}
 
     headers = {"Authorization": f"Bearer {token}"}
-    url = f"{base_url}/api/0/issues/{issue_id}/events/latest/"
+    url = f"{base_url}/api/0/issues/{quote(str(issue_id), safe='')}/events/latest/"
     try:
         resp = requests.get(url, headers=headers, timeout=10)
         if resp.status_code == 200:
-            return {**(resp.json() or empty), "availability": "available", "source": "glitchtip", "checked_at": checked_at, "error": None}
+            payload = resp.json() or empty
+            if not isinstance(payload, dict):
+                return {**empty, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": "GlitchTip returned a malformed event payload"}
+            return {**payload, "availability": "available", "source": "glitchtip", "checked_at": checked_at, "error": None}
         return {**empty, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": f"GlitchTip HTTP {resp.status_code}"}
     except Exception as exc:
-        return {**empty, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": str(exc)[:400]}
+        return {**empty, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": _glitchtip_error(exc, token)}
 
 
 def execute_monitoring_issue_action_result(issue_id: str, action: str) -> dict[str, Any]:
@@ -1458,7 +1490,7 @@ def execute_monitoring_issue_action_result(issue_id: str, action: str) -> dict[s
         return {"success": False, "availability": "unavailable", "source": "glitchtip", "checked_at": checked_at, "error": "GlitchTip integration is not configured"}
 
     headers = {"Authorization": f"Bearer {token}"}
-    url = f"{base_url}/api/0/issues/{issue_id}/"
+    url = f"{base_url}/api/0/issues/{quote(str(issue_id), safe='')}/"
     action_l = action.lower()
     if action_l in ("delete", "remove"):
         try:
@@ -1466,7 +1498,7 @@ def execute_monitoring_issue_action_result(issue_id: str, action: str) -> dict[s
             ok = resp.status_code in (200, 201, 204)
             return {"success": ok, "availability": "available" if ok else "error", "source": "glitchtip", "checked_at": checked_at, "action": action_l, "target_id": str(issue_id), "error": None if ok else f"GlitchTip HTTP {resp.status_code}"}
         except Exception as exc:
-            return {"success": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "action": action_l, "target_id": str(issue_id), "error": str(exc)[:400]}
+            return {"success": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "action": action_l, "target_id": str(issue_id), "error": _glitchtip_error(exc, token)}
     status_map = {
         "resolve": "resolved",
         "resolved": "resolved",
@@ -1483,7 +1515,7 @@ def execute_monitoring_issue_action_result(issue_id: str, action: str) -> dict[s
         ok = resp.status_code in (200, 201, 204)
         return {"success": ok, "availability": "available" if ok else "error", "source": "glitchtip", "checked_at": checked_at, "action": status, "target_id": str(issue_id), "error": None if ok else f"GlitchTip HTTP {resp.status_code}"}
     except Exception as exc:
-        return {"success": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "action": status, "target_id": str(issue_id), "error": str(exc)[:400]}
+        return {"success": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "action": status, "target_id": str(issue_id), "error": _glitchtip_error(exc, token)}
 
 
 def execute_monitoring_issue_action(issue_id: str, action: str) -> bool:
@@ -1553,7 +1585,24 @@ def get_monitoring_uptime_result(service_name: str) -> dict[str, Any]:
         monitors = response.json() or []
         if not isinstance(monitors, list):
             return {"items": [], "project_slug": project_slug, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": "GlitchTip returned a malformed uptime payload"}
-        filtered = [item for item in monitors if isinstance(item, dict) and (item.get("projectName") or "").lower() == project_slug.lower()]
+        # GlitchTip 6.1 may expose either a slug/name or only the numeric
+        # project relation.  Resolve the numeric ID once so monitors from a
+        # different project cannot leak into the selected service.
+        project_id, _project_error = _resolve_glitchtip_project_id(base_url, org, token, project_slug)
+
+        def belongs_to_project(item: dict[str, Any]) -> bool:
+            name = str(item.get("projectName") or item.get("projectSlug") or "").strip().lower()
+            if name and name == str(project_slug).lower():
+                return True
+            raw = item.get("projectId", item.get("project"))
+            if isinstance(raw, dict):
+                raw = raw.get("id")
+            try:
+                return project_id is not None and int(raw) == project_id
+            except (TypeError, ValueError):
+                return False
+
+        filtered = [item for item in monitors if isinstance(item, dict) and belongs_to_project(item)]
         for monitor in filtered:
             monitor_id = monitor.get("id")
             if not monitor_id:
@@ -1571,7 +1620,7 @@ def get_monitoring_uptime_result(service_name: str) -> dict[str, Any]:
                 continue
         return {"items": filtered, "project_slug": project_slug, "availability": "available", "source": "glitchtip", "checked_at": checked_at, "error": None}
     except Exception as exc:
-        return {"items": [], "project_slug": project_slug, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": str(exc)[:400]}
+        return {"items": [], "project_slug": project_slug, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": _glitchtip_error(exc, token)}
 
 
 def add_monitoring_uptime_check(
@@ -1608,9 +1657,9 @@ def add_monitoring_uptime_check(
         resp = requests.post(f"{base_url}/api/0/organizations/{org}/monitors/", headers=headers, json=data, timeout=10)
         if resp.status_code in (200, 201):
             return {"success": True, "monitor": resp.json()}
-        return {"success": False, "error": f"GlitchTip returned {resp.status_code}: {resp.text}"}
+        return {"success": False, "error": f"GlitchTip HTTP {resp.status_code}"}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": _glitchtip_error(e, token)}
 
 
 def add_monitoring_uptime_result(
@@ -1665,7 +1714,7 @@ def add_monitoring_uptime_result(
                 ok = response.status_code in (200, 201)
                 result = {"success": ok, "availability": "available" if ok else "error", "source": "glitchtip", "checked_at": checked_at, "monitor": response.json() if ok else None, "project_slug": project_slug, "project_id": project_id, "error": None if ok else f"GlitchTip HTTP {response.status_code}"}
             except Exception as exc:
-                result = {"success": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "project_slug": project_slug, "error": str(exc)[:400]}
+                result = {"success": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "project_slug": project_slug, "error": _glitchtip_error(exc, token)}
     if db is not None:
         record_event(db, category="monitoring", level="info" if result.get("success") else "error", message="GlitchTip uptime monitor add", metadata={"action": "uptime_add", "service_name": service_name, "monitor_name": name, "success": result.get("success"), "availability": result.get("availability"), "error": result.get("error")})
     return result
@@ -1703,7 +1752,7 @@ def delete_monitoring_uptime_result(monitor_id: str, db: Session | None = None) 
             ok = response.status_code in (200, 201, 204)
             result = {"success": ok, "availability": "available" if ok else "error", "source": "glitchtip", "checked_at": checked_at, "target_id": str(monitor_id), "error": None if ok else f"GlitchTip HTTP {response.status_code}"}
         except Exception as exc:
-            result = {"success": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "target_id": str(monitor_id), "error": str(exc)[:400]}
+            result = {"success": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "target_id": str(monitor_id), "error": _glitchtip_error(exc, token)}
     if db is not None:
         record_event(db, category="monitoring", level="info" if result.get("success") else "error", message="GlitchTip uptime monitor delete", metadata={"action": "uptime_delete", "monitor_id": str(monitor_id), "success": result.get("success"), "availability": result.get("availability"), "error": result.get("error")})
     return result
@@ -1747,7 +1796,7 @@ def get_monitoring_keys_result(service_name: str) -> dict[str, Any]:
             return {"items": [], "project_slug": project_slug, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": "GlitchTip returned a malformed keys payload"}
         return {"items": items, "project_slug": project_slug, "availability": "available", "source": "glitchtip", "checked_at": checked_at, "error": None}
     except Exception as exc:
-        return {"items": [], "project_slug": project_slug, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": str(exc)[:400]}
+        return {"items": [], "project_slug": project_slug, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": _glitchtip_error(exc, token)}
 
 
 def get_monitoring_performance(service_name: str, node_ip: str = "") -> list[dict[str, Any]]:
@@ -1849,7 +1898,7 @@ def ingest_monitoring_transaction_result(
                         timeout=10,
                     )
                 except Exception as exc:
-                    result = {"success": False, "accepted_pending": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "project_slug": project_slug, "project_id": project_id, "event_id": event_id, "transactions": [], "error": str(exc)[:400]}
+                    result = {"success": False, "accepted_pending": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "project_slug": project_slug, "project_id": project_id, "event_id": event_id, "transactions": [], "error": _glitchtip_error(exc, token)}
                 else:
                     if response.status_code not in (200, 201, 202):
                         result = {"success": False, "accepted_pending": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "project_slug": project_slug, "project_id": project_id, "event_id": event_id, "transactions": [], "error": f"GlitchTip envelope HTTP {response.status_code}"}
@@ -1996,7 +2045,7 @@ def patch_service_runtime_observability(db: Session, service_id: int) -> dict[st
                 payload["error"] = (res.stderr or "runtime patch failed").strip()
         return payload
     except Exception as exc:
-        return {"success": False, "error": str(exc)}
+        return {"success": False, "availability": "error", "source": "runtime_patch", "error": redact_text(str(exc), secrets=(token,))[:400]}
     finally:
         # Restore actual live status from docker inspect (force reload)
         try:

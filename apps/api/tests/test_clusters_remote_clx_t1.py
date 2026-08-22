@@ -249,6 +249,64 @@ def test_strict_adapter_rejects_bad_fingerprint_and_remote_probe_has_no_local_fa
     assert "local" not in str(result.get("detail", "")).lower()
 
 
+@pytest.mark.parametrize(
+    ("failure", "detail"),
+    [
+        (SimpleNamespace(returncode=255, stdout="", stderr="Permission denied"), "permission denied"),
+        (TimeoutError("connect timeout"), "timeout"),
+    ],
+)
+def test_remote_credential_and_timeout_failures_are_terminal_without_local_fallback(
+    known_hosts: tuple[Path, str], monkeypatch: pytest.MonkeyPatch, failure, detail: str
+):
+    from platformops.orchestrator import remote
+    from platformops.orchestrator.node import probe_node_connection
+
+    path, fingerprint = known_hosts
+    node = SimpleNamespace(
+        host="platformops-ssh-target",
+        ssh_user="root",
+        ssh_key_path="",
+        ssh_secret_ref="",
+        auth_mode="ssh_key",
+        host_key_fingerprint=fingerprint,
+        known_hosts_ref=f"file://{path}",
+        facts_json=json.dumps({"connection_mode": "ssh"}),
+        environment="aws",
+    )
+    if isinstance(failure, BaseException):
+        monkeypatch.setattr(remote, "run_ssh", lambda *_a, **_kw: (_ for _ in ()).throw(failure))
+    else:
+        monkeypatch.setattr(remote, "run_ssh", lambda *_a, **_kw: failure)
+    result = probe_node_connection(node)
+    assert result["ssh_ok"] is False
+    assert result["docker_ok"] is False
+    assert detail in str(result.get("detail", "")).lower()
+    assert "local" not in str(result.get("detail", "")).lower()
+
+
+def test_remote_discovery_rejects_provider_without_pinned_host_contract(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+):
+    from platformops.routers import nodes
+
+    cluster = _cluster(db, "provider-clx-t1")
+    node = Node(
+        cluster_id=cluster.id,
+        name="provider-node",
+        host="provider-unavailable.invalid",
+        environment="aws",
+        provider="unsupported-provider",
+        facts_json=json.dumps({"connection_mode": "ssh"}),
+    )
+    db.add(node)
+    db.commit()
+    with pytest.raises(HTTPException) as failed:
+        nodes.discover_infrastructure_endpoint(node.id, db)
+    assert failed.value.status_code == 400
+    assert "fingerprint" in str(failed.value.detail).lower()
+
+
 def test_service_contract_rejects_inline_secret_and_preserves_canonical_identity(db: Session):
     from platformops.orchestrator.service.impl import create_service_instance
 

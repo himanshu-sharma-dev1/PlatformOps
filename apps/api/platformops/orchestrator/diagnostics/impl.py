@@ -40,7 +40,7 @@ from ...models import (
 from ...settings import settings
 from ...tasks import run_job_async
 from ...schemas import DiagnosticsBackfillJobOut
-from ...security import redact_text
+from ...security import redact_secrets, redact_text
 from ..common import (
     RUNNING_STATUSES,
     _service_display_name,
@@ -52,12 +52,59 @@ _JOB_SECRET_TEXT = re.compile(
     r"(?i)(\b(?:password|passwd|token|secret|api[_-]?key|authorization|bearer)\b\s*[:=]\s*)[^\s,;]+"
 )
 _DIAGNOSTICS_BACKFILL_COMMAND = "diagnostics-backfill"
+_ANALYST_MARKER_RE = re.compile(
+    r"(?i)(?<![A-Za-z0-9_])(?:[A-Za-z0-9_.:/=-]*marker[A-Za-z0-9_.:/=-]*|run(?:_id)?\s*[=:]\s*[A-Za-z0-9_.-]+)"
+)
+_ANALYST_RUN_RE = re.compile(r"(?i)\brun(?:_id)?\s*[=:]\s*([A-Za-z0-9_.-]+)")
 
 
 def _safe_backfill_job_text(value: str | None) -> str:
     """Keep job result text useful without echoing credential-shaped values."""
 
     return _JOB_SECRET_TEXT.sub(r"\1[REDACTED]", redact_text(value))
+
+
+def _safe_analyst_text(value: Any) -> str:
+    """Redact runtime and credential-shaped values before analyst use."""
+
+    from ..llm import redact_mistral_runtime_secret
+
+    safe = redact_mistral_runtime_secret(redact_text(str(value or "")))
+    return _JOB_SECRET_TEXT.sub(r"\1[REDACTED]", safe)
+
+
+def _safe_analyst_value(value: Any) -> Any:
+    """Recursively redact a provider evidence packet without mutating it."""
+
+    redacted = redact_secrets(value)
+    if isinstance(redacted, str):
+        return _safe_analyst_text(redacted)
+    if isinstance(redacted, dict):
+        return {str(key): _safe_analyst_value(item) for key, item in redacted.items()}
+    if isinstance(redacted, list):
+        return [_safe_analyst_value(item) for item in redacted]
+    if isinstance(redacted, tuple):
+        return [_safe_analyst_value(item) for item in redacted]
+    return redacted
+
+
+def _marker_tokens(value: Any) -> set[str]:
+    return {match.group(0).lower() for match in _ANALYST_MARKER_RE.finditer(str(value or ""))}
+
+
+def _scrub_foreign_markers(value: Any, allowed: set[str]) -> Any:
+    """Remove marker/run identities not present in the selected log slice."""
+
+    if isinstance(value, str):
+        return _ANALYST_MARKER_RE.sub(
+            lambda match: match.group(0) if match.group(0).lower() in allowed else "[FILTERED]",
+            value,
+        )
+    if isinstance(value, dict):
+        return {str(key): _scrub_foreign_markers(item, allowed) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_scrub_foreign_markers(item, allowed) for item in value]
+    return value
 
 
 def _serialize_backfill_job(job: DeploymentJob) -> DiagnosticsBackfillJobOut:
@@ -2657,6 +2704,7 @@ def service_log_analytics_chat(db: Session, service: "ServiceInstance", question
 
     service_name = service.name
     max_logs = int(getattr(settings, "llm_max_logs", 80) or 80)
+    safe_question = _safe_analyst_text(question)
 
     diag = service_diagnostics(db, service, source_service=service)
     analysis = {}
@@ -2667,9 +2715,29 @@ def service_log_analytics_chat(db: Session, service: "ServiceInstance", question
     live_logs_data = service_live_logs(db, service, tail_lines=min(100, max_logs))
     log_lines = live_logs_data.get("lines", []) or []
 
+    question_lower = safe_question.lower()
+    available_runs: set[str] = set()
+    for line in log_lines[-max_logs:]:
+        available_runs.update(
+            match.group(1).lower()
+            for match in _ANALYST_RUN_RE.finditer(str(line.get("message") or ""))
+        )
+    selected_runs = {
+        run for run in available_runs
+        if re.search(rf"(?<![A-Za-z0-9_.-]){re.escape(run)}(?![A-Za-z0-9_.-])", question_lower)
+    }
+    if selected_runs:
+        log_lines = [
+            line for line in log_lines
+            if selected_runs.intersection(
+                match.group(1).lower()
+                for match in _ANALYST_RUN_RE.finditer(str(line.get("message") or ""))
+            )
+        ]
+
     formatted_logs = []
     for line in log_lines[-max_logs:]:
-        msg = line.get("message", "") or ""
+        msg = _safe_analyst_text(line.get("message", "") or "")
         if len(msg) > 500:
             msg = msg[:500] + "... [truncated]"
         formatted_logs.append({
@@ -2681,11 +2749,11 @@ def service_log_analytics_chat(db: Session, service: "ServiceInstance", question
     issue_groups = []
     for insight in (analysis.get("insights") or [])[:5]:
         issue_groups.append({
-            "category": insight.get("insight_id") or insight.get("title") or "issue",
-            "severity": insight.get("severity") or "warning",
-            "brief": insight.get("summary") or insight.get("title") or "",
+            "category": _safe_analyst_text(insight.get("insight_id") or insight.get("title") or "issue"),
+            "severity": _safe_analyst_text(insight.get("severity") or "warning"),
+            "brief": _safe_analyst_text(insight.get("summary") or insight.get("title") or ""),
             "count": 1,
-            "evidence": (insight.get("evidence_refs") or [])[:2],
+            "evidence": _safe_analyst_value((insight.get("evidence_refs") or [])[:2]),
         })
 
     # Match the legacy evidence packet: service events and GlitchTip issues are
@@ -2700,9 +2768,9 @@ def service_log_analytics_chat(db: Session, service: "ServiceInstance", question
     )
     recent_events = [
         {
-            "category": row.category,
-            "level": row.level,
-            "message": row.message,
+            "category": _safe_analyst_text(row.category),
+            "level": _safe_analyst_text(row.level),
+            "message": _safe_analyst_text(row.message),
             "created_at": row.created_at.isoformat() if row.created_at else "",
         }
         for row in event_rows
@@ -2713,11 +2781,15 @@ def service_log_analytics_chat(db: Session, service: "ServiceInstance", question
 
         issue_result = query_monitoring_issues(db, service.name, window)
         if isinstance(issue_result, dict):
-            glitchtip_issues = list(issue_result.get("issues") or [])[:5]
+            glitchtip_issues = _safe_analyst_value(list(issue_result.get("issues") or [])[:5])
     except Exception:
         glitchtip_issues = []
 
-    evidence_context = {
+    allowed_markers = _marker_tokens(formatted_logs)
+    issue_groups = _scrub_foreign_markers(issue_groups, allowed_markers)
+    recent_events = _scrub_foreign_markers(recent_events, allowed_markers)
+    glitchtip_issues = _scrub_foreign_markers(glitchtip_issues, allowed_markers)
+    evidence_context = _scrub_foreign_markers(_safe_analyst_value({
         "service": {
             "service_id": service.id,
             "service_name": service_name,
@@ -2736,7 +2808,7 @@ def service_log_analytics_chat(db: Session, service: "ServiceInstance", question
         "recent_events": recent_events,
         "glitchtip_issues": glitchtip_issues,
         "window": window or "current",
-    }
+    }), allowed_markers)
 
     if not is_llm_configured():
         return _deterministic_log_analyst_fallback(
@@ -2780,7 +2852,7 @@ def service_log_analytics_chat(db: Session, service: "ServiceInstance", question
         f"{json.dumps(schema, indent=2)}\n\n"
         f"CRITICAL INSTRUCTION:\n"
         f"Answering the following question is your primary directive. Address it directly and thoroughly.\n"
-        f"QUESTION: {question}"
+        f"QUESTION: {safe_question}"
     )
     messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
     if history:
@@ -2788,7 +2860,7 @@ def service_log_analytics_chat(db: Session, service: "ServiceInstance", question
             role = item.get("role")
             content = item.get("content")
             if role in ("user", "assistant") and content:
-                messages.append({"role": role, "content": str(content)[:4000]})
+                messages.append({"role": role, "content": _safe_analyst_text(content)[:4000]})
     messages.append({"role": "user", "content": user_prompt_str})
 
     content = execute_llm_request(
@@ -2807,6 +2879,11 @@ def service_log_analytics_chat(db: Session, service: "ServiceInstance", question
         parsed = safe_json_loads(content)
         if contains_mistral_runtime_secret(parsed):
             raise ValueError("provider response failed secret-safety validation")
+        safe_parsed = _safe_analyst_value(parsed)
+        if safe_parsed != parsed:
+            raise ValueError("provider response contained credential-shaped content")
+        if _marker_tokens(parsed) - allowed_markers:
+            raise ValueError("provider response referenced evidence outside the selected service/run")
         answer = parsed.get("answer")
         chart = parsed.get("chart_data")
         suggestions = parsed.get("suggestions")

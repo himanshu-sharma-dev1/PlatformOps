@@ -33,6 +33,8 @@ export function PerformanceView() {
   const setServiceMetrics = p.setServiceMetrics;
   const setServiceMetricsWindow = p.setServiceMetricsWindow;
 
+  const unavailable = (field: string) => (serviceMetrics?.unavailable_fields || []).includes(field);
+
 
   const showNode = !!selectedNode && !isSeedDemoName(selectedNode.name);
   const showService = !!selectedService && services.some((s) => s.id === selectedService.id);
@@ -252,22 +254,22 @@ export function PerformanceView() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem", marginBottom: "1rem" }}>
                 <div><small style={{ color: "var(--ink-4)" }}>CPU</small><div style={{ fontWeight: 700 }}>{serviceMetrics.cpu_percent ?? "—"}{serviceMetrics.cpu_percent != null ? "%" : ""}</div></div>
                 <div><small style={{ color: "var(--ink-4)" }}>Memory</small><div style={{ fontWeight: 700 }}>{serviceMetrics.memory_mb ?? "—"}{serviceMetrics.memory_mb != null ? " MB" : ""}</div></div>
-                <div><small style={{ color: "var(--ink-4)" }}>Restarts</small><div style={{ fontWeight: 700 }}>{serviceMetrics.restart_count ?? "—"}</div></div>
-                <div><small style={{ color: "var(--ink-4)" }}>Queue</small><div style={{ fontWeight: 700 }}>{serviceMetrics.queue_depth ?? "—"}</div></div>
+                <div><small style={{ color: "var(--ink-4)" }}>Restarts</small><div style={{ fontWeight: 700 }}>{unavailable("restart_count") ? "Unavailable" : (serviceMetrics.restart_count ?? "—")}</div></div>
+                <div><small style={{ color: "var(--ink-4)" }}>Queue</small><div style={{ fontWeight: 700 }}>{unavailable("queue_depth") ? "Unavailable" : (serviceMetrics.queue_depth ?? "—")}</div></div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.75rem" }}>
                 <div>
                   <div style={{ fontSize: "0.8rem", color: "var(--ink-4)", marginBottom: 4 }}>CPU</div>
                   {renderSVGTimeSeriesChart(serviceMetrics.cpu_series || [], { color: "#fbbf24", unit: "%" })}
                 </div>
-                <div>
-                  <div style={{ fontSize: "0.8rem", color: "var(--ink-4)", marginBottom: 4 }}>Errors / min</div>
-                  {renderSVGTimeSeriesChart(serviceMetrics.error_rate_series || [], { color: "#f87171", unit: "" })}
-                </div>
-                <div>
+                {!unavailable("queue_depth") && <div>
                   <div style={{ fontSize: "0.8rem", color: "var(--ink-4)", marginBottom: 4 }}>Queue depth</div>
-                  {renderSVGTimeSeriesChart(serviceMetrics.queue_depth_series || [], { color: "#34d399", unit: "" })}
-                </div>
+                  {renderSVGTimeSeriesChart(serviceMetrics.queue_depth_series || [], { color: "#34d399", unit: serviceMetrics.units?.queue_depth || "items" })}
+                </div>}
+                {(serviceMetrics.commands_series || []).length > 0 && <div>
+                  <div style={{ fontSize: "0.8rem", color: "var(--ink-4)", marginBottom: 4 }}>Commands / s</div>
+                  {renderSVGTimeSeriesChart(serviceMetrics.commands_series, { color: "#38bdf8", unit: " ops/s" })}
+                </div>}
               </div>
 
               {serviceMetrics.db_metrics && (

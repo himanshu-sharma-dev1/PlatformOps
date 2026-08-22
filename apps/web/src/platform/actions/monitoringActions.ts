@@ -3,6 +3,7 @@ import { api } from "../../api/client";
 import { withPending } from "../ux/clusterUx";
 export function createMonitoringActions(s: any) {
   let dataGeneration = 0;
+  let eventGeneration = 0;
   return {
   async loadGlitchTipIntegrationStatus() {
     try {
@@ -83,6 +84,7 @@ export function createMonitoringActions(s: any) {
   },
 
   async loadEventDetails(issueId) {
+    const generation = ++eventGeneration;
     s.setGtSelectedIssueId(issueId);
     s.setGtEventDetails(null);
     try {
@@ -90,12 +92,15 @@ export function createMonitoringActions(s: any) {
         method: "POST",
         body: JSON.stringify({ issue_id: issueId })
       });
-      if (data.success) {
+      if (generation !== eventGeneration) return;
+      if (data.success && data.event) {
         s.setGtEventDetails(data.event);
       } else {
         s.setNotice(`Failed to load event details: ${data.error}`);
       }
     } catch (e) {
+      if (generation !== eventGeneration) return;
+      s.setNotice(e?.message || "Failed to load event details");
       console.error("Failed to load event details:", e);
     }
   },

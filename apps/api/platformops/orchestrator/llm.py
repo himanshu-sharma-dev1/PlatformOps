@@ -140,6 +140,13 @@ def contains_mistral_runtime_secret(value: Any) -> bool:
     return bool(secret and secret in str(value))
 
 
+def redact_mistral_runtime_secret(value: str) -> str:
+    """Remove the injected Mistral secret from free-form diagnostic text."""
+
+    secret = _mistral_runtime_key()
+    return str(value or "").replace(secret, "***") if secret else str(value or "")
+
+
 def llm_status() -> dict[str, Any]:
     cfg = resolve_provider_config()
     return {
