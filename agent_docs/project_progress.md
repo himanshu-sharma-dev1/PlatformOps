@@ -1,31 +1,25 @@
-# Project Progress
+# Project Progress: PlatformOps
 
 ## Goal
+Build a lightweight, production-grade DevOps and SRE platform (**PlatformOps**) with native operational parity across **6 core pages** (`Users`, `Clusters`, `Config Manager`, `Performance`, `Monitoring`, `Diagnostics`), fully independent of external legacy packages and legacy customer code.
 
-Maintain a streamlined, production-grade Django DevOps & SRE control plane with 100% operational parity across the 6 core pages (Users, Clusters, Config Manager, Performance, Monitoring, Diagnostics), with zero bloat from legacy ML/dataflow modules and complete Docker network isolation from cPlatform.
+---
 
-## Overall Progress
+## Overall Status: 100% OPERATIONAL & INDEPENDENT
 
-- **Standalone Django Core Established**: Completed the pivot to Django (`apps.platformops`), retaining native UI views, dynamic form schemas, and backend orchestrators.
-- **Port 9020 Standalone Deployment**: Configured and brought up the full isolated stack (`platformops_web`, `platformops_db`, `platformops_redis`, `platformops_rabbitmq`, `platformops_loki`, `platformops_alloy`, `platformops_glitchtip_*`) on `platformops_network`.
-- **Bloat Removal Complete**: Pruned all model training/inference, batch/stream dataflow pipelines, and proxy demo apps from routes, views, models, and UI templates.
-- **100% Core Page Verification**: All 6 core pages + login portal verified returning HTTP 200 OK with authenticated superuser sessions.
+| Milestone | Status | Key Deliverables |
+| :--- | :---: | :--- |
+| **1. Django Standalone Pivot** | **DONE** | Consolidated architecture into clean Django core on port 9020 inside `platformops_network`. |
+| **2. CommonUtils Independence** | **DONE** | Extracted and inlined utility modules directly into `apps/platformops/lib/`, removing external `.whl` package dependency. |
+| **3. MCPClient Decoupling** | **DONE** | Decoupled MCPClient, removed `packages/mcp_client/` and `MCPClient` symlink. |
+| **4. NOC / Demo Removal** | **DONE** | Removed `demo_control_plane.py`, `noc_runtime.py`, and legacy customer demo assets. |
+| **5. Full Branding Overhaul** | **DONE** | Rebranded 26 HTML templates, Python files, and configs from cPlatform/Iktara/YantrAI to **PlatformOps**. Generated custom brand logos & favicons. |
+| **6. Verified Port 9020 Stack** | **DONE** | All 6 pages returning **HTTP 200 OK** in automated end-to-end testing suite. |
+| **7. GitHub Repository Sync** | **DONE** | All changes pushed to GitHub on branch `main` (`himanshu-sharma-dev1/PlatformOps`). |
 
-## Current Position
+---
 
-- **Active Host Port**: `http://localhost:9020/`
-- **Isolated Network**: `platformops_network` (bridge driver)
-- **Active Core Services**:
-  - `platformops_web` (Gunicorn 0.0.0.0:8000 -> host 9020)
-  - `platformops_db` (PostgreSQL 16)
-  - `platformops_redis` (Redis 7)
-  - `platformops_rabbitmq` (RabbitMQ 3.13)
-  - `platformops_loki` (Loki 3.2.1)
-  - `platformops_alloy` (Alloy 1.5.1)
-  - `platformops_glitchtip_web`, `platformops_glitchtip_worker`, `platformops_glitchtip_postgres`, `platformops_glitchtip_valkey`
-- **Clean Separation**: `cplatform_iktara_cPlatform` network and all original cPlatform containers remain completely unaffected.
-
-## Next Milestone
-
-- Enhance custom UI styling and theme refinements for the 6 core pages as requested.
-- Maintain continuous integration and testing for cluster operations, SSH nodes, live log streaming, and SRE monitoring.
+## Next Milestone Options
+1. **GlitchTip Auto-Bootstrap Entrypoint**: Add auto-organization and token generation script for GlitchTip on first boot.
+2. **Prometheus / Exporter Targets**: Add local node exporters for live machine CPU/Memory metrics.
+3. **CI/CD Pipeline**: Create `.github/workflows/ci.yml` for automated test runs on pull requests.
