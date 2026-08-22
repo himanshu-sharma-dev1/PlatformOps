@@ -10,6 +10,7 @@ let diagnosticsRequestSequence = 0;
 export function createDiagnosticsActions(s: any) {
   return {
   async loadDiagnostics(service, options) {
+    const requestSequence = ++diagnosticsRequestSequence;
     const previousTargetServiceKey = s.diagnosticsTargetKey;
     if (!options?.preserveSelection) {
       s.setSelectedService(service);
@@ -25,6 +26,7 @@ export function createDiagnosticsActions(s: any) {
     await s.loadServiceSummary(service.id);
     await s.loadServiceReleaseTimeline(service.id);
     await s.loadServiceMetrics(service.id);
+    if (requestSequence !== diagnosticsRequestSequence) return;
     const params = new URLSearchParams();
     if (targetServiceKey) params.set("target_service_key", targetServiceKey);
     const diagnosticsPath = `/api/services/${service.id}/diagnostics${params.toString() ? `?${params.toString()}` : ""}`;
@@ -34,8 +36,10 @@ export function createDiagnosticsActions(s: any) {
       api(analysisPath),
       api(`/api/services/${service.id}/diagnostics/targets`)
     ]);
+    if (requestSequence !== diagnosticsRequestSequence) return;
     const targetServiceId = nextTargets.find((item) => item.service_key === nextDiagnostics.target_service_key)?.service_id ?? service.id;
     const nextArchives = await api(`/api/services/${targetServiceId}/diagnostics/archives`);
+    if (requestSequence !== diagnosticsRequestSequence) return;
     s.setDiagnosticsTargets(nextTargets);
     s.setDiagnostics(nextDiagnostics);
     s.setDiagnosticsAnalysis(nextAnalysis);
