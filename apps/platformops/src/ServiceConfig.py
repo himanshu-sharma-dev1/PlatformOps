@@ -1288,19 +1288,22 @@ def _send_service_config_api(service_name, service_port):
         model_name = req_data.get("model_name")
         model_info = {}
         if model_name:
-            from cPlatformIO.models import ModelInfo
-            model_inst = ModelInfo.objects.filter(model_name=model_name).first()
-            if model_inst:
-                model_end_date = None
-                if hasattr(model_inst, 'dataset_config') and model_inst.dataset_config:
-                    date_range = model_inst.dataset_config.get("date_range")
-                    if isinstance(date_range, str) and " - " in date_range:
-                        model_end_date = date_range.split(" - ")[-1].strip()
-                model_info = {
-                    "model_name": str(model_inst.model_name),
-                    "model_id": str(model_inst.model_id),
-                    "model_end_date": str(model_end_date)
-                }
+            try:
+                from cPlatformIO.models import ModelInfo
+                model_inst = ModelInfo.objects.filter(model_name=model_name).first()
+                if model_inst:
+                    model_end_date = None
+                    if hasattr(model_inst, 'dataset_config') and model_inst.dataset_config:
+                        date_range = model_inst.dataset_config.get("date_range")
+                        if isinstance(date_range, str) and " - " in date_range:
+                            model_end_date = date_range.split(" - ")[-1].strip()
+                    model_info = {
+                        "model_name": str(model_inst.model_name),
+                        "model_id": str(model_inst.model_id),
+                        "model_end_date": str(model_end_date)
+                    }
+            except Exception:
+                pass
         req_data["model_info"] = json.dumps(model_info)
         req_data["inference_flag"] = req_data.get("inference_flag", "No")
 

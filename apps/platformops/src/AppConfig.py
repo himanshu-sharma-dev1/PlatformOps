@@ -21,7 +21,7 @@ from pathlib import Path
 from cPlatform.AppLogging import app_logger
 
 # Import DataModel Definitions
-from cPlatformIO.models import ApplicationInfo, APPLICATION_TYPE, AlgoInfo, Cluster, Node
+from cPlatformIO.models import ApplicationInfo, APPLICATION_TYPE, Cluster, Node
 from cPlatformIO.src import ServiceConfig
 
 

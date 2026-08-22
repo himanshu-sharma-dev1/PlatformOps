@@ -41,8 +41,8 @@ else:
 
 
 def get_repository_path():
-    deploy = PlatformSettings.deployment_type
-    return BASE_DIR / PlatformSettings.repository_path
+    repo_path = getattr(PlatformSettings, 'repository_path', None) or 'Repository'
+    return BASE_DIR / repo_path
 
 
 REPOSITORY_PATH = get_repository_path()

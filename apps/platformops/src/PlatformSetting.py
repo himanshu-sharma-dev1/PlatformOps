@@ -20,7 +20,10 @@ from pathlib import Path
 from typing import Optional
 from django.conf import settings
 from dataclasses import dataclass, field
-from langchain_ollama import ChatOllama
+try:
+    from langchain_ollama import ChatOllama
+except ImportError:
+    ChatOllama = None
 
 
 # ---------------------------------------------Updated data classes----------------------------------------------------#
@@ -242,8 +245,8 @@ class PlatformSettings(metaclass=PlatformSettingsMeta):
     @classmethod
     def load_config(cls):
         with open(CPLATFORM_CONFIG_PATH, "r") as file:
-            config_data = yaml.safe_load(file)
-        raw = cls.fetch_env_data(config_data['CPLATFORM_CONFIG'])
+            config_data = yaml.safe_load(file) or {}
+        raw = cls.fetch_env_data(config_data.get('CPLATFORM_CONFIG', config_data))
 
         valid_fields = set(PlatformConfigData.__dataclass_fields__.keys())
         filtered = {k: v for k, v in raw.items() if k in valid_fields}
@@ -258,12 +261,16 @@ class PlatformSettings(metaclass=PlatformSettingsMeta):
         cls._instance = PlatformConfigData(**filtered)
 
     @classmethod
-    def get_config(cls):
-        cls.load_config()
+    def get_config(cls) -> PlatformConfigData:
+        if cls._instance is None:
+            cls.load_config()
         return cls._instance
 
     @classmethod
     def initialize_llm(cls):
+        if ChatOllama is None:
+            print("[PlatformSettings] langchain_ollama is not installed — skipping LLM init.")
+            return None
         cfg = cls.get_config()
         host, port, model = cfg.llm.llm_host, cfg.llm.llm_port, cfg.llm.llm_model
 
@@ -310,7 +317,7 @@ class PlatformSettings(metaclass=PlatformSettingsMeta):
         return cls.llm
 
     @classmethod
-    def get_fresh_llm(cls, json_format: bool = True) -> ChatOllama:
+    def get_fresh_llm(cls, json_format: bool = True):
         """Build a brand-new ChatOllama client for this call only.
 
         Do NOT reuse cls.llm across requests that each run on their own

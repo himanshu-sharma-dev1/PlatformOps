@@ -234,17 +234,15 @@ def user_license_validated(user_name):
 
 
 def user_check_self_create(user_name):
-
     # Check if user already exists in UserInfo model
     user = User.objects.filter(username=user_name).first()
     if user and user.is_staff and not UserInfo.objects.filter(user_email=user_name).exists():
-
         # Add user to the group
-        my_group = Group.objects.get(name='Admin')
+        my_group, _ = Group.objects.get_or_create(name='Admin')
         my_group.user_set.add(user)
 
         # Create UserInfo instance
-        _create_userinfo_instance(user.username, user.username, "System_Admin" ,None, status='active')
+        _create_userinfo_instance(user.username, user.username, "System_Admin", None, status='active')
 
     return
 
