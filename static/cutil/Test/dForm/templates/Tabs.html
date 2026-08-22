@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+{% include "Index.html" %}
+{% block content %}
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your Page Title</title>
+
+  <!-- Optional: Link to a CSS file -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+
+  {% load static %}
+  <link rel="stylesheet" type="text/css" href="{% static 'DFormTest.css' %}">
+  <script type="module" src="{% static 'DForm.js' %}"></script>
+
+</head>
+<body>
+<div class="container-fluid my-4">
+  <!-- Action Button Row -->
+  <div class="row mb-4 mt-2">
+    <div class="col-lg-1 text-center">
+      <button type="button" class="btn btn-outline-dark" data-bs-toggle="modal"
+              title="Add Template" data-bs-target="#addModal" onclick="addReport(event)">
+        <i class="bi bi-plus-square-fill fs-4"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Table Header -->
+  <div class="row">
+    <div class="col-12">
+      <table class="table table-bordered table-sm">
+        <thead class="table-light">
+          <tr>
+            <th style="width:20%;">User ID</th>
+            <th style="width:20%;">User Name</th>
+            <th style="width:20%;">TimePeriod</th>
+            <th style="width:20%;">TimeZone</th>
+            
+          </tr>
+        </thead>
+      </table>
+
+
+      <div class="table-responsive">
+        <form method="post" enctype="multipart/form-data" action="/PlatformIO/Model/">
+          {% csrf_token %}
+          <table id="myTable1" class="table table-bordered table-sm">
+            <tbody>
+              {% for data in report_list %}
+              <tr>
+                <td style="width:20%;">{{ data.user_id }}</td>
+                <td style="width:20%;">{{ data.user_name }}</td>
+                <td style="width:20%;">{{ data.time_period }}</td>
+                <td style="width:20%;">{{ data.time_zone }}</td>
+                <td style="width:15%;">
+                    <button type="button" class="fs-6 bi bi-trash ik-actionIcon" data-bs-toggle="modal"
+                        data-bs-target="#DeleteModal" data-bs-whatever="{{ value.report_name }}" onclick="deleteReport({{ forloop.counter0 }})"></button>
+                    <button type="button" class="fs-6 bi bi-pen ik-actionIcon" data-bs-toggle="modal"
+                        data-bs-target="#EditModal" data-bs-whatever="{{ value.report_id }}" onclick="editReport(event, {{ forloop.counter0 }})"></button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </form>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Add Modal -->
+
+      <div class="modal fade" id="addModal" data-bs-backdrop="static" data-bs-keyboard="true" tabindex="-1"
+           aria-labelledby="addModalLabel">
+          <div class="modal-dialog modal-xl">
+              <div class="modal-content">
+
+                  <!-- Modal Header -->
+                    <div class="modal-header p-0 pt-1 pb-1 ik-modalHeader">
+                      <h6 class="modal-title ik-modalTitle text-center" id="addModalLabel">Add New Tab</h6>
+                    </div>
+
+                  <!-- Modal Body -->
+                   <div class="modal-body">
+                   
+                          <form method="post" enctype="multipart/form-data" action="">
+                              {% csrf_token %}
+
+                              <div class="form-group px-3"></div>
+                              <div class="tab_form"></div>
+                              <div class="tabs_config_json"></div>
+                              <!-- Modal Footer -->
+                              <div class="modal-footer">
+                                <input type="hidden" name="json_data" id="json_data">
+                                <button type="button" class="btn btn-secondary px-3" data-bs-dismiss="modal">Close</button>
+                                <button name="user-action" value="add" type="submit" class="btn btn-primary px-3" onclick="createJson(event)">Add</button>
+                              </div>
+                          </form>
+                    </div>
+              </div>
+          </div>
+      </div>               
+
+
+  <!-- Edit Modal -->
+  <div class="modal fade" id="EditModal" tabindex="-1" aria-labelledby="EditModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+
+        <div class="modal-header ik-modalHeader">
+          <h5 class="modal-title" id="EditModalLabel">Edit Report</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <div class="tab-group-container px-3"></div>
+            {% comment %} <div class="tabs_config_json px-3"></div> {% endcomment %}
+            <div class="tabs_group_json px-3"></div>
+            <div class="tabs px-3_json"></div>
+
+            <div class="modal-footer">
+              <input type="hidden" name="json_data" id="edit_json_data">
+              <button type="button" class="btn btn-secondary px-3" data-bs-dismiss="modal">Close</button>
+              <button  name="user-action" value="edit" type="submit" class="btn btn-primary px-3" onclick="createJson(event)">Add</button>
+            </div>
+          </form>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Modal -->
+  <div class="modal fade" id="DeleteModal" tabindex="-1" aria-labelledby="DeleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+
+        <div class="modal-header p-2">
+          <h6 class="modal-title" id="DeleteModalLabel">Delete Report</h6>
+          <button type="button" class="btn-close p-2" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <p id="cluster">Are you sure you want to delete <strong id="delete-report-name"></strong>?</p>
+        </div>
+
+        <div class="modal-footer p-2">
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="cluster_name" id="cluster_name">
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+            <button name="user-action" value="delete" type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+{% comment %} let schema = {{ field_schema | safe }} {% endcomment %}
+let schema = JSON.parse(`{{ field_schema|escapejs }}`);
+ let report_list = {{ report_list | safe }}
+ 
+console.log("schema", schema)
+let accCount = 1
+
+
+function addReport(event) {
+    const button = event.currentTarget;
+    const modalId = button.getAttribute('data-bs-target');
+    window.forms.dFormCreate(schema, modalId, null);
+
+}
+function dFormAddRow(event) {
+    window.forms.dFormRowAdd(event, schema);
+  }
+
+
+function tabOnChange(event) {
+  let idx = schema.TabGroupSchema?.v_default
+  schema.TabGroupSchema.v_default = "idx"
+  window.forms.dFormCreate(schema, modalId, null);
+}
+
+function createJson(event){
+    window.forms.dFormCreateJson(event, schema)
+    console.log("schem",schema)
+}
+function dFormRowDelete(event) {
+    window.forms.dFormDeleteRow(event);
+  }
+
+function editReport(event, index){
+    let report = report_list[index]
+
+    const modalId = event.currentTarget.getAttribute('data-bs-target');
+    window.forms.dFormCreate(schema, modalId, report);
+  }
+
+ function deleteReport(index){
+    let report = report_list[index]
+    document.querySelector('#report_name').querySelector('strong').textContent = report.report_name
+    document.querySelector('#delete-report-name-input').value = report.report_name
+ }
+
+function _addAccordion(event){
+    accCount = accCount+1
+    window.forms.dFormCreateAccordion(event, schema, accCount)
+}
+  function selectCategory(event){
+    window.forms.dFormMapRows(event, schema)
+}
+
+
+
+  </script>
+</body>
+{% endblock %}
+</html>

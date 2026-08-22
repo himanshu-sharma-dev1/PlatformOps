@@ -1,0 +1,3278 @@
+<!-- htmlhint head-script-disabled:false -->
+<!DOCTYPE html>
+<html lang="en">
+{% include "sidebar.html" %}
+<head>
+<meta charset="UTF-8">
+{% load static %}
+<link rel="stylesheet" type="text/css" href="{% static 'css/clusterDetail.css' %}">
+<title>Iktara · {{cluster_info.1.cluster_name}} / Nodes</title>
+<style>
+/* CSS copied from cluster.css to style the cluster edit drawer steps and controls */
+#editClusterDrawer .section-head-sm {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-3);
+    font-weight: 600;
+    margin: var(--s-5) 0 var(--s-3);
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+}
+#editClusterDrawer .section-head-sm:first-child {
+    margin-top: 0;
+}
+#editClusterDrawer .provider-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--s-2);
+}
+#editClusterDrawer .provider-card {
+    border: 1px solid var(--line-2);
+    background: var(--bg-card);
+    border-radius: var(--r-md);
+    padding: var(--s-3) var(--s-2);
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+#editClusterDrawer .provider-card:hover {
+    border-color: var(--line-strong);
+}
+#editClusterDrawer .provider-card.selected {
+    border-color: var(--navy);
+    background: var(--navy-50);
+}
+#editClusterDrawer .provider-card .ico {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--r-sm);
+    background: var(--bg-sunken);
+    color: var(--ink-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+#editClusterDrawer .provider-card.selected .ico {
+    background: var(--navy-100);
+    color: var(--navy);
+}
+#editClusterDrawer .provider-card .nm {
+    font-size: 11px;
+    font-weight: 500;
+}
+#editClusterDrawer .type-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--s-2);
+}
+#editClusterDrawer .type-card {
+    border: 1px solid var(--line-2);
+    background: var(--bg-card);
+    border-radius: var(--r-md);
+    padding: var(--s-3);
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+}
+#editClusterDrawer .type-card:hover {
+    border-color: var(--line-strong);
+}
+#editClusterDrawer .type-card.selected {
+    border-color: var(--navy);
+    background: var(--navy-50);
+}
+#editClusterDrawer .type-card .nm {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    margin-bottom: 4px;
+}
+#editClusterDrawer .type-card .desc {
+    font-size: 11px;
+    color: var(--ink-3);
+    line-height: 1.4;
+}
+#editClusterDrawer .auth-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-sunken);
+    padding: 3px;
+    border-radius: var(--r-md);
+    margin-bottom: var(--s-3);
+}
+#editClusterDrawer .auth-tab {
+    flex: 1;
+    font-size: 11px;
+    font-weight: 500;
+    text-align: center;
+    padding: 6px 0;
+    border-radius: var(--r-sm);
+    color: var(--ink-3);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+#editClusterDrawer .auth-tab:hover {
+    color: var(--ink-2);
+}
+#editClusterDrawer .auth-tab.active {
+    background: var(--bg-card);
+    color: var(--ink);
+    box-shadow: var(--shadow-1);
+}
+#editClusterDrawer .auth-pane {
+    display: none;
+}
+#editClusterDrawer .auth-pane.active {
+    display: block;
+}
+#editClusterDrawer .secret-stored {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 12px;
+    background: var(--bg-sunken);
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--r-md);
+    font-size: 12px;
+}
+#editClusterDrawer .secret-stored .stored-mask {
+    color: var(--ink-3);
+    font-family: var(--mono);
+}
+#editClusterDrawer .link-btn {
+    background: none;
+    border: none;
+    color: var(--navy);
+    font-weight: 500;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0;
+}
+#editClusterDrawer .link-btn:hover {
+    text-decoration: underline;
+}
+#editClusterDrawer .test-btn {
+    font-family: var(--body);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 8px 14px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--line-strong);
+    background: var(--bg-card);
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 0.1s;
+}
+#editClusterDrawer .test-btn:hover {
+    background: var(--bg-sunken);
+}
+#editClusterDrawer .test-result {
+    font-size: 11px;
+    margin-left: var(--s-2);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+#editClusterDrawer .test-result.ok { color: var(--ok); }
+#editClusterDrawer .test-result.err { color: var(--err); }
+#editClusterDrawer .test-result.testing { color: var(--ink-3); }
+#editClusterDrawer .review-block {
+    margin-bottom: var(--s-5);
+}
+#editClusterDrawer .review-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--ink-4);
+    font-weight: 600;
+    margin-bottom: var(--s-2);
+}
+#editClusterDrawer .review-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--line);
+}
+#editClusterDrawer .review-row .k {
+    color: var(--ink-3);
+}
+#editClusterDrawer .review-row .v {
+    font-weight: 500;
+    color: var(--ink);
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- MAIN -->
+  <main class="main">
+    {% include "navbar.html" %}
+    <div class="content">
+
+      <div class="page-head">
+        <div class="titles">
+          <h1>Manage <em>cluster</em></h1>
+          <p class="sub">Provision nodes, deploy services. Drag from the service catalog onto any node to install via Ansible.</p>
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary" id="newNodeBtn">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Provision node
+          </button>
+        </div>
+      </div>
+
+      <!-- CLUSTER SUMMARY BAND -->
+      <div class="cluster-band">
+        <div class="identity">
+          <div class="badge-cloud">{{cluster_info.1.cluster_type_varient.0}}</div>
+          <div class="id-text">
+            <div class="name">{{cluster_info.1.cluster_name}}  <span class="pill pill-ok">Healthy</span></div>
+            <div class="meta">{{cluster_info.1.cluster_id}} · {{cluster_info.1.region}} · created NA</div>
+          </div>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="v">{{cluster_info.1.node_info|length}}</div><div class="l">Nodes</div></div>
+          <div class="stat"><div class="v">{{cluster_info.1.service_counts}}</div><div class="l">Services</div></div>
+          <div class="stat"><div class="v">{{cluster_info.1.total_vcpus}} <span class="unit">vCPU</span></div><div class="l">Allocated</div></div>
+          <div class="stat"><div class="v">{{cluster_info.1.total_memory}} <span class="unit">GB</span></div><div class="l">RAM</div></div>
+          <div class="stat"><div class="v">NA<span class="unit">%</span></div><div class="l">Uptime 30d</div></div>
+        </div>
+        <div>
+          <button class="btn btn-secondary" id="clusterSettingsBtn">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+            Edit
+          </button>
+          <button class="btn btn-danger" id="deleteClusterBtn">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m1 0v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6h12z"/></svg>
+            Delete
+          </button>
+          
+        </div>
+      </div>
+
+
+      <!-- TWO-COLUMN: node list + node detail -->
+      <div class="cluster-split">
+
+        <!-- LEFT: NODE LIST -->
+        <div class="node-list-wrap">
+          <div class="node-list-head">
+            <h3>Nodes</h3>
+            <span style="font-family:var(--mono); font-size:10px; color:var(--ink-4);">{{cluster_info.1.node_info|length}} total</span>
+          </div>
+          <div class="node-search">
+            <svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input type="text" placeholder="Search nodes…" id="nodeSearch">
+          </div>
+
+          <!-- add node_id -->
+          <div class="node-list" id="nodeList">
+            {% for index, node in cluster_info.1.node_info.items %}
+
+              <div
+                class="node-row {% if forloop.first %}active{% endif %}"
+
+                data-node="{{node.node_name}}"
+
+                data-node-id="{{node.node_id}}"
+
+                data-node-info="{{ node.node_provision_config|safe }}"
+
+                data-node-name="{{node.node_name}}"
+                data-node-cloud="{{node.node_provision_config.provider|default:'aws'}}"
+
+                data-region="{{node.node_provision_config.region}}"
+
+                data-vcpu="{{node.node_provision_config.vcpu}}"
+
+                data-memory="{{node.node_provision_config.memory}}"
+
+                data-storage="{{node.node_provision_config.storage}}"
+
+                data-gpu="{{node.node_provision_config.gpu_status}}"
+
+                data-os="{{node.node_provision_config.os_variant}}"
+                data-node-ip="{{node.node_ip|default:''}}"
+                data-node-volume="{{node.node_volume|default:''}}"
+                data-node-auth-type="{{node.auth_type|default:''}}"
+                data-node-username="{{node.username|default:''}}"
+              >
+                <div class="nstat ready"></div>
+                <div class="info">
+                  <div class="nm">
+                    {{node.node_name}}
+                  </div>
+                  <div class="sub">
+                    <span class="cloud">AWS</span>
+                    r6i.4xlarge
+                  </div>
+                </div>
+                <div class="svc-count">
+                  {{node.service_info|length}}  svc
+                </div>
+                <button class="node-edit-btn"
+                        type="button"
+                        title="Edit node"
+                        onclick="event.stopPropagation(); window.editNode && window.editNode(this.closest('.node-row'));">
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
+              </div>
+            {% endfor %}
+          </div>
+
+          <div class="node-list-foot">
+            <button class="btn btn-secondary btn-sm" id="newNodeBtn2">
+              <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              Provision node
+            </button>
+          </div>
+        </div>
+
+        <!-- RIGHT: NODE DETAIL (machine tile) -->
+        <div class="node-detail" id="nodeDetail">
+
+          <!-- Spec header — datacenter-label aesthetic -->
+          <div class="node-spec-header">
+            <div class="top-row">
+              <div>
+                <div class="title" id="specNodeName">{{cluster_info.1.node_info.1.node_name}}</div>
+                <div class="subtitle">
+                  <span class="cloud-tag" id="specRegion">{{cluster_info.1.node_info.1.node_provision_config.region}}</span>
+                  <span id="specNodeId">{{cluster_info.1.node_info.1.node_id}} · --</span>
+                </div>
+              </div>
+              <div class="actions">
+                <button class="btn btn-secondary btn-sm" id="nodeOverviewBtn">
+                  <svg class="ic" viewBox="0 0 24 24"><path d="M3 12h18M12 3v18"/></svg>
+                  Overview
+                </button>
+                <button class="btn btn-secondary btn-sm" id="editActiveNodeBtn">
+                  <svg class="ic" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  Edit
+                </button>
+                <button class="btn btn-secondary btn-sm" id="nodeEventsBtn">
+                  <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                  Events
+                </button>
+                <button class="btn btn-secondary btn-sm" id="discoverInfraBtn" type="button">
+                  <svg class="ic" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg>
+                  Discover
+                </button>
+                <button class="btn btn-secondary btn-sm" id="launchNodeBtn">
+                  <svg class="ic" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+                  Launch
+                </button>
+                <button class="btn btn-secondary btn-sm delete-node-btn" id="deleteNodeBtn">
+                  <svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m1 0v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6h12z"/></svg>
+                  Delete
+                </button>
+              </div>
+            </div>
+
+            <div class="spec-sheet">
+              <div class="spec-cell">
+                <div class="l">vCPU</div>
+                <div class="v" id="specVcpu">{{cluster_info.1.node_info.1.node_provision_config.vcpu}}</div>
+              </div>
+              <div class="spec-cell">
+                <div class="l">Memory</div>
+                <div class="v" id="specMemory">{{cluster_info.1.node_info.1.node_provision_config.memory}} <span class="unit">GB</span></div>
+              </div>
+              <div class="spec-cell">
+                <div class="l">Storage</div>
+                <div class="v" id="specStorage">{{cluster_info.1.node_info.1.node_provision_config.storage}} <span class="unit">GB SSD</span></div>
+              </div>
+              <div class="spec-cell">
+                <div class="l">GPU</div>
+                <div class="v" id="specGpu">—</div>
+              </div>
+              <div class="spec-cell">
+                <div class="l">OS</div>
+                <div class="v" id="specOs">{{cluster_info.1.node_info.1.node_provision_config.os_variant}}</div>
+              </div>
+              <div class="spec-cell">
+                <div class="l">Uptime</div>
+                <div class="v">NA <span class="unit">days</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live utilization -->
+          <div class="utilization">
+            <div class="util">
+              <div class="top"><span class="name">CPU</span><span id="cpuVal" class="val">NA</span></div>
+              <div class="bar"><div id="cpuBar" class="fill" style="width:0%"></div></div>
+            </div>
+            <div class="util">
+              <div class="top"><span class="name">CPU Memory</span><span id="memoryVal" class="val">NA</span></div>
+              <div class="bar"><div id="memoryBar" class="fill warn" style="width:0%"></div></div>
+            </div>
+            <div class="util">
+              <div class="top"><span class="name">Storage</span><span id="storageVal" class="val">NA</span></div>
+              <div class="bar"><div id="storageBar" class="fill" style="width:0%"></div></div>
+            </div>
+            <div class="util">
+              <div class="top"><span class="name">GPU</span><span id="gpuVal" class="val">NA</span></div>
+              <div class="bar"><div id="gpuBar" class="fill" style="width:0%"></div></div>
+            </div>
+            <div class="util">
+              <div class="top"><span class="name">GPU Memory</span><span id="gpuMemoryVal" class="val">NA</span></div>
+              <div class="bar"><div id="gpuMemoryBar" class="fill" style="width:0%"></div></div>
+            </div>
+          </div>
+
+
+          <!-- Services section — the centerpiece -->
+          <div class="services-section">
+            <div class="services-head">
+              <h3>Services <span class="ct">{{cluster_info.1.node_info.1.service_info|length}} running</span></h3>
+              <div class="actions">
+                <div style="font-size:11px; color:var(--ink-4); margin-right:8px;">Drag from catalog or</div>
+                <button class="btn btn-primary btn-sm" id="catalogBtn">
+                  <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                  Add service
+                </button>
+              </div>
+            </div>
+            <div class="service-stack" id="serviceStack">
+              {% if cluster_info.1.node_info.1.service_info %}
+              {% for index, service in cluster_info.1.node_info.1.service_info.items %}
+                <div class="svc-card svc-tile running"
+                     onclick="window.openServiceOverviewDrawer && window.openServiceOverviewDrawer(this);"
+                     data-svc-id="{{service.service_id|default:service.service_name}}"
+                     data-svc-name="{{service.service_name}}"
+                     data-svc-type="{{service.service_type}}"
+                     data-svc-version="{{service.service_version}}"
+                     data-svc-port="{{service.service_port}}"
+                     data-svc-install="{{service.service_install}}"
+                     data-svc-status="{{service.deploy_status}}"
+                     data-svc-config="{{service.service_config|default_if_none:''|escapejs}}">
+                <div class="{% if service.service_config.service_display_name|slice:':5' == 'Infra' %}ico{% else %}ico-infra{% endif %}">{% if service.service_config.service_category == "Infrastructure" and service.service_config.service_display_name %}{{service.service_config.service_display_name|slice:":1"}}{% else %}{{service.service_type.0}}{% endif %}</div>
+                <div class="svc-info">
+                  <div class="nm">{% if service.service_config.service_category == "Infrastructure" %}{{service.service_config.service_display_name|default:service.service_name}}{% else %}{{service.service_name}}{% endif %}</div>
+                  <div class="meta">v{{service.service_version}} · installed  <span class="v">42d ago</span> · {{service.service_install}} <span class="v">{{service.service_type}}</span></div>
+                  {% if service.service_config.infra_mode == "adopted" %}
+                    <div class="meta">{{ service.service_config.runtime.adoption_status|default:"adopted" }} · {{service.service_config.container_name}}</div>
+                  {% endif %}
+                  {% if service.service_config.runtime.validation_error %}
+                    <div class="meta">{{ service.service_config.runtime.validation_error }}</div>
+                  {% endif %}
+                </div>
+                <div class="svc-ports">
+                  <span class="port">
+                    {% if service.service_config.service_category == "Infrastructure" %}
+                      {% if service.service_config.expose_service and service.service_config.host_port %}
+                        :{{ service.service_config.host_port }}
+                      {% else %}
+                        internal
+                      {% endif %}
+                    {% else %}
+                      :{{service.service_port}}
+                    {% endif %}
+                  </span>
+                </div>
+                <div class="svc-status">
+                  <span class="pill {% if service.deploy_status == 'DEPLOYED' %}pill-ok{% else %}pill-warn{% endif %}">{{service.deploy_status}}</span>
+                  <div class="uptime">
+                    {% if service.service_config.service_category == "Infrastructure" %}
+                      {% if service.service_config.expose_service and service.service_config.host_port %}
+                        host port {{ service.service_config.host_port }}
+                      {% else %}
+                        no host port
+                      {% endif %}
+                    {% else %}
+                      up 42d
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="svc-acts">
+                  <button data-action="deploy-service" title="Restart"><svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M1 4v6h6M23 20v-6h-6M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg></button>
+                  <button data-action="service-config-manager" title="Config Manager" onclick="event.stopPropagation(); window.openConfigManagerForService && window.openConfigManagerForService(this.closest('.svc-card'));"><svg class="ic ic-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51"/></svg></button>
+                  <button data-action="delete-service" title="Uninstall"><svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m1 0v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6h12z"/></svg></button>
+                  <button data-action="edit-service" class="svc-edit-btn"
+                          title="Edit service"
+                          onclick="event.stopPropagation(); window.editService && window.editService(this.closest('.svc-card'));">
+                    <svg class="ic ic-sm" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                </div>
+              </div>
+              {% endfor %}
+              {% else %}
+                <div class="empty-services">
+                  No services installed on this node
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- CLUSTER DETAIL DRAWER -->
+<div class="drawer-backdrop" id="infoDetailBack"></div>
+<aside class="drawer wide detail-drawer" id="infoDetailDrawer">
+  <div class="drawer-head">
+    <h2 id="detailTitle">Details</h2>
+    <button class="icon-btn" id="detailCloseIcon" type="button"><svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="drawer-subhead">
+    <span class="pill pill-ok" id="detailStatus">Unknown</span>
+    <span class="id" id="detailMeta">Select a node or service</span>
+  </div>
+  <div class="drawer-tabs" id="detailTabs">
+    <button type="button" class="tab active" data-detail-tab="overview">Overview</button>
+    <button type="button" class="tab" data-detail-tab="events">Events</button>
+    <button type="button" class="tab" data-detail-tab="live-status" id="detailLiveStatusTab">Live Status</button>
+  </div>
+
+  <div class="detail-pane active" data-detail-pane="overview">
+    <div class="detail-summary" id="detailSummary"></div>
+    <h3 class="section-head-sm">Overview</h3>
+    <dl class="detail-grid" id="detailOverviewGrid"></dl>
+    <div id="detailOverviewExtra"></div>
+    <div id="runtimePatchStatusText" style="margin-top: 12px; font-size: 12px; padding: 8px 12px; border-radius: 6px; background: var(--bg-sunken); border: 1px solid var(--border); display: none;"></div>
+  </div>
+
+  <div class="detail-pane" data-detail-pane="events">
+    <div class="detail-list-head">
+      <h3 class="section-head-sm">Recent events</h3>
+      <span class="detail-small" id="detailEventsStatus">Not loaded</span>
+    </div>
+    <div class="drawer-events-card detail-events-shell">
+      <div id="detailEventsPanel" class="drawer-events-panel">
+        Select an item to load events.
+      </div>
+    </div>
+  </div>
+
+  <div class="detail-pane" data-detail-pane="live-status">
+    <div class="detail-list-head">
+      <h3 class="section-head-sm">Runtime summary</h3>
+      <div class="detail-live-actions">
+        <span class="detail-small" id="detailLiveStatusCheckedAt">Not loaded</span>
+        <button class="btn btn-secondary btn-sm" id="detailLiveStatusRefreshBtn" type="button">Refresh</button>
+      </div>
+    </div>
+    <div class="detail-summary detail-summary-tight" id="detailLiveStatusSummary"></div>
+    <h3 class="section-head-sm">Main container</h3>
+    <dl class="detail-grid" id="detailLiveStatusGrid"></dl>
+    <h3 class="section-head-sm">Dependencies</h3>
+    <div class="detail-table-wrap">
+      <table class="detail-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Target</th>
+            <th>Source</th>
+            <th>State</th>
+            <th>Running since</th>
+            <th>Up for</th>
+            <th>Restart count</th>
+          </tr>
+        </thead>
+        <tbody id="detailDependenciesBody">
+          <tr><td colspan="7">Select a service to load runtime status.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="drawer-foot">
+    <button class="btn btn-danger" id="detailDeleteBtn" type="button">Delete</button>
+    <button class="btn btn-secondary" id="detailCloseBtn" type="button">Close</button>
+    <button class="btn btn-secondary" id="detailLaunchBtn" type="button" style="display:none;">Launch</button>
+    <button class="btn btn-primary" id="btnRuntimePatchFooter" type="button" style="display:none;" onclick="runServiceRuntimePatch()">Patch Observability Runtime</button>
+    <button class="btn btn-primary" id="detailEditBtn" type="button">Edit</button>
+  </div>
+</aside>
+
+<!-- SERVICE CATALOG DRAWER -->
+<div class="catalog-drawer" id="catalogDrawer">
+  <div class="catalog-head">
+    <div>
+      <h2>Service catalog</h2>
+      <div class="sub">Drag any service onto a node to install via Ansible</div>
+    </div>
+    <button class="icon-btn" onclick="toggleCatalog(false)"><svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="catalog-search">
+    <svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input type="text" placeholder="Search services…" id="catalogSearch">
+  </div>
+  <div class="catalog-categories">
+    <div class="cat-chip active" data-cat="all">All</div>
+    <div class="cat-chip" data-cat="db">Databases</div>
+    <div class="cat-chip" data-cat="cache">Cache</div>
+    <div class="cat-chip" data-cat="stream">Streaming</div>
+    <div class="cat-chip" data-cat="storage">Storage</div>
+    <div class="cat-chip" data-cat="proxy">Proxy</div>
+    <div class="cat-chip" data-cat="monitor">Monitoring</div>
+    <div class="cat-chip" data-cat="logs">Logging</div>
+    <div class="cat-chip" data-cat="ml">ML runtime</div>
+  </div>
+  <div class="catalog-list" id="catalogList">
+  {% with schema=service_schema.ServiceConfig.row_Schema %}
+
+    {% for field in schema %}
+
+      {% if field.f_name == "service_name" %}
+
+        {% for service_name in field.b_name %}
+          {% if service_name|slice:':5' != 'Infra' %}
+
+          <div
+            class="catalog-item"
+            draggable="true"
+            data-svc="{{ service_name|lower }}"
+            data-service-type="{{ service_name }}"
+            data-display-name="{{ service_name }}"
+            data-cat="{% if service_name == 'RAG' or service_name == 'Text2SQL' or service_name == 'Text2CLK' %}ml{% elif service_name == 'Airflow' %}stream{% elif service_name == 'AIOrchestrator' %}proxy{% elif service_name == 'MCPServer' or service_name == 'McpProxy' %}proxy{% elif service_name == 'DataJam' or service_name == 'ProxyDataJam' %}logs{% elif service_name == 'ANS' %}monitor{% else %}service{% endif %}"
+          >
+
+            <div class="{% if service_name|slice:':5' == 'Infra' %}ico{% else %}ico-infra{% endif %}">
+                {{ service_name|cut:"Infra"|slice:":1" }}
+            </div>
+
+            <div class="info">
+
+              <div class="nm">
+                {{ service_name|cut:"Infra" }}
+              </div>
+
+              <div class="desc">
+
+                {% for version_field in schema %}
+
+                  {% if version_field.f_name == "service_version" and service_name in version_field.b_name %}
+
+                    Available versions:
+                    {{ version_field.v_options|join:", " }}
+
+                  {% endif %}
+
+                {% endfor %}
+
+              </div>
+
+              <div class="tags">
+
+                <span class="tag">
+                    {% if service_name|slice:':5' == 'Infra' %}
+                        3rd Party
+                    {% else %}
+                        service
+                    {% endif %}
+                </span>
+
+                {% if service_name|slice:':5' == 'Infra' %}
+                    {% for infra in infra_service_version %}
+                        {% if infra.service_name == service_name %}
+                            <span class="tag">
+                                v{{ infra.version }}
+                            </span>
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    {% for version_field in schema %}
+                        {% if version_field.f_name == "service_version" and service_name in version_field.b_name %}
+                            <span class="tag">
+                                v{{ version_field.v_default }}
+                            </span>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+
+                {% for gpu_field in schema %}
+
+                  {% if gpu_field.f_name == "gpu_flag" and service_name in gpu_field.b_name %}
+
+                    <span class="tag">
+                      gpu
+                    </span>
+
+                  {% endif %}
+
+                {% endfor %}
+
+              </div>
+
+            </div>
+
+            <div class="drag-h">
+              ⋮⋮
+            </div>
+
+          </div>
+
+          {% endif %}
+
+        {% endfor %}
+
+      {% endif %}
+
+    {% endfor %}
+
+    {% for infra in infra_service_catalog %}
+      <div
+        class="catalog-item"
+        draggable="true"
+        data-svc="{{ infra.service_type|lower }}"
+        data-service-type="{{ infra.service_type }}"
+        data-display-name="{{ infra.display_name }}"
+        data-cat="{{ infra.category }}"
+        data-infra="true"
+        data-version="{{ infra.version }}"
+        data-display-version="{{ infra.display_version }}"
+        data-internal-port="{{ infra.internal_port }}"
+        data-source-role="{{ infra.source_role }}"
+        data-container-slug="{{ infra.container_slug }}"
+        data-default-expose="{{ infra.default_expose_service|yesno:'true,false' }}"
+        data-default-host-port="{{ infra.default_host_port }}"
+        data-container-ip="{{ infra.container_ip }}"
+        data-network-name="{{ infra.network_name }}"
+        data-network-subnet="{{ infra.network_subnet }}"
+      >
+
+        <div class="ico">
+          {{ infra.display_name|slice:":1" }}
+        </div>
+
+        <div class="info">
+
+          <div class="nm">
+            {{ infra.display_name }}
+          </div>
+
+          <div class="desc">
+            Available versions:
+            {{ infra.version }}
+          </div>
+
+          <div class="tags">
+            <span class="tag">
+              3rd Party
+            </span>
+            <span class="tag">
+              v{{ infra.display_version }}
+            </span>
+          </div>
+
+        </div>
+
+        <div class="drag-h">
+          ⋮⋮
+        </div>
+
+      </div>
+    {% endfor %}
+
+  {% endwith %}
+
+
+
+</div>
+  <div class="catalog-foot">
+    Drag onto a node, or click to install on the currently selected node.
+  </div>
+</div>
+
+<!-- ACTION BLOCKER MODAL -->
+<div class="action-modal-backdrop" id="actionBlockerBack"></div>
+<section class="action-modal" id="actionBlockerModal" role="dialog" aria-modal="true" aria-labelledby="actionBlockerTitle">
+  <div class="action-modal-head">
+    <div>
+      <div class="action-modal-eyebrow" id="actionBlockerEyebrow">Action required</div>
+      <h2 id="actionBlockerTitle">Action blocked</h2>
+    </div>
+    <button class="icon-btn" id="actionBlockerCloseIcon" type="button" aria-label="Close">
+      <svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <p class="action-modal-message" id="actionBlockerMessage"></p>
+  <div class="action-modal-list" id="actionBlockerList"></div>
+  <div class="action-modal-foot">
+    <button class="btn btn-secondary" id="actionBlockerSecondary" type="button">Open catalog</button>
+    <button class="btn btn-primary" id="actionBlockerPrimary" type="button">Continue</button>
+  </div>
+</section>
+
+<!-- NEW NODE PROVISIONING DRAWER -->
+<div class="drawer-backdrop" id="newNodeBack"></div>
+<aside class="drawer" id="newNodeDrawer">
+  <div class="drawer-head">
+    <h2 id="nodeDrawerTitle">Provision new node <span class="edit-badge" id="nodeEditBadge" style="display:none;">EDIT</span></h2>
+    <button class="icon-btn" onclick="closeNodeDrawer()"><svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="drawer-tabs" id="nodeDrawerTabs" style="display:none;">
+    <button type="button" class="drawer-tab active" data-node-drawer-tab="edit">Node Details</button>
+    <button type="button" class="drawer-tab" data-node-drawer-tab="events">Events</button>
+  </div>
+  <div class="drawer-tab-view active" id="nodeDrawerEditView">
+  <div class="stepper">
+    <div class="step active" data-step="1"><span class="n">1</span> Cloud</div>
+    <div class="step" data-step="2"><span class="n">2</span> Hardware</div>
+    <div class="step" data-step="3"><span class="n">3</span> Config</div>
+    <div class="step" data-step="4"><span class="n">4</span> Network</div>
+    <div class="step" data-step="5"><span class="n">5</span> Firewall</div>
+    <div class="step" data-step="6"><span class="n">6</span> Review</div>
+  </div>
+  <div class="drawer-body">
+
+    <!-- STEP 1: Cloud -->
+    <div class="step-pane active" data-step-content="1">
+      <div class="field">
+        <label>Node name</label>
+        <input class="input" id="nd-name" placeholder="e.g. node-13" value="node-13">
+        <div class="hint">Must be unique within the cluster. Used in DNS and Ansible inventory.</div>
+      </div>
+
+      <div class="section-head-sm">Provider</div>
+      <div class="cloud-picker">
+        <div class="cloud-card selected" data-cloud="aws">
+          <div class="ico">AWS</div>
+          <div class="nm">Amazon Web Services</div>
+          <div class="desc">EC2 instance via Terraform</div>
+        </div>
+        <div class="cloud-card" data-cloud="gcp">
+          <div class="ico">GCP</div>
+          <div class="nm">Google Cloud</div>
+          <div class="desc">Compute Engine via Terraform</div>
+        </div>
+        <div class="cloud-card" data-cloud="dc">
+          <div class="ico">DC</div>
+          <div class="nm">Data Centre</div>
+          <div class="desc">Bare metal · existing inventory</div>
+        </div>
+      </div>
+
+      <!-- Credentials Section -->
+      <div id="credentials-section">
+          <div class="section-head-sm">Credentials</div>
+          <div class="field">
+            <label>Access key ID</label>
+            <input class="input" id="nd-aws-akid" placeholder="AKIA..." value="AKIA3F8X9C7B2D1A4E5F">
+          </div>
+          <div class="field secret-field" data-secret="nd-aws-secret">
+            <label>Secret access key</label>
+            <div class="secret-stored" style="display:none;">
+              <span class="stored-mask">•••••••••••••• stored in vault</span>
+              <button type="button" class="link-btn replace-secret-btn">Replace</button>
+            </div>
+            <input class="input secret-input" type="password" placeholder="••••••••••••" value="********">
+            <div class="hint">Stored encrypted in vault. Used only for Terraform plan/apply.</div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Region</label>
+              <select class="select"><option>ap-south-1 (Mumbai)</option><option>ap-south-2 (Hyderabad)</option><option>us-east-1 (N. Virginia)</option></select>
+            </div>
+            <div class="field">
+              <label>Availability zone</label>
+              <select class="select"><option>ap-south-1a</option><option>ap-south-1b</option><option>ap-south-1c</option></select>
+            </div>
+          </div>
+      </div>
+    </div>
+
+    <!-- STEP 2: Hardware -->
+    <div class="step-pane" data-step-content="2">
+      <div class="section-head-sm" style="margin-top:0;">Compute</div>
+      <div class="spec-grid">
+        <div class="spec-input">
+          <div class="l">vCPU</div>
+          <div class="row"><input type="number" value="16" min="1" max="128"><span class="unit">cores</span></div>
+        </div>
+        <div class="spec-input">
+          <div class="l">Memory</div>
+          <div class="row"><input type="number" value="128" min="1" max="2048"><span class="unit">GB</span></div>
+        </div>
+      </div>
+
+      <div class="section-head-sm">Storage</div>
+      <div class="spec-grid">
+        <div class="spec-input">
+          <div class="l">Primary SSD</div>
+          <div class="row"><input type="number" value="500" min="20" max="10000"><span class="unit">GB</span></div>
+        </div>
+        <div class="spec-input">
+          <div class="l">Disk type</div>
+          <div class="row" style="margin-top:10px;"><span style="font-family:var(--mono); font-size:13px;">gp3</span></div>
+        </div>
+      </div>
+
+      <div class="section-head-sm">GPU (optional)</div>
+      <div class="field">
+        <label>GPU type</label>
+        <select class="select">
+          <option>None</option>
+          <option>NVIDIA A10G (1x)</option>
+          <option>NVIDIA A100 (1x)</option>
+          <option>NVIDIA A100 (4x)</option>
+          <option>NVIDIA H100 (1x)</option>
+        </select>
+        <div class="hint">Required for Triton inference server and model training workloads.</div>
+      </div>
+
+      <div class="section-head-sm">Operating system</div>
+      <div class="field-row">
+        <div class="field">
+          <label>OS variant</label>
+          <select class="select"><option>Ubuntu 22.04 LTS</option><option>Ubuntu 20.04 LTS</option><option>Amazon Linux 2023</option><option>Rocky Linux 9</option><option>RHEL 8</option></select>
+        </div>
+        <div class="field">
+          <label>Image source</label>
+          <select class="select"><option>Iktara golden AMI</option><option>Cloud default</option></select>
+        </div>
+      </div>
+
+      <div style="background:var(--bg-sunken); padding:var(--s-3); border-radius:var(--r-md); font-size:12px; margin-top:var(--s-4);">
+        <div style="font-family:var(--mono); font-size:11px; color:var(--ink-4); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:4px;">Closest match</div>
+        <div style="display:flex; justify-content:space-between;">
+          <span style="font-family:var(--mono);">r6i.4xlarge</span>
+          <span style="font-family:var(--mono); color:var(--ink-3);">~ $0.84/hr</span>
+        </div>
+      </div>
+    </div>
+
+     <!-- STEP 3: Config -->
+    <div class="step-pane" data-step-content="3">
+
+      <div class="section-head-sm" style="margin-top:0;">
+        Configuration
+      </div>
+
+      <!-- Auth Type -->
+      <div class="field">
+        <label>Auth type</label>
+
+        <select class="select" id="authType">
+          <option value="encryptionKey">EncryptionKey</option>
+          <option value="password">Password</option>
+        </select>
+      </div>
+
+      <!-- Encryption Key Field -->
+      <div class="field secret-field" id="encryptionKeyField" data-secret="nd-encryption-key">
+        <label>Encryption Key</label>
+
+        <div class="secret-stored" style="display:none;">
+          <span class="stored-mask">Encryption key stored in vault</span>
+          <button type="button" class="link-btn replace-secret-btn">Replace</button>
+        </div>
+
+        <textarea
+          class="input secret-input"
+          rows="5"
+          placeholder="Paste encryption key here..."
+        ></textarea>
+
+        <div class="hint">
+          Used for secure node authentication.
+        </div>
+      </div>
+
+      <!-- Password Field -->
+      <div class="field secret-field" id="passwordField" data-secret="nd-password" style="display:none;">
+        <label>Password</label>
+
+        <div class="secret-stored" style="display:none;">
+          <span class="stored-mask">•••••••••••••• stored in vault</span>
+          <button type="button" class="link-btn replace-secret-btn">Replace</button>
+        </div>
+
+        <input
+          type="password"
+          class="input secret-input"
+          placeholder="Enter password"
+        >
+
+        <div class="hint">
+          Password will be stored securely.
+        </div>
+      </div>
+
+      <!-- Username -->
+      <div class="field">
+        <label>Username</label>
+
+        <input
+          type="text"
+          class="input"
+          id="nd-username"
+          placeholder="Enter username"
+        >
+      </div>
+
+      <!-- Node Volume -->
+      <div class="field">
+        <label>Node Volume</label>
+
+        <input
+          type="text"
+          class="input"
+          id="nd-volume"
+          placeholder="e.g. 500GB"
+        >
+
+        <div class="hint">
+          Specify storage volume for the node.
+        </div>
+      </div>
+
+      <!-- Public IP -->
+      <div class="field">
+        <label>IP Address</label>
+
+        <input
+          type="text"
+          class="input"
+          id="nd-ip"
+          placeholder="e.g. 10.2.45.21"
+        >
+
+        <div class="hint">
+          Specify IP address for the node.
+        </div>
+      </div>
+
+    </div>
+
+    <!-- STEP 4: Network -->
+    <div class="step-pane" data-step-content="4">
+      <div class="section-head-sm" style="margin-top:0;">VPC &amp; subnet</div>
+      <div class="field">
+        <label>VPC</label>
+        <select class="select"><option>vpc-iktara-prod (10.0.0.0/16)</option></select>
+      </div>
+      <div class="field">
+        <label>Subnet</label>
+        <select class="select"><option>subnet-private-1a (10.0.1.0/24)</option><option>subnet-private-1b</option></select>
+      </div>
+
+      <div class="section-head-sm">IP assignment</div>
+      <label class="checkbox" style="display:flex; margin-bottom:8px;"><input type="checkbox" checked> Auto-assign private IP from subnet pool</label>
+      <label class="checkbox" style="display:flex; margin-bottom:8px;"><input type="checkbox"> Attach Elastic IP for public access</label>
+
+      <div class="section-head-sm">DNS</div>
+      <div class="field">
+        <label>Cluster DNS name</label>
+        <input class="input" value="node-13.prod-mumbai-1.iktara.internal" readonly>
+        <div class="hint">Auto-generated. Used by other nodes in the cluster for service discovery.</div>
+      </div>
+    </div>
+
+    <!-- STEP 5: Firewall -->
+    <div class="step-pane" data-step-content="5">
+      <div class="section-head-sm" style="margin-top:0;">Inbound ports</div>
+      <p style="font-size:12px; color:var(--ink-3); margin-bottom:var(--s-3);">Open ports for services that will run on this node. Additional ports open automatically when you install a service from the catalog.</p>
+      <div class="port-row" id="portRow">
+
+        <span class="port-chip">
+          22 SSH
+          <span class="x">×</span>
+        </span>
+
+        <span class="port-chip">
+          9100 metrics
+          <span class="x">×</span>
+        </span>
+
+        <button type="button" class="port-add" id="addPortBtn">
+          + Add port
+        </button>
+    </div>
+
+      <div class="section-head-sm">Source CIDR</div>
+      <div class="field">
+        <label>Allow from</label>
+        <select class="select" id="svc-version_old">
+          <option>Cluster only (10.0.0.0/16)</option>
+          <option>Corporate VPN (10.50.0.0/24)</option>
+          <option>Anywhere (0.0.0.0/0)</option>
+        </select>
+        <div class="hint">SSH is always restricted to bastion or VPN, never open to internet.</div>
+      </div>
+
+      <div class="section-head-sm">Outbound</div>
+      <label class="checkbox" style="display:flex; margin-bottom:8px;"><input type="checkbox" checked> Allow all outbound (default)</label>
+      <label class="checkbox" style="display:flex;"><input type="checkbox"> Restrict to corp egress proxy</label>
+    </div>
+
+    <!-- STEP 6: Review -->
+    <div class="step-pane" data-step-content="6">
+
+      <!-- Node -->
+      <div style="background:var(--bg-sunken); padding:var(--s-4); border-radius:var(--r-md); margin-bottom:var(--s-3);">
+
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-4); margin-bottom:8px;">
+          Node
+        </div>
+
+        <div style="display:flex; justify-content:space-between; padding:3px 0; font-size:13px;">
+          <span style="color:var(--ink-3);">Name</span>
+          <span style="font-family:var(--mono);" id="rvNodeName">node-13</span>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; padding:3px 0; font-size:13px;">
+          <span style="color:var(--ink-3);">Cluster</span>
+          <span style="font-family:var(--mono);">prod-mumbai-1</span>
+        </div>
+
+      </div>
+
+      <!-- Cloud -->
+      <div style="background:var(--bg-sunken); padding:var(--s-4); border-radius:var(--r-md); margin-bottom:var(--s-3);">
+
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-4); margin-bottom:8px;">
+          Cloud & hardware
+        </div>
+
+        <div style="display:flex; justify-content:space-between; padding:3px 0; font-size:13px;">
+          <span style="color:var(--ink-3);">Provider</span>
+          <span style="font-family:var(--mono);" id="rvProviderAz">AWS · ap-south-1a</span>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; padding:3px 0; font-size:13px;">
+          <span style="color:var(--ink-3);">Instance</span>
+          <span style="font-family:var(--mono);" id="rvInstance">r6i.4xlarge · 16 vCPU · 128 GB</span>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; padding:3px 0; font-size:13px;">
+          <span style="color:var(--ink-3);">Storage</span>
+          <span style="font-family:var(--mono);" id="rvStorage">500 GB gp3 SSD</span>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; padding:3px 0; font-size:13px;">
+          <span style="color:var(--ink-3);">GPU</span>
+          <span style="font-family:var(--mono);" id="rvGpu">none</span>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; padding:3px 0; font-size:13px;">
+          <span style="color:var(--ink-3);">OS</span>
+          <span style="font-family:var(--mono);" id="rvOs">Ubuntu 22.04 LTS</span>
+        </div>
+
+      </div>
+
+      <!-- Authentication -->
+      <div style="background:var(--bg-sunken); padding:var(--s-4); border-radius:var(--r-md); margin-bottom:var(--s-3);">
+
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-4); margin-bottom:8px;">
+          Authentication
+        </div>
+
+        <div style="display:flex; justify-content:space-between; padding:3px 0; font-size:13px;">
+          <span style="color:var(--ink-3);">Auth Type</span>
+          <span style="font-family:var(--mono);" id="rvAuthType">
+            EncryptionKey
+          </span>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; padding:3px 0; font-size:13px;">
+          <span style="color:var(--ink-3);">Username</span>
+          <span style="font-family:var(--mono);" id="rvUsername">
+            admin
+          </span>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; padding:3px 0; font-size:13px;">
+          <span style="color:var(--ink-3);">Node Volume</span>
+          <span style="font-family:var(--mono);" id="rvNodeVolume">
+            500GB
+          </span>
+        </div>
+
+      </div>
+
+      <!-- Network -->
+      <div style="background:var(--bg-sunken); padding:var(--s-4); border-radius:var(--r-md); margin-bottom:var(--s-3);">
+
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-4); margin-bottom:8px;">
+          Network & firewall
+        </div>
+        <!-- VPC / Subnet -->
+      <div style="display:flex; justify-content:space-between; padding:3px 0; font-size:13px;">
+        <span style="color:var(--ink-3);">VPC / subnet</span>
+
+        <span style="font-family:var(--mono);" id="rvVpcSubnet">
+          vpc-iktara-prod / subnet-private-1a
+        </span>
+      </div>
+
+      <!-- DNS -->
+      <div style="display:flex; justify-content:space-between; padding:3px 0; font-size:13px;">
+        <span style="color:var(--ink-3);">DNS</span>
+
+        <span
+          style="font-family:var(--mono); font-size:11px;"
+          id="rvDns"
+        >
+          node-13.prod-mumbai-1.iktara.internal
+        </span>
+      </div>
+
+        <div style="display:flex; justify-content:space-between; padding:3px 0; font-size:13px;">
+          <span style="color:var(--ink-3);">Ports</span>
+          <span style="font-family:var(--mono);" id="rvPorts">
+            22, 9100
+          </span>
+        </div>
+
+      </div>
+
+      <!-- Cost -->
+      <div style="background:var(--bg); border:1px solid var(--line-2); padding:var(--s-3) var(--s-4); border-radius:var(--r-md); font-size:12px; color:var(--ink-2);">
+
+        <div style="display:flex; justify-content:space-between; font-weight:500;">
+          <span>Estimated cost</span>
+          <span style="font-family:var(--mono);">
+            ~ ₹50/hr · ₹36,000/mo
+          </span>
+        </div>
+
+        <div style="font-size:11px; color:var(--ink-4); margin-top:4px;">
+          On-demand pricing. Reserved instances are 30-60% cheaper if this node will run long-term.
+        </div>
+
+      </div>
+
+      <p style="font-size:11px; color:var(--ink-4); margin-top:var(--s-4); line-height:1.5;">
+
+        Pressing "Provision" runs
+
+        <code style="font-family:var(--mono); background:var(--bg-sunken); padding:1px 4px; border-radius:3px;">
+          terraform apply
+        </code>
+
+        for this node.
+
+      </p>
+    </div>
+  </div>
+
+  <div class="drawer-foot">
+    <button class="btn btn-ghost" onclick="closeNodeDrawer()">Cancel</button>
+    <button class="btn btn-secondary" id="prevNodeStep" style="display:none;">← Back</button>
+    <button class="btn btn-primary" id="nextNodeStep">Continue →</button>
+    <button class="btn btn-primary" id="saveNodeChanges" style="display:none;">
+      <svg class="ic" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+      Save changes
+    </button>
+    <button class="btn btn-primary" id="provisionNode" style="display:none;">
+      <svg class="ic" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+      <span class="btn-label">Provision</span>
+    </button>
+    <button class="btn btn-primary" id="nodeSaveBtn" style="display:none;">
+      <svg class="ic" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      Save changes
+    </button>
+  </div>
+  </div>
+  <div class="drawer-tab-view" id="nodeDrawerEventsView">
+    <div class="drawer-events-card">
+      <div class="drawer-events-head">
+        <h3>Node Events</h3>
+        <span id="nodeEventsStatus">Not loaded</span>
+      </div>
+      <div id="nodeEventsPanel" class="drawer-events-panel">
+        Select a node to load events.
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- SERVICE CONFIG DRAWER -->
+<div class="drawer-backdrop" id="svcConfigBack"></div>
+
+<aside class="svc-config-drawer" id="svcConfigDrawer">
+
+  <!-- HEADER -->
+  <div class="drawer-head">
+
+    <h2 id="svcDrawerTitle">Configure service <span class="edit-badge" id="svcEditBadge" style="display:none;">EDIT</span></h2>
+
+    <button
+      class="icon-btn"
+      onclick="closeSvcConfig()"
+    >
+      <svg class="ic" viewBox="0 0 24 24">
+        <path d="M18 6L6 18M6 6l12 12"/>
+      </svg>
+    </button>
+
+  </div>
+  <div class="drawer-tabs" id="svcDrawerTabs" style="display:none;">
+    <button type="button" class="drawer-tab active" data-svc-drawer-tab="edit">Service Details</button>
+    <button type="button" class="drawer-tab" data-svc-drawer-tab="events">Events</button>
+  </div>
+  <div class="drawer-tab-view active" id="svcDrawerEditView">
+
+
+  <!-- STEPPER -->
+  <div class="stepper">
+
+    <div
+      class="step active"
+      data-svc-step="1"
+    >
+      <span class="n">1</span>
+      Setup
+    </div>
+
+    <div
+      class="step"
+      data-svc-step="2"
+    >
+      <span class="n">2</span>
+      Config
+    </div>
+
+  </div>
+
+
+  <!-- BANNER -->
+  <div class="svc-config-banner">
+
+    <div class="ico" id="cfgIco">
+      P
+    </div>
+
+    <div class="info">
+
+      <div class="nm" id="cfgName">
+        PostgreSQL
+      </div>
+
+      <div class="meta" id="cfgMeta">
+        to be installed on node-01 · ansible role postgresql
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- BODY -->
+  <div class="drawer-body">
+
+    <!-- ===================================== -->
+    <!-- STEP 1 -->
+    <!-- ===================================== -->
+
+    <div
+      class="step-pane active"
+      data-svc-step-content="1"
+    >
+
+      <div
+        class="section-head-sm"
+        style="margin-top:0;"
+      >
+        Identity
+      </div>
+
+      <div class="field">
+
+        <label>
+          Service name
+        </label>
+
+        <input
+          class="input"
+          id="svc-name"
+          placeholder="Leave blank to use auto-generated name"
+          value=""
+        >
+
+        <div class="hint">
+          Used as the service display and runtime name. Must remain unique within the cluster.
+        </div>
+
+      </div>
+
+      <div
+        class="section-head-sm"
+      >
+        Version
+      </div>
+
+      <div class="field">
+
+        <label>
+          Service version
+        </label>
+
+        <select class="select" id="svc-version">
+          <option value="">Select a service</option>
+        </select>
+
+      </div>
+
+
+      <div class="section-head-sm">
+        Configuration
+      </div>
+
+      <div class="field">
+
+        <label>
+          Data directory
+        </label>
+
+        <input
+          class="input"
+          id="svc-data-dir"
+          value=""
+        >
+
+      </div>
+
+
+      <div class="field-row">
+
+        <div class="field">
+
+          <label>
+            Port
+          </label>
+
+          <input
+            class="input"
+            id="svc-port"
+            value=""
+          >
+
+        </div>
+
+        <div class="field">
+
+          <label>
+            Max connections
+          </label>
+
+          <input
+            class="input"
+            id="svc-max-conn"
+            value=""
+          >
+
+        </div>
+
+      </div>
+
+
+      <div class="field">
+
+        <label>
+          Shared buffers
+        </label>
+
+        <input
+          class="input"
+          id="svc-shared-buffers"
+          value=""
+        >
+
+        <div class="hint">
+          Recommended: 25% of node memory
+          (32 GB available).
+        </div>
+
+      </div>
+
+
+      <div class="section-head-sm">
+        Ansible variables
+      </div>
+
+      <div class="field">
+
+        <label>
+          Inventory group
+        </label>
+
+        <select class="select">
+          <option>databases</option>
+          <option>operational</option>
+        </select>
+
+      </div>
+
+
+      <label
+        class="checkbox"
+        style="display:flex; margin-bottom:8px;"
+      >
+
+        <input
+          type="checkbox"
+          checked
+        >
+
+        Run health check after install
+
+      </label>
+
+
+      <label
+        class="checkbox"
+        style="display:flex;"
+      >
+
+        <input
+          type="checkbox"
+          checked
+        >
+
+        Open firewall port automatically
+
+      </label>
+
+
+      <div class="section-head-sm">
+        Dependencies
+      </div>
+
+      <div
+        style="background:var(--bg-sunken); padding:var(--s-3); border-radius:var(--r-md); font-size:12px;"
+      >
+
+        <div
+          style="display:flex; align-items:center; gap:8px;"
+        >
+
+          <svg
+            class="ic"
+            style="color:var(--ok);"
+            viewBox="0 0 24 24"
+          >
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+
+          Node has 16 vCPU, 128 GB RAM
+          — sufficient
+
+        </div>
+
+
+        <div
+          style="display:flex; align-items:center; gap:8px; margin-top:4px;"
+        >
+
+          <svg
+            class="ic"
+            style="color:var(--ok);"
+            viewBox="0 0 24 24"
+          >
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+
+          Port 5432 not in use
+          on this node
+
+        </div>
+
+
+        <div
+          style="display:flex; align-items:center; gap:8px; margin-top:4px;"
+        >
+
+          <svg
+            class="ic"
+            style="color:var(--info);"
+            viewBox="0 0 24 24"
+          >
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 16v-4M12 8h.01"/>
+          </svg>
+
+          No conflicting services running
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- ===================================== -->
+<!-- STEP 2 -->
+<!-- ===================================== -->
+
+<div
+  class="step-pane"
+  data-svc-step-content="2"
+>
+
+  <div
+    class="section-head-sm"
+    style="margin-top:0;"
+  >
+    Service config
+  </div>
+
+  <div id="dynamicSvcConfigFields">
+
+    {% with schema=service_schema.ServiceConfig.row_Schema %}
+
+      {% for service_name in schema.0.b_name %}
+        <div
+          class="svc-schema-group"
+          data-service-schema="{{ service_name }}"
+          style="display:none;"
+        >
+
+          {% for field in schema %}
+            {% if field.f_name != "service_name" %}
+
+              {% if service_name in field.b_name|join:"," %}
+
+                <div class="field" data-service-field="{{ field.f_name }}">
+
+                  <label>
+                    {{ field.f_display_name }}
+                  </label>
+
+                  <!-- TEXT -->
+                  {% if field.f_type == "text" %}
+
+                    <input
+                      type="text"
+                      class="input"
+                      name="{{ field.f_name }}"
+                      value="{{ field.v_default }}"
+                    >
+
+                  <!-- PASSWORD -->
+                  {% elif field.f_type == "password" %}
+
+                    <input
+                      type="password"
+                      class="input"
+                      name="{{ field.f_name }}"
+                      value="{{ field.v_default }}"
+                    >
+
+                  <!-- NUMBER -->
+                  {% elif field.f_type == "number" %}
+
+                    <input
+                      type="number"
+                      class="input"
+                      name="{{ field.f_name }}"
+                      value="{{ field.v_default }}"
+                    >
+
+                  <!-- SELECT -->
+                  {% elif field.f_type == "single_select" %}
+
+                    <select
+                      class="select"
+                      name="{{ field.f_name }}"
+                    >
+
+                      {% for option in field.v_options %}
+
+                        {% if option == field.v_default %}
+                            <option value="{{ option }}" selected>{{ option }}</option>
+                        {% else %}
+                            <option value="{{ option }}">{{ option }}</option>
+                        {% endif %}
+
+                      {% endfor %}
+
+                    </select>
+
+                  <!-- DATE -->
+                  {% elif field.f_type == "date" %}
+
+                    <input
+                      type="date"
+                      class="input"
+                      name="{{ field.f_name }}"
+                      value="{{ field.v_default|default_if_none:'' }}"
+                    >
+
+                  {% endif %}
+
+                </div>
+
+              {% endif %}
+
+            {% endif %}
+
+          {% endfor %}
+            {% if service_name|slice:':5' == 'Infra' %}
+                <div class="field-checkbox">
+                    <label>Expose Service</label>
+
+                    <input
+                        type="checkbox"
+                        name="expose_service"
+                        value="false"
+                    >
+                </div>
+                <div
+                    class="field-row"
+                    data-infra-host-port-row
+                    style="display:none;"
+                >
+                    <div class="field">
+                        <label>Host port</label>
+                        <input
+                            type="number"
+                            class="input"
+                            name="host_port"
+                            min="1"
+                            max="65535"
+                            placeholder="Required when exposed"
+                        >
+                    </div>
+                </div>
+            {% endif %}
+
+        </div>
+
+      {% endfor %}
+
+    {% endwith %}
+
+
+    <div
+      class="infra-config-fallback"
+      id="svcInfraConfigFallback"
+      style="display:none;"
+    ></div>
+
+  </div>
+
+</div>
+
+  </div>
+
+
+  <!-- FOOTER -->
+  <div class="drawer-foot">
+
+    <button
+      class="btn btn-ghost"
+      onclick="closeSvcConfig()"
+    >
+      Cancel
+    </button>
+
+    <button
+      class="btn btn-secondary"
+      id="prevSvcStep"
+      style="display:none;"
+    >
+      ← Back
+    </button>
+
+    <button
+      class="btn btn-primary"
+      id="nextSvcStep"
+    >
+      Continue →
+    </button>
+
+    <button
+      class="btn btn-primary"
+      id="installSvc"
+      style="display:none;"
+    >
+
+      <svg
+        class="ic"
+        viewBox="0 0 24 24"
+      >
+        <polygon points="5,3 19,12 5,21"/>
+      </svg>
+
+      Install Manual
+
+    </button>
+    <button
+      class="btn btn-primary"
+      id="svcSaveBtn"
+      style="display:none;"
+    >
+      <svg class="ic" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      Save changes
+    </button>
+
+  </div>
+
+  </div>
+  <div class="drawer-tab-view" id="svcDrawerEventsView">
+    <div class="drawer-events-card">
+      <div class="drawer-events-head">
+        <h3>Service Events</h3>
+        <span id="serviceEventsStatus">Not loaded</span>
+      </div>
+      <div id="serviceEventsPanel" class="drawer-events-panel">
+        Select a service to load events.
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <svg class="ic" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+  <span id="toastMsg">Saved</span>
+</div>
+<script>
+  window.clusterConfig = {
+    csrfToken: "{{ csrf_token }}",
+    clusterId: "{{ cluster_info.1.cluster_id }}",
+    clusterName: "{{ cluster_info.1.cluster_name }}"
+  };
+</script>
+<script>
+  (function(){
+    try {
+      var storedTheme = localStorage.getItem('iktara-theme');
+      var preferredTheme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', storedTheme || preferredTheme);
+    } catch (themeErr) {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  })();
+</script>
+<script src="{% static 'javascript/theme.js' %}"></script>
+<script src="{% static 'javascript/clusterDetail.js' %}"></script>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     EDIT NODE + EDIT SERVICE — extension on top of clusterDetail.js
+     ════════════════════════════════════════════════════════════════════
+     Layers edit-mode support onto the existing Provision-node and
+     Configure-service drawers. The base clusterDetail.js still handles
+     Add flows; this block only intercepts Edit triggers. Two globals are
+     exposed:  window.editNode(rowEl)  and  window.editService(cardEl).
+     ════════════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  'use strict';
+  const $  = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+
+  // ── Shared state ──────────────────────────────────────────────────
+  const nodeEdit = { active:false, rowEl:null, nodeId:null };
+  const svcEdit  = { active:false, cardEl:null, svcId:null };
+
+  // ── Toast (degrades gracefully if missing) ────────────────────────
+  function showToast(msg, kind){
+    const t = $('#toast');
+    if(!t){ console.log('[toast]', msg); return; }
+    const m = $('#toastMsg', t);
+    if(m) m.textContent = msg;
+    t.classList.remove('ok','err');
+    if(kind) t.classList.add(kind);
+    t.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => t.classList.remove('show'), 2400);
+  }
+
+  // ── CSRF-aware POST mirroring the rest of the app ────────────────
+  async function sendRequest(payload){
+    const csrf = (window.clusterConfig && window.clusterConfig.csrfToken) || '';
+    try{
+      const r = await fetch(window.location.href, {
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-CSRFToken':csrf},
+        body: JSON.stringify(payload),
+      });
+      return await r.json();
+    }catch(e){
+      console.error(e);
+      return { success:false, error:e.message };
+    }
+  }
+
+  // ── Generic helpers for credential fields ─────────────────────────
+  function maskSecrets(scope){
+    $$('.secret-field', scope).forEach(f => {
+      const inp = f.querySelector('.secret-input');
+      const stored = f.querySelector('.secret-stored');
+      if(stored) stored.style.display = 'flex';
+      if(inp){ inp.style.display = 'none'; inp.value = ''; }
+    });
+  }
+  function unmaskSecrets(scope){
+    $$('.secret-field', scope).forEach(f => {
+      const inp = f.querySelector('.secret-input');
+      const stored = f.querySelector('.secret-stored');
+      if(stored) stored.style.display = 'none';
+      if(inp){ inp.style.display = ''; }
+    });
+  }
+  function collectSecrets(scope){
+    // Only collect secrets the user actually entered (input visible = entered or replaced)
+    const out = {};
+    $$('.secret-field', scope).forEach(f => {
+      const stored = f.querySelector('.secret-stored');
+      const inp = f.querySelector('.secret-input');
+      if(stored && stored.style.display !== 'none') return; // still masked → skip
+      if(inp && inp.value) out[f.dataset.secret] = inp.value;
+    });
+    return out;
+  }
+  // Wire Replace buttons (idempotent)
+  function wireReplaceButtons(scope){
+    $$('.replace-secret-btn', scope).forEach(btn => {
+      if(btn.dataset.wired) return;
+      btn.dataset.wired = '1';
+      btn.addEventListener('click', () => {
+        const wrap = btn.closest('.secret-field');
+        const inp = wrap.querySelector('.secret-input');
+        const stored = wrap.querySelector('.secret-stored');
+        stored.style.display = 'none';
+        inp.style.display = '';
+        inp.value = '';
+        inp.focus();
+      });
+    });
+  }
+  wireReplaceButtons(document);
+
+  // ── Stepper helpers (work for both drawers, generic data-step attrs) ──
+  function gotoStep(drawer, stepAttr, contentAttr, n){
+    $$('.stepper .step[' + stepAttr + ']', drawer).forEach(s => {
+      const sn = parseInt(s.getAttribute(stepAttr), 10);
+      s.classList.toggle('active', sn === n);
+      s.classList.toggle('done', sn < n);
+    });
+    $$('.step-pane[' + contentAttr + ']', drawer).forEach(p => {
+      p.classList.toggle('active', parseInt(p.getAttribute(contentAttr), 10) === n);
+    });
+  }
+
+  function setDrawerTab(prefix, tabName){
+    const editView = document.getElementById(prefix + 'DrawerEditView');
+    const eventsView = document.getElementById(prefix + 'DrawerEventsView');
+    const isEvents = tabName === 'events';
+    if(editView) editView.classList.toggle('active', !isEvents);
+    if(eventsView) eventsView.classList.toggle('active', isEvents);
+    $$('[data-' + prefix.toLowerCase() + '-drawer-tab]').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-' + prefix.toLowerCase() + '-drawer-tab') === tabName);
+    });
+  }
+
+  window.resetNodeDrawerTabs = function(){
+    setDrawerTab('node', 'edit');
+  };
+
+  window.resetSvcDrawerTabs = function(){
+    setDrawerTab('svc', 'edit');
+  };
+
+  function renderDrawerEvents(panelId, statusId, list, emptyMsg){
+    const panel = document.getElementById(panelId);
+    const status = document.getElementById(statusId);
+    if(!panel || !status) return;
+    if(!Array.isArray(list) || !list.length){
+      panel.innerHTML = '<div style=\"color:var(--ink-4);\">' + (emptyMsg || 'No events') + '</div>';
+      status.textContent = '0 events';
+      return;
+    }
+    panel.innerHTML = list.slice(0, 20).map(ev => {
+      const rawMsg = ev.event_msg || ev.message || ev.msg || ev.Event_Msg || '';
+      const title = ev.event_title || ev.event_type || ev.title || ev.event_trigger || ev.Event_Trigger || 'Event';
+      const date = ev.create_date || ev.event_date || ev.date || ev.Event_Date || '';
+      const time = ev.create_time || ev.event_time || ev.time || ev.Event_Time || '';
+      const when = (date || time) ? ' <span style=\"color:var(--ink-4);\">(' + String(date || '') + ' ' + String(time || '') + ')</span>' : '';
+      return '<div style=\"padding:8px 0; border-bottom:1px dashed var(--line);\"><strong style=\"color:var(--ink);\">' + title + '</strong><div style=\"margin-top:3px;\">' + rawMsg + when + '</div></div>';
+    }).join('');
+    status.textContent = list.length + ' events';
+  }
+
+  async function loadNodeEventsIntoDrawer(nodeId){
+    if(!nodeId) return;
+    const res = await sendRequest({
+      'user-action': 'node_event',
+      'node_id': nodeId,
+    });
+    renderDrawerEvents('nodeEventsPanel', 'nodeEventsStatus', res.node_event_info || [], (res && (res.msg || res.message)) || 'No node events');
+  }
+
+  async function loadServiceEventsIntoDrawer(serviceId){
+    if(!serviceId) return;
+    const res = await sendRequest({
+      'user-action': 'service_event',
+      'service_id': serviceId,
+    });
+    renderDrawerEvents('serviceEventsPanel', 'serviceEventsStatus', res.service_event_info || [], (res && (res.msg || res.message)) || 'No service events');
+  }
+
+  // ── Open / close drawers (use the same .open class pattern as CSS) ─
+  function openNodeDrawer(){
+    $('#newNodeBack')?.classList.add('open');
+    $('#newNodeDrawer')?.classList.add('open');
+  }
+  function closeNodeDrawerEdit(){
+    $('#newNodeBack')?.classList.remove('open');
+    $('#newNodeDrawer')?.classList.remove('open');
+    setDrawerTab('node', 'edit');
+  }
+  function openSvcDrawer(){
+    $('#svcConfigBack')?.classList.add('open');
+    $('#svcConfigDrawer')?.classList.add('open');
+  }
+  function closeSvcDrawerEdit(){
+    $('#svcConfigBack')?.classList.remove('open');
+    $('#svcConfigDrawer')?.classList.remove('open');
+    setDrawerTab('svc', 'edit');
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // EDIT NODE
+  // ════════════════════════════════════════════════════════════════════
+
+  /**
+   * Apply Edit-mode chrome to the node drawer: title text, EDIT badge,
+   * swap Provision button for Save button.
+   * In Add mode, restore Provision label/visibility.
+   */
+  function applyNodeMode(mode){
+    nodeEdit.active = (mode === 'edit');
+    const isEdit = nodeEdit.active;
+    const tabs = $('#nodeDrawerTabs');
+    if(tabs) tabs.style.display = 'none';
+    if(!isEdit) setDrawerTab('node', 'edit');
+
+    // Title leading text + badge
+    const title = $('#nodeDrawerTitle');
+    if(title){
+      const firstNode = title.firstChild;
+      if(firstNode && firstNode.nodeType === 3){
+        firstNode.nodeValue = isEdit ? 'Edit node ' : 'Provision new node ';
+      }
+    }
+    const badge = $('#nodeEditBadge');
+    if(badge) badge.style.display = isEdit ? 'inline-block' : 'none';
+
+    // Lock node name in edit mode (immutable: used in DNS + Ansible inventory)
+    const nm = $('#nd-name');
+    if(nm) nm.disabled = isEdit;
+
+    // Toggle the Provision vs Save buttons. They live at the final step
+    // (step 6 for node drawer) so the existing setStep() logic in
+    // clusterDetail.js still shows/hides Provision based on the step.
+    // We override that here whenever we're in edit mode.
+    if(isEdit){
+      const prov = $('#provisionNode');
+      if(prov) prov.style.display = 'none';
+      // Save button visibility now mirrors what Provision used to do
+      observeNodeStep();
+    } else {
+      const save = $('#nodeSaveBtn');
+      if(save) save.style.display = 'none';
+      stopObserveNodeStep();
+      // Re-allow the base setStep logic to control Provision visibility on
+      // the final step. Show it now if we're already on step 6, otherwise
+      // clear our inline override so the base CSS/JS can take over.
+      const prov = $('#provisionNode');
+      if(prov){
+        const finalPane = $('#newNodeDrawer .step-pane[data-step-content="6"]');
+        const onFinal = finalPane && finalPane.classList.contains('active');
+        prov.style.display = onFinal ? '' : 'none';
+      }
+    }
+  }
+
+  // The base clusterDetail.js shows #provisionNode at step 6 and hides it
+  // otherwise. We can't easily hook into that logic without seeing the
+  // source, so we observe step changes via a MutationObserver and mirror
+  // the Save button's visibility from the step-pane state.
+  let nodeStepObserver = null;
+  function observeNodeStep(){
+    const drawer = $('#newNodeDrawer');
+    if(!drawer) return;
+    syncNodeSaveButton();
+    nodeStepObserver = new MutationObserver(syncNodeSaveButton);
+    drawer.querySelectorAll('.step-pane[data-step-content]').forEach(p => {
+      nodeStepObserver.observe(p, { attributes:true, attributeFilter:['class'] });
+    });
+  }
+  function stopObserveNodeStep(){
+    if(nodeStepObserver){ nodeStepObserver.disconnect(); nodeStepObserver = null; }
+  }
+  function syncNodeSaveButton(){
+    if(!nodeEdit.active) return;
+    const finalPane = $('#newNodeDrawer .step-pane[data-step-content="6"]');
+    const onFinal = finalPane && finalPane.classList.contains('active');
+    const save = $('#nodeSaveBtn');
+    const prov = $('#provisionNode');
+    if(save) save.style.display = onFinal ? '' : 'none';
+    if(prov) prov.style.display = 'none';
+  }
+
+  /**
+   * Pre-populate node drawer fields from a .node-row's data attributes.
+   * Falls back gracefully if data-node-info is missing or unparseable.
+   */
+  function populateNodeFormFromRow(row){
+    const d = row.dataset;
+    const set = (sel, v) => { const el = $(sel); if(el && v !== undefined && v !== null && v !== '') el.value = v; };
+
+    set('#nd-name', d.nodeName);
+    set('#nd-ip', d.nodeIp || d.ip);
+    set('#nd-volume', (d.storage ? d.storage + (/(GB|TB|MB)/i.test(d.storage) ? '' : ' GB') : ''));
+    set('#nd-username', d.username);
+
+    // The richest source is data-node-info — a JSON blob of the full
+    // provision config. Parse it and overwrite where keys are present.
+    let info = {};
+    if(d.nodeInfo){
+      try {
+        // The Django template renders this with |safe; the value may have
+        // single quotes from Python repr. Normalise before parsing.
+        const raw = d.nodeInfo.replace(/'/g, '"');
+        info = JSON.parse(raw);
+      } catch(e){ /* fine — fall back to individual attrs */ }
+    }
+    if(info && typeof info === 'object'){
+      if(info.region){
+        $$('#newNodeDrawer select').forEach(s => {
+          $$('option', s).forEach(o => { if(o.value === info.region || o.textContent.trim() === info.region) s.value = o.value; });
+        });
+      }
+      if(info.username) set('#nd-username', info.username);
+      if(info.public_ip || info.ip) set('#nd-ip', info.public_ip || info.ip);
+      if(info.node_volume) set('#nd-volume', info.node_volume);
+      // Numeric specs go into step 2 inputs (find by surrounding spec-input label)
+      ['vcpu','memory','storage'].forEach(key => {
+        const val = info[key] || d[key];
+        if(val === undefined) return;
+        $$('#newNodeDrawer .spec-input').forEach(si => {
+          const lbl = si.querySelector('.l');
+          if(!lbl) return;
+          const t = lbl.textContent.trim().toLowerCase();
+          const matches = (key === 'vcpu' && t === 'vcpu')
+                      || (key === 'memory' && t === 'memory')
+                      || (key === 'storage' && /storage|ssd|disk/.test(t));
+          if(matches){
+            const inp = si.querySelector('input[type="number"]');
+            if(inp) inp.value = parseInt(val, 10) || val;
+          }
+        });
+      });
+    }
+
+    // Mask all credential fields — secrets stay in vault unless replaced
+    maskSecrets($('#newNodeDrawer'));
+    wireReplaceButtons($('#newNodeDrawer'));
+  }
+
+  /**
+   * Public: open the node drawer pre-populated for editing.
+   */
+  window.editNode = function(rowEl){
+    if(!rowEl){ return; }
+    nodeEdit.active = true;
+    nodeEdit.rowEl = rowEl;
+    nodeEdit.nodeId = rowEl.dataset.nodeId || null;
+
+    openNodeDrawer();
+    // Reset to step 1
+    gotoStep($('#newNodeDrawer'), 'data-step', 'data-step-content', 1);
+    populateNodeFormFromRow(rowEl);
+    applyNodeMode('edit');
+    setDrawerTab('node', 'edit');
+
+    // Don't autofocus the disabled name field; focus the first editable input
+    setTimeout(() => {
+      const focusable = $('#newNodeDrawer .input:not(:disabled), #newNodeDrawer .select:not(:disabled)');
+      if(focusable) focusable.focus();
+    }, 250);
+  };
+
+  window.openLegacyNodeEventsDrawer = function(rowEl){
+    if(!rowEl){ return; }
+    window.editNode(rowEl);
+    setDrawerTab('node', 'events');
+    loadNodeEventsIntoDrawer(rowEl.dataset.nodeId || nodeEdit.nodeId);
+  };
+
+  // Reset to Add mode whenever the Provision button(s) are clicked.
+  // We use capture-phase so this runs before any other handler can re-open.
+  ['#newNodeBtn', '#newNodeBtn2'].forEach(sel => {
+    const b = $(sel);
+    if(!b) return;
+    b.addEventListener('click', () => {
+      nodeEdit.active = false;
+      nodeEdit.rowEl = null;
+      nodeEdit.nodeId = null;
+      applyNodeMode('add');
+      // Re-enable name input
+      const nm = $('#nd-name'); if(nm) nm.disabled = false;
+      // Unmask + clear secret fields so Add mode shows blank inputs
+      unmaskSecrets($('#newNodeDrawer'));
+    }, true);
+  });
+
+  $$('[data-node-drawer-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tabName = btn.getAttribute('data-node-drawer-tab');
+      setDrawerTab('node', tabName);
+      if(tabName === 'events'){
+        loadNodeEventsIntoDrawer(nodeEdit.nodeId);
+      }
+    });
+  });
+
+  // Save handler for node edit
+  const nodeSaveBtn = $('#nodeSaveBtn');
+  if(nodeSaveBtn){
+    nodeSaveBtn.addEventListener('click', async () => {
+      const row = nodeEdit.rowEl;
+      if(!row){ return; }
+
+      // Resolve spec inputs by label match
+      const findSpec = (matcher) => {
+        const si = $$('#newNodeDrawer .spec-input').find(s => {
+          const l = s.querySelector('.l'); return l && matcher(l.textContent.trim().toLowerCase());
+        });
+        if(!si) return '';
+        const inp = si.querySelector('input[type="number"]');
+        return inp ? inp.value : '';
+      };
+
+      const payload = {
+        'user-action': 'update_node',
+        'node_id': nodeEdit.nodeId,
+        'cluster_id': (window.clusterConfig && window.clusterConfig.clusterId) || null,
+        'node_name': ($('#nd-name')?.value || '').trim(),
+        'username': $('#nd-username')?.value || '',
+        'node_volume': $('#nd-volume')?.value || '',
+        'public_ip': $('#nd-ip')?.value || '',
+        'vcpu': findSpec(t => t === 'vcpu'),
+        'memory': findSpec(t => t === 'memory'),
+        'storage': findSpec(t => /storage|ssd|disk/.test(t)),
+        'ports': $$('#newNodeDrawer .port-chip').map(c => c.textContent.replace('×','').trim()),
+        'credentials': collectSecrets($('#newNodeDrawer')),
+      };
+
+      const response = await sendRequest(payload);
+
+      // Update visible row in place
+      const nm = row.querySelector('.info .nm');
+      if(nm) nm.textContent = payload.node_name;
+
+      // Mirror new state back to data-*
+      row.dataset.nodeName = payload.node_name;
+      // Don't overwrite data-node-info JSON; instead patch the values we know
+      // (subsequent edits will read individual attrs first).
+      row.dataset.vcpu = payload.vcpu;
+      row.dataset.memory = payload.memory;
+      row.dataset.storage = payload.storage;
+
+      // Flash
+      row.classList.remove('just-edited');
+      void row.offsetWidth;
+      row.classList.add('just-edited');
+
+      closeNodeDrawerEdit();
+      if(response && response.success){
+        showToast(`Node "${payload.node_name}" updated`, 'ok');
+      } else {
+        showToast((response && response.message) || 'Failed to save node changes', 'err');
+      }
+    });
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // EDIT SERVICE
+  // ════════════════════════════════════════════════════════════════════
+
+  function applyServiceMode(mode){
+    svcEdit.active = (mode === 'edit');
+    const isEdit = svcEdit.active;
+    const tabs = $('#svcDrawerTabs');
+    if(tabs) tabs.style.display = 'none';
+    if(!isEdit) setDrawerTab('svc', 'edit');
+
+    const title = $('#svcDrawerTitle');
+    if(title){
+      const firstNode = title.firstChild;
+      if(firstNode && firstNode.nodeType === 3){
+        firstNode.nodeValue = isEdit ? 'Edit service ' : 'Configure service ';
+      }
+    }
+    const badge = $('#svcEditBadge');
+    if(badge) badge.style.display = isEdit ? 'inline-block' : 'none';
+
+    // Lock identity fields in edit mode
+    const ver = $('#svc-version');
+    if(ver) ver.disabled = isEdit;
+
+    // Add editing class on the drawer so the banner tints accordingly
+    const drawer = $('#svcConfigDrawer');
+    if(drawer) drawer.classList.toggle('editing', isEdit);
+
+    if(isEdit){
+      const install = $('#installSvc');
+      if(install) install.style.display = 'none';
+      observeSvcStep();
+    } else {
+      const save = $('#svcSaveBtn');
+      if(save) save.style.display = 'none';
+      stopObserveSvcStep();
+      const install = $('#installSvc');
+      if(install){
+        const finalPane = $('#svcConfigDrawer .step-pane[data-svc-step-content="2"]');
+        const onFinal = finalPane && finalPane.classList.contains('active');
+        install.style.display = onFinal ? '' : 'none';
+      }
+    }
+  }
+
+  let svcStepObserver = null;
+  function observeSvcStep(){
+    const drawer = $('#svcConfigDrawer');
+    if(!drawer) return;
+    syncSvcSaveButton();
+    svcStepObserver = new MutationObserver(syncSvcSaveButton);
+    drawer.querySelectorAll('.step-pane[data-svc-step-content]').forEach(p => {
+      svcStepObserver.observe(p, { attributes:true, attributeFilter:['class'] });
+    });
+  }
+  function stopObserveSvcStep(){
+    if(svcStepObserver){ svcStepObserver.disconnect(); svcStepObserver = null; }
+  }
+  function syncSvcSaveButton(){
+    if(!svcEdit.active) return;
+    const finalPane = $('#svcConfigDrawer .step-pane[data-svc-step-content="2"]');
+    const onFinal = finalPane && finalPane.classList.contains('active');
+    const save = $('#svcSaveBtn');
+    const install = $('#installSvc');
+    if(save) save.style.display = onFinal ? '' : 'none';
+    if(install) install.style.display = 'none';
+  }
+
+  /**
+   * Pre-populate service drawer from a .svc-card's data attributes.
+   * The free-form config blob lives in data-svc-config as a JSON object;
+   * keys are mapped to step-2 dynamic fields by [name=...] selector.
+   */
+  function populateServiceFormFromCard(card){
+    const d = card.dataset;
+    const set = (sel, v) => { const el = $(sel); if(el && v !== undefined && v !== null && v !== '') el.value = v; };
+
+    // Banner identity
+    const icoEl = $('#cfgIco');
+    const nmEl  = $('#cfgName');
+    const metaEl = $('#cfgMeta');
+    const firstChar = (d.svcName || '?').charAt(0).toUpperCase();
+    if(icoEl) icoEl.textContent = firstChar;
+    if(nmEl)  nmEl.textContent  = d.svcName || '';
+    if(metaEl){
+      const hostNode = $('.node-row.active .info .nm')?.textContent?.trim() || 'this node';
+      console.log("hostNode", hostNode)
+      console.log("d.svcType", d.svcType)
+      metaEl.textContent = `installed on ${hostNode} · ${d.svcType || ''}`;
+    }
+
+    // Static step-1 fields
+    set('#svc-port', d.svcPort);
+    // Version is a select — try to match by version text
+    const verSel = $('#svc-version');
+    if(verSel && d.svcVersion){
+      const opt = $$('option', verSel).find(o => o.value.includes(d.svcVersion) || o.textContent.includes(d.svcVersion));
+      if(opt) verSel.value = opt.value;
+    }
+
+    // Dynamic step-2 fields: reveal the schema group matching this service type/name
+    // The template renders one .svc-schema-group per service_name with display:none.
+    // We show the matching one (by service name first, falling back to type).
+    $$('#dynamicSvcConfigFields .svc-schema-group').forEach(g => g.style.display = 'none');
+    const match = $(`#dynamicSvcConfigFields .svc-schema-group[data-service-schema="${d.svcName}"]`)
+              || $(`#dynamicSvcConfigFields .svc-schema-group[data-service-schema="${d.svcType}"]`);
+    if(match) match.style.display = '';
+
+    // Apply stored config values to step-2 fields by name
+    if(d.svcConfig){
+      try {
+        // Backend sends the dict; we serialised it through Django |escape.
+        // Try JSON parse first, fall back to a relaxed parse.
+        const raw = (d.svcConfig || '').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/'/g, '"');
+        const cfg = JSON.parse(raw);
+        if(cfg && typeof cfg === 'object'){
+          Object.entries(cfg).forEach(([k, v]) => {
+            const el = match
+              ? match.querySelector(`[name="${k}"]`)
+              : $(`#svcConfigDrawer [name="${k}"]`);
+            if(el && v !== undefined && v !== null) el.value = v;
+          });
+        }
+      } catch(e){ /* ok — leave defaults */ }
+    }
+
+    maskSecrets($('#svcConfigDrawer'));
+    wireReplaceButtons($('#svcConfigDrawer'));
+  }
+
+  window.editService = async function(cardEl){
+    if(window.openServiceDrawerEditShared){
+      window.openServiceDrawerEditShared(cardEl);
+      return;
+    }
+
+    if(!cardEl) return;
+    svcEdit.active = true;
+    svcEdit.cardEl = cardEl;
+    svcEdit.svcId = cardEl.dataset.svcId || cardEl.dataset.serviceId || null;
+
+    // =========================
+    // OPEN DRAWER
+    // =========================
+
+    openSvcDrawer();
+
+    applyServiceMode('edit');
+    setDrawerTab('svc', 'edit');
+
+    gotoStep(
+        document.getElementById('svcConfigDrawer'),
+        'data-svc-step',
+        'data-svc-step-content',
+        2
+    );
+
+    // =========================
+    // GET SERVICE INFO
+    // =========================
+    console.log("cardEl", cardEl)
+    let serviceName = cardEl.dataset.serviceName || cardEl.dataset.svcName || '';
+    let serviceVersion = cardEl.dataset.serviceVersion || cardEl.dataset.svcVersion || '';
+    let servicePort = cardEl.dataset.servicePort || cardEl.dataset.svcPort || '';
+    let serviceType = cardEl.dataset.serviceType || cardEl.dataset.svcType || '';
+    console.log("serviceType", serviceType)
+    let serviceConfig = {};
+
+    try{
+        serviceConfig = JSON.parse(
+            cardEl.dataset.svcConfig || cardEl.dataset.serviceConfig || '{}'
+        );
+    }
+    catch(err){
+        console.error(
+            "Invalid service config JSON",
+            err
+        );
+
+        serviceConfig = {};
+    }
+
+    if(svcEdit.svcId){
+      try{
+        const response = await sendRequest({
+          'user-action': 'get_service_info',
+          'service_id': svcEdit.svcId,
+        });
+        const info = response && response.service_info ? response.service_info : null;
+        if(info){
+          serviceName = info.service_name || serviceName;
+          serviceVersion = info.service_version || serviceVersion;
+          servicePort = info.service_port || servicePort;
+          serviceType = info.service_type || serviceType;
+          serviceConfig = info.service_config || serviceConfig;
+        }
+      } catch(fetchErr){
+        console.error('Unable to load service info', fetchErr);
+      }
+    }
+
+    console.log(
+        'Editing service:',
+        serviceName,
+        serviceConfig
+    );
+
+    // =========================
+    // HEADER UPDATE
+    // =========================
+
+    document.getElementById('cfgName').textContent =
+        serviceName;
+
+    document.getElementById('cfgIco').textContent =
+        serviceName.charAt(0);
+
+    // =========================
+    // STEP 1 PREFILL
+    // =========================
+
+    const versionSelect =
+        document.getElementById('svc-version');
+
+    if(versionSelect){
+
+        [...versionSelect.options].forEach(opt => {
+
+            if(
+                opt.value.includes(serviceVersion)
+            ){
+                versionSelect.value = opt.value;
+            }
+
+        });
+
+    }
+
+    const portInput =
+        document.getElementById('svc-port');
+
+    if(portInput){
+        portInput.value = servicePort || '';
+    }
+
+    // =========================
+    // HIDE ALL SCHEMA GROUPS
+    // =========================
+
+    document
+        .querySelectorAll('.svc-schema-group')
+        .forEach(group => {
+            group.style.display = 'none';
+        });
+
+    // =========================
+    // SHOW MATCHING GROUP
+    // =========================
+
+    const activeGroup =
+        document.querySelector(
+            `.svc-schema-group[data-service-schema="${serviceType}"]`
+        );
+    console.log("activeGroup", activeGroup)
+    console.log("portInput", portInput)
+    console.log("versionSelect", versionSelect)
+    console.log("serviceName", serviceName)
+    console.log("serviceType", serviceType)
+    if(activeGroup){
+
+        activeGroup.style.display = 'block';
+
+        // =========================
+        // PREFILL DYNAMIC FIELDS
+        // =========================
+
+        Object.entries(serviceConfig)
+            .forEach(([key, value]) => {
+
+                const field =
+                    activeGroup.querySelector(
+                        `[name="${key}"]`
+                    );
+
+                if(field){
+
+                    if(
+                        field.type === 'checkbox'
+                    ){
+                        field.checked = !!value;
+                    }
+                    else{
+                        field.value = value;
+                    }
+
+                }
+
+            });
+
+    }
+
+};
+
+  window.openLegacyServiceEventsDrawer = async function(cardEl){
+    if(window.openServiceEventsDrawerShared){
+      window.openServiceEventsDrawerShared(cardEl);
+      return;
+    }
+    if(!cardEl) return;
+    await window.editService(cardEl);
+    setDrawerTab('svc', 'events');
+    loadServiceEventsIntoDrawer(cardEl.dataset.svcId || cardEl.dataset.serviceId || svcEdit.svcId);
+  };
+
+  // Reset to Add mode when the user clicks "Add service" or drags from catalog
+  const catalogBtn = $('#catalogBtn');
+  if(catalogBtn){
+    catalogBtn.addEventListener('click', () => {
+      svcEdit.active = false;
+      svcEdit.cardEl = null;
+      svcEdit.svcId  = null;
+      applyServiceMode('add');
+      const ver = $('#svc-version'); if(ver) ver.disabled = false;
+      unmaskSecrets($('#svcConfigDrawer'));
+    }, true);
+  }
+
+  $$('[data-svc-drawer-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tabName = btn.getAttribute('data-svc-drawer-tab');
+      setDrawerTab('svc', tabName);
+      if(tabName === 'events'){
+        loadServiceEventsIntoDrawer(svcEdit.svcId);
+      }
+    });
+  });
+
+  // Save handler for service edit
+  const svcSaveBtn = $('#svcSaveBtn');
+  if(svcSaveBtn){
+    svcSaveBtn.addEventListener('click', async () => {
+      if(window.saveServiceChangesShared){
+        await window.saveServiceChangesShared();
+        return;
+      }
+      const card = svcEdit.cardEl;
+      if(!card){ return; }
+
+      // Collect all named dynamic config fields from the visible schema group
+      const visibleGroup = $$('#dynamicSvcConfigFields .svc-schema-group').find(g => g.style.display !== 'none');
+      const cfgObj = {};
+      if(visibleGroup){
+        $$('input[name], select[name], textarea[name]', visibleGroup).forEach(el => {
+          cfgObj[el.name] = el.value;
+        });
+      }
+
+      const payload = {
+        'user-action': 'update_service',
+        'service_id': svcEdit.svcId,
+        'cluster_id': (window.clusterConfig && window.clusterConfig.clusterId) || null,
+        'service_name': card.dataset.svcName || '',
+        'service_type': card.dataset.svcType || '',
+        'service_version': $('#svc-version')?.value || card.dataset.svcVersion || '',
+        'service_port': $('#svc-port')?.value || card.dataset.svcPort || '',
+        'data_directory': $('#svc-data-dir')?.value || '',
+        'max_connections': $('#svc-max-conn')?.value || '',
+        'shared_buffers': $('#svc-shared-buffers')?.value || '',
+        'service_config': cfgObj,
+        'credentials': collectSecrets($('#svcConfigDrawer')),
+      };
+
+      const response = await sendRequest(payload);
+
+      // Update visible card
+      const portEl = card.querySelector('.svc-ports .port');
+      if(portEl) portEl.textContent = ':' + payload.service_port;
+      const metaEl = card.querySelector('.svc-info .meta');
+      if(metaEl){
+        // Keep the structure but bump the version label
+        const vSpans = metaEl.querySelectorAll('.v');
+        // first .v is "42d ago" timestamp; second is the type — leave alone
+        // but update the leading "v15.4" text node which is the first text node
+        const firstText = metaEl.firstChild;
+        if(firstText && firstText.nodeType === 3){
+          firstText.nodeValue = 'v' + payload.service_version + ' · installed  ';
+        }
+      }
+
+      // Mirror back to data-*
+      card.dataset.svcVersion = payload.service_version;
+      card.dataset.svcPort = payload.service_port;
+      card.dataset.svcConfig = JSON.stringify(cfgObj);
+
+      card.classList.remove('just-edited');
+      void card.offsetWidth;
+      card.classList.add('just-edited');
+
+      closeSvcDrawerEdit();
+      if(response && response.success){
+        showToast(`Service "${payload.service_name}" updated`, 'ok');
+      } else {
+        showToast((response && response.message) || 'Failed to save service changes', 'err');
+      }
+    });
+  }
+
+})();
+</script>
+
+
+<!-- EDIT CLUSTER DRAWER ───────────────────────── -->
+<div class="drawer-backdrop" id="editClusterDrawerBack"></div>
+<aside class="drawer" id="editClusterDrawer">
+  <div class="drawer-head">
+    <h2 id="editDrawerTitle">Edit cluster <span class="edit-badge" id="editBadge" style="display:inline-block;">EDIT</span></h2>
+    <button class="icon-btn" id="closeEditDrawerBtn"><svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+  </div>
+
+  <div class="stepper">
+    <div class="step active" data-step="1"><span class="n">1</span> Identity</div>
+    <div class="step" data-step="2"><span class="n">2</span> Repository</div>
+    <div class="step" data-step="3"><span class="n">3</span> Image store</div>
+    <div class="step" data-step="4"><span class="n">4</span> Review</div>
+  </div>
+
+  <div class="drawer-body">
+
+    <!-- STEP 1 — IDENTITY -->
+    <div class="step-pane active" data-step-pane="1">
+      <div class="field">
+        <label>Cluster name <span class="req">*</span></label>
+        <input class="input" id="fld-name" value="{{cluster_info.1.cluster_name}}" disabled>
+        <div class="hint">Lowercase letters, numbers, hyphens. Used in DNS, kubeconfig, and logs.</div>
+      </div>
+
+      <div class="section-head-sm">Cluster type</div>
+      <div class="type-row">
+        <div class="type-card selected" data-type="k8s">
+          <div class="nm">Kubernetes</div>
+          <div class="desc">Managed or self-hosted k8s. Use kubeconfig to connect.</div>
+        </div>
+        <div class="type-card" data-type="standalone">
+          <div class="nm">Standalone</div>
+          <div class="desc">Plain VMs reachable via Ansible inventory. No control plane.</div>
+        </div>
+        <div class="type-card" data-type="edge">
+          <div class="nm">Edge</div>
+          <div class="desc">Single-zone deployment for low-latency workloads.</div>
+        </div>
+      </div>
+
+      <div class="field-row" style="margin-top:var(--s-4);">
+        <div class="field">
+          <label>Region <span class="req">*</span></label>
+          <select class="select" id="fld-region">
+            <option value="ap-south-1 (Mumbai)">ap-south-1 (Mumbai)</option>
+            <option value="ap-south-2 (Hyderabad)">ap-south-2 (Hyderabad)</option>
+            <option value="north-india">north-india</option>
+            <option value="us-east-1 (N. Virginia)">us-east-1 (N. Virginia)</option>
+            <option value="eu-west-1 (Ireland)">eu-west-1 (Ireland)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Environment</label>
+          <select class="select" id="fld-env">
+            <option value="prod">Production</option>
+            <option value="stage">Staging</option>
+            <option value="dev">Development</option>
+            <option value="edge">Edge</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Description (optional)</label>
+        <textarea class="textarea" id="fld-desc" rows="2" placeholder="What runs here? Who owns it?">{{cluster_info.1.description}}</textarea>
+      </div>
+    </div>
+
+    <!-- STEP 2 — REPOSITORY -->
+    <div class="step-pane" data-step-pane="2">
+      <p style="font-size:12px; color:var(--ink-3); margin-bottom:var(--s-4); line-height:1.55;">
+        Where infrastructure-as-code (Terraform, Ansible playbooks, Helm charts) for this cluster lives.
+        The platform pulls from here when provisioning nodes or deploying services.
+      </p>
+
+      <div class="section-head-sm">Provider</div>
+      <div class="provider-grid">
+        <div class="provider-card selected" data-repo="github"><div class="ico">GH</div><div class="nm">GitHub</div></div>
+        <div class="provider-card" data-repo="gitlab"><div class="ico">GL</div><div class="nm">GitLab</div></div>
+        <div class="provider-card" data-repo="bitbucket"><div class="ico">BB</div><div class="nm">Bitbucket</div></div>
+        <div class="provider-card" data-repo="git-self"><div class="ico">SH</div><div class="nm">Self-hosted</div></div>
+      </div>
+
+      <div class="field" style="margin-top:var(--s-4);">
+        <label>Repository URL <span class="req">*</span></label>
+        <input class="input mono" id="fld-repo-url" placeholder="https://github.com/your-org/iktara-infra">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Branch</label>
+          <input class="input mono" id="fld-repo-branch" value="main">
+        </div>
+        <div class="field">
+          <label>Path (optional)</label>
+          <input class="input mono" id="fld-repo-path" placeholder="clusters/prod-mumbai-3/">
+          <div class="hint">If multiple clusters share one repo</div>
+        </div>
+      </div>
+
+      <div class="section-head-sm">Authentication</div>
+      <div class="auth-tabs" id="repo-auth-tabs">
+        <div class="auth-tab active" data-auth="pat">Personal access token</div>
+        <div class="auth-tab" data-auth="ssh">SSH key</div>
+        <div class="auth-tab" data-auth="oauth">OAuth app</div>
+        <div class="auth-tab" data-auth="public">Public</div>
+      </div>
+      <div class="auth-pane active" data-auth-pane="pat">
+        <div class="field secret-field" data-secret="repo-pat">
+          <label>Personal access token <span class="req">*</span></label>
+          <div class="secret-stored" style="display:flex;">
+            <span class="stored-mask">•••••••••••••• stored in vault</span>
+            <button type="button" class="link-btn replace-secret-btn">Replace</button>
+          </div>
+          <input class="input mono secret-input" type="password" placeholder="ghp_…" autocomplete="off" style="display:none;">
+          <div class="hint">Scopes required: <code style="font-family:var(--mono); font-size:11px; background:var(--bg-sunken); padding:1px 5px; border-radius:3px;">repo</code> read. Stored encrypted in vault.</div>
+        </div>
+      </div>
+      <div class="auth-pane" data-auth-pane="ssh">
+        <div class="field secret-field" data-secret="repo-ssh">
+          <label>Private SSH key <span class="req">*</span></label>
+          <div class="secret-stored" style="display:flex;">
+            <span class="stored-mask">SSH key stored in vault</span>
+            <button type="button" class="link-btn replace-secret-btn">Replace</button>
+          </div>
+          <textarea class="textarea mono secret-input" rows="4" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" style="display:none;"></textarea>
+          <div class="hint">Stored encrypted. Public key is auto-derived for repo deploy-key registration.</div>
+        </div>
+      </div>
+      <div class="auth-pane" data-auth-pane="oauth">
+        <div class="field">
+          <p style="font-size:12px; color:var(--ink-3); padding:var(--s-3); background:var(--bg-sunken); border-radius:var(--r-md); line-height:1.55;">
+            Connect via OAuth app. Click <strong>Authorize</strong> below to grant the Iktara GitHub App access to the selected org. Tokens are managed by GitHub and rotated automatically.
+          </p>
+          <button class="btn btn-secondary" type="button" style="margin-top:var(--s-2);">Authorize GitHub App →</button>
+        </div>
+      </div>
+      <div class="auth-pane" data-auth-pane="public">
+        <div class="field">
+          <p style="font-size:12px; color:var(--ink-3); padding:var(--s-3); background:var(--bg-sunken); border-radius:var(--r-md); line-height:1.55;">
+            No authentication required for public repos. Only available for read operations.
+          </p>
+        </div>
+      </div>
+
+      <button class="test-btn" id="test-repo-btn" style="margin-top:var(--s-3);">Test connection</button>
+      <span class="test-result" id="test-repo-result" style="display:none;"></span>
+    </div>
+
+    <!-- STEP 3 — IMAGE STORE -->
+    <div class="step-pane" data-step-pane="3">
+      <p style="font-size:12px; color:var(--ink-3); margin-bottom:var(--s-4); line-height:1.55;">
+        Where container and VM images are stored. Nodes in this cluster will pull from here when services are deployed.
+      </p>
+
+      <div class="section-head-sm">Registry</div>
+      <div class="provider-grid">
+        <div class="provider-card selected" data-img="ecr"><div class="ico">ECR</div><div class="nm">AWS ECR</div></div>
+        <div class="provider-card" data-img="gcr"><div class="ico">GCR</div><div class="nm">Google GCR</div></div>
+        <div class="provider-card" data-img="harbor"><div class="ico">HB</div><div class="nm">Harbor</div></div>
+        <div class="provider-card" data-img="dockerhub"><div class="ico">DH</div><div class="nm">Docker Hub</div></div>
+      </div>
+
+      <div class="field" style="margin-top:var(--s-4);">
+        <label>Registry URL <span class="req">*</span></label>
+        <input class="input mono" id="fld-img-url" placeholder="123456789012.dkr.ecr.ap-south-1.amazonaws.com">
+        <div class="hint">For ECR: full registry hostname. For Harbor: include /v2 path.</div>
+      </div>
+
+      <div class="field">
+        <label>Default namespace (optional)</label>
+        <input class="input mono" id="fld-img-ns" placeholder="iktara/">
+        <div class="hint">Prepended to image names. Useful for multi-tenant Harbor instances.</div>
+      </div>
+
+      <div class="section-head-sm">Authentication</div>
+      <div class="auth-tabs" id="img-auth-tabs">
+        <div class="auth-tab active" data-auth="aws">AWS credentials</div>
+        <div class="auth-tab" data-auth="basic">Username + password</div>
+        <div class="auth-tab" data-auth="anon">Anonymous</div>
+      </div>
+      <div class="auth-pane active" data-auth-pane="aws">
+        <div class="field-row">
+          <div class="field">
+            <label>Access key ID <span class="req">*</span></label>
+            <input class="input mono" placeholder="AKIA…" autocomplete="off" id="fld-aws-akid">
+          </div>
+          <div class="field secret-field" data-secret="img-aws">
+            <label>Secret access key <span class="req">*</span></label>
+            <div class="secret-stored" style="display:flex;">
+              <span class="stored-mask">•••••••••••••• stored in vault</span>
+              <button type="button" class="link-btn replace-secret-btn">Replace</button>
+            </div>
+            <input class="input mono secret-input" type="password" autocomplete="off" style="display:none;">
+          </div>
+        </div>
+        <div class="field">
+          <label>Assume role ARN (optional)</label>
+          <input class="input mono" placeholder="arn:aws:iam::…:role/ECRPullRole" id="fld-aws-role">
+          <div class="hint">Cross-account access. Leave blank to use the credentials directly.</div>
+        </div>
+      </div>
+      <div class="auth-pane" data-auth-pane="basic">
+        <div class="field-row">
+          <div class="field">
+            <label>Username <span class="req">*</span></label>
+            <input class="input mono" autocomplete="off" id="fld-basic-user">
+          </div>
+          <div class="field secret-field" data-secret="img-basic">
+            <label>Password <span class="req">*</span></label>
+            <div class="secret-stored" style="display:flex;">
+              <span class="stored-mask">•••••••••••••• stored in vault</span>
+              <button type="button" class="link-btn replace-secret-btn">Replace</button>
+            </div>
+            <input class="input mono secret-input" type="password" autocomplete="off" style="display:none;">
+          </div>
+        </div>
+      </div>
+      <div class="auth-pane" data-auth-pane="anon">
+        <div class="field">
+          <p style="font-size:12px; color:var(--ink-3); padding:var(--s-3); background:var(--bg-sunken); border-radius:var(--r-md); line-height:1.55;">
+            Anonymous pulls only. Limited to public images and subject to provider rate limits (Docker Hub: 100 pulls / 6 hr per IP).
+          </p>
+        </div>
+      </div>
+
+      <button class="test-btn" id="test-img-btn" style="margin-top:var(--s-3);">Test connection</button>
+      <span class="test-result" id="test-img-result" style="display:none;"></span>
+    </div>
+
+    <!-- STEP 4 — REVIEW -->
+    <div class="step-pane" data-step-pane="4">
+      <div class="review-block">
+        <div class="review-label">Identity</div>
+        <div class="review-row"><span class="k">Name</span><span class="v" id="rv-name">—</span></div>
+        <div class="review-row"><span class="k">Type</span><span class="v" id="rv-type">—</span></div>
+        <div class="review-row"><span class="k">Region</span><span class="v" id="rv-region">—</span></div>
+        <div class="review-row"><span class="k">Environment</span><span class="v" id="rv-env">—</span></div>
+      </div>
+      <div class="review-block">
+        <div class="review-label">Repository</div>
+        <div class="review-row"><span class="k">Provider</span><span class="v" id="rv-repo">—</span></div>
+        <div class="review-row"><span class="k">URL</span><span class="v" id="rv-repo-url">—</span></div>
+        <div class="review-row"><span class="k">Branch</span><span class="v" id="rv-repo-branch">—</span></div>
+        <div class="review-row"><span class="k">Authentication</span><span class="v" id="rv-repo-auth">—</span></div>
+      </div>
+      <div class="review-block">
+        <div class="review-label">Image store</div>
+        <div class="review-row"><span class="k">Provider</span><span class="v" id="rv-img">—</span></div>
+        <div class="review-row"><span class="k">Registry URL</span><span class="v" id="rv-img-url">—</span></div>
+        <div class="review-row"><span class="k">Authentication</span><span class="v" id="rv-img-auth">—</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="drawer-foot">
+    <button class="btn btn-ghost" id="editCancelBtn">Cancel</button>
+    <button class="btn btn-secondary" id="editPrevStepBtn" style="display:none;">← Back</button>
+    <button class="btn btn-primary" id="editNextStepBtn">Continue →</button>
+    <button class="btn btn-primary" id="editSaveBtn" style="display:none;">
+      <svg class="ic" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      Save changes
+    </button>
+  </div>
+</aside>
+
+<script>
+(function() {
+  'use strict';
+
+  // --- Edit Cluster Drawer State ---
+  const editState = {
+    step: 1,
+    type: 'k8s',
+    repoProvider: 'github',
+    imgProvider: 'ecr',
+    repoAuth: 'pat',
+    imgAuth: 'aws',
+  };
+
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+
+  // --- Initial Server-Side Data ---
+  const serverData = {
+    clusterId: "{{ cluster_info.1.cluster_id|escapejs }}",
+    clusterName: "{{ cluster_info.1.cluster_name|escapejs }}",
+    clusterType: "{{ cluster_info.1.cluster_type|escapejs }}",
+    clusterTypeVarient: "{{ cluster_info.1.cluster_type_varient|escapejs }}",
+    region: "{{ cluster_info.1.region|escapejs }}",
+    environment: "{{ cluster_info.1.environment|escapejs }}",
+    description: "{{ cluster_info.1.description|escapejs }}",
+    repoType: "{{ cluster_info.1.repo_type|escapejs }}",
+    imageStoreType: "{{ cluster_info.1.image_store_type|escapejs }}"
+  };
+
+  // Helper: select a picker card by data-attribute value
+  function selectByDataKey(scope, selectorAll, dataAttr, value) {
+    $$(selectorAll, scope).forEach(c => {
+      c.classList.toggle('selected', c.getAttribute(dataAttr) === value);
+    });
+  }
+
+  // Helper: activate an auth tab inside a given step pane
+  function activateAuthTab(scope, tabsContainerSel, paneScope, target) {
+    $$(tabsContainerSel + ' .auth-tab', scope).forEach(t =>
+      t.classList.toggle('active', t.dataset.auth === target));
+    $$(paneScope + ' [data-auth-pane]', scope).forEach(p =>
+      p.classList.toggle('active', p.dataset.authPane === target));
+  }
+
+  // Wire "Replace" buttons inside secret fields
+  $$('#editClusterDrawer .replace-secret-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const wrap = btn.closest('.secret-field');
+      const inp = wrap.querySelector('.secret-input');
+      const stored = wrap.querySelector('.secret-stored');
+      if (stored) stored.style.display = 'none';
+      if (inp) {
+        inp.style.display = '';
+        inp.value = '';
+        inp.focus();
+      }
+    });
+  });
+
+  // Simulated connection tests
+  function setupTestConnection(buttonId, resultId) {
+    const btn = $(buttonId);
+    const res = $(resultId);
+    if (!btn || !res) return;
+    btn.addEventListener('click', () => {
+      res.style.display = 'inline-flex';
+      res.className = 'test-result testing';
+      res.innerHTML = '<span class="spin"></span> testing…';
+      setTimeout(() => {
+        if(Math.random() > 0.15){
+          res.className = 'test-result ok';
+          res.innerHTML = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><polyline points="20 6 9 17 4 12"/></svg> connected';
+        } else {
+          res.className = 'test-result err';
+          res.innerHTML = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> auth failed';
+        }
+      }, 1100);
+    });
+  }
+  setupTestConnection('#editClusterDrawer #test-repo-btn', '#editClusterDrawer #test-repo-result');
+  setupTestConnection('#editClusterDrawer #test-img-btn', '#editClusterDrawer #test-img-result');
+
+  // Stepper transitions
+  function setStep(n) {
+    editState.step = n;
+    $$('#editClusterDrawer .stepper .step').forEach(s => {
+      const sn = parseInt(s.dataset.step, 10);
+      s.classList.toggle('active', sn === n);
+      s.classList.toggle('done', sn < n);
+    });
+    $$('#editClusterDrawer [data-step-pane]').forEach(p => {
+      p.classList.toggle('active', parseInt(p.dataset.stepPane, 10) === n);
+    });
+    $('#editPrevStepBtn').style.display = n > 1 ? '' : 'none';
+    $('#editNextStepBtn').style.display = n < 4 ? '' : 'none';
+    $('#editSaveBtn').style.display = n === 4 ? '' : 'none';
+    if(n === 4) populateReview();
+  }
+
+  $('#editNextStepBtn').addEventListener('click', () => {
+    setStep(Math.min(4, editState.step + 1));
+  });
+  $('#editPrevStepBtn').addEventListener('click', () => setStep(Math.max(1, editState.step - 1)));
+
+  $$('#editClusterDrawer .stepper .step').forEach(s => {
+    s.addEventListener('click', () => {
+      setStep(parseInt(s.dataset.step, 10));
+    });
+  });
+
+  // Pickers wiring
+  $$('#editClusterDrawer .type-card').forEach(c => {
+    c.addEventListener('click', () => {
+      $$('#editClusterDrawer .type-card').forEach(x => x.classList.remove('selected'));
+      c.classList.add('selected');
+      editState.type = c.dataset.type;
+    });
+  });
+
+  $$('#editClusterDrawer [data-repo]').forEach(c => {
+    c.addEventListener('click', () => {
+      $$('#editClusterDrawer [data-repo]').forEach(x => x.classList.remove('selected'));
+      c.classList.add('selected');
+      editState.repoProvider = c.dataset.repo;
+    });
+  });
+
+  $$('#editClusterDrawer [data-img]').forEach(c => {
+    c.addEventListener('click', () => {
+      $$('#editClusterDrawer [data-img]').forEach(x => x.classList.remove('selected'));
+      c.classList.add('selected');
+      editState.imgProvider = c.dataset.img;
+    });
+  });
+
+  function wireAuthTabsEdit(tabsContainerSel, paneScope, stateKey) {
+    $$(tabsContainerSel + ' .auth-tab', $('#editClusterDrawer')).forEach(t => {
+      t.addEventListener('click', () => {
+        $$(tabsContainerSel + ' .auth-tab', $('#editClusterDrawer')).forEach(x => x.classList.remove('active'));
+        t.classList.add('active');
+        const target = t.dataset.auth;
+        editState[stateKey] = target;
+        $$(paneScope + ' [data-auth-pane]', $('#editClusterDrawer')).forEach(p => {
+          p.classList.toggle('active', p.dataset.authPane === target);
+        });
+      });
+    });
+  }
+  wireAuthTabsEdit('#repo-auth-tabs', '[data-step-pane="2"]', 'repoAuth');
+  wireAuthTabsEdit('#img-auth-tabs', '[data-step-pane="3"]', 'imgAuth');
+
+  // Populate Review Step
+  function populateReview() {
+    const repoName = { github: 'GitHub', gitlab: 'GitLab', bitbucket: 'Bitbucket', 'git-self': 'Self-hosted Git' };
+    const imgName = { ecr: 'AWS ECR', gcr: 'Google GCR', harbor: 'Harbor', dockerhub: 'Docker Hub' };
+    const typeName = { k8s: 'Kubernetes', standalone: 'Standalone', edge: 'Edge' };
+    const repoAuthName = { pat: 'Personal access token', ssh: 'SSH key', oauth: 'OAuth app', public: 'Public (none)' };
+    const imgAuthName = { aws: 'AWS credentials', basic: 'Username + password', anon: 'Anonymous' };
+
+    $('#editClusterDrawer #rv-name').textContent = serverData.clusterName;
+    $('#editClusterDrawer #rv-type').textContent = typeName[editState.type];
+    $('#editClusterDrawer #rv-region').textContent = $('#editClusterDrawer #fld-region').value;
+    $('#editClusterDrawer #rv-env').textContent = $('#editClusterDrawer #fld-env').value;
+
+    $('#editClusterDrawer #rv-repo').textContent = repoName[editState.repoProvider];
+    $('#editClusterDrawer #rv-repo-url').textContent = $('#editClusterDrawer #fld-repo-url').value || $('#editClusterDrawer #fld-repo-url').placeholder;
+    $('#editClusterDrawer #rv-repo-branch').textContent = $('#editClusterDrawer #fld-repo-branch').value || 'main';
+    $('#editClusterDrawer #rv-repo-auth').textContent = repoAuthName[editState.repoAuth];
+
+    $('#editClusterDrawer #rv-img').textContent = imgName[editState.imgProvider];
+    $('#editClusterDrawer #rv-img-url').textContent = $('#editClusterDrawer #fld-img-url').value || $('#editClusterDrawer #fld-img-url').placeholder;
+    $('#editClusterDrawer #rv-img-auth').textContent = imgAuthName[editState.imgAuth];
+  }
+
+  // Open Edit Drawer
+  function openEditDrawer() {
+    // Populate form elements from serverData
+    $('#editClusterDrawer #fld-region').value = serverData.region;
+    $('#editClusterDrawer #fld-env').value = serverData.environment.toLowerCase();
+    $('#editClusterDrawer #fld-desc').value = serverData.description;
+
+    const variantMap = { 'Kubernetes': 'k8s', 'Standalone': 'standalone', 'Edge': 'edge' };
+    const mappedVariant = variantMap[serverData.clusterTypeVarient] || 'k8s';
+    selectByDataKey($('#editClusterDrawer'), '.type-card', 'data-type', mappedVariant);
+    editState.type = mappedVariant;
+
+    const repoMap = { 'GitHub': 'github', 'GitLab': 'gitlab', 'Bitbucket': 'bitbucket', 'Self-hosted Git': 'git-self' };
+    const mappedRepo = repoMap[serverData.repoType] || 'github';
+    selectByDataKey($('#editClusterDrawer'), '[data-repo]', 'data-repo', mappedRepo);
+    editState.repoProvider = mappedRepo;
+
+    const imgMap = { 'AWS ECR': 'ecr', 'Google GCR': 'gcr', 'Harbor': 'harbor', 'Docker Hub': 'dockerhub' };
+    const mappedImg = imgMap[serverData.imageStoreType] || 'ecr';
+    selectByDataKey($('#editClusterDrawer'), '[data-img]', 'data-img', mappedImg);
+    editState.imgProvider = mappedImg;
+
+    // Reset Secrets
+    $$('#editClusterDrawer .secret-field').forEach(f => {
+      const stored = f.querySelector('.secret-stored');
+      const inp = f.querySelector('.secret-input');
+      if (stored) stored.style.display = 'flex';
+      if (inp) inp.style.display = 'none';
+    });
+
+    setStep(1);
+    $('#editClusterDrawerBack').classList.add('open');
+    $('#editClusterDrawer').classList.add('open');
+  }
+
+  function closeEditDrawer() {
+    $('#editClusterDrawerBack').classList.remove('open');
+    $('#editClusterDrawer').classList.remove('open');
+  }
+
+  // Bind Buttons
+  const openBtn = $('#clusterSettingsBtn');
+  if (openBtn) openBtn.addEventListener('click', openEditDrawer);
+
+  $('#closeEditDrawerBtn').addEventListener('click', closeEditDrawer);
+  $('#editCancelBtn').addEventListener('click', closeEditDrawer);
+  $('#editClusterDrawerBack').addEventListener('click', closeEditDrawer);
+
+  // Submit Save Action
+  $('#editSaveBtn').addEventListener('click', async () => {
+    const typeName = { k8s: 'Kubernetes', standalone: 'Standalone', edge: 'Edge' };
+    const repoName = { github: 'GitHub', gitlab: 'GitLab', bitbucket: 'Bitbucket', 'git-self': 'Self-hosted Git' };
+    const imgName = { ecr: 'AWS ECR', gcr: 'Google GCR', harbor: 'Harbor', dockerhub: 'Docker Hub' };
+
+    const payload = {
+      'user-action': 'update_cluster',
+      'cluster_id': serverData.clusterId,
+      'cluster_name': serverData.clusterName,
+      'cluster_type': serverData.clusterType, // Primary or Secondary
+      'cluster_type_varient': typeName[editState.type],
+      'cluster_region': $('#editClusterDrawer #fld-region').value,
+      'cluster_env': $('#editClusterDrawer #fld-env').value,
+      'description': $('#editClusterDrawer #fld-desc').value,
+      'repo_type': repoName[editState.repoProvider],
+      'Image_store': imgName[editState.imgProvider]
+    };
+
+    // Collect credentials/secrets
+    const credentials = {};
+    $$('#editClusterDrawer .secret-field').forEach(f => {
+      const inp = f.querySelector('.secret-input');
+      const stored = f.querySelector('.secret-stored');
+      if (stored && stored.style.display !== 'none') return;
+      if (!inp) return;
+      if (inp.value) credentials[f.dataset.secret] = inp.value;
+    });
+
+    const akid = $('#editClusterDrawer #fld-aws-akid');
+    if (akid && akid.value) credentials.aws_access_key_id = akid.value;
+    const role = $('#editClusterDrawer #fld-aws-role');
+    if (role && role.value) credentials.aws_assume_role = role.value;
+    const user = $('#editClusterDrawer #fld-basic-user');
+    if (user && user.value) credentials.basic_username = user.value;
+
+    payload.credentials = credentials;
+
+    const csrf = (window.clusterConfig && window.clusterConfig.csrfToken) || '';
+
+    try {
+      const response = await fetch('/PlatformIO/ClusterView/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrf
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (data.success) {
+        closeEditDrawer();
+        const t = $('#toast');
+        if (t) {
+          $('#toastMsg', t).textContent = `Cluster "${serverData.clusterName}" updated successfully`;
+          t.classList.add('show');
+        }
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        alert(data.message || 'Failed to update cluster');
+      }
+    } catch(e) {
+      console.error(e);
+      alert('An error occurred while saving changes.');
+    }
+  });
+
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iktara.example/contracts/noc-alarm-stream.v1.json",
+  "title": "NOC alarm raw stream contract",
+  "type": "object",
+  "required": ["stream_id", "vendor", "source", "replay", "kafka", "nifi", "simulator", "metrics"],
+  "properties": {
+    "contract_version": { "const": "noc-alarm-stream.v1" },
+    "stream_id": { "type": "string", "minLength": 1 },
+    "vendor": { "enum": ["aviat", "cambium", "radwin", "ceragon"] },
+    "source": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type", "url", "remote_path"],
+          "properties": {
+            "type": { "const": "ftp" },
+            "url": { "type": "string", "pattern": "^ftps?://" },
+            "host": { "type": "string", "minLength": 1 },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "secure": { "type": "boolean" },
+            "username": { "type": "string" },
+            "password": { "type": "string" },
+            "remote_path": { "type": "string", "minLength": 1 },
+            "file_pattern": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["type", "path"],
+          "properties": {
+            "type": { "const": "local_path" },
+            "path": { "type": "string", "minLength": 1 },
+            "file_pattern": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "replay": {
+      "type": "object",
+      "required": ["events_per_second", "continuous", "mode", "cycle_id_header"],
+      "properties": {
+        "events_per_second": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 },
+        "continuous": { "type": "boolean", "default": true },
+        "mode": { "enum": ["one_shot", "continuous"], "default": "continuous" },
+        "cycle_id_header": { "const": "cycle_id" },
+        "cycle_id_strategy": { "const": "monotonic" },
+        "start_cycle": { "type": "integer", "minimum": 1, "default": 1 }
+      },
+      "additionalProperties": false
+    },
+    "kafka": {
+      "type": "object",
+      "required": ["bootstrap_servers", "topic", "raw_topic", "normalized_topic", "candidate_topic", "dlq_topic", "v2_topic", "value_format"],
+      "properties": {
+        "bootstrap_servers": { "type": "string", "minLength": 1 },
+        "topic": { "const": "noc.alarm.raw.v1" },
+        "raw_topic": { "const": "noc.alarm.raw.v1" },
+        "normalized_topic": { "const": "noc.alarm.normalized.v1" },
+        "candidate_topic": { "const": "noc.incident.candidate.v1" },
+        "dlq_topic": { "const": "noc.alarm.dlq.v1" },
+        "v2_topic": { "const": "noc.alarm.events.v2" },
+        "value_format": { "const": "canonical-v2-json-after-outbox" },
+        "acks": { "const": "all" }
+      },
+      "additionalProperties": false
+    },
+    "nifi": {
+      "type": "object",
+      "required": [
+        "flow_name",
+        "vendor",
+        "raw_topic",
+        "publishes_raw_row_json",
+        "publishes_canonical_alarm_json",
+        "controller",
+        "transport",
+        "flow_version",
+        "legacy_flow_name",
+        "listen_port",
+        "base_path",
+        "agenticnoc_ingest_url",
+        "control_actions"
+      ],
+      "properties": {
+        "controller": { "const": "cplatform" },
+        "transport": { "const": "http" },
+        "flow_version": { "const": "1" },
+        "flow_name": { "type": "string", "minLength": 1 },
+        "legacy_flow_name": { "const": "noc-alarm-ftp-local-to-kafka" },
+        "listen_port": { "type": "integer", "const": 9080 },
+        "base_path": { "enum": ["aviat", "cambium", "radwin", "ceragon"] },
+        "agenticnoc_ingest_url": { "type": "string", "format": "uri", "minLength": 1 },
+        "vendor": { "enum": ["aviat", "cambium", "radwin", "ceragon"] },
+        "raw_topic": { "const": "noc.alarm.raw.v1" },
+        "normalized_topic": { "const": "noc.alarm.normalized.v1" },
+        "candidate_topic": { "const": "noc.incident.candidate.v1" },
+        "dlq_topic": { "const": "noc.alarm.dlq.v1" },
+        "outbox": { "const": "postgresql_transactional" },
+        "publishes_raw_row_json": { "type": "boolean" },
+        "publishes_canonical_alarm_json": { "const": true },
+        "control_actions": {
+          "type": "array",
+          "items": { "enum": ["start", "pause", "resume", "stop", "delete"] },
+          "minItems": 1
+        },
+        "metadata_headers": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "simulator": {
+      "type": "object",
+      "required": ["kind", "controller", "stream_id", "vendor", "source_type", "events_per_second", "continuous", "mode", "publishes_raw_row_json", "control_actions"],
+      "properties": {
+        "kind": { "const": "cplatform-replay" },
+        "controller": { "const": "cplatform" },
+        "stream_id": { "type": "string", "minLength": 1 },
+        "vendor": { "enum": ["aviat", "cambium", "radwin", "ceragon"] },
+        "url": { "type": "string" },
+        "lifecycle": {
+          "type": "object",
+          "properties": {
+            "start": { "type": "string", "minLength": 1 },
+            "pause": { "type": "string", "minLength": 1 },
+            "resume": { "type": "string", "minLength": 1 },
+            "stop": { "type": "string", "minLength": 1 },
+            "delete": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "source_type": { "enum": ["ftp", "local_path"] },
+        "events_per_second": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "continuous": { "type": "boolean" },
+        "mode": { "enum": ["one_shot", "continuous"] },
+        "publishes_raw_row_json": { "const": true },
+        "metadata_headers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "control_actions": {
+          "type": "array",
+          "items": { "enum": ["start", "pause", "resume", "stop", "delete"] },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "metrics": {
+      "type": "object",
+      "required": ["link", "kind", "relation"],
+      "properties": {
+        "link": { "type": "string", "minLength": 1 },
+        "kind": { "const": "prometheus-compatible" },
+        "relation": { "const": "stream" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

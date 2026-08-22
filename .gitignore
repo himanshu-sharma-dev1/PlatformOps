@@ -1,10 +1,40 @@
-.venv/
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+env/
+venv/
+ENV/
+
+# Django
+*.log
+local.env
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+
+# Logs & Temporary runtime
+logs/*.log
+logs/*.txt
+*.pid
+data/*.db
+data/runtime/
+
+# Testing & Linting
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node (if any)
 node_modules/
 dist/
-.env
-data/*.db
-data/runtime/job-vars/
-agent_docs/
-.codex_workflow_hidden_resources/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/

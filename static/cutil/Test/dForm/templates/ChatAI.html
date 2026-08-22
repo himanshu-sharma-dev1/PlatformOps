@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Airtel Network Agent</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it/dist/markdown-it.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it-container/dist/markdown-it-container.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css"
+          integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet" />
+   {% load static %}
+  <link rel="stylesheet" type="text/css" href="{% static 'Test.css' %}">
+    <script type="module" src="{% static 'dChat.js' %}"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #fdf6f6;
+      overflow-x: hidden;
+    }
+
+    #chatHistoryList li {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 200px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    #chatHistoryList li a {
+      overflow: hidden;
+      padding:2px 10px;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    #chatHistoryList li:hover {
+      background-color: #e1e1e1;
+    }
+
+    .pop-up{
+      width:18vw;
+      height:20vh;
+      display:none;
+      border-radius:10px;
+      position:absolute;
+      background:#ccc;
+      bottom:10%;
+      border: 1px solid #ddd;
+      padding: 8px;
+      z-index: 99;
+      }
+
+    .pop-up ul li {
+      font-size:14px;
+      font-weight:600;
+      padding: 6px 10px;
+      cursor: pointer;
+      }
+
+  </style>
+</head>
+<body>
+<div class="container-fluid">
+  <div class="row">
+    <!-- Full Page Flex Layout -->
+<div class="d-flex px-0" style="height: 100vh; overflow: hidden;">
+  <!-- Sidebar -->
+  <div id="sidebar" class="sidebar position-relative" style="width:20vw;">
+    <i class="bi bi-chat-square-text sidebarToggle"></i>
+    <i class="bi bi-layout-sidebar sidebar-toggle" id="toggleSidebar"></i>
+
+    <div class="row mb-4 mt-5">
+      <h6 class="fw-bold" style="font-size:13px;">My Widgets</h6>
+      <button class="widget-btn btn p-0 text-muted col-4" data-bs-toggle="modal" data-bs-target="#scheduleModal">
+        <i class="bi bi-calendar-event me-1"></i><br> Daily KPIs
+      </button>
+      <button class="widget-btn btn p-0 text-muted col-4" data-bs-toggle="modal" data-bs-target="#scheduleModal">
+        <i class="bi bi-calendar4-week me-1"></i><br> Weekly KPI
+      </button>
+      <button class="widget-btn btn p-0 text-muted col-4" data-bs-toggle="modal" data-bs-target="#scheduleModal">
+        <i class="bi bi-folder-check me-1"></i><br> RCA Check
+      </button>
+    </div>
+
+    <div class="mb-4">
+      <div class="fw-bold" style="font-size:13px;">Global Widgets</div>
+      <p class="text-muted widget-btn"><i class="bi bi-folder-check me-1"></i> Degraded Calls</p>
+      <p class="text-muted widget-btn"><i class="bi bi-folder-check me-1"></i> KPI Prediction</p>
+    </div>
+
+    <div>
+      <h6 class="fw-bold" style="font-size:13px;">Chats History</h6>
+      <ul class="list-unstyled small" id="chatHistoryList" style="min-height: 45vh; overflow-y: auto;">
+        {% for item in chat_history %}
+          <li>
+            <a href="{{ item.link }}" class="text-decoration-none text-dark">{{ item.query }}</a>
+          </li>
+        {% empty %}
+          <li>No chat history found.</li>
+        {% endfor %}
+      </ul>
+    </div>
+   <div class="pop-up" id="popupMenu">
+    <ul class="list-unstyled mb-0">
+      <li><i class="bi bi-gear"></i> Setting</li>
+      <li><i class="bi bi-info-circle"></i> Help</li>
+      <li><i class="bi bi-box-arrow-right"></i> Logout</li>
+    </ul>
+  </div>
+
+  <button id="userButton" class="btn py-2 px-1 w-100 text-start" style="border-top:1px solid #ccc;">
+    <span><i class="bi bi-person-circle"></i></span> Kapil Daboriya
+  </button>
+
+
+  </div>
+
+  <!-- Chat Section -->
+  <div class="flex-grow-1 d-flex flex-column" style="background:#f9f7f7;">
+
+    <div class="chat-header d-flex align-items-center justify-content-between">
+      <div class="chat-logo d-flex align-items-center">
+          {% load static %}
+          <img src= "{% static 'airtelTaw/favicon-airtel.png' %}" style="height:10%; width:10%;">
+        <span class="ms-2 fw-bold">Pulse Engine</span>
+      </div>
+    </div>
+
+    <!-- Chat Body -->
+    <div class="chat-body flex-grow-1 overflow-auto p-4" style="position:relative;">
+
+        <div class="wrapper">
+            <div class="chat-message d-none">
+                <div class="message-actions">
+                  <i class="bi bi-pencil" title="Edit"></i>
+                  <i class="bi bi-clipboard" title="Copy"></i>
+                </div>
+                <div class="user-query"></div>
+            </div>
+
+            <div class="bot-response-wrapper d-none">
+                <div class="agent-response"></div>
+
+                <div class="bot-response-actions">
+                  <i class="bi bi-hand-thumbs-up" title="Like"></i>
+                  <i class="bi bi-hand-thumbs-down" title="Dislike"></i>
+                  <i class="bi bi-clipboard" title="Copy"></i>
+                </div>
+          </div>
+        </div>
+    </div>
+
+    <!-- Typing Section -->
+    <div class="chat-input">
+      <div class="input-box position-relative" id="input-box">
+        <input type="text" placeholder="Ask anything…" class="form-control" id="messageInput" />
+        <input type="file" id="fileInput" style="display: none;" multiple />
+
+        <!-- Show selected files here -->
+        <div id="filePreview" class="mt-2 d-flex flex-wrap gap-2"></div>
+
+        <div class="chat-input-icons d-flex align-items-center gap-3 mt-2">
+          <i class="bi bi-plus fs-4" title="Upload file" id="uploadButton"></i>
+          <i class="bi bi-send-fill fs-4" title="Send message" id="sendButton" onclick="getQuery()"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<!-- Schedule Modal -->
+<div class="modal fade" id="scheduleModal" tabindex="-1" aria-labelledby="scheduleModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content p-3" style="border-radius: 8px;">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold" id="scheduleModalLabel">Schedule Report</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <form>
+          <div class="mb-3">
+            <label class="form-label">Periodicity</label>
+            <select class="form-select">
+              <option>Daily</option>
+              <option>Weekly</option>
+              <option>Monthly</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Time</label>
+              <input type="time" class="form-control" value="10:00">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Weekday</label>
+              <select class="form-select">
+                <option>Mon</option>
+                <option>Tue</option>
+                <option>Wed</option>
+                <option>Thu</option>
+                <option>Fri</option>
+                <option>Sat</option>
+                <option>Sun</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Day</label>
+            <input type="number" class="form-control" min="1" max="31" value="01">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Email</label>
+            <input type="email" class="form-control" value="sm@kitara.ai">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Status</label>
+            <select class="form-select">
+              <option>Enable</option>
+              <option>Disable</option>
+            </select>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-danger w-100 fw-semibold">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+ function getQuery(){
+    const inputField = document.querySelector('#messageInput');
+    if(inputField.value == '') return
+
+    const query = inputField.value;
+    let chatBody = document.querySelector('.chat-body')
+    let wrapper = document.querySelector('.wrapper')
+
+    let newWrapper = wrapper.cloneNode(true)
+    chatBody.appendChild(newWrapper)
+
+    let queryCon = newWrapper.querySelector('.user-query')
+    queryCon.parentNode.classList.remove('d-none')
+
+    let resCon = newWrapper.querySelector('.agent-response')
+    resCon.parentNode.classList.remove('d-none')
+
+    queryCon.textContent = ''
+    resCon.innerHTML = ''
+
+    queryCon.textContent = inputField.value
+
+    window.dChat.dChatSendRequest(query, '/dForm/TestResponse/', resCon);
+    inputField.value = ''
+ }
+
+document.addEventListener('keydown', (event) => {
+    if (event.key === "Enter") {
+        event.preventDefault();
+        getQuery();
+    }
+});
+
+document.addEventListener("DOMContentLoaded", function() {
+  const button = document.getElementById("userButton");
+  const popup = document.getElementById("popupMenu");
+
+  button.addEventListener("click", function (e) {
+    e.stopPropagation(); // prevent closing immediately
+    popup.style.display = popup.style.display === "block" ? "none" : "block";
+
+  });
+
+  // close popup when clicking outside
+  document.addEventListener("click", function () {
+    popup.style.display = "none";
+  });
+});
+</script>
+</body>
+</html>

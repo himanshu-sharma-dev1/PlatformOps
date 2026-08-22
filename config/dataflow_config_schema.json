@@ -1,0 +1,142 @@
+{
+  "$id": "/cPlatform/Schemas/dataflow_config",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Interface Definition between orchestrator and Batch IO",
+  "FTP_Config": {
+    "title": "ftp_server Config",
+    "description": "ftp_server Configuration Schema",
+    "type": "object",
+    "required": [
+      "URL",
+      "Username",
+      "Password"
+    ],
+    "properties": {
+      "URL": {
+        "description": "",
+        "type": "string"
+      },
+      "Username": {
+        "description": "",
+        "type": "string"
+      },
+      "Password": {
+        "description": "",
+        "type": "password"
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "S3_Config": {
+    "title": "s3_Config Config",
+    "description": "s3_Config Configuration Schema",
+    "type": "object",
+    "required": [
+      "BucketName",
+      "AwsAccessKeyId",
+      "AwsSecretAccessKey"
+    ],
+    "properties": {
+      "BucketName": {
+        "description": "",
+        "type": "string"
+      },
+      "AwsAccessKeyId": {
+        "description": "",
+        "type": "string"
+      },
+      "AwsSecretAccessKey": {
+        "description": "",
+        "type": "string"
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "LOCAL_Config": {
+    "title": "local Config",
+    "description": "local Configuration Schema",
+    "type": "object",
+    "required": [
+    ],
+    "properties": {
+      "additionalProperties": "false"
+    }
+  },
+  "SFTP_Config": {
+    "title": "sftp_server Config",
+    "description": "sftp_server Configuration Schema",
+    "type": "object",
+    "required": [
+      "URL",
+      "Username",
+      "Password"
+    ],
+    "properties": {
+      "URL": {
+        "description": "",
+        "type": "string"
+      },
+      "Username": {
+        "description": "",
+        "type": "string"
+      },
+      "Password": {
+        "description": "",
+        "type": "password"
+      },
+      "additionalProperties": "false"
+    }
+  },
+    "WEB_SCRAP_Config": {
+    "title": "WebScrap_Config Config",
+    "description": "WebScrap_Config Configuration Schema",
+    "type": "object",
+    "required": [
+    ],
+    "properties": {
+      "additionalProperties": "false"
+    }
+  },
+  "Google_Drive_Config": {
+    "title": "Google_Drive_Config Config",
+    "description": "Google_Drive_Config Configuration Schema",
+    "type": "object",
+    "required": [
+      "DriveLink"
+    ],
+    "properties": {
+      "DriveLink": {
+        "description": "",
+        "type": "string"
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Config_List": {
+    "title": "",
+    "description": "Algo Mapping Configuration",
+    "type": "object",
+    "required": [
+      "ConnectionType"
+    ],
+    "properties": {
+      "ConnectionType": {
+        "type": "string",
+        "description": "",
+        "items": {
+          "type": "string",
+          "enum": [
+            "FTP",
+            "S3",
+            "LOCAL",
+            "SFTP",
+            "WEB_SCRAP",
+            "Google_Drive"
+          ]
+        },
+        "uniqueItems": "true"
+      },
+      "additionalProperties": "false"
+    }
+  }
+}

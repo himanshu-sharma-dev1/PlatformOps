@@ -1,0 +1,538 @@
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+loki.process "docker_enrich" {
+  forward_to = [loki.write.default.receiver]
+
+  stage.drop {
+    older_than          = "24h"
+    drop_counter_reason = "bootstrap_too_old"
+  }
+
+  stage.drop {
+    longer_than         = "256KB"
+    drop_counter_reason = "bootstrap_too_long"
+  }
+
+  stage.static_labels {
+    values = {
+      environment = "validation",
+      node_id     = "NODE1001",
+      node_ip     = "216.48.189.217",
+      source_type = "docker_container",
+    }
+  }
+}
+
+loki.process "file_guard" {
+  forward_to = [loki.write.default.receiver]
+
+  stage.drop {
+    longer_than         = "256KB"
+    drop_counter_reason = "file_too_long"
+  }
+}
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "docker_logs" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container_name"
+    replacement   = "$1"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_id"]
+    target_label  = "container_id"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "compose_service"
+  }
+
+  rule {
+    replacement  = "validation"
+    target_label = "environment"
+  }
+
+  rule {
+    replacement  = "NODE1001"
+    target_label = "node_id"
+  }
+
+  rule {
+    replacement  = "216.48.189.217"
+    target_label = "node_ip"
+  }
+
+  rule {
+    replacement  = "docker_container"
+    target_label = "source_type"
+  }
+}
+
+local.file_match "cplatform_logs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/cPlatform/logs/*.log*",
+    service_name = "cPlatform",
+    service_type = "AIOrchestrator",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "trainingserver_rabbitmq_iktara_rabbitmqlogs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/rabbitmqLogs/*.log*",
+    service_name = "RabbitMQ",
+    service_type = "RabbitMQ",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "trainingserver_trainingserver_iktara_trainingserver_logs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/trainingServer/logs/*.log*",
+    service_name = "dTrain",
+    service_type = "TrainingServer",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "ans_ans_iktara_ans_logs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/ans/logs/*.log*",
+    service_name = "ANS",
+    service_type = "ANS",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "ans_node_exporter_iktara_nodeexporterlogs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/nodeExporterLogs/*.log*",
+    service_name = "node-exporter",
+    service_type = "node-exporter",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "ans_process_exporter_iktara_processexporterlogs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/processExporterLogs/*.log*",
+    service_name = "process-exporter",
+    service_type = "process-exporter",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "ans_dcgmexporter_iktara_dcgmexporterlogs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/dcgmExporterLogs/*.log*",
+    service_name = "dcgmExporter",
+    service_type = "dcgmExporter",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "ans_prometheus_iktara_prometheusanslogs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/prometheusANSLogs/*.log*",
+    service_name = "Prometheus",
+    service_type = "Prometheus",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "ans_clickhouse_iktara_clickhouselogs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/clickHouseLogs/*.log*",
+    service_name = "ClickHouse",
+    service_type = "ClickHouse",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "ans_nifi_iktara_nifilogs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/nifiLogs/*.log*",
+    service_name = "NiFi",
+    service_type = "NiFi",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "ans_postgresql_iktara_postgreslogs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/postgresLogs/*.log*",
+    service_name = "PostgreSQL",
+    service_type = "PostgreSQL",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "rag_rag_iktara_rag_logs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/rag/logs/*.log*",
+    service_name = "RAG",
+    service_type = "RAG",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "rag_milvus_iktara_milvus_logs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/milvus/logs/*.log*",
+    service_name = "Milvus",
+    service_type = "Milvus",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "rag_etcd_iktara_etcdlogs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/etcdLogs/*.log*",
+    service_name = "etcd",
+    service_type = "etcd",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "rag_minio_iktara_miniologs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/minioLogs/*.log*",
+    service_name = "minio",
+    service_type = "minio",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "rag_prometheus_iktara_prometheusraglogs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/prometheusRAGLogs/*.log*",
+    service_name = "Prometheus",
+    service_type = "Prometheus",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "rag_redis_iktara_redislogs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/redisLogs/*.log*",
+    service_name = "redis",
+    service_type = "redis",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "text2sql_text2sql_iktara_text2sql_logs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/text2sql/logs/*.log*",
+    service_name = "Text2SQL",
+    service_type = "Text2SQL",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "asr_asr_iktara_asr_logs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/asr/logs/*.log*",
+    service_name = "ASR",
+    service_type = "ASR",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "convform_convform_iktara_convform_logs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/convForm/logs/*.log*",
+    service_name = "ConvForm",
+    service_type = "ConvForm",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "inferenceserver_inferenceserver_iktara_inferenceserver_logs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/InferenceServer/logs/*.log*",
+    service_name = "dInfer",
+    service_type = "InferenceServer",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "mcpserver_mcpserver_iktara_mcpserver_logs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/MCPServer/logs/*.log*",
+    service_name = "MCPServer",
+    service_type = "MCPServer",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "mcpproxy_mcpproxy_iktara_mcpproxy_logs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/mcpProxy/logs/*.log*",
+    service_name = "McpProxy",
+    service_type = "McpProxy",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "airflow_airflow_scheduler_iktara_airflow_logs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/airflow/logs/*.log*",
+    service_name = "Airflow-Scheduler",
+    service_type = "Airflow-Scheduler",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "airflow_airflow_worker_iktara_airflow_logs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/airflow/logs/*.log*",
+    service_name = "Airflow-Worker",
+    service_type = "Airflow-Worker",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "airflow_airflow_dagprocessor_iktara_airflow_logs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/airflow/logs/*.log*",
+    service_name = "Airflow-DagProcessor",
+    service_type = "Airflow-DagProcessor",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "airflow_airflow_triggerer_iktara_airflow_logs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/airflow/logs/*.log*",
+    service_name = "Airflow-Triggerer",
+    service_type = "Airflow-Triggerer",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "airflow_postgresql_iktara_airflow_postgreslogs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/airflow/postgresLogs/*.log*",
+    service_name = "PostgreSQL",
+    service_type = "PostgreSQL",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "airflow_redis_iktara_airflow_redislogs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/airflow/redisLogs/*.log*",
+    service_name = "redis",
+    service_type = "redis",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "optioncopilot_optioncopilot_iktara_optioncopilot_logs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/optionCopilot/logs/*.log*",
+    service_name = "optionCopilot",
+    service_type = "optionCopilot",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "airtelchurn_airtelchurn_iktara_airtelchurn_logs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/airtelChurn/logs/*.log*",
+    service_name = "AirtelChurn",
+    service_type = "AirtelChurn",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+local.file_match "text2clk_text2clk_iktara_text2clk_logs" {
+  path_targets = [{
+    __path__     = "/host-volume/iktara/text2clk/logs/*.log*",
+    service_name = "Text2CLK",
+    service_type = "Text2CLK",
+    environment  = "validation",
+    source_type  = "file",
+  }]
+}
+
+loki.source.file "cplatform_logs" {
+  targets       = local.file_match.cplatform_logs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "trainingserver_rabbitmq_iktara_rabbitmqlogs" {
+  targets       = local.file_match.trainingserver_rabbitmq_iktara_rabbitmqlogs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "trainingserver_trainingserver_iktara_trainingserver_logs" {
+  targets       = local.file_match.trainingserver_trainingserver_iktara_trainingserver_logs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "ans_ans_iktara_ans_logs" {
+  targets       = local.file_match.ans_ans_iktara_ans_logs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "ans_node_exporter_iktara_nodeexporterlogs" {
+  targets       = local.file_match.ans_node_exporter_iktara_nodeexporterlogs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "ans_process_exporter_iktara_processexporterlogs" {
+  targets       = local.file_match.ans_process_exporter_iktara_processexporterlogs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "ans_dcgmexporter_iktara_dcgmexporterlogs" {
+  targets       = local.file_match.ans_dcgmexporter_iktara_dcgmexporterlogs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "ans_prometheus_iktara_prometheusanslogs" {
+  targets       = local.file_match.ans_prometheus_iktara_prometheusanslogs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "ans_clickhouse_iktara_clickhouselogs" {
+  targets       = local.file_match.ans_clickhouse_iktara_clickhouselogs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "ans_nifi_iktara_nifilogs" {
+  targets       = local.file_match.ans_nifi_iktara_nifilogs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "ans_postgresql_iktara_postgreslogs" {
+  targets       = local.file_match.ans_postgresql_iktara_postgreslogs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "rag_rag_iktara_rag_logs" {
+  targets       = local.file_match.rag_rag_iktara_rag_logs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "rag_milvus_iktara_milvus_logs" {
+  targets       = local.file_match.rag_milvus_iktara_milvus_logs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "rag_etcd_iktara_etcdlogs" {
+  targets       = local.file_match.rag_etcd_iktara_etcdlogs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "rag_minio_iktara_miniologs" {
+  targets       = local.file_match.rag_minio_iktara_miniologs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "rag_prometheus_iktara_prometheusraglogs" {
+  targets       = local.file_match.rag_prometheus_iktara_prometheusraglogs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "rag_redis_iktara_redislogs" {
+  targets       = local.file_match.rag_redis_iktara_redislogs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "text2sql_text2sql_iktara_text2sql_logs" {
+  targets       = local.file_match.text2sql_text2sql_iktara_text2sql_logs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "asr_asr_iktara_asr_logs" {
+  targets       = local.file_match.asr_asr_iktara_asr_logs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "convform_convform_iktara_convform_logs" {
+  targets       = local.file_match.convform_convform_iktara_convform_logs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "inferenceserver_inferenceserver_iktara_inferenceserver_logs" {
+  targets       = local.file_match.inferenceserver_inferenceserver_iktara_inferenceserver_logs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "mcpserver_mcpserver_iktara_mcpserver_logs" {
+  targets       = local.file_match.mcpserver_mcpserver_iktara_mcpserver_logs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "mcpproxy_mcpproxy_iktara_mcpproxy_logs" {
+  targets       = local.file_match.mcpproxy_mcpproxy_iktara_mcpproxy_logs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "airflow_airflow_scheduler_iktara_airflow_logs" {
+  targets       = local.file_match.airflow_airflow_scheduler_iktara_airflow_logs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "airflow_airflow_worker_iktara_airflow_logs" {
+  targets       = local.file_match.airflow_airflow_worker_iktara_airflow_logs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "airflow_airflow_dagprocessor_iktara_airflow_logs" {
+  targets       = local.file_match.airflow_airflow_dagprocessor_iktara_airflow_logs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "airflow_airflow_triggerer_iktara_airflow_logs" {
+  targets       = local.file_match.airflow_airflow_triggerer_iktara_airflow_logs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "airflow_postgresql_iktara_airflow_postgreslogs" {
+  targets       = local.file_match.airflow_postgresql_iktara_airflow_postgreslogs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "airflow_redis_iktara_airflow_redislogs" {
+  targets       = local.file_match.airflow_redis_iktara_airflow_redislogs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "optioncopilot_optioncopilot_iktara_optioncopilot_logs" {
+  targets       = local.file_match.optioncopilot_optioncopilot_iktara_optioncopilot_logs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "airtelchurn_airtelchurn_iktara_airtelchurn_logs" {
+  targets       = local.file_match.airtelchurn_airtelchurn_iktara_airtelchurn_logs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+loki.source.file "text2clk_text2clk_iktara_text2clk_logs" {
+  targets       = local.file_match.text2clk_text2clk_iktara_text2clk_logs.targets
+  forward_to    = [loki.process.file_guard.receiver]
+  tail_from_end = true
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.docker_logs.output
+  forward_to = [loki.process.docker_enrich.receiver]
+}

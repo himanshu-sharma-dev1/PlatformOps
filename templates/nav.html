@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Agentic Churn Platform</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css"
+          integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Bootstrap & it's dependent popper Javascript library -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"
+            integrity="sha384-IQsoLXl5PILFhosVNubq5LC7Qb9DXgDA9i+tQ8Zj3iwWAwPtgFTxbJ8NT4GN1R8p"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js"
+            integrity="sha384-cVKIPhGWiC2Al4u+LWgxfKTRIcfu0JTxR+EQDz/bgldoEyl4H0zUF0QKbrJ0EcQF"
+            crossorigin="anonymous"></script>
+    <script type="text/javascript" src="//code.jquery.com/jquery-2.1.0.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap">
+
+    <!-- Date  -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/moment@2.29.4/min/moment.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+
+    <!--DataTable----------->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+
+    <!--Select2.Select2-->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <!--     Chart Javascript library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    {% load static %}
+    <link rel="stylesheet" type="text/css" href="{% static 'cPlatformStyles.css' %}">
+    <link rel="stylesheet" type="text/css" href="{% static 'cProjectStyle.css' %}">
+    <link rel="shortcut icon" type="image/png" href="{% static 'airtelTaw/favicon-airtel.png' %}"/>
+    <style>
+        .ik-top-nav{
+            color:#292c31 !important;
+            font-size:10px;
+            text-align:center;
+            letter-spacing:0.01em;
+            margin-top:6px;
+            padding:7px 0px;
+            font-family: 'Nunito'; }
+
+        .ik-top-nav2{
+            letter-spacing:-0.005em;
+            font-family: 'Tondo', sans-serif;
+            font-weight:500;
+            font-size:18px;
+            color:#e40000; }
+
+        .ik-h2{font-weight:normal !important;}
+        .login_text{color:#fff;}
+        a span{ font-size:11px; font-weight:700; }
+        .navbar-collapse{ display:flex; margin-right:10px;" }
+    </style>
+</head>
+<body>
+<div class="container-fluid mt-5">
+    <nav class="navbar-responsive fixed-top navbar-expand-sm m-0 p-0" style="background:#e40000;">
+        <div class="row d-flex justify-content-between">
+            <div class="col-lg-2 d-flex align-items-center">
+                {% load static %}
+                <div class="navbar-brand mx-2 p-0 mt-0">
+                     <img src= "{% static 'airtelTaw/airtel_img.png' %}" style="height:50%; width:50%;">
+                </div>
+            </div>
+            <div class="col-lg-1">
+                <div class="collapse navbar-collapse" id="navbarCollapse" style="display:flex; justify-content:center;">
+                    <div class="row w-100">
+                        <div class="col-lg-12 text-end">
+                            {% if user.is_authenticated %}
+                                <div class="dropdown mx-2 mt-2">
+                                    <div data-bs-toggle="dropdown"><i class="fs-4 bi bi-person-fill" style="color:#fff;"></i></div>
+                                    <div class="dropdown-menu text-center" style="right:-2rem; left:auto; background:#e40000;">
+                                        <a href="/" class="login_text ik-h2">Logout</a><br>
+                                        <a class="login_text ik-h2" id="resetsession">Reset Session</a>
+                                         <a class="login_text ik-h2">
+                                             <button type="button" class="btn ik-txt text-light" data-bs-toggle="modal" data-bs-target="#userprofile" onclick="fetchServiceData(event)">Select App</button>
+                                        </a>
+                                        <button id="switch" class="d-none">Switch Theme</button>
+                                    </div>
+                                </div>
+                            {% else %}
+                            <a class="nav-item nav-link text-#e9ecef" href="{% url 'login'%}">Login</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+<!--Navbar Section------------------------------------->
+        <div style="display:flex; justify-content:center;">
+            <div class="navbar-nav ik-navbar px-5 py-0">
+                <ul class="nav nav-tabs d-flex justify-content-center border-none"  id="myTab" role="tablist" >
+                    {% load my_templatetag %}
+                    {% if request.user.is_staff and request.user|has_group:"Admin" %}
+                    <li class="nav-item" role="presentation" onclick="getReq('/ANS/Analytics/NWAudit/',{'oem_list' : '','circle_list' : ''})">
+                        <a href="/PlatformIO/BatchIngress/" class="nav-link ik-top-nav" id="Platform">
+                            <i class="bi bi-person-fill"></i><br><span>Admin</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                   <li class="nav-item text-end mt-3" role="presentation" style="width:60%;">
+                         <div class="ik-top-nav2">Agentic Churn Platform</div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+     <div class="modal fade" id="userprofile" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
+        role="dialog" aria-labelledby="exampleModal" aria-hidden="false">
+        <div class="modal-dialog modal-xl show" role="document">
+            <div class="modal-content">
+                <div class="modal-header ik-modalHeader">
+                    <h6 class="modal-title ik-modalTitle" id="exampleModal">Select App</h6>
+                </div>
+                 <div class="modal-body ik-modalBody" id="modal-body-content">
+                </div>
+                <div class="modal-footer ik-modalFooter">
+                     <button type="submit" value="save" name="user-action" id="save-app-btn" class="btn ik-add-btn px-2 py-0">Save</button>
+                    <button type="button" class="btn ik-close-btn px-2 py-0" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+// Cache DOM elements
+const elements = {
+    navTabs: document.getElementById('myTab'), // Changed from 'main-nav-tabs' to 'myTab'
+    resetSessionBtn: document.getElementById('reset_session'),
+    modalBody: document.getElementById('modal-body-content'),
+    saveAppBtn: document.getElementById('save-app-btn'),
+    userProfileModal: new bootstrap.Modal('#userprofile')
+};
+
+// State management
+const state = {
+    selectedApp: localStorage.getItem('selectedApp') || ''
+};
+
+// Path aliases for matching
+const pathAliases = {
+    '/ANS/GetDeviceAuditRes/': '/ANS/Diagnostics/InvResults/',
+    '/ANS/GetDeviceRawPerfData/': '/ANS/Diagnostics/KPIResults/'
+};
+
+// Initialize the application
+function init() {
+    setActiveNavTab();
+    setupEventListeners();
+}
+
+// Set active navigation tab based on current URL
+function setActiveNavTab() {
+    const currentPath = getCurrentPath();
+    const navItems = elements.navTabs.querySelectorAll('.nav-item');
+
+    navItems.forEach(item => {
+        const link = item.querySelector('a');
+        if (link) {
+            const itemPath = link.getAttribute('href');
+            if (itemPath && currentPath.startsWith(itemPath)) {
+                item.classList.add('active');
+            } else {
+                item.classList.remove('active');
+            }
+        }
+    });
+}
+
+// Get current path with aliases resolved
+function getCurrentPath() {
+    let path = window.location.pathname;
+    return pathAliases[path] || path;
+}
+
+// Setup event listeners
+function setupEventListeners() {
+    // Reset session
+    elements.resetSessionBtn?.addEventListener('click', resetSession);
+
+    // Modal events
+    document.getElementById('userprofile').addEventListener('show.bs.modal', fetchServiceData);
+    elements.saveAppBtn.addEventListener('click', saveSelectedApp);
+
+    // Navigation
+    elements.navTabs.addEventListener('click', (e) => {
+        if (e.target.closest('.nav-item')) {
+            setTimeout(setActiveNavTab, 50); // Small delay to allow URL change
+        }
+    });
+}
+
+// Reset user session
+async function resetSession() {
+    try {
+        const formData = new FormData();
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+        const response = await fetch('/ANS/ResetSession/', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            console.log('Session reset:', result);
+        }
+    } catch (error) {
+        console.error('Error resetting session:', error);
+    }
+}
+
+// Fetch app list for modal
+async function fetchServiceData() {
+    try {
+        const response = await fetch('/PlatformIO/AP1v1/GetAppList/');
+        const data = await response.json();
+        const appList = data.app_list || [];
+
+        if (appList.length === 0) {
+            elements.modalBody.innerHTML = '<p>No applications found.</p>';
+            return;
+        }
+
+        renderAppButtons(appList);
+    } catch (error) {
+        console.error('Error fetching app list:', error);
+        elements.modalBody.innerHTML = '<p class="text-danger">Error loading applications</p>';
+    }
+}
+
+// Render app selection buttons
+function renderAppButtons(appList) {
+    elements.modalBody.innerHTML = `
+        <h6><strong>Application List:</strong></h6>
+        <div class="d-flex flex-wrap gap-2" id="app-button-container">
+            ${appList.map(app => `
+                <button type="button" class="btn btn-sm app-btn ${app === state.selectedApp ? 'selected-app-btn' : 'add-btn'}"
+                        data-app="${app}">${app}</button>
+            `).join('')}
+        </div>
+    `;
+
+    // Set up button click handlers
+    document.getElementById('app-button-container').addEventListener('click', (e) => {
+        const button = e.target.closest('.app-btn');
+        if (button) {
+            selectAppButton(button);
+        }
+    });
+}
+
+// Handle app button selection
+function selectAppButton(button) {
+    const buttons = document.querySelectorAll('.app-btn');
+    buttons.forEach(btn => {
+        btn.classList.toggle('selected-app-btn', btn === button);
+        btn.classList.toggle('add-btn', btn !== button);
+    });
+
+    state.selectedApp = button.getAttribute('data-app');
+}
+
+// Save selected app to server
+async function saveSelectedApp() {
+    if (!state.selectedApp) {
+        alert('Please select an application');
+        return;
+    }
+
+    try {
+        const formData = new FormData();
+        formData.append('json_data', JSON.stringify({ current_app: state.selectedApp }));
+
+        const response = await fetch('/ANS/UpdateAppSession/', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (response.ok) {
+            localStorage.setItem('selectedApp', state.selectedApp);
+            elements.userProfileModal.hide();
+            location.reload();
+        }
+    } catch (error) {
+        console.error('Error saving app selection:', error);
+    }
+}
+
+// Initialize the app when DOM is loaded
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
+

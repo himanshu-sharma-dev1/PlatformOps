@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login Variants · Compare</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #F4F4F0;
+      color: #1A1F2B;
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+    header {
+      padding: 20px 32px;
+      border-bottom: 1px solid #E0DDD5;
+      background: #FFFFFF;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+    h1 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0;
+    }
+    .sub {
+      font-size: 13px;
+      color: #6B7280;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    main {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      padding: 16px;
+      min-height: 0;
+    }
+    .col {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0;
+    }
+    .label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: #FFFFFF;
+      border: 1px solid #E0DDD5;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .label-name { font-weight: 600; }
+    .label-desc { color: #6B7280; font-size: 12px; }
+    .label a {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #0F4C5C;
+      text-decoration: none;
+      padding: 4px 8px;
+      border: 1px solid #D6CFC0;
+      border-radius: 4px;
+      background: #F4F4F0;
+    }
+    .label a:hover { background: #0F4C5C; color: #FFF; border-color: #0F4C5C; }
+    .frame {
+      flex: 1;
+      border: 1px solid #E0DDD5;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #FFF;
+      min-height: 600px;
+    }
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+    }
+    .legend {
+      padding: 12px 14px;
+      font-size: 12px;
+      color: #6B7280;
+      line-height: 1.6;
+      background: #FFFFFF;
+      border: 1px solid #E0DDD5;
+      border-radius: 6px;
+    }
+    .legend strong { color: #1A1F2B; font-weight: 600; }
+    .legend code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      background: #F4F4F0;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+    .help {
+      padding: 12px 14px;
+      background: #FEF7E0;
+      border: 1px solid #F5DC93;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #7C5E00;
+      line-height: 1.6;
+      margin: 0 16px 16px;
+    }
+    .help strong { color: #5A4500; }
+    .help code {
+      font-family: 'JetBrains Mono', monospace;
+      background: rgba(255,255,255,0.5);
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+    @media (max-width: 1100px) {
+      main { grid-template-columns: 1fr; }
+      .frame { min-height: 700px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Login portal · variant comparison</h1>
+    <span class="sub">3 variants · same auth flow · pick one</span>
+  </header>
+
+  <div class="help">
+    <strong>How to evaluate:</strong> each iframe is the live login. Try the demo creds
+    <code>analyst@telecom.local</code> / <code>Analyst@2026</code> and TOTP
+    <code>123456</code> to walk all the way through. Use a <strong>wrong password</strong>
+    to see the error state, and a <strong>wrong TOTP</strong> (e.g. <code>999999</code>)
+    on the MFA page. Each variant's footer has a switcher to flip between them in-place.
+  </div>
+
+  <main>
+    <div class="col">
+      <div class="label">
+        <div>
+          <span class="label-name">A · Minimal Editorial</span>
+          <span class="label-desc"> · serif display, off-white</span>
+        </div>
+        <a href="{{ variant_urls.minimal }}" target="_blank">open ↗</a>
+      </div>
+      <div class="frame"><iframe src="{{ variant_urls.minimal }}" title="Minimal variant"></iframe></div>
+      <div class="legend">
+        <strong>Reads as:</strong> serious institution, editorial confidence, restraint.<br>
+        <strong>Best when:</strong> the platform is positioned as analyst-grade tooling. Tone is "this is a serious tool."
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="label">
+        <div>
+          <span class="label-name">B · Split-screen Context</span>
+          <span class="label-desc"> · cream + navy, platform preview</span>
+        </div>
+        <a href="{{ variant_urls.split }}" target="_blank">open ↗</a>
+      </div>
+      <div class="frame"><iframe src="{{ variant_urls.split }}" title="Split variant"></iframe></div>
+      <div class="legend">
+        <strong>Reads as:</strong> modern enterprise SaaS, with a quiet pitch on the right side.<br>
+        <strong>Best when:</strong> rolling out internally — the right panel doubles as onboarding for first-time users.
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="label">
+        <div>
+          <span class="label-name">C · Operations Console</span>
+          <span class="label-desc"> · dark, monospace, infra feel</span>
+        </div>
+        <a href="{{ variant_urls.console }}" target="_blank">open ↗</a>
+      </div>
+      <div class="frame"><iframe src="{{ variant_urls.console }}" title="Console variant"></iframe></div>
+      <div class="legend">
+        <strong>Reads as:</strong> infrastructure tool, k9s/Datadog/Grafana adjacent, technical first.<br>
+        <strong>Best when:</strong> users are network-ops or SRE-adjacent. Sets expectation that the platform is for technical work.
+      </div>
+    </div>
+  </main>
+</body>
+</html>

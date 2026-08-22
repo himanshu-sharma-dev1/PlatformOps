@@ -1,0 +1,72 @@
+{
+  "trainingServer": {
+    "group_con": "training_server_Json",
+    "e_type": "staticAccordion",
+    "e_display": true,
+    "e_name": "TrainingServer",
+    "row_Schema": {
+      "staticAccRowSchema": {
+        "group_con": "",
+        "e_type": "dynamicRow",
+        "e_display": true,
+        "e_name": "training_field_info",
+        "row_Schema": [
+          {
+            "f_display_name": "SelectCluster",
+            "f_name": "cluster_name",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": [],
+            "a_onChange": "selectCluster(event)",
+            "b_name" : [],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "TrainingServer",
+            "f_name": "training_server",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": [],
+            "a_onChange": "onSelectDemo(event)",
+            "b_name" : [],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "CPU",
+            "f_name": "num_cpu",
+            "f_type": "number",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_min": 1,
+            "v_max": 5,
+            "a_onSelect": "onSelectDemo(event)",
+            "b_name" : [],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "GPU",
+            "f_name": "num_gpu",
+            "f_type": "number",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_min": 1,
+            "v_max": 5,
+            "a_onSelect": "onSelectDemo(event)",
+            "b_name" : [],
+            "b_rows": []
+          }
+        ]
+      }
+    }
+  }
+}

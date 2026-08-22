@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Airtel Transmission Workbench</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/markdown-it/dist/markdown-it.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/markdown-it-container/dist/markdown-it-container.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js"
+            integrity="sha384-cVKIPhGWiC2Al4u+LWgxfKTRIcfu0JTxR+EQDz/bgldoEyl4H0zUF0QKbrJ0EcQF"
+            crossorigin="anonymous"></script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"/>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"/>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet"/>
+
+    {% load static %}
+    <link rel="shortcut icon" type="image/png" href="{% static 'airtelTaw/favicon-airtel.png' %}"/>
+    <link rel="stylesheet" type="text/css" href="{% static 'cChatStyle.css' %}"/>
+    <script type="module" src="{% static 'dchat/dChat.js' %}"></script>
+
+    <style>
+
+    table{
+      display: block;
+      overflow-x: auto;
+      overflow-y: auto;
+      max-height: 300px;
+      max-width: 100%;
+      white-space: nowrap;
+    }
+
+    .loader{
+        font-size: 12px;
+    }
+
+    .loader span {
+      color: #e40000;
+      font-size: 40px;
+      animation: blink 1.5s infinite;
+    }
+
+    .loader span:nth-child(1) { animation-delay: 0s; }
+    .loader span:nth-child(2) { animation-delay: 0.3s; }
+    .loader span:nth-child(3) { animation-delay: 0.6s; }
+
+    @keyframes blink {
+      0% { opacity: 0; }
+      50% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    </style>
+  </head>
+  <body>
+    <div class="container-fluid">
+      <div class="row">
+        <!-- Full Page Flex Layout -->
+        <div class="d-flex px-0" style="height: 100vh; overflow: hidden">
+          <!-- Sidebar -->
+          <div
+            id="sidebar"
+            class="sidebar position-relative"
+            style="width: 20vw"
+          >
+            <i class="bi bi-chat-square-text sidebarToggle"></i>
+            <i
+              class="bi bi-layout-sidebar sidebar-toggle"
+              id="toggleSidebar"
+            ></i>
+
+            <div class="sub-element mt-5">
+              <div class="new-chat ">
+                <button class="new-chat-button" onclick='newChat()'>
+                  <i class="bi bi-plus text-muted fs-6"></i> New Chat
+                </button>
+              </div>
+              {% comment %}
+              <div class="row my-4">
+                <h6 class="fw-bold" style="font-size: 13px">My Widgets</h6>
+                <button
+                  class="widget-btn btn p-0 text-muted col-4"
+                  data-bs-toggle="modal"
+                  data-bs-target="#scheduleModal">
+                  <i class="bi bi-calendar-event me-1"></i><br />
+                  Daily KPIs
+                </button>
+                <button
+                  class="widget-btn btn p-0 text-muted col-4"
+                  data-bs-toggle="modal"
+                  data-bs-target="#scheduleModal">
+                  <i class="bi bi-calendar4-week me-1"></i><br />
+                  Weekly KPI
+                </button>
+                <button
+                  class="widget-btn btn p-0 text-muted col-4"
+                  data-bs-toggle="modal"
+                  data-bs-target="#scheduleModal">
+                  <i class="bi bi-folder-check me-1"></i><br />
+                  RCA Check
+                </button>
+              </div> {% endcomment %}
+              <div class="row my-2" id="widgets-container" style="max-height:20vh; overflow-y:scroll;">
+                <h6 class="fw-bold" style="font-size: 13px">My Widgets</h6>
+                {% for widget in context %}
+                  <button
+                      class="widget-btn btn p-0 text-muted col-4"
+                      data-id="{{ widget.id }}"
+                      data-username="{{ widget.user_name }}"
+                      data-start="{{ widget.start_date }}"
+                      data-time="{{ widget.time }}"
+                      data-tz="{{ widget.time_zone }}"
+                      data-query="{{ widget.type }}"
+                      data-emails="{{ widget.email_list|join:',' }}"
+                      data-bs-toggle="modal"
+                      data-bs-target="#addModal">
+                    {% if widget.type == "Daily" %}
+                      <i class="bi bi-calendar-event me-1"></i>
+                    {% elif widget.type == "Weekly" %}
+                      <i class="bi bi-calendar4-week me-1"></i>
+                    {% elif widget.type == "Monthly" %}
+                      <i class="bi bi-folder-check me-1"></i>
+                    {% else %}
+                      <i class="bi bi-exclamation-triangle me-1"></i>
+                    {% endif %}
+                    <br />
+                    {{ widget.name }}
+                  </button>
+                {% endfor %}
+            </div>
+
+              <div>
+                <h6 class="fw-bold" style="font-size: 13px">Recent Queries</h6>
+                <ul class="list-unstyled small" id="chatHistoryList" style="overflow-y: auto" onclick="history(event)">{% for item in chat_history %}
+                  <li>
+                    <a href="" class="text-decoration-none text-muted" title="{{ item.query }}">{{ item.query }}</a>
+                    <p class="d-none queryId">{{item.question_id }}</p>
+                  </li>
+                  {% empty %}
+                  <li>No chat history found.</li>
+                  {% endfor %}
+                </ul>
+              </div>
+              <div class="pop-up" id="popupMenu">
+                <ul class="list-unstyled mb-0">
+                  <li><i class="bi bi-gear"></i> Setting</li>
+                  <li><i class="bi bi-info-circle"></i> Help</li>
+                  <li><i class="bi bi-box-arrow-right"></i> Logout</li>
+                </ul>
+              </div>
+              <button id="userButton" class="btn py-2 px-1 text-start fixed-bottom border-top bg-light" style="border: none; box-shadow:none; width:20vw;">
+
+                <span><i class="bi bi-person-circle"></i></span> {{user_name}}
+              </button>
+            </div>
+          </div>
+
+          <!-- Chat Section -->
+          <div class="flex-grow-1 d-flex flex-column" style="background: #f9f7f7">
+            <div class="chat-header d-flex align-items-center justify-content-between">
+              <div class="chat-logo d-flex align-items-center">
+                {% load static %}
+                <img src="{% static 'airtelTaw/favicon-airtel.png' %}" style="height: 10%; width: 10%"/>
+                <span class="ms-2 fw-bold">Airtel Network Agent</span>
+              </div>
+            </div>
+
+            <!-- Chat Body -->
+            <div class="chat-body flex-grow-1 overflow-auto" style="position: relative; padding: 20px 100px">
+              <div class="wrapper">
+                <div class="chat-message d-none">
+                  <div class="message-actions">
+                    <i class="bi bi-clipboard fs-6" title="Copy" onclick="copyQuery(event)"></i>
+                    <i class="bi bi-info-circle fs-6 widget-btn text-muted" role="button" data-bs-toggle="modal" data-bs-target="#addModal" title="Add">
+                    </i>
+                  </div>
+                  <div class="user-query" style="position: relative;"></div>
+                  <p style="position:absolute;top: 55px;right: 0px;" class="date-time mb-2"></p>
+                </div>
+
+                <div class="bot-response-wrapper d-none my-5">
+                  <div class="agent-response p-1" style="position: relative; max-width: 70vw;"></div>
+                  <p style="position:absolute; bottom: 0px;right: 0px;" class="date-time"></p>
+
+                  <div class="bot-response-actions">
+                    <i class="bi bi-hand-thumbs-up" title="Like" value="positive" onclick="handleFeedback(event)">
+                    </i>
+                    <i class="bi bi-hand-thumbs-down" title="Dislike" value="negative" onclick="handleFeedback(event)">
+                    </i>
+                    <i class="bi bi-clipboard" title="Copy" onclick="copyResponse(event)"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Typing Section -->
+            <div class="chat-input">
+              <div class="input-box position-relative" id="input-box">
+                <input type="text" placeholder="Ask anything…" class="messageInput" id="messageInput"/>
+                <input type="file" id="fileInput" style="display: none" multiple/>
+
+                <!-- Show selected files here -->
+                <div id="filePreview" class="mt-2 d-flex flex-wrap gap-2"></div>
+
+                <div class="chat-input-icons d-flex align-items-center gap-3 mt-2">
+                  <i class="bi bi-plus fs-4" title="Upload file" id="uploadButton"></i>
+                  <i class="bi bi-send-fill fs-4" title="Send message" id="sendButton" onclick="getQuery()"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="widgets-container" class="row g-2">
+        {% for widget in widgets %}
+        <button class="widget-btn btn p-0 text-muted col-4" data-id="{{ widget.id }}" data-username="{{ widget.user_name }}" data-start="{{ widget.start_date }}" data-time="{{ widget.time }}"
+            data-tz="{{ widget.time_zone }}" data-query="{{ widget.periodicity }}" data-emails="{{ widget.email_list|join:',' }}" data-bs-toggle="modal" data-bs-target="#addModal">
+            {% if widget.periodicity == "DAILY" %}
+                <i class="bi bi-calendar-event me-1"></i>
+            {% elif widget.periodicity == "WEEKLY" %}
+                <i class="bi bi-calendar4-week me-1"></i>
+            {% elif widget.periodicity == "MONTHLY" %}
+                <i class="bi bi-folder-check me-1"></i>
+            {% else %}
+                <i class="bi bi-exclamation-triangle me-1"></i>
+            {% endif %}
+            <br>{{ widget.periodicity }} Report
+        </button>
+        {% endfor %}
+    </div>
+
+    <!-- Add Modal -->
+      <div class="modal fade" id="addModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
+        role="dialog" aria-labelledby="addModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+          <div class="modal-content">
+            <div class="modal-header">
+              <!-- Dynamic title for Add/Edit -->
+              <div class="modal-title" id="addModalLabel">Add Report</div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addReportForm" method="post" enctype="multipart/form-data" action="">
+              {% csrf_token %}
+              <div class="modal-body">
+                <div class="form-group">
+                  <div class="row">
+                    <div class="col-md-3">
+                      <label for="user_name" class="form-label">Name</label>
+                      <input type="text" class="form-control mx-0" name="user_name" id="user_name" required>
+                    </div>
+                  </div>
+                  <div class="row mt-1">
+                    <div class="col-md-3">
+                      <label for="start_date" class="form-label">Start Date</label>
+                      <input type="date" class="form-control mx-0" name="start_date" id="start_date" required>
+                    </div>
+                    <div class="col-md-3">
+                      <label for="add_time" class="form-label">Time</label>
+                      <input type="time" class="form-control mx-0" name="time" id="add_time" required>
+                    </div>
+                    <div class="col-md-3">
+                      <label for="time_zone" class="form-label">Time Zone</label>
+                      <select class="form-select" id="time_zone" name="time_zone" required>
+                        <option selected disabled value="">------</option>
+                        <option value="US/Eastern">US/Eastern</option>
+                        <option value="US/Central">US/Central</option>
+                        <option value="US/Pacific">US/Pacific</option>
+                        <option value="Europe/London">Europe/London</option>
+                        <option value="UTC">UTC</option>
+                        <option value="Europe/Belgrade">Europe/Belgrade</option>
+                        <option value="Asia/Kolkata">Asia/Kolkata</option>
+                      </select>
+                    </div>
+                    <div class="col-md-3">
+                      <label for="periodicity" class="form-label">Periodicity</label>
+                      <select class="form-select" id="periodicity" name="periodicity" required>
+                        <option selected disabled value="">------</option>
+                        <option value="DAILY">Daily</option>
+                        <option value="HOURLY">Hourly</option>
+                        <option value="WEEKLY">Weekly</option>
+                        <option value="MONTHLY">Monthly</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="col-md-4 mt-3 form-label">Email</div>
+                  <div class="row mb-1" id="addEmailField">
+                    <input type="hidden" name="emails" id="emails">
+                    <div class="d-flex">
+                      <input type="email" class="form-select border mx-0 px-2 w-50 py-1">
+                      <input type="button" value="+" onclick="addRow(event);" class="fs-6 h-100 input"
+                        style="font-weight: bold;">
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <!-- Delete button, hidden for Add, shown for Edit via JS -->
+                <button type="button" id="deleteWidgetBtn" class="btn px-3 py-0 text-light" style="background:#dc3545; display:none;">Delete</button>
+                <button type="submit" class="btn px-3 py-0 text-light" style="background:#dc3545;">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+    <!-- Schedule Modal -->
+    <div class="modal fade" id="scheduleModal" tabindex="-1" aria-labelledby="scheduleModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content p-3" style="border-radius: 8px">
+          <div class="modal-header">
+            <div class="modal-title" id="scheduleModalLabel">Edit Widgets</div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <div class="row">
+                <div class="col-md-3">
+                  <label for="user_name_s" class="form-label">Name</label>
+                  <input type="text" class="form-control mx-0" name="user_name" id="user_name_s" required>
+                </div>
+              </div>
+              <div class="row mt-1">
+                <div class="col-md-3">
+                  <label for="start_date_s" class="form-label">Start Date</label>
+                  <input type="date" class="form-control mx-0" name="start_date" id="start_date_s" required>
+                </div>
+                <div class="col-md-3">
+                  <label for="time_s" class="form-label">Time</label>
+                  <input type="time" class="form-control mx-0" name="time" id="time_s" required>
+                </div>
+                <div class="col-md-3">
+                  <label for="time_zone_s" class="form-label">Time Zone</label>
+                  <select class="form-select" id="time_zone_s" name="time_zone" required>
+                    <option selected disabled value="">------</option>
+                    <option>Asia</option>
+                    <option>Kolkata</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label for="periodicity_s" class="form-label">Periodicity</label>
+                  <select class="form-select mx-0" id="periodicity_s" name="periodicity" required>
+                    <option selected disabled value="">------</option>
+                    <option>Daily</option>
+                    <option>Weekly</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <div class="mb-3">
+                    <label class="form-label">Status</label>
+                    <select class="form-select">
+                      <option>Enable</option>
+                      <option>Disable</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4 mt-3 form-label">Email</div>
+              <div class="row mb-1" id="addEmailField_s">
+                <input type="hidden" name="emails" id="emails_s">
+                <div class="d-flex">
+                  <input type="email" class="border form-select mx-0 px-2 w-50 py-1">
+                  <input type="button" value="+" onclick="addRow(event);" class="fs-6 h-100 input"
+                    style="font-weight: bold;">
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn px-3 py-1 text-light" data-bs-dismiss="modal" style="background:#dc3545;">Delete</button>
+            <button type="submit" class="btn px-3 py-1 text-light" style="background:#dc3545;">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+<script>
+  let chat_history = {};
+  const md = window.markdownit();
+
+  function createDate() {
+    let now = new Date();
+    return now.toLocaleString("en-GB").replace(",", "").replace(/\//g, "-");
+  }
+
+  // Send request
+  function getQuery() {
+    const inputField = document.querySelector("#messageInput");
+    if (!inputField.value.trim()) return;
+
+    const query = inputField.value;
+    let chatBody = document.querySelector(".chat-body");
+    let wrapper = document.querySelector(".wrapper");
+
+    let newWrapper = wrapper.cloneNode(true);
+    chatBody.appendChild(newWrapper);
+
+    let queryCon = newWrapper.querySelector(".user-query");
+    let paraCon = queryCon.nextElementSibling;
+
+    paraCon.textContent = createDate();
+    paraCon.classList.add("mb-2");
+    queryCon.parentNode.classList.remove("d-none");
+
+    let resCon = newWrapper.querySelector(".agent-response");
+    queryCon.textContent = query;
+    resCon.innerHTML = "";
+
+    let loader = document.createElement("div");
+    loader.textContent = "Processing";
+    loader.classList.add("loader");
+    for (let i = 0; i < 3; i++) {
+      const dot = document.createElement("span");
+      dot.textContent = ".";
+      loader.appendChild(dot);
+    }
+    newWrapper.appendChild(loader);
+
+    window.dChat.dChatSendRequest(query, "/ANS/ChatAI/GetQueryResponse/", resCon);
+    inputField.value = "";
+  }
+
+  // ######################
+  // Populate modal on widget click
+  document.getElementById("widgets-container").addEventListener("click", function(e) {
+    const btn = e.target.closest(".widget-btn");
+    if (!btn) return;
+
+    const widgetId = btn.getAttribute("data-id");
+    const modal = new bootstrap.Modal(document.getElementById("scheduleModal"));
+
+     console.log("widget url hit ")
+    // Fetch widget data from server
+    fetch(`/ANS/GetWidget/${widget_id}/`)
+      console.log("widget data from server")
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          document.querySelector("input[name='user_name']").value = data.widget.user_name;
+          document.querySelector("input[name='start_date']").value = data.widget.start_date;
+          document.querySelector("input[name='time']").value = data.widget.time;
+          document.querySelector("select[name='time_zone']").value = data.widget.time_zone;
+          document.querySelector("select[name='periodicity']").value = data.widget.periodicity;
+          document.querySelector("input[name='emails']").value = data.widget.email_list.join(",");
+        }
+      });
+  });
+
+  // ######################
+  // Enter key triggers query
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      getQuery();
+    }
+  });
+
+  // Copy response
+  function copyResponse(event) {
+    let resContainer = event.target.closest(".bot-response-wrapper").querySelector(".response-block");
+    let input = resContainer.querySelector("input");
+    input.select();
+    document.execCommand("copy");
+  }
+
+  // Copy query
+  function copyQuery(event) {
+    let resContainer = event.target.closest(".chat-message").querySelector(".user-query");
+    let input = document.createElement("input");
+    input.value = resContainer.textContent;
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand("copy");
+    document.body.removeChild(input);
+  }
+
+  // Send feedback
+  function handleFeedback(event) {
+    let feedback = event.target.getAttribute("value");
+    let responseId = event.target.closest(".bot-response-wrapper").previousElementSibling.getAttribute("data-question-id");
+
+    if (feedback === "positive") {
+      event.target.classList.replace("bi-hand-thumbs-up", "bi-hand-thumbs-up-fill");
+      event.target.nextElementSibling.classList.add("d-none");
+    } else {
+      event.target.classList.replace("bi-hand-thumbs-down", "bi-hand-thumbs-down-fill");
+      event.target.previousElementSibling.classList.add("d-none");
+    }
+
+    fetch("/ANS/Analytics/ChatPage/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ feedback, responseId }),
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    const button = document.getElementById("userButton");
+    const popup = document.getElementById("popupMenu");
+    const sidebarToggle = document.getElementById("toggleSidebar");
+    const sidebar = document.getElementById("sidebar");
+
+    // User popup
+    if (button) {
+      button.addEventListener("click", function (e) {
+        e.stopPropagation();
+        popup.style.display = popup.style.display === "block" ? "none" : "block";
+      });
+    }
+    document.addEventListener("click", () => (popup ? (popup.style.display = "none") : null));
+
+    // Sidebar toggle
+    if (sidebarToggle) {
+      sidebarToggle.addEventListener("click", function () {
+        sidebar.classList.toggle("collapsed");
+        const subElement = sidebar.querySelector(".sub-element");
+        if (subElement) {
+          subElement.style.display = sidebar.classList.contains("collapsed") ? "none" : "block";
+        }
+      });
+    }
+  });
+
+  // New chat
+  function newChat() {
+    let chatBody = document.querySelector(".chat-body");
+    let initialWrapper = chatBody.querySelector(".wrapper");
+    chatBody.innerHTML = "";
+    chatBody.appendChild(initialWrapper);
+  }
+
+  // History load
+  async function history(event) {
+    if (event.target.tagName === "A") {
+      event.preventDefault();
+      let queryId = event.target.nextElementSibling.textContent;
+      let query = event.target.textContent;
+      newChat();
+
+      let response = await fetch(`/ANS/Analytics/ChatHistory/${queryId}/`);
+      if (response.ok) {
+        let res = await response.json();
+        let chatBodyContainer = document.querySelector(".chat-body");
+        let wrapper = chatBodyContainer.querySelector(".wrapper");
+        let cloneWrapper = wrapper.cloneNode(true);
+        chatBodyContainer.appendChild(cloneWrapper);
+
+        cloneWrapper.querySelector(".chat-message").classList.remove("d-none");
+        cloneWrapper.querySelector(".bot-response-wrapper").classList.remove("d-none");
+
+        cloneWrapper.querySelector(".user-query").innerText = query;
+        cloneWrapper.querySelector(".user-query").nextElementSibling.textContent = res["question_time"];
+
+        let responseCon = cloneWrapper.querySelector(".agent-response");
+        responseCon.classList.add("response-block");
+        responseCon.innerHTML = md.render(res["response"]);
+        responseCon.nextElementSibling.textContent = res["response_time"];
+        responseCon.setAttribute("data-question-id", queryId);
+
+        let input = document.createElement("input");
+        input.value = res["response"];
+        input.style.cssText = "opacity: 0; position: absolute; bottom: 0; left: 10%;";
+        responseCon.appendChild(input);
+
+        let icons = Array.from(cloneWrapper.querySelector(".bot-response-actions").querySelectorAll("i")).slice(0, 2);
+        if (res["feedback"] === "positive") {
+          icons[0].classList.remove("d-none");
+          icons[0].classList.replace("bi-hand-thumbs-up", "bi-hand-thumbs-up-fill");
+          icons[1].classList.add("d-none");
+        } else if (res["feedback"] === "negative") {
+          icons[1].classList.remove("d-none");
+          icons[1].classList.replace("bi-hand-thumbs-down", "bi-hand-thumbs-down-fill");
+          icons[0].classList.add("d-none");
+        } else {
+          icons[0].classList.remove("d-none");
+          icons[0].classList.replace("bi-hand-thumbs-up-fill", "bi-hand-thumbs-up");
+          icons[1].classList.remove("d-none");
+          icons[1].classList.replace("bi-hand-thumbs-down-fill", "bi-hand-thumbs-down");
+        }
+      }
+    }
+  }
+
+  // Add/remove rows
+  function addRow(event) {
+    let parentContainer = event.target.parentNode.parentNode;
+    let div = document.createElement("div");
+    div.classList.add("d-flex");
+    div.innerHTML = `
+      <input type="email" class="DJ-font border mx-0 px-2 w-50 py-1" title="">
+      <input type="button" value="-" onclick="removeRow(event);" class="fs-6 h-100 input" style="font-weight: bold;">
+    `;
+    parentContainer.appendChild(div);
+  }
+
+  function removeRow(event) {
+    let fieldContainer = event.target.parentNode;
+    fieldContainer.parentNode.removeChild(fieldContainer);
+  }
+
+  // Collect emails
+  function collectEmails() {
+    const emailContainer = document.getElementById("addEmailField");
+    const emailInputs = emailContainer.querySelectorAll('input[type="email"]');
+    const emails = [];
+    emailInputs.forEach((input) => {
+      if (input.value.trim()) emails.push(input.value.trim());
+    });
+    document.getElementById("emails").value = JSON.stringify(emails);
+  }
+
+
+
+// Add Json
+// ---------------- ADD / EDIT WIDGET ----------------
+
+function addJson(e, widgetId = null) {
+    e.preventDefault();
+    collectEmails();
+
+    const form = document.getElementById("addReportForm");
+    const formData = new FormData(form);
+
+    // Decide action
+    const actionType = widgetId ? "edit" : "add";
+
+    formData.append("action", actionType);
+    if (widgetId) formData.append("widget_id", widgetId);
+    console.log("widgetId",widgetId)
+    fetch('/ANS/WidgetControl/', {
+        method: "POST",
+        body: formData,
+        headers: {
+            "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            const modal = bootstrap.Modal.getInstance(document.getElementById("addModal"));
+            if (modal) modal.hide();
+
+            const container = document.getElementById("widgets-container");
+            const widget = data.widget;
+
+            if (data.action === "add") {
+                const btn = createWidgetButton(data.id, widget, form);
+                container.appendChild(btn);
+            } else if (data.action === "edit") {
+                const btn = container.querySelector(`[data-id="${data.id}"]`);
+                if (btn) updateWidgetButton(btn, widget, form);
+            }
+
+            resetForm();
+        } else {
+            alert("Error: " + (data.error || "Something went wrong"));
+        }
+    })
+    .catch(err => {
+        console.error("AJAX Error:", err);
+        alert("Server error, please try again later.");
+    });
+}
+
+// ---------------- HELPER FUNCTIONS ----------------
+function createWidgetButton(id, widget, form) {
+    const btn = document.createElement("button");
+    btn.className = "widget-btn btn p-0 text-muted col-4";
+    btn.setAttribute("data-id", id);
+    btn.setAttribute("data-query", widget.type);
+
+    // Build content safely
+    btn.appendChild(getWidgetContent(widget));
+
+    updateBtnData(btn, form);
+
+    btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        openWidgetForEdit(id, btn);
+    });
+
+    return btn;
+}
+
+function getWidgetContent(widget) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "widget-content text-center";
+
+    const icon = document.createElement("i");
+    switch (widget.type) {
+        case "DAILY": icon.className = "bi bi-calendar-event me-1"; break;
+        case "WEEKLY": icon.className = "bi bi-calendar4-week me-1"; break;
+        case "MONTHLY": icon.className = "bi bi-folder-check me-1"; break;
+        default: icon.className = "bi bi-exclamation-triangle me-1";
+    }
+
+    const br = document.createElement("br");
+    const text = document.createTextNode(widget.name);
+
+    wrapper.appendChild(icon);
+    wrapper.appendChild(br);
+    wrapper.appendChild(text);
+
+    return wrapper;
+}
+
+function updateWidgetButton(btn, widget, form) {
+    // Remove old content
+    while (btn.firstChild) btn.removeChild(btn.firstChild);
+
+    // Append new safe content
+    btn.appendChild(getWidgetContent(widget));
+
+    updateBtnData(btn, form);
+}
+
+function updateBtnData(btn, form) {
+    btn.dataset.username = form.querySelector("[name='user_name']").value;
+    btn.dataset.start = form.querySelector("[name='start_date']").value;
+    btn.dataset.time = form.querySelector("[name='time']").value;
+    btn.dataset.tz = form.querySelector("[name='time_zone']").value;
+    btn.dataset.query = form.querySelector("[name='periodicity']").value;
+    btn.dataset.emails = form.querySelector("[name='emails']").value;
+}
+
+function resetForm() {
+    const form = document.getElementById("addReportForm");
+    form.reset();
+    const deleteBtn = document.getElementById("deleteWidgetBtn");
+    deleteBtn.style.display = "none";
+    document.getElementById("addModalLabel").textContent = "Add Report";
+}
+
+// ---------------- OPEN FOR EDIT ----------------
+function openWidgetForEdit(widgetId, btn) {
+    const form = document.getElementById("addReportForm");
+    const modalEl = document.getElementById("addModal");
+
+    const existingModal = bootstrap.Modal.getInstance(modalEl);
+    if (existingModal) existingModal.dispose();
+
+    // Fill form fields from button data
+    form.querySelector("[name='user_name']").value = btn.dataset.username || "";
+    form.querySelector("[name='start_date']").value = btn.dataset.start || "";
+    form.querySelector("[name='time']").value = btn.dataset.time || "";
+    form.querySelector("[name='time_zone']").value = btn.dataset.tz || "";
+    form.querySelector("[name='periodicity']").value = btn.dataset.query || "";
+    form.querySelector("[name='emails']").value = btn.dataset.emails || "";
+
+    const deleteBtn = document.getElementById("deleteWidgetBtn");
+    deleteBtn.style.display = "block";
+    deleteBtn.onclick = () => deleteWidget(widgetId, btn);
+
+    form.onsubmit = (e) => addJson(e, widgetId);
+
+    document.getElementById("addModalLabel").textContent = "Edit Report";
+
+    const modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
+
+    modalEl.addEventListener('hidden.bs.modal', function handler() {
+        resetForm();
+        form.onsubmit = (e) => addJson(e);
+        modalEl.removeEventListener('hidden.bs.modal', handler);
+    });
+
+    modal.show();
+}
+
+// ---------------- DELETE ----------------
+function deleteWidget(widgetId, btn) {
+    console.log("Delete Error----------:", widgetId);
+    const formData = new FormData();
+    formData.append("action", "delete");
+    formData.append("widget_id", widgetId);
+
+    fetch("/ANS/WidgetControl/", {
+        method: "POST",
+        body: formData,
+        headers: {
+            "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value
+        }
+    })
+    .then(res => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+    })
+    .then(data => {
+        if (data.success) {
+            console.log("Delete Error===========:", data);
+            for (let [key, value] of formData.entries()) {
+                console.log(`${key}: ${value}`);
+            }
+
+            btn.remove();
+            const modal = bootstrap.Modal.getInstance(document.getElementById("addModal"));
+            if (modal) modal.hide();
+        } else {
+            alert("Error deleting widget: " + (data.error || "Something went wrong"));
+        }
+    })
+    .catch(err => {
+        console.error("Delete Error:", err);
+        alert("Failed to delete widget. See console for details.");
+    });
+}
+
+// ---------------- INITIALIZE ----------------
+document.addEventListener("DOMContentLoaded", () => {
+    // Existing widgets
+    document.querySelectorAll(".widget-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            const widgetId = btn.dataset.id;
+            openWidgetForEdit(widgetId, btn);
+        });
+    });
+
+    // Add new widget
+    const addForm = document.getElementById("addReportForm");
+    if (addForm) addForm.onsubmit = (e) => addJson(e);
+});
+
+</script>
+
+
+  </body>
+</html>

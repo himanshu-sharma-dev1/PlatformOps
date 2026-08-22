@@ -1,0 +1,92 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <div class="col-lg-1 ik-side-nav">
+        <ul class="nav mb-sm-auto nav-ul" id="adminTab">
+            <li class="menu-item">
+                <div class="ik-menu-txt" id="ClusterConfig">
+                    <a href="/PlatformIO/ClusterView/" class="ik-nav-link">
+                        <i class="bi bi-diagram-3 ik-menu-icon" id="ClusterConfig_icon" style="color: black;">
+                            <div class="ik-sidebar-text" style="color: black;">Clusters</div>
+                        </i>
+                    </a>
+                </div>
+            </li>
+            <li class="menu-item">
+                <div class="ik-menu-txt" id="UserMgmnt">
+                    <a href="/PlatformIO/Users/" class="ik-nav-link">
+                        <i class="bi bi-people ik-menu-icon" id="UserMgmnt_icon" style="color: black;">
+                            <div class="ik-sidebar-text" style="color: black;">Users</div>
+                        </i>
+                    </a>
+                </div>
+            </li>
+            <li class="menu-item">
+                <div class="ik-menu-txt" id="ConfigManager">
+                    <a href="/PlatformIO/ConfigManager/" class="ik-nav-link">
+                        <i class="bi bi-sliders ik-menu-icon" id="ConfigManager_icon" style="color: black;">
+                            <div class="ik-sidebar-text" style="color: black;">Config</div>
+                        </i>
+                    </a>
+                </div>
+            </li>
+            <li class="menu-item">
+                <div class="ik-menu-txt" id="SystemMonitoring">
+                    <a href="/PlatformIO/SystemMonitoring/" class="ik-nav-link">
+                        <i class="bi bi-speedometer2 ik-menu-icon" id="SystemMonitoring_icon" style="color: black;">
+                            <div class="ik-sidebar-text" style="color: black;">Performance</div>
+                        </i>
+                    </a>
+                </div>
+            </li>
+            <li class="menu-item">
+                <div class="ik-menu-txt" id="Monitoring">
+                    <a href="/PlatformIO/Monitoring/" class="ik-nav-link">
+                        <i class="bi bi-shield-check ik-menu-icon" id="Monitoring_icon" style="color: black;">
+                            <div class="ik-sidebar-text" style="color: black;">Monitoring</div>
+                        </i>
+                    </a>
+                </div>
+            </li>
+            <li class="menu-item">
+                <div class="ik-menu-txt" id="Diagnostics">
+                    <a href="/PlatformIO/Diagnostics/" class="ik-nav-link">
+                        <i class="bi bi-file-earmark-text ik-menu-icon" id="Diagnostics_icon" style="color: black;">
+                            <div class="ik-sidebar-text" style="color: black;">Diagnostics</div>
+                        </i>
+                    </a>
+                </div>
+            </li>
+        </ul>
+    </div>
+</body>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+    let url = window.location.href;
+    const fullPath = new URL(url).pathname;
+
+    const currentPath = `/${fullPath.split('/')[2]}/`;
+
+    let ul = document.querySelector('#adminTab');
+    let lis = Array.from(ul.querySelectorAll('li'));
+
+    lis.forEach((li) => {
+        let a = li.querySelector('a');
+        let hyperLink = a.getAttribute('href');
+        let comLink = `/${hyperLink.split('/')[2]}/`;
+
+        if(currentPath === comLink){
+            let div = li.querySelector('div')
+            div.style.backgroundColor = '#ccc'
+        }
+        else{
+            let div = li.querySelector('div')
+            div.style.backgroundColor = 'white'
+        }
+    });
+});
+</script>
+</html>
+

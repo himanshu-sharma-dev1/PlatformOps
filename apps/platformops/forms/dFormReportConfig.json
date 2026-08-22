@@ -1,0 +1,234 @@
+{
+    "ReportNameField": {
+      "group_con": "form-group",
+      "e_type": "staticRow",
+      "e_display": true,
+      "e_name": "static_data",
+      "row_Schema": [
+        {
+          "f_display_name": "ReportName",
+          "f_name": "report_name",
+          "f_type": "text",
+          "f_required": true,
+          "f_display": true,
+          "f_width": 3,
+          "v_default": "",
+          "a_onChange": "onSelectDemo(event)",
+          "b_name" : [],
+          "b_rows": []
+        },
+        {
+          "f_display_name": "UserName",
+          "f_name": "user_name",
+          "f_type": "single_select",
+          "f_required": true,
+          "f_display": true,
+          "f_width": 3,
+          "v_default": "",
+          "v_options": ["user1@iktara.ai"],
+          "a_onChange": "selectOem(event)",
+          "b_name" : ["Inventory", "Performance", "Link", "MAC"],
+          "b_rows": []
+        },
+        {
+          "f_display_name": "ReportMethod",
+          "f_name": "report_method",
+          "f_type": "single_select",
+          "f_required": true,
+          "f_display": true,
+          "f_width": 3,
+          "v_default": "",
+          "v_options": ["EMAIL", "LOCAL"],
+          "a_onChange": "selectOem(event)",
+          "b_name" : ["Inventory", "Performance", "Link", "MAC"],
+          "b_rows": []
+        }
+      ]
+    },
+
+    "ReportName": {
+      "group_con": "form-group",
+      "e_type": "staticRow",
+      "e_display": true,
+      "e_name": "static_data",
+      "row_Schema": [
+        {
+          "f_display_name": "StartDate",
+          "f_name": "start_date",
+          "f_type": "date",
+          "f_required": true,
+          "f_display": true,
+          "f_width": 3,
+          "v_default": "",
+          "a_onChange": "onSelectDemo(event)",
+          "b_name" : [],
+          "b_rows": []
+        },
+        {
+          "f_display_name": "Time",
+          "f_name": "app_name",
+          "f_type": "time",
+          "f_required": true,
+          "f_display": true,
+          "f_width": 3,
+          "v_default": "",
+          "a_onChange": "onSelectDemo(event)",
+          "b_name" : [],
+          "b_rows": []
+        },
+        {
+            "f_display_name": "TimeZone",
+            "f_name": "time_zone",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 3,
+            "v_default": "",
+            "v_options" : [
+              "US/Eastern",
+              "US/Central",
+              "US/Pacific",
+              "Europe/London",
+              "UTC",
+              "Europe/Belgrade",
+              "Asia/Kolkata"
+            ],
+            "a_onSelect": "onSelectDemo(event)",
+            "b_name" : [],
+            "b_rows": []
+          },
+        {
+            "f_display_name": "Periodicity",
+            "f_name": "periodicity",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 3,
+            "v_default": "",
+            "v_options" : [
+              "HOURLY",
+              "DAILY",
+              "WEEKLY",
+              "MONTHLY"
+            ],
+            "a_onSelect": "onSelectDemo(event)",
+            "b_name" : [],
+            "b_rows": []
+        }
+      ]
+    },
+
+    "ApplicationConfig": {
+        "group_con": "form-group",
+        "e_type": "dynamicRow",
+        "e_display": true,
+        "e_name": "app_config",
+       "row_Schema": [
+          {
+            "f_display_name": "SelectCategory",
+            "f_name": "select_category",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": [
+              "Inventory",
+              "Performance",
+              "Link",
+              "MAC"
+            ],
+            "a_onChange": "selectCategory(event)",
+            "b_rows" : ["ApplicationConfig"],
+            "b_name" : ["Inventory", "Performance", "Link", "MAC"],
+            "f_editable" : false,
+            "f_bgColor": ""
+          },
+          {
+            "f_display_name": "SelectOem",
+            "f_name": "select_oem",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": [
+              "Cambium",
+              "Radwin",
+              "Aviat"
+            ],
+            "a_onChange": "selectOem(event)",
+            "b_name" : ["Inventory", "Performance", "Link", "MAC"],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "SelectCircle",
+            "f_name": "select_circle",
+            "f_type": "multi_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": [],
+            "a_onChange": "showKeys(event)",
+            "b_name": ["Inventory", "Performance", "Link", "MAC"],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "SelectRuleSet",
+            "f_name": "select_ruleset",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": [],
+            "a_onChange": "onSelectDemo(event)",
+            "b_name": ["Inventory", "Performance", "Link"],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "TimePeriod",
+            "f_name": "time_period",
+            "f_type": "single_select",
+            "f_required": false,
+            "f_display": false,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": [
+               "1Day",
+              "LastWeek"
+            ],
+            "a_onChange": "onSelectDemo(event)",
+            "b_name": ["Performance", "Link"],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "SelectPerfRuleset",
+            "f_name": "select_perf_ruleset",
+            "f_type": "single_select",
+            "f_required": false,
+            "f_display": false,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": [],
+            "a_onChange": "onSelectDemo(event)",
+            "b_name": ["Link"],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "SheetName",
+            "f_name": "sheet_name",
+            "f_type": "text",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": [],
+            "a_onChange": "onSelectDemo(event)",
+            "b_name": ["Inventory", "Performance", "Link", "MAC"],
+            "b_rows": []
+          }
+       ]
+    }
+}

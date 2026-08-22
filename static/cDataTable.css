@@ -1,0 +1,218 @@
+/*<------------------------------------------cPlatformStyles_v02 CSS----------------------------------------->
+* Copyright         : Iktara Data Sciences
+* File Name         : cLibraryStyle.css
+* Description       : Update CSS for styling and easy understand
+
+* Revision History  :
+* Date				Author    		        Comments
+* ------------------------------------------------------------------------------------------------------------
+* 16-April-25 		Kapil		            Created.
+<----------------------------------------------------------------------------------------------------------->*/
+
+:root {
+  --ik-black: #000;
+  --ik-white: #fff;
+  --ik-grey: #ccc;
+  --ik-dark-grey: #292c31;
+  --ik-light-yellow: #f3e1c9;
+}
+
+/*<-----------------dataTable CSS--------------->*/
+
+.dt-search {
+    display:block;
+}
+.dt-length {
+    display:block;
+}
+.dt-length select {
+    width:60px;
+ }
+
+.dt-paging-button {
+    font-size:12px !important;
+}
+
+.dt-layout-cell {
+    margin:0px;
+    display:inline-block;
+}
+
+.table-sm{
+    margin-bottom:0px;
+    background: var(--ik-white);
+}
+
+.table-sm thead tr{
+    color: #9e1f14 !important;
+}
+
+select .dt-input {
+    width:50%;
+}
+.dt-input {
+    font-size:12px !important;
+    padding:2px 8px !important;
+}
+
+.dt-layout-row {
+    margin:0px;
+}
+.dt-info {
+    font-size:12px !important;
+}
+
+.leaflet-control-zoom-out {
+    padding:0px;
+}
+
+.leaflet-control-zoom-in {
+    padding:0px;
+}
+
+#edit_super_container {
+    height:60vh;
+    overflow:scroll;
+}
+
+.bi-trash{
+    padding:0px;
+}
+
+.active {
+    display: block;
+}
+
+.dropDown {
+    margin-left: 25px;
+    margin-top: 20px;
+    box-shadow: inset 0 0 10px rgba(177, 176, 176, 0.5);
+    border-radius: 12px;
+}
+
+#SelectValues {
+    border: 1px solid rgb(192, 188, 188);
+    border-radius: 12px;
+    width: 100%;
+    text-align: start;
+}
+
+.selectable {
+    max-width:100%;
+    font-size:13px !important;
+}
+
+.dt-orderable-desc {
+    min-width:12vw !important;
+}
+
+.dataTables_info {
+    font-size:12px;
+}
+
+.paginate_button {
+    font-size:12px;
+}
+
+.dataTables_filter { right:0;
+    top:0;
+    position:absolute !important;
+}
+
+.dataTables_filter label input {
+    padding:0px 4px !important;
+}
+
+#nav-parameter_range {
+    opacity : 0;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
+.addModal:hover {
+    background: var(--ik-bg-color);
+    color: var(--ik-white);
+}
+
+.select2-selection__placeholder{
+    font-size:12px !important;
+}
+
+#logTable tbody tr td:nth-child(4) {
+    max-width:2vw !important;
+    overflow-wrap: break-word;
+}
+
+ #logTable tbody tr td:nth-child(5) {
+    max-width:2vw !important;
+    overflow-wrap: break-word;
+}
+
+#tableLog thead tr th:nth-child(4) {
+    max-width:2vw !important;
+}
+
+#tableLog thead tr th:nth-child(10){
+    width:14% !important; }
+
+#logTable tbody tr td:nth-child(10){
+    width:14% !important; }
+
+.logTable tbody tr td:nth-child(4){
+    max-width:2vw !important;
+    overflow-wrap: break-word;}
+
+.logTable tbody tr td:nth-child(5){
+    max-width:2vw !important;
+    overflow-wrap: break-word;
+}
+
+.tableLog thead tr th:nth-child(4) {
+    max-width:2vw !important;
+}
+
+.tableLog thead tr th:nth-child(10) {
+    width:14% !important;
+}
+
+.logTable tbody tr td:nth-child(10) {
+    width:14% !important;
+}
+
+.addCircle::-webkit-scrollbar {
+    width: 8px;
+}
+
+.addCircle::-webkit-scrollbar-thumb {
+    background-color: darkgrey;
+    border-radius: 10px;
+    height: 10px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+}
+
+.sorting{ font-size:13px !important;  font-family: 'Nunito', sans-serif;}
+
+.even td p {
+    margin-bottom:0px;
+}
+
+.odd td p {
+    margin-bottom:0px;
+}
+
+.even td {
+    font-family: 'Nunito', sans-serif;
+    font-size:12px !important;
+}
+
+.odd td {
+    font-family: 'Nunito', sans-serif;
+    font-size:12px !important;
+}
+
+.dataTables_length label{font-size:12px !important; }
+

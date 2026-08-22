@@ -1,0 +1,1728 @@
+/* ── ALGO MATRIX ────────────────────────────────────────────────────────────── */
+:root {
+    --z-sticky: 10;
+    --z-overlay: 20;
+    --z-drawer: 50;
+}
+
+.algo-matrix-head {
+    display: flex;
+    align-items: stretch;
+    gap: var(--s-3);
+    margin-bottom: var(--s-4);
+    width: 100%;
+    min-width: 0;
+}
+
+.algo-matrix-dummy {
+    flex: 0 0 220px;
+    width: 220px;
+    min-height: 140px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--s-4);
+    gap: var(--s-2);
+    font-family: var(--display);
+    color: var(--ink);
+    text-align: center;
+}
+
+.algo-matrix-scroll {
+    flex: 1;
+    min-width: 0;
+    overflow: auto hidden;
+    padding-bottom: 8px;
+    align-self: stretch;
+}
+
+.slot-row {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: var(--s-3);
+    margin-bottom: 0;
+    min-width: max-content;
+    width: max-content;
+    scrollbar-width: thin;
+}
+
+.slot-row::-webkit-scrollbar {
+    height: 6px;
+}
+
+.slot-row::-webkit-scrollbar-track {
+    background: rgb(0 0 0 / 5%);
+}
+
+.slot-row::-webkit-scrollbar-thumb {
+    background: rgb(0 0 0 / 20%);
+    border-radius: 3px;
+}
+
+.slot-row::-webkit-scrollbar-thumb:hover {
+    background: rgb(0 0 0 / 30%);
+}
+
+/* ── SLOT ───────────────────────────────────────────────────────────────────── */
+.slot {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    padding: var(--s-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    min-height: 140px;
+    position: relative;
+    transition:
+        border-color 0.12s,
+        box-shadow 0.12s;
+    flex: 0 0 220px;
+    width: 220px;
+}
+
+.slot.empty {
+    border-style: dashed;
+    background: transparent;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--ink-4);
+}
+
+.slot.empty:hover {
+    border-color: var(--navy);
+    color: var(--navy);
+}
+
+.slot-empty-plus {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--bg-sunken);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 6px;
+}
+
+.slot.empty:hover .slot-empty-plus {
+    background: var(--navy-100);
+    color: var(--navy);
+}
+
+.slot-empty-lbl {
+    font-size: 13px;
+}
+
+.slot.filled {
+    cursor: default;
+}
+
+.slot.filled.baseline {
+    border-left: 3px solid var(--ink);
+    padding-left: calc(var(--s-4) - 3px);
+}
+
+.slot.filled.winner {
+    border-color: var(--ok);
+    box-shadow: 0 0 0 3px rgb(96 140 90 / 12%);
+}
+
+.slot-topline {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--s-2);
+}
+
+.slot-badges {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    height: 40px;
+    align-content: flex-start;
+}
+
+.slot-badge {
+    font-family: var(--mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 3px 8px;
+    border-radius: 99px;
+    background: var(--bg-sunken);
+    color: var(--ink-3);
+}
+
+.slot-badge.baseline {
+    background: var(--ink);
+    color: var(--bg-card);
+    border: 1px solid transparent;
+}
+
+[data-theme='dark'] .slot-badge.baseline {
+    background: var(--ink-5);
+    color: var(--black);
+    border-color: var(--line);
+}
+
+.slot-badge.winner {
+    background: var(--ok);
+    color: var(--bg-base);
+}
+
+.slot-x {
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: transparent;
+    color: var(--ink-4);
+    cursor: pointer;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.slot-x:hover {
+    background: var(--err-bg);
+    color: var(--err);
+}
+
+.slot-nm {
+    font-family: var(--display);
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: -0.015em;
+    line-height: 1.1;
+    overflow-wrap: break-word;
+    /* stylelint-disable-next-line declaration-property-value-keyword-no-deprecated */
+    word-break: break-word;
+    height: 48px;
+    display: flex;
+    align-items: flex-start;
+}
+
+.slot-core {
+    margin-top: auto;
+    padding-top: var(--s-2);
+    display: flex;
+    gap: var(--s-3);
+    align-items: baseline;
+}
+
+.slot-core-big {
+    font-family: var(--display);
+    font-size: 28px;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+}
+
+.slot-core-big-l {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-4);
+    margin-left: -2px;
+}
+
+.slot-core-delta {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: var(--r-sm);
+}
+
+.slot-core-delta.up {
+    background: rgb(96 140 90 / 12%);
+    color: var(--ok);
+}
+
+.slot-core-delta.down {
+    background: var(--err-bg);
+    color: var(--err);
+}
+
+.slot-core-delta.zero {
+    background: var(--bg-sunken);
+    color: var(--ink-4);
+}
+
+/* ── ADD SLOT BUTTON ────────────────────────────────────────────────────────── */
+.add-slot {
+    background: var(--bg-card);
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r-lg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    min-height: 140px;
+    color: var(--ink-4);
+    font-size: 11px;
+}
+
+.add-slot:hover {
+    border-color: var(--navy);
+    color: var(--navy);
+}
+
+.add-slot-icon {
+    font-size: 18px;
+    margin-bottom: 4px;
+}
+
+/* ── KPI MATRIX ─────────────────────────────────────────────────────────────── */
+
+/* Outer wrapper — border, radius, margin. Does NOT scroll or clip. */
+.kpi-matrix-outer {
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    margin-bottom: var(--s-5);
+    background: var(--bg-card);
+    overflow: hidden;
+}
+
+/* Heading — stays put, never scrolls */
+.kpi-matrix-head {
+    padding: var(--s-4) var(--s-5);
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-sunken);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    left: 0;
+    top: 0;
+
+    /* add: pin it to the top of the outer container */
+    z-index: 20;
+
+    /* add: must be higher than thead's z-index */
+}
+
+.kpi-matrix-head h3 {
+    font-family: var(--display);
+    font-size: 20px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+}
+
+/* Inner scroll container — horizontal scroll only, no overflow:hidden */
+.kpi-matrix {
+    overflow: auto;
+    max-height: 520px;
+}
+
+.kpi-matrix-actions {
+    display: flex;
+    gap: var(--s-2);
+    align-items: center;
+}
+
+.metric-pills {
+    display: flex;
+    gap: 4px;
+}
+
+.metric-pill {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 4px 10px;
+    border-radius: 99px;
+    background: var(--bg-card);
+    border: 1px solid var(--line-2);
+    color: var(--ink-3);
+    cursor: pointer;
+    transition:
+        border-color 0.12s,
+        background 0.12s,
+        color 0.12s;
+}
+
+.metric-pill.active {
+    background: var(--ink);
+    color: var(--bg-base);
+    border-color: var(--ink);
+}
+
+.metric-pill:hover:not(.active) {
+    border-color: var(--line-strong);
+    color: var(--ink-2);
+}
+
+/* ── MATRIX TABLE ───────────────────────────────────────────────────────────── */
+.matrix-table {
+    width: max-content;
+    min-width: unset;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.matrix-table th.metric-col,
+.matrix-table td.matrix-table-metric-name {
+    width: 220px;
+    min-width: 220px;
+    max-width: 220px;
+}
+
+.matrix-table th.model-col,
+.matrix-table td.value {
+    width: 220px;
+    min-width: 220px;
+    max-width: 220px;
+}
+
+.matrix-table thead th {
+    text-align: left;
+    padding: var(--s-3) var(--s-4);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-4);
+    font-weight: 600;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-card);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    vertical-align: bottom;
+    isolation: isolate;
+}
+
+.matrix-table thead th.model-col {
+    text-align: center;
+    min-width: 220px;
+    width: 220px;
+}
+
+.matrix-table-col-model {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-items: center;
+}
+
+.matrix-table-col-nm {
+    font-family: var(--display);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    text-transform: none;
+}
+
+.matrix-table-col-tag {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--ink-4);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.matrix-table tbody td {
+    padding: var(--s-3) var(--s-2);
+    border-bottom: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink);
+    vertical-align: middle;
+}
+
+.matrix-table tbody tr.group-row td {
+    background: var(--bg-sunken);
+    font-family: var(--body);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-3);
+    padding: 8px var(--s-4);
+}
+
+.matrix-table-metric-name {
+    font-family: var(--body);
+    color: var(--ink-2);
+    font-size: 13px;
+}
+
+.matrix-table-metric-desc {
+    display: block;
+    font-size: 10px;
+    color: var(--ink-4);
+    margin-top: 2px;
+}
+
+.matrix-table tbody td.value {
+    text-align: center;
+    font-weight: 500;
+    width: 220px;
+    min-width: 220px;
+    vertical-align: middle;
+    z-index: 1;
+    position: relative;
+}
+
+.matrix-table tbody td.value.best {
+    color: var(--ok);
+    font-weight: 600;
+}
+
+.matrix-table tbody td.value.worst {
+    color: var(--ink-4);
+}
+
+.matrix-table-micro-delta {
+    display: block;
+    font-size: 10px;
+    color: var(--ink-4);
+    margin-top: 2px;
+}
+
+.matrix-table-micro-delta.up {
+    color: var(--ok);
+}
+
+.matrix-table-micro-delta.down {
+    color: var(--err);
+}
+
+.matrix-table-bar-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.matrix-table-bar {
+    width: 60px;
+    height: 5px;
+    border-radius: 99px;
+    background: var(--bg-sunken);
+    position: relative;
+    overflow: hidden;
+}
+
+.matrix-table-bar-fill {
+    height: 100%;
+    background: var(--navy);
+    border-radius: 99px;
+}
+
+.matrix-table tbody td.value.best .matrix-table-bar-fill {
+    background: var(--ok);
+}
+
+.matrix-table-value {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+    justify-content: center;
+}
+
+.matrix-table-value span:first-child {
+    display: block;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.matrix-table-delta {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    display: block;
+    padding: 3px 8px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+.matrix-table-delta.positive {
+    color: var(--ok);
+    background-color: transparent;
+}
+
+.matrix-table-delta.negative {
+    color: var(--err);
+    background-color: transparent;
+}
+
+.matrix-table-delta.neutral {
+    color: var(--ink-4);
+    background-color: transparent;
+}
+
+.matrix-table th:first-child,
+.matrix-table td:first-child {
+    position: sticky;
+    left: 0;
+    background: var(--bg-card);
+    z-index: 5;
+    box-shadow: inset -1px 0 0 var(--line);
+}
+
+.matrix-table thead th:first-child {
+    z-index: var(--z-sticky);
+    background: var(--bg-card);
+    box-shadow: inset -1px 0 0 var(--line);
+}
+
+.matrix-table tbody td:first-child {
+    z-index: 5;
+    background: var(--bg-card);
+    box-shadow: inset -1px 0 0 var(--line);
+}
+
+/* ── FEATURE IMPORTANCE TABLE ─────────────────────────────────────────────── */
+.feat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    margin-bottom: var(--s-5);
+}
+
+.feat-card-head {
+    padding: var(--s-4) var(--s-5);
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-sunken);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.feat-card-head h3 {
+    font-family: var(--display);
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+}
+
+.feat-card-body {
+    overflow: auto;
+    position: relative;
+    max-height: 480px;
+}
+
+.feat-table {
+    width: max-content;
+    min-width: unset;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+/* Sticky header row */
+.feat-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-overlay);
+    background: var(--bg-card);
+    padding: 8px var(--s-3);
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-4);
+    font-weight: 600;
+}
+
+/* Rank column — MORE SPECIFIC selectors FIRST (no-descending-specificity) */
+.feat-table thead th:nth-child(1),
+.feat-table thead td:nth-child(1) {
+    width: 36px;
+    min-width: 36px;
+    max-width: 36px;
+    position: sticky;
+    left: 0;
+    z-index: var(--z-drawer);
+    background: var(--bg-card);
+}
+
+.feat-table tbody td:nth-child(1) {
+    width: 36px;
+    min-width: 36px;
+    max-width: 36px;
+    position: sticky;
+    left: 0;
+    z-index: var(--z-sticky);
+    background: var(--bg-card);
+}
+
+/* Feature name column */
+.feat-table thead th:nth-child(2),
+.feat-table thead td:nth-child(2) {
+    width: 220px;
+    min-width: 220px;
+    max-width: 220px;
+    position: sticky;
+    left: 36px;
+    z-index: var(--z-drawer);
+    background: var(--bg-card);
+}
+
+.feat-table tbody td:nth-child(2) {
+    width: 220px;
+    min-width: 220px;
+    max-width: 220px;
+    position: sticky;
+    left: 36px;
+    z-index: var(--z-sticky);
+    background: var(--bg-card);
+    box-shadow: 2px 0 6px -2px rgb(0 0 0 / 10%);
+}
+
+/* All algo columns */
+.feat-table th:nth-child(n + 3),
+.feat-table td:nth-child(n + 3) {
+    width: 180px;
+    min-width: 180px;
+    max-width: 180px;
+}
+
+.feat-table td {
+    padding: 8px var(--s-3);
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+}
+
+.feat-table-fname {
+    font-family: var(--mono);
+    color: var(--ink-2);
+    font-size: 12px;
+}
+
+.feat-table-rank {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-4);
+    text-align: center;
+    width: 36px;
+}
+
+.feat-table-bar-cell {
+    padding: 6px var(--s-3);
+}
+
+.featbar {
+    height: 6px;
+    background: var(--bg-sunken);
+    border-radius: 99px;
+    overflow: hidden;
+    width: 100%;
+}
+
+.featbar-fill {
+    height: 100%;
+    border-radius: 99px;
+}
+
+.featbar-fill.c1 {
+    background: var(--navy);
+}
+
+.featbar-fill.c2 {
+    background: var(--warn);
+}
+
+.featbar-fill.c3 {
+    background: var(--ok);
+}
+
+.featbar-fill.c4 {
+    background: hsl(280deg 50% 50%);
+}
+
+.featbar-fill.c5 {
+    background: hsl(30deg 85% 50%);
+}
+
+.featbar-fill.c6 {
+    background: hsl(180deg 50% 40%);
+}
+
+.featbar-fill.c7 {
+    background: hsl(340deg 65% 50%);
+}
+
+/* ── VISUAL COMPARISON GRID ─────────────────────────────────────────────────── */
+.viz-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s-4);
+    margin-bottom: var(--s-5);
+}
+
+.viz-card {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    padding: var(--s-4) var(--s-5);
+}
+
+.viz-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: var(--s-3);
+    padding-bottom: var(--s-3);
+    border-bottom: 1px solid var(--line);
+}
+
+.viz-card-title {
+    font-family: var(--display);
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+}
+
+.viz-card-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-4);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.viz-card-legend {
+    display: flex;
+    gap: var(--s-3);
+    margin-top: var(--s-3);
+    font-family: var(--mono);
+    font-size: 10px;
+}
+
+.viz-card-legend-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    margin-right: 6px;
+}
+
+.viz-card-legend-item {
+    display: flex;
+    align-items: center;
+    color: var(--ink-2);
+}
+
+.viz-card-legend-num {
+    margin-left: 6px;
+    color: var(--ink-4);
+}
+
+/* ── ROC CHART ──────────────────────────────────────────────────────────────── */
+.roc-svg {
+    width: 100%;
+    height: 240px;
+}
+
+.roc-grid {
+    stroke: var(--line);
+    stroke-width: 0.5;
+    fill: none;
+}
+
+.roc-diag {
+    stroke: var(--ink-4);
+    stroke-width: 0.8;
+    stroke-dasharray: 3 3;
+    fill: none;
+}
+
+.roc-curve {
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* ── CONFUSION MATRIX ───────────────────────────────────────────────────────── */
+.confusion-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--s-2);
+    margin-top: var(--s-3);
+}
+
+.confusion-model {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    padding: var(--s-3);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.confusion-model-nm {
+    font-family: var(--display);
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.confusion-model-color {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+}
+
+.cm-table {
+    display: grid;
+    grid-template-columns: auto 1fr 1fr;
+    gap: 1px;
+    background: var(--line);
+    border-radius: var(--r-sm);
+    overflow: hidden;
+    font-family: var(--mono);
+    font-size: 11px;
+}
+
+.cm-cell {
+    background: var(--bg-card);
+    padding: 6px 8px;
+    text-align: center;
+}
+
+.cm-cell.lbl {
+    background: var(--bg-sunken);
+    color: var(--ink-4);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cm-cell.val {
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.cm-cell.tp {
+    background: rgb(96 140 90 / 10%);
+}
+
+.cm-cell.tn {
+    background: rgb(96 140 90 / 10%);
+}
+
+.cm-cell.fp {
+    background: rgb(180 82 82 / 8%);
+}
+
+.cm-cell.fn {
+    background: rgb(180 82 82 / 8%);
+}
+
+/* ── DECISION BAR ───────────────────────────────────────────────────────────── */
+.decision-bar {
+    position: sticky;
+    bottom: 0;
+    background: var(--bg-card);
+    border-top: 1px solid var(--line);
+    margin: var(--s-5) calc(-1 * var(--s-6)) calc(-1 * var(--s-5));
+    padding: var(--s-4) var(--s-6);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: var(--z-sticky);
+    box-shadow: 0 -4px 12px rgb(0 0 0 / 3%);
+}
+
+.decision-bar-winner-block {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+}
+
+.decision-bar-lbl {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-4);
+    font-weight: 600;
+}
+
+.decision-bar-winner-name {
+    font-family: var(--display);
+    font-size: 24px;
+    font-weight: 500;
+    letter-spacing: -0.015em;
+}
+
+.decision-bar-reason {
+    font-size: 12px;
+    color: var(--ink-3);
+    margin-top: 2px;
+}
+
+.decision-bar-actions {
+    display: flex;
+    gap: var(--s-2);
+}
+
+.reco-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 99px;
+    background: rgb(96 140 90 / 10%);
+    color: var(--ok);
+    font-size: 11px;
+    font-weight: 500;
+    border: 1px solid rgb(96 140 90 / 25%);
+}
+
+.reco-pill-ico {
+    width: 14px;
+    height: 14px;
+}
+
+/* ── MODEL PICKER DRAWER ────────────────────────────────────────────────────── */
+.model-pick-back {
+    position: fixed;
+    inset: 0;
+    background: rgb(0 0 0 / 45%);
+    z-index: var(--z-overlay);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+}
+
+.model-pick-back.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.model-pick-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 440px;
+    background: var(--bg-card);
+    z-index: var(--z-drawer);
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -12px 0 40px rgb(0 0 0 / 10%);
+}
+
+.model-pick-drawer.open {
+    transform: translateX(0);
+}
+
+.model-pick-drawer-dh {
+    padding: var(--s-4) var(--s-5);
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.model-pick-drawer-dh h3 {
+    font-family: var(--display);
+    font-size: 20px;
+    font-weight: 500;
+}
+
+.model-pick-drawer-close {
+    width: 30px;
+    height: 30px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: var(--r-sm);
+    color: var(--ink-3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.model-pick-drawer-close:hover {
+    background: var(--bg-sunken);
+    color: var(--ink);
+}
+
+.model-pick-drawer-db {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--s-4) var(--s-5);
+}
+
+/* ── PICK ITEM ──────────────────────────────────────────────────────────────── */
+.pick-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--s-3);
+    align-items: center;
+    padding: var(--s-3) var(--s-4);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    margin-bottom: var(--s-2);
+    cursor: pointer;
+    transition:
+        border-color 0.12s,
+        background 0.12s;
+}
+
+.pick-item:hover {
+    border-color: var(--line-strong);
+    background: var(--bg-sunken);
+}
+
+.pick-item.selected {
+    border-color: var(--navy);
+    background: var(--navy-50);
+}
+
+.pick-item-nm {
+    font-family: var(--display);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.pick-item-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-4);
+    margin-top: 2px;
+}
+
+.pick-item-auc {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    text-align: right;
+}
+
+.pick-item-auc-l {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-4);
+    display: block;
+    font-weight: 400;
+}
+
+.pick-item-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.pick-item-check {
+    width: 16px;
+    height: 16px;
+    color: var(--navy);
+    opacity: 0;
+    flex-shrink: 0;
+    transition: opacity 0.15s;
+}
+
+.pick-item.selected .pick-item-check {
+    opacity: 1;
+}
+
+/* ── COMPARE MODAL (backdrop) ───────────────────────────────────────────────── */
+
+.compare-modal.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ── DRAWER PANEL ───────────────────────────────────────────────────────────── */
+.compare-box {
+    width: 460px;
+    max-width: 100%;
+    height: 100%;
+    background: var(--bg-card);
+    border-left: 1px solid var(--line);
+    box-shadow: -10px 0 40px rgb(0 0 0 / 18%);
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.28s ease;
+    position: relative;
+    z-index: var(--z-drawer);
+    opacity: 1;
+    overflow: hidden;
+    isolation: isolate;
+}
+
+.compare-modal.open .compare-box {
+    transform: translateX(0);
+}
+
+/* ── HEADER ─────────────────────────────────────────────────────────────────── */
+.compare-header {
+    padding: var(--s-4) var(--s-5);
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-card);
+    flex-shrink: 0;
+}
+
+.compare-header h3 {
+    font-family: var(--display);
+    font-size: 20px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+}
+
+.compare-header button {
+    width: 30px;
+    height: 30px;
+    border: none;
+    background: transparent;
+    color: var(--ink-3);
+    font-size: 22px;
+    cursor: pointer;
+    border-radius: var(--r-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.compare-header button:hover {
+    background: var(--bg-sunken);
+    color: var(--ink);
+}
+
+/* ── FORM AREA (scrollable) ─────────────────────────────────────────────────── */
+.compare-form {
+    padding: var(--s-4) var(--s-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-3);
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* ── FORM GROUP ─────────────────────────────────────────────────────────────── */
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-1);
+}
+
+.form-group label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+/* ── DRAWER SECTION TITLE ───────────────────────────────────────────────────── */
+.drawer-section-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-4);
+    font-weight: 600;
+    padding: var(--s-2) 0;
+    margin-top: var(--s-2);
+}
+
+/* ── MODEL / ALGO PICKER LIST ───────────────────────────────────────────────── */
+.drawer-model-list,
+.drawer-algo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* ── SELECTED SUMMARY ───────────────────────────────────────────────────────── */
+.selected-summary {
+    background: var(--bg-sunken);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    padding: var(--s-3) var(--s-4);
+}
+
+.selected-row {
+    display: flex;
+    gap: var(--s-4);
+}
+
+.selected-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.selected-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-4);
+    font-weight: 600;
+}
+
+.selected-value {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-2);
+    font-weight: 500;
+}
+
+/* ── EMPTY STATE ────────────────────────────────────────────────────────────── */
+.empty-models,
+.empty-pick {
+    padding: var(--s-4);
+    border: 1px dashed var(--line);
+    border-radius: var(--r-md);
+    text-align: center;
+    color: var(--ink-4);
+    font-size: 12px;
+    font-family: var(--mono);
+}
+
+/* ── ACTION FOOTER ──────────────────────────────────────────────────────────── */
+.compare-actions {
+    padding: var(--s-4) var(--s-5);
+    border-top: 1px solid var(--line);
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--s-2);
+    background: var(--bg-card);
+    flex-shrink: 0;
+}
+
+/* ── DRAWER MODEL GROUPING ── */
+.drawer-model-group {
+    margin-bottom: var(--s-3);
+}
+
+.drawer-model-group-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-4);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: var(--s-2) var(--s-3) var(--s-1);
+    background: rgb(0 0 0 / 2%);
+    border-left: 3px solid var(--ink-2);
+}
+
+/* ── ALGO SLOT CARD MODEL BADGE ── */
+.slot-model-badge {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: var(--s-2);
+    background: rgb(0 0 0/ 2%);
+    border-radius: 3px;
+    margin-top: auto;
+    font-size: 11px;
+}
+
+.slot-model-label {
+    color: var(--ink-4);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.slot-model-value {
+    color: var(--ink);
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+}
+
+/* ── BUTTON STYLES ── */
+.btn-primary {
+    background: var(--navy);
+    color: var(--bg-base);
+    border: none;
+}
+
+.btn-primary:hover {
+    background: var(--navy-dark, var(--navy));
+    filter: brightness(0.85);
+}
+
+/* ── STEP INDICATOR ── */
+.drawer-steps {
+    display: flex;
+    align-items: center;
+    padding: var(--s-3) var(--s-5);
+    border-bottom: 1px solid var(--line);
+    gap: 0;
+    background: var(--bg-sunken);
+}
+
+.drawer-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0.4;
+    transition: opacity 0.2s;
+}
+
+.drawer-step.active,
+.drawer-step.done {
+    opacity: 1;
+}
+
+.drawer-step-num {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--bg-sunken);
+    border: 1.5px solid var(--line-strong);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-3);
+    flex-shrink: 0;
+}
+
+.drawer-step.active .drawer-step-num {
+    background: var(--navy);
+    border-color: var(--navy);
+    color: var(--bg-base);
+}
+
+.drawer-step.done .drawer-step-num {
+    background: var(--ok);
+    border-color: var(--ok);
+    color: var(--bg-base);
+}
+
+.drawer-step-lbl {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-3);
+}
+
+.drawer-step.active .drawer-step-lbl {
+    color: var(--ink);
+}
+
+.drawer-step-line {
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+    margin: 0 var(--s-2);
+}
+
+/* ── ALGO CONTEXT ROW ── */
+.algo-context-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: var(--s-2) var(--s-1);
+    margin-bottom: var(--s-2);
+    font-family: var(--mono);
+    font-size: 11px;
+}
+
+.algo-context-model {
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.algo-context-sep {
+    color: var(--ink-4);
+}
+
+.algo-context-lbl {
+    color: var(--ink-4);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* ── DRAWER SECTION ── */
+.drawer-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-3);
+}
+
+/* Scroll bar styling */
+.kpi-matrix::-webkit-scrollbar {
+    height: 6px;
+}
+
+.kpi-matrix::-webkit-scrollbar-track {
+    background: rgb(0 0 0 / 5%);
+}
+
+.kpi-matrix::-webkit-scrollbar-thumb {
+    background: rgb(0 0 0 / 20%);
+    border-radius: 3px;
+}
+
+.kpi-matrix::-webkit-scrollbar-thumb:hover {
+    background: rgb(0 0 0 / 30%);
+}
+
+.algo-matrix-dummy-title {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.algo-matrix-dummy-text {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-4);
+    line-height: 1.5;
+    max-width: 160px;
+}
+
+.app,
+.main,
+.content,
+.kpi-matrix-outer,
+.feat-card {
+    position: relative;
+    z-index: 0;
+}
+
+.compare-modal {
+    position: fixed;
+    inset: 0;
+    background: rgb(0 0 0 / 35%);
+    z-index: var(--z-overlay);
+    display: flex;
+    justify-content: flex-end;
+    align-items: stretch;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+
+.compare-header,
+.drawer-steps,
+.compare-form,
+.compare-actions {
+    background: var(--bg-card);
+    position: relative;
+    z-index: 1;
+}
+
+/* ── TOAST ───────────────────────────────────────────────────────────────────── */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 90;
+    padding: 10px 16px;
+    border-radius: var(--r-md);
+    font-size: 13px;
+    box-shadow: var(--shadow-3);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    transition:
+        opacity 0.2s,
+        transform 0.2s;
+    background: var(--ok);
+    color: var(--white);
+    border: 1px solid var(--ok);
+}
+
+.toast[data-type='err'] {
+    background: var(--err);
+    border-color: var(--err);
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.toast .ic {
+    color: var(--white);
+}
+
+.toast-error {
+    background: var(--err);
+    color: var(--white);
+    border-color: var(--err);
+}
+
+.toast-error .ic {
+    stroke: var(--white);
+}
+
+/* ── SCORE DISTRIBUTION SECTION ────────────────────────────────────────────── */
+.graph-dist-card {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    margin-bottom: var(--s-5);
+    overflow: hidden;
+}
+
+.graph-dist-head {
+    padding: var(--s-4) var(--s-5);
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-sunken);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.graph-dist-head h3 {
+    font-family: var(--display);
+    font-size: 20px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+}
+
+.graph-dist-body {
+    display: flex;
+    flex-direction: row;
+    gap: 0;
+    overflow: auto hidden;
+    padding: var(--s-4);
+    scrollbar-width: thin;
+    min-height: unset;
+}
+
+.graph-dist-body::-webkit-scrollbar {
+    height: 6px;
+}
+
+.graph-dist-body::-webkit-scrollbar-track {
+    background: rgb(0 0 0 / 5%);
+}
+
+.graph-dist-body::-webkit-scrollbar-thumb {
+    background: rgb(0 0 0 / 20%);
+    border-radius: 3px;
+}
+
+.graph-dist-body::-webkit-scrollbar-thumb:hover {
+    background: rgb(0 0 0 / 30%);
+}
+
+.graph-dist-col {
+    flex: 0 0 520px;
+    min-width: 520px;
+    border-right: 1px solid var(--line);
+    padding: 0 var(--s-4) var(--s-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-3);
+}
+
+.graph-dist-col:last-child {
+    border-right: none;
+}
+
+.graph-dist-col-head {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    padding-top: var(--s-3);
+    padding-bottom: var(--s-2);
+    border-bottom: 1px solid var(--line);
+}
+
+.graph-dist-algo-nm {
+    font-family: var(--display);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+}
+
+.graph-dist-col-tag {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--ink-4);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    border-radius: 99px;
+    background: var(--bg-sunken);
+    border: 1px solid var(--line);
+}
+
+.graph-dist-svg-wrap {
+    width: 100%;
+    flex: 1;
+}
+
+.graph-dist-svg-wrap svg {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.graph-dist-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    font-size: 11px;
+    color: var(--ink-3);
+    padding-bottom: var(--s-2);
+}
+
+.graph-dist-leg-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.graph-dist-leg-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+/* SVG classes reused from modelDetail pattern */
+.gdist-bar {
+    fill: var(--navy);
+    opacity: 0.75;
+}
+
+.gdist-grid {
+    stroke: var(--line);
+    stroke-width: 1;
+}
+
+.gdist-axis-lbl {
+    font-size: 10px;
+    fill: var(--ink-4);
+    font-family: var(--mono);
+}

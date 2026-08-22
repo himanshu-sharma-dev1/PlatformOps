@@ -1,0 +1,160 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  {% load static %}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yantra Agent</title>
+  <link rel="icon" type="image/png" href="{% static 'assets/favicon-airtel.png' %}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/chatbot.css' %}?v=3">
+</head>
+<body>
+  <div class="agent-container">
+
+    <!-- ═══ Sidebar ═══ -->
+    <aside class="agent-sidebar" id="agent-sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-brand">
+          <!-- <img src="{% static 'assets/airtel-logo.png' %}" alt="Airtel" class="sidebar-logo"> -->
+          <div class="brand">
+            <div class="logo sb-item"><i>Y</i></div>
+          </div>
+          <div class="sidebar-brand-text">
+            <span class="sidebar-title">Yantra Agent</span>
+            <span class="sidebar-subtitle">AI Analytics</span>
+          </div>
+        </div>
+        <button class="sidebar-icon-btn" id="new-chat-sidebar-btn" title="New conversation">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+
+      <div class="sidebar-search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="conv-search" placeholder="Search conversations..." />
+      </div>
+
+      <div class="sidebar-conversations" id="conv-list" onclick="handleHistoryClick(event)">
+        <div class="conv-empty">
+          <div class="sidebar-loader"></div>
+          <p>Loading conversations...</p>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span>Powered by ClickHouse Agent</span>
+      </div>
+    </aside>
+
+    <!-- ═══ Mobile Overlay ═══ -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <!-- ═══ Main Chat Area ═══ -->
+    <main class="agent-main">
+
+      <!-- Header -->
+      <header class="agent-header">
+        <div class="header-left">
+          <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <div class="agent-info">
+            <div class="agent-avatar-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+              <span class="status-dot-sm" id="status-dot"></span>
+            </div>
+            <div class="agent-info-text">
+              <span class="agent-name">Yantra Agent</span>
+              <span class="agent-status" id="agent-status">Online</span>
+            </div>
+          </div>
+        </div>
+        <div class="header-right">
+          <a href="/churn_analysis/churn/" class="header-action-btn" title="Home">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          </a>
+          <button class="header-action-btn" id="new-chat-header-btn" title="New Chat">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="12" y1="8" x2="12" y2="14"/><line x1="9" y1="11" x2="15" y2="11"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Chat Body -->
+      <div class="agent-chat" id="agent-chat">
+
+        <!-- Welcome Screen -->
+        <div class="agent-welcome" id="agent-welcome">
+          <div class="welcome-hero">
+            <div class="welcome-avatar">
+              <div class="welcome-avatar-ring"></div>
+              <div class="welcome-avatar-inner">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+              </div>
+            </div>
+            <h1 class="welcome-title">What would you like to know?</h1>
+            <p class="welcome-subtitle">I can analyze subscriber churn, query network data, and generate insights from ClickHouse.</p>
+          </div>
+
+          <div class="suggestion-grid">
+            <button class="suggestion-card" data-query="List down top 10 users having bad signal quality">
+              <div class="suggestion-icon accent-churn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              </div>
+              <span class="suggestion-title">Bad signal quality</span>
+              <span class="suggestion-desc">Top 10 users having bad signal quality</span>
+            </button>
+
+            <button class="suggestion-card" data-query="Show top 25 users with highest network score and their district names for different location types">
+              <div class="suggestion-icon accent-speed">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 6.9 8 11.7z"/></svg>
+              </div>
+              <span class="suggestion-title">Top network scores</span>
+              <span class="suggestion-desc">Top 25 users with highest network score by district and location type</span>
+            </button>
+
+            <button class="suggestion-card" data-query="Show top 25 users with highest network score and having highest successful access rate">
+              <div class="suggestion-icon accent-signal">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </div>
+              <span class="suggestion-title">Score &amp; access rate</span>
+              <span class="suggestion-desc">Top 25 users with highest network score and successful access rate</span>
+            </button>
+
+            <button class="suggestion-card" data-query="Show me all scores where there is bad network experience">
+              <div class="suggestion-icon accent-congestion">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              </div>
+              <span class="suggestion-title">Bad network scores</span>
+              <span class="suggestion-desc">All scores where there is bad network experience</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Messages Container -->
+        <div class="agent-messages" id="agent-messages" style="display:none"></div>
+      </div>
+
+      <!-- Input Area -->
+      <div class="agent-input-area">
+        <div class="agent-input-container" id="input-container">
+          <textarea id="chat-input" rows="1" placeholder="Ask about churn analysis, network insights, or data..." autocomplete="off"></textarea>
+          <button class="analysis-btn" id="analysis-btn" aria-label="Toggle deep analysis" title="Enable deep analysis">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="7.5"/><line x1="21" y1="21" x2="15.8" y2="15.8"/><polyline points="7 12 9.5 9 12 11.5 14 8"/></svg>
+          </button>
+          <button class="send-btn" id="send-btn" disabled aria-label="Send message">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+        <p class="input-disclaimer">AI-powered insights from ClickHouse. Verify critical data independently.</p>
+      </div>
+    </main>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+  <script defer src="{% static 'javascript/chatbot.js' %}?v=5"></script>
+</body>
+</html>

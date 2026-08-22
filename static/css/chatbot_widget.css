@@ -1,0 +1,31 @@
+:root {
+  -z-toast: 9999;
+}
+
+.chatbot-float-btn {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: var(--z-toast); 
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--navy);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bg);
+    text-decoration: none;
+    box-shadow: 0 4px 12px rgb(8 40 110 / 70.1%);
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease;
+    cursor: pointer;
+}
+
+.chatbot-float-btn:hover {
+    transform: scale(1.08);
+    box-shadow: 0 6px 20px rgb(16 36 148 / 50%);
+    color: var(--bg);
+}

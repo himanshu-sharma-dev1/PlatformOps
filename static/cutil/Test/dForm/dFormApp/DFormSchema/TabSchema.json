@@ -1,0 +1,260 @@
+{
+  "TabConfig": {
+    "group_con": "form-group",
+    "e_type": "dynamicRow",
+    "e_display": true,
+    "e_name": "tabs_config",
+    "row_Schema": [
+      {
+        "f_display_name": "TabName",
+        "f_name": "tab_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)"
+      },
+      {
+        "f_display_name": "TabKey",
+        "f_name": "tab_key",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": true,
+        "f_width": 2,
+        "v_default": ""
+      },
+      {
+        "f_display_name": "DisplayType",
+        "f_name": "display_type",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": true,
+        "f_width": 2,
+        "v_default": "form",
+        "v_options": ["form", "table", "card", "custom"]
+      },
+      {
+        "f_display_name": "TabType",
+        "f_name": "tab_type",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": true,
+        "f_width": 2,
+        "v_options": ["Static", "Dynamic"]
+      },
+      {
+        "f_display_name": "IsVisible",
+        "f_name": "is_visible",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": true,
+        "f_width": 2,
+        "v_default": "Yes",
+        "v_options": ["Yes", "No"]
+      }
+    ]
+  },
+
+  "TabGroupSchema": {
+    "group_con": "tabs_config_json",
+    "e_type": "tab_group",
+    "e_display": true,
+    "e_name": "tabs_config",
+    "v_default": 0,
+
+    "tab_info": [
+      {
+        "tab_name": "Tab1",
+        "tab_key": "tab1",
+        "display_type": "form",
+        "tab_type": "Static",
+        "is_visible": "Yes",
+        "e_type": "tab",
+        
+        "a_onChange": "tabOnChange(event)",
+        "tab_Schema": [
+          {
+            "e_type": "staticRow",
+            "e_name": "tab1_static",
+            "group_con": "form-group",
+            "row_Schema": [
+              {
+                "f_display_name": "UserId",
+                "f_name": "user_id",
+                "f_type": "single_select",
+                "f_required": true,
+                "f_display": true,
+                "f_width": 3,
+                "v_options": ["01", "02", "03", "04", "05", "06"]
+              },
+              {
+                "f_display_name": "UserName",
+                "f_name": "user_name",
+                "f_type": "text",
+                "f_required": true,
+                "f_display": true,
+                "f_width": 3
+              },
+              {
+                "f_display_name": "TimeZone",
+                "f_name": "time_zone",
+                "f_type": "single_select",
+                "f_required": true,
+                "f_display": true,
+                "f_width": 3,
+                "v_options": [
+                  "US/Eastern",
+                  "US/Central",
+                  "US/Pacific",
+                  "Europe/London",
+                  "UTC",
+                  "Asia/Kolkata"
+                ]
+              }
+            ]
+          },
+          {
+            "e_type": "dynamicRow",
+            "e_name": "tab1_dynamic",
+            "group_con": "form-group",
+            "row_Schema": [
+              {
+                "f_display_name": "TimePeriod",
+                "f_name": "time_period",
+                "f_type": "single_select",
+                "f_required": false,
+                "f_display": true,
+                "f_width": 3,
+                "v_options": ["1Day", "LastWeek"]
+              },
+              {
+                "f_display_name": "Session",
+                "f_name": "select_circle",
+                "f_type": "multi_select",
+                "f_required": true,
+                "f_display": true,
+                "f_width": 3,
+                "v_default": "",
+                "v_options": ["first", "second", "third", "fourth"],
+                "a_onChange": "showOptions(event)",
+                "b_rows": []
+              }
+            ]
+          }
+        ]
+      },
+
+      {
+        "tab_name": "Tab2",
+        "tab_key": "tab2",
+        "display_type": "form",
+        "tab_type": "Static",
+        "is_visible": "Yes",
+        "e_type": "tab",
+        "tab_Schema": [
+          {
+            "e_type": "staticRow",
+            "e_name": "tab2_static",
+            "group_con": "form-group",
+            "row_Schema": [
+              {
+                "f_display_name": "Location",
+                "f_name": "loc",
+                "f_type": "single_select",
+                "f_required": true,
+                "f_display": true,
+                "f_width": 3,
+                "v_options": ["Faridabad", "Delhi"]
+              },
+              {
+                "f_display_name": "SelectTabType",
+                "f_name": "select_tab_type",
+                "f_type": "single_select",
+                "f_required": true,
+                "f_display": true,
+                "f_width": 3,
+                "v_options": ["1", "2", "3"]
+              }
+            ]
+          },
+          {
+            "e_type": "dynamicRow",
+            "e_name": "tab2_dynamic",
+            "group_con": "form-group",
+            "row_Schema": [
+              {
+                "f_display_name": "TimePeriod",
+                "f_name": "time_period",
+                "f_type": "single_select",
+                "f_required": false,
+                "f_display": true,
+                "f_width": 3,
+                "v_options": ["1Day", "LastWeek"]
+              },
+              {
+                "f_display_name": "Remarks",
+                "f_name": "remarks",
+                "f_type": "text",
+                "f_required": false,
+                "f_display": true,
+                "f_width": 3
+              }
+            ]
+          }
+        ]
+      },
+
+      {
+        "tab_name": "Tab3",
+        "tab_key": "tab3",
+        "display_type": "form",
+        "tab_type": "Static",
+        "is_visible": "Yes",
+        "e_type": "tab",
+        "tab_Schema": [
+          {
+            "e_type": "staticRow",
+            "e_name": "tab3_static",
+            "group_con": "form-group",
+            "row_Schema": [
+              {
+                "f_display_name": "PerformanceConfig",
+                "f_name": "performance_config",
+                "f_type": "multi_select",
+                "f_required": true,
+                "f_display": true,
+                "f_width": 4,
+                "v_options": ["Basic", "Intermediate", "Advanced"],
+                "a_onChange": "showOptions(event)"
+              }
+            ]
+          },
+          {
+            "e_type": "dynamicRow",
+            "e_name": "tab3_dynamic",
+            "group_con": "form-group",
+            "row_Schema": [
+              {
+                "f_display_name": "Metric",
+                "f_name": "metric_name",
+                "f_type": "text",
+                "f_required": true,
+                "f_display": true,
+                "f_width": 3
+              },
+              {
+                "f_display_name": "Threshold",
+                "f_name": "threshold_value",
+                "f_type": "number",
+                "f_required": true,
+                "f_display": true,
+                "f_width": 3
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Mentis</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .footerImg{ height:4%; width:12%; }
+        .footer-md{ text-align:center; }
+
+        @media (max-width: 480px) {
+            .footerImg{ height:40%; width:75%; }
+            .footer-md{ text-align:start; }
+        }
+        @media (max-width: 576px) {
+            .footerImg{ height:40%; width:75%; }
+            .footer-md{ text-align:start; }
+        }
+        @media (max-width: 768px) {
+            .footerImg{ height:40%; width:75%; }
+            .footer-md{ text-align:start; }
+        }
+        @media (max-width: 1024px) {
+            .footerImg{ height:40%; width:75%; }
+        }
+    </style>
+</head>
+<body>
+<div class="container-fluid">
+    <footer class="fixed-bottom m-0 py-1" style="background:#e40000; width:100%;">
+        {% load static %}
+        <div class="row">
+            <div class="col-5 col-lg-4">
+                <div class="ik-h1 px-3 mt-1">
+                    <div>Airtel: 1.0.0</div>
+                </div>
+            </div>
+            <div class="col-4 col-lg-4 text-center">
+                 {% load static %}
+                <div class=" ik-h1">
+                    <div><span style="font-size:16px;">&copy;</span> 2026 Airtel.</div>
+                </div>
+            </div>
+            <div class="col-3 col-lg-4 text-end">
+                 {% load static %}
+                <div class="ik-h1 mx-3">
+                     <img src= "{% static 'airtelTaw/airtel_img.png' %}" style="height:25%; width:25%;">
+                </div>
+            </div>
+        </div>
+    </footer>
+</div>
+</body>
+</html>
+
+

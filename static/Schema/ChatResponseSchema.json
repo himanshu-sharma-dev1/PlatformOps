@@ -1,0 +1,118 @@
+{
+  "chat_response_schema": [
+    {
+      "type": "object",
+      "format": "text",
+      "description": "Text Response",
+      "required": ["text_res", "width"],
+      "properties": {
+        "text_res": {
+          "description": "A unique identifier of the Text Response",
+          "type": "string"
+        },
+        "width" : {
+            "type" : "number"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "format": "list",
+      "description": "List Response",
+      "required": ["list_items", "list_title", "width"],
+      "properties": {
+        "list_items": {
+          "description": "A unique identifier of the List Response",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "width" : {
+            "type" : "number"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "format": "table",
+      "description": "Table Response",
+      "required": ["table_headings", "table_data", "table_title", "width"],
+      "properties": {
+        "table_headings": {
+          "description": "A unique identifier of the Table Headings",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "table_data": {
+          "description": "A unique identifier of the Table Data",
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "oneOf": [{ "type": "string" }, { "type": "number" }]
+            }
+          }
+        },
+        "table_title" : {
+            "type" : "string"
+        },
+        "width" : {
+            "type" : "number"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "format": "graph",
+      "description": "Graph Response",
+      "required": ["chart_type", "chart_labels", "chart_data", "chart_name", "width"],
+      "properties": {
+        "chart_labels": {
+          "description": "A unique identifier of the Chart Labels",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "chart_data": {
+          "description": "A unique identifier of the Table Data",
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "chart_type": {
+          "type": "string"
+        },
+        "chart_name" : {
+            "type" : "string"
+        },
+        "width" : {
+            "type" : "number"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "format": "link",
+      "description": "Link Response",
+      "required": ["link_str", "link_name", "width"],
+      "properties": {
+        "link_str": {
+          "description": "A unique identifier of the Link URL",
+          "type": "string"
+        },
+        "link_name": {
+          "description": "A unique identifier of the Link Name",
+          "type": "string"
+        },
+        "width" : {
+            "type" : "number"
+        }
+      }
+    }
+  ]
+}

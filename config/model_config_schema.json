@@ -1,0 +1,418 @@
+{
+  "$id": "/cPlatform/Schemas/model_config",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Interface Definition between orchestrator and Training Subsystem",
+  "Airtel_Dataset_Config": {
+    "title": "Airtel_Dataset Config",
+    "description": "Airtel_Dataset Configuration Schema",
+    "type": "object",
+    "required": [
+      "Oem",
+      "Circle_List",
+      "Parameter_List",
+      "Date",
+      "Aggr_Level",
+      "Aggr_Function",
+      "fea_conf_col"
+    ],
+    "properties": {
+      "Oem": {
+        "description": "",
+        "type": "string",
+        "list_function": "getParameterList()",
+        "default": "",
+        "items": {
+          "type": "string",
+          "enum": []
+        }
+      },
+      "Circle_List": {
+        "description": "",
+        "type": "string",
+        "list_function": "showCircles",
+        "default": "",
+        "items": {
+          "type": "string",
+          "enum": []
+        }
+      },
+      "Parameter_List": {
+        "description": "",
+        "type": "string",
+        "list_function": "showParams",
+        "items": {
+          "type": "string",
+          "enum": []
+        }
+      },
+      "Date": {
+        "description": "",
+        "type": "date"
+      },
+      "Aggr_Level": {
+        "description": "",
+        "type": "string",
+        "list_function": "",
+        "items": {
+          "type": "string",
+          "default": "Hour",
+          "enum": [
+            "Hour",
+            "Daily",
+            "Raw"
+          ]
+        }
+      },
+      "Aggr_Function": {
+        "description": "",
+        "type": "string",
+        "list_function": "",
+        "items": {
+          "type": "string",
+          "default": "AVG",
+          "enum": [
+            "MIN",
+            "MAX",
+            "AVG",
+            "SUM"
+          ]
+        }
+      },
+      "fea_conf_col": {
+        "description": "",
+        "type": "string"
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "FTP_Config": {
+    "title": "FTP Config",
+    "description": "FTP Configuration Schema",
+    "type": "object",
+    "required": [
+      "URL",
+      "Username",
+      "Remote_Path",
+      "password",
+      "Training_Data",
+      "Feature_Config",
+      "fea_conf_col"
+    ],
+    "properties": {
+      "URL": {
+        "description": "",
+        "type": "string"
+      },
+      "Username": {
+        "description": "",
+        "type": "string"
+      },
+      "password": {
+        "description": "",
+        "type": "password"
+      },
+      "Remote_Path" : {
+        "description": "",
+        "type": "string"
+      },
+      "Training_Data": {
+        "description": "",
+        "type": "string"
+      },
+      "Feature_Config": {
+        "description": "",
+        "type": "string"
+      },
+      "fea_conf_col": {
+        "description": "",
+        "type": "string"
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "S3_Config" : {
+    "title": "S3 Config",
+    "description": "S3 Configuration Schema",
+    "type": "object",
+    "required": [
+      "BucketName",
+      "RemoteDirectoryName",
+      "AwsAccessKeyId",
+      "AwsSecretAccessKey",
+      "Training_Data",
+      "Feature_Config",
+      "fea_conf_col"
+    ],
+    "properties": {
+      "BucketName": {
+        "description": "",
+        "type": "string"
+      },
+      "RemoteDirectoryName": {
+        "description": "",
+        "type": "string"
+      },
+      "AwsAccessKeyId": {
+        "description": "",
+        "type": "string"
+      },
+      "AwsSecretAccessKey": {
+        "description": "",
+        "type": "string"
+      },
+      "Training_Data": {
+        "description": "",
+        "type": "string"
+      },
+      "Feature_Config": {
+        "description": "",
+        "type": "string"
+      },
+      "fea_conf_col": {
+        "description": "",
+        "type": "string"
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Config_List": {
+    "title": "",
+    "description": "Algo Mapping Configuration",
+    "type": "object",
+    "required": [
+      "Dataset"
+    ],
+    "properties": {
+      "Dataset": {
+        "type": "string",
+        "description": "",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Airtel_Dataset",
+            "Custom_Dataset",
+            "Internal_Dataset",
+            "External_Dataset",
+            "DB_Pull_Dataset"
+          ]
+        }
+      },
+      "Custom_Dataset" : {
+        "type": "string",
+        "description": "List of Algorithms for Custom_Dataset",
+        "items": {
+          "type": "string",
+          "enum": [
+            "FTP",
+            "S3",
+            "LOCAL",
+            "SFTP"
+          ]
+        },
+        "uniqueItems": "true"
+      },
+      "External_Dataset" : {
+        "type": "string",
+        "description": "List of Algorithms for Custom_Dataset",
+        "items": {
+          "type": "string",
+          "enum": [
+            "FTP",
+            "S3",
+            "LOCAL",
+            "SFTP"
+          ]
+        },
+        "uniqueItems": "true"
+      },
+      "DB_Pull_Dataset" : {
+        "type": "string",
+        "description": "List of Algorithms for Custom_Dataset",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Airtel_TAW",
+            "GenAI"
+          ],
+          "oneOf": [
+            "Circle_List"
+          ]
+        },
+        "uniqueItems": "true"
+      },
+      "Internal_Dataset" : {
+        "type": "string",
+        "description": "List of Algorithms for Custom_Dataset",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Airtel_TAW",
+            "GenAI"
+          ],
+          "oneOf": [
+            "Circle_List",
+            "Parameter_List",
+            "Date",
+            "Aggr_Level",
+            "Aggr_Function"
+          ]
+        },
+        "uniqueItems": "true"
+      },
+
+      "additionalProperties": "false"
+    }
+  },
+  "PerformanceRetriever": {
+    "title": "PerformanceRetriever ",
+    "description": "Airtel_Dataset Configuration Schema",
+    "type": "object",
+    "required": [
+      "Oem",
+      "Circle_List",
+      "Parameter_List",
+      "Date",
+      "Aggr_Level",
+      "Aggr_Function"
+    ],
+    "properties": {
+      "Oem": {
+        "description": "",
+        "type": "string",
+        "list_function": "getParameterList()",
+        "default": "",
+        "items": {
+          "type": "string",
+          "enum": []
+        }
+      },
+      "Circle_List": {
+        "description": "",
+        "type": "string",
+        "list_function": "showCircles",
+        "default": "",
+        "items": {
+          "type": "string",
+          "enum": []
+        }
+      },
+      "Parameter_List": {
+        "description": "",
+        "type": "string",
+        "list_function": "showParams",
+        "items": {
+          "type": "string",
+          "enum": []
+        }
+      },
+      "Date": {
+        "description": "",
+        "type": "date"
+      },
+      "Aggr_Level": {
+        "description": "",
+        "type": "string",
+        "list_function": "",
+        "items": {
+          "type": "string",
+          "default": "Hour",
+          "enum": [
+            "Hour",
+            "Daily",
+            "Raw"
+          ]
+        }
+      },
+      "Aggr_Function": {
+        "description": "",
+        "type": "string",
+        "list_function": "",
+        "items": {
+          "type": "string",
+          "default": "AVG",
+          "enum": [
+            "MIN",
+            "MAX",
+            "AVG",
+            "SUM"
+          ]
+        }
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "KPIPredictionRetriever": {
+    "title": "KPIPredictionRetriever ",
+    "description": "Airtel_Dataset Configuration Schema",
+    "type": "object",
+    "required": [
+      "Oem",
+      "Circle_List",
+      "Date",
+      "Aggr_Type"
+    ],
+    "properties": {
+      "Oem": {
+        "description": "",
+        "type": "string",
+        "list_function": "getParameterList()",
+        "default": "",
+        "items": {
+          "type": "string",
+          "enum": []
+        }
+      },
+      "Circle_List": {
+        "description": "",
+        "type": "string",
+        "list_function": "showCircles",
+        "default": "",
+        "items": {
+          "type": "string",
+          "enum": []
+        }
+      },
+      "Date": {
+        "description": "",
+        "type": "date"
+      },
+      "Aggr_Type": {
+        "description": "",
+        "type": "string",
+        "list_function": "",
+        "items": {
+          "type": "string",
+          "default": "AVG",
+          "enum": [
+            "MIN",
+            "MAX",
+            "AVG",
+            "SUM"
+          ]
+        }
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "ChurnData": {
+    "title": "ChurnData",
+    "description": "Airtel_Dataset Configuration Schema",
+    "type": "object",
+    "required": [
+      "Circle_List"
+    ],
+    "properties": {
+      "Circle_List": {
+        "description": "",
+        "type": "string",
+        "list_function": "showCircles",
+        "default": "",
+        "items": {
+          "type": "string",
+          "enum": []
+        }
+      },
+      "additionalProperties": "false"
+    }
+  }
+}

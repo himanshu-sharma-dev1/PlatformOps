@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Toasts</title>
+    <style>
+        .ik-msg-alert {
+            position: fixed;
+            bottom: 10%;
+            right: -30vw;
+            width: 30vw;
+            z-index: 1050;
+            animation: slideInOut 5s ease-in-out forwards;
+        }
+        @keyframes slideInOut {
+            0% { right: -30vw; opacity: 0; }
+            20% { right: 2%; opacity: 1; }
+            80% { right: 2%; opacity: 1; }
+            100% { right: -30vw; opacity: 0; }
+        }
+        .ik-toast-body p {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+{% if messages %}
+<div aria-live="polite" aria-atomic="true" class="ik-msg-alert">
+    {% for message in messages %}
+        {% if "successfully" in message|lower %}
+        <!-- ✅ Success Toast -->
+        <div class="toast ik-toast mb-2" role="alert" aria-live="assertive" aria-atomic="true" style="border-left:10px solid green; background:#dbede5;">
+            <div class="toast-header bg-transparent">
+                <strong class="me-auto">User Response</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="ik-toast-body p-1">
+                <i class="fs-5 bi bi-check-circle-fill text-success me-2"></i>
+                {{ message }}
+            </div>
+        </div>
+        {% else %}
+        <!-- ❌ Error Toast -->
+        <div class="toast ik-toast mb-2" role="alert" aria-live="assertive" aria-atomic="true" style="border-left:10px solid red; background:#fdecea;">
+            <div class="toast-header bg-transparent">
+                <strong class="me-auto">User Response</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="ik-toast-body p-1">
+                <i class="fs-5 bi bi-x-circle-fill text-danger me-2"></i>
+                {{ message }}
+            </div>
+        </div>
+        {% endif %}
+    {% endfor %}
+</div>
+{% endif %}
+<script>
+// Add Toasts
+document.addEventListener('DOMContentLoaded', function() {
+    const toastEl = document.querySelector('.toast');
+    if (toastEl) {
+        const toast = new bootstrap.Toast(toastEl, {
+            delay: 5000,
+            autohide: true
+        });
+        toast.show();
+    }
+});
+</script>
+</body>
+</html>

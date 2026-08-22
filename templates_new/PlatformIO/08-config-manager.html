@@ -1,0 +1,2070 @@
+<!DOCTYPE html>
+<html lang="en">
+{% include "sidebar.html" %}
+<head>
+<meta charset="UTF-8">
+{% load static %}
+<title>PlatformOps · Config Manager</title>
+<link rel="stylesheet" type="text/css" href="{% static 'css/configManager.css' %}">
+</head>
+<body>
+<div class="app">
+
+  <!-- MAIN CONTAINER -->
+  <main class="main">
+    {% include "navbar.html" %}
+    <div class="content">
+
+      <!-- HEADER STRIP -->
+      <div class="cm-header">
+        <div class="top">
+          <div>
+            <h1>Config <em>Manager</em></h1>
+            <p class="sub">Unified platform runtime inventory configuration management. Modify, audit, compare and safely sync active cluster properties.</p>
+          </div>
+        </div>
+          <div class="meta-strip">
+            <div class="meta"><div class="v" id="clusterCount">{{config_stats.cluster_count}}</div>
+                <div class="l">
+                    Clusters
+                </div>
+            </div>
+            <div class="meta"><div class="v">{{config_stats.node_count}}</div><div class="l">Nodes online</div></div>
+            <div class="meta"><div class="v">{{config_stats.config_snapshot_count}}</div><div class="l">Total Checkpoints</div></div>
+            <div class="meta"><div class="v">{{config_stats.infra_service_count}}</div><div class="l">Infra Services</div></div>
+          </div>
+      </div>
+
+      <!-- TWO-COLUMN LAYOUT -->
+      <div class="cm-layout">
+
+        <!-- LEFT: RUNTIME INVENTORY NAVIGATOR -->
+        <aside class="nav-card">
+          <div class="nav-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input id="nav-filter-input" placeholder="Filter services, nodes, clusters...">
+          </div>
+          <div class="nav-tree" id="inventory-tree">
+            {% for index, cluster in cluster_info.items %}
+              <div class="nv-cluster open" data-cluster-name="{{ cluster.cluster_name }}">
+                <div class="nv-cluster-head">
+                  <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                  <span class="nm">{{ cluster.cluster_name }}</span>
+                  <span class="meta">{{ cluster.node_info|length }} nodes</span>
+                </div>
+                <div class="nv-nodes">
+                  {% for idx, node in cluster.node_info.items %}
+                    <div class="nv-node open" data-node-name="{{ node.node_name }}">
+                      <div class="nv-node-head">
+                        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                        <span class="dot ok"></span>
+                        <span class="nm">{{ node.node_name }}</span>
+                      </div>
+                      <div class="nv-services">
+                        {% for s_idx, service in node.service_info.items %}
+                          <div class="nv-service" data-service-id="{{ service.service_id }}" data-service-name="{{ service.service_name }}">
+                            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                            <span class="nm">{{ service.service_name }}</span>
+                            <span class="ver">{{ service.service_type }}</span>
+                          </div>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            {% empty %}
+              <div class="cm-empty-inline">No active inventory available.</div>
+            {% endfor %}
+          </div>
+          <div class="nav-foot">
+            <span id="nav-summary-span">Live runtime inventory</span>
+            <div class="legend">
+              <div class="item"><span class="dot dot-ok"></span>OK</div>
+            </div>
+          </div>
+        </aside>
+
+        <!-- RIGHT: WORKSPACE PANEL -->
+        <div id="workspace-wrapper" class="workspace-wrapper">
+
+          <!-- Default Empty State -->
+          <div class="empty-state" id="ws-empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+            <h3>No Service Selected</h3>
+            <p>Select a running service instance from the left rail navigator tree to load the active configuration workspace.</p>
+          </div>
+
+          <!-- Active Workspace Container (Hidden initially) -->
+          <div id="ws-active-container" class="is-hidden">
+
+            <!-- Selected Context Info -->
+            <div class="ws-context">
+              <div class="ws-context-top">
+                <div class="path">
+                  <svg class="ic ic-muted" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-11h-6M7 12H1"/></svg>
+                  <span class="seg" id="ctx-cluster-name">cluster</span>
+                  <span class="sep">/</span>
+                  <span class="seg" id="ctx-node-name">node</span>
+                  <span class="sep">/</span>
+                  <span class="seg now" id="ctx-service-name">service</span>
+                </div>
+                <div class="actions">
+                  <button class="btn btn-ghost btn-sm" id="ws-refresh-btn">
+                    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0118 0M21 12a9 9 0 01-18 0M16 8l5-5M3 21l5-5"/></svg>
+                    Reload Page
+                  </button>
+                  <button class="btn btn-secondary btn-sm btn-navy-outline" id="ws-refresh-live-btn">
+                    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 11-.57-8.38l5.67-5.67"/></svg>
+                    Live
+                  </button>
+                  <button class="btn btn-primary btn-sm" id="ws-capture-cp-btn">
+                    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8"/></svg>
+                    Checkpoint
+                  </button>
+                </div>
+              </div>
+              <div class="ws-meta">
+                <div class="m">
+                  <span class="k">Service ID</span>
+                  <span class="v" id="meta-service-id">--</span>
+                </div>
+                <div class="m">
+                  <span class="k">Type / Version</span>
+                  <span class="v" id="meta-service-type">--</span>
+                </div>
+                <div class="m">
+                  <span class="k">Node Info</span>
+                  <span class="v" id="meta-node-name">--</span>
+                </div>
+                <div class="m">
+                  <span class="k">Total Checkpoints</span>
+                  <span class="v" id="meta-total-checkpoints">--</span>
+                </div>
+                <div class="m">
+                  <span class="k">Config Source</span>
+                  <span class="v" id="meta-config-source">--</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- WORKSPACE TABS -->
+            <div class="ws-tabs">
+              <div class="tab active" data-pane="current">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                Current config
+              </div>
+              <div class="tab" data-pane="history">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                Checkpoint history <span class="badge" id="tabs-checkpoint-count">0</span>
+              </div>
+              <div class="tab" data-pane="compare">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+                Compare
+              </div>
+              <div class="tab" data-pane="migrate">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                Migrate / Fleet
+              </div>
+            </div>
+
+            <!-- TABS PANES -->
+
+            <!-- PANE 1: CURRENT CONFIG (EDITOR & VALIDATOR) -->
+            <div class="tab-pane active" id="pane-current">
+              <!-- Active Checkpoint Status Callout -->
+              <div class="active-callout callout-inset is-hidden" id="active-checkpoint-callout">
+                <svg class="ic ic-navy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                <div class="text">
+                  Active Checkpoint: <span class="nm" id="active-checkpoint-name">v1</span> · <span id="active-checkpoint-meta">timestamp</span>
+                </div>
+                <div class="meta meta-strong-navy" id="active-checkpoint-drift">In Sync</div>
+                <button class="btn btn-secondary btn-sm btn-compact ml-12" id="view-active-snap-btn">View Active</button>
+              </div>
+
+              <!-- Validation Guard Feedback Bar -->
+              <div class="validation-guard is-hidden" id="editor-validation-bar">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+                <span class="message" id="editor-validation-msg">Validation status message.</span>
+              </div>
+
+              <div class="sect-card">
+                <div class="sect-head-bar">
+                  <h3 id="editor-file-title">config.yaml</h3>
+                  <div id="editor-mode-indicator" class="right editor-mode-indicator">VIEW MODE</div>
+                </div>
+                <div class="sect-body p-0">
+                  <div class="cfg-viewer">
+                    <div class="cfg-viewer-head">
+                      <span class="name" id="editor-file-path">/etc/config.yaml</span>
+                      <div class="actions">
+                        <button type="button" class="editor-action-btn" id="editor-action-view-fallback" style="margin-right: 8px;">Load DB Fallback</button>
+                        <button type="button" class="editor-action-btn" id="editor-action-edit">Edit Config</button>
+                        <button type="button" class="editor-action-btn warn-text is-hidden" id="editor-action-validate">Validate YAML</button>
+                        <button type="button" class="editor-action-btn is-hidden" id="editor-action-cancel">Cancel</button>
+                      </div>
+                    </div>
+                    <div class="cfg-content">
+                      <textarea id="config-editor-textarea" readonly></textarea>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Save / Apply Form Footer (Only visible in edit mode) -->
+              <div id="editor-footer-form" class="editor-footer-form is-hidden">
+                <select id="editor-apply-mode" class="cm-select-sm">
+                  <option value="reload">Reload container (Graceful)</option>
+                  <option value="restart">Restart container (Hard reload)</option>
+                </select>
+                <button class="btn btn-primary" id="editor-save-btn" disabled>
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+                  Apply Configuration
+                </button>
+              </div>
+            </div>
+
+            <!-- PANE 2: CHECKPOINT HISTORY -->
+            <div class="tab-pane" id="pane-history">
+              <div class="cp-toolbar">
+                <div class="filters">
+                  <button type="button" class="chip on" data-checkpoint-filter="all">All Checkpoints</button>
+                  <button type="button" class="chip" data-checkpoint-filter="active">Active</button>
+                  <button type="button" class="chip" data-checkpoint-filter="renamed">Renamed</button>
+                  <button type="button" class="chip" data-checkpoint-filter="backup">Backups</button>
+                </div>
+              </div>
+              <div class="sect-card is-hidden" id="snapshot-preview-card">
+                <div class="sect-head-bar">
+                  <h3>Snapshot View</h3>
+                  <span class="right" id="snapshot-preview-meta">version</span>
+                </div>
+                <div class="sect-body">
+                  <pre class="snapshot-preview-content" id="snapshot-preview-content"></pre>
+                </div>
+              </div>
+              <div class="cp-timeline" id="checkpoint-timeline-container">
+                <!-- Loaded dynamically -->
+              </div>
+            </div>
+
+            <!-- PANE 3: COMPARE VIEW -->
+            <div class="tab-pane" id="pane-compare">
+              <div class="empty-state" id="compare-empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+                <h3>No Checkpoints Selected for Comparison</h3>
+                <p>Go to the "Checkpoint history" tab and pick a checkpoint for Slot A and Slot B to dynamically compute difference metrics.</p>
+              </div>
+              <div id="compare-diff-wrapper" class="is-hidden">
+                <div class="diff-view" id="compare-diff-content">
+                  <!-- Unified / Split Diff Table loaded here -->
+                </div>
+              </div>
+            </div>
+
+            <!-- PANE 4: MIGRATE / FLEET ROLLOUT -->
+            <div class="tab-pane" id="pane-migrate">
+              <div class="empty-state" id="migrate-empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                <h3>No Migration Prepared Yet</h3>
+                <p>Select checkpoint A and checkpoint B from history, choose the direction, and click Prepare Migration.</p>
+              </div>
+              <div id="migrate-active-container" class="is-hidden">
+                <div class="mig-flow" id="migration-flow">
+                  <div class="mig-side">
+                    <div class="lbl">Source</div>
+                    <div class="nm" id="migration-source-version">--</div>
+                    <div class="hash" id="migration-source-meta">--</div>
+                  </div>
+                  <div class="mig-arrow">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                  </div>
+                  <div class="mig-side to">
+                    <div class="lbl">Target</div>
+                    <div class="nm" id="migration-target-version">--</div>
+                    <div class="hash" id="migration-target-meta">--</div>
+                  </div>
+                </div>
+
+                <div class="sect-card">
+                  <div class="sect-head-bar">
+                    <h3>Migration Result</h3>
+                    <span class="right" id="migration-edit-mode">READ-ONLY</span>
+                  </div>
+                  <div class="sect-body">
+                    <div class="migration-grid">
+                      <div class="migration-column">
+                        <div class="migration-column-head">
+                          <div class="ttl">
+                            <strong>Migration Result</strong>
+                            <span id="migration-result-meta">Prepared from selected checkpoints</span>
+                          </div>
+                          <div class="migration-actions">
+                            <button class="btn btn-secondary btn-sm" id="migration-edit-btn">Edit</button>
+                            <button class="btn btn-secondary btn-sm is-hidden" id="migration-done-btn">Done</button>
+                            <button class="btn btn-ghost btn-sm is-hidden" id="migration-cancel-btn">Cancel</button>
+                          </div>
+                        </div>
+                        <pre class="migration-pre" id="migrationResultPre"></pre>
+                        <textarea class="migration-editor" id="migrationResultEditor"></textarea>
+                        <div class="validation-guard is-hidden" id="migration-validation-bar">
+                          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+                          <span class="message" id="migration-validation-msg">Migration YAML validation status.</span>
+                        </div>
+                      </div>
+                      <div class="migration-column">
+                        <div class="migration-column-head">
+                          <div class="ttl">
+                            <strong>Config 2</strong>
+                            <span id="migration-config2-meta">Target-ranked config</span>
+                          </div>
+                        </div>
+                        <pre class="migration-pre" id="migrationConfig2Pre"></pre>
+                      </div>
+                      <div class="migration-column">
+                        <div class="migration-column-head">
+                          <div class="ttl">
+                            <strong>Config 1</strong>
+                            <span id="migration-config1-meta">Source-ranked config</span>
+                          </div>
+                        </div>
+                        <pre class="migration-pre" id="migrationConfig1Pre"></pre>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sect-card">
+                  <div class="sect-head-bar">
+                    <h3>Migration Diff</h3>
+                    <span class="right">Compare any two migration columns</span>
+                  </div>
+                  <div class="sect-body">
+                    <div class="migration-diff-toolbar">
+                      <div class="migration-diff-field">
+                        <label for="migrationDiffLeft">Diff left</label>
+                        <select id="migrationDiffLeft">
+                          <option value="migration_result">Migration Result</option>
+                          <option value="config_2">Config 2</option>
+                          <option value="config_1">Config 1</option>
+                        </select>
+                      </div>
+                      <div class="migration-diff-field">
+                        <label for="migrationDiffRight">Diff right</label>
+                        <select id="migrationDiffRight">
+                          <option value="config_2">Config 2</option>
+                          <option value="migration_result">Migration Result</option>
+                          <option value="config_1">Config 1</option>
+                        </select>
+                      </div>
+                      <button class="btn btn-secondary btn-sm" id="btnMigrationDiffSelected">Diff Selected</button>
+                      <button class="btn btn-ghost btn-sm" id="btnMigrationClearDiff">Clear</button>
+                    </div>
+                    <div class="migration-status" id="migrationDiffStatus">Select two columns and click Diff Selected.</div>
+                    <div class="migration-inline-diff" id="migrationInlineDiffContainer"></div>
+                  </div>
+                </div>
+
+                <div class="sect-card">
+                  <div class="sect-head-bar">
+                    <h3>Apply Live</h3>
+                    <span class="right">Apply validated migration result and retain restore context</span>
+                  </div>
+                  <div class="sect-body">
+                    <div class="migration-apply-bar">
+                      <div class="migration-apply-actions">
+                        <select id="migrationApplyMode">
+                          <option value="reload">Reload (Graceful)</option>
+                          <option value="restart">Restart</option>
+                        </select>
+                        <button class="btn btn-primary" id="btnApplyMigratedConfig">Apply Migration</button>
+                        <button class="btn btn-secondary" id="btnRestoreMigratedConfig" disabled>Restore</button>
+                      </div>
+                    </div>
+                    <div class="migration-status" id="migrationApplyResult">Prepare a migration result before applying it live.</div>
+                  </div>
+                </div>
+
+              <div class="sect-card">
+                <div class="sect-head-bar">
+                  <h3>Fleet Rollout Strategy</h3>
+                  <span class="right">Peer nodes sharing the same type</span>
+                </div>
+                <div class="sect-body">
+                  <p class="peer-help-text">The following sibling node instances in the cluster run the same service type. You can deploy the current validated configuration to peer nodes in a controlled sequence.</p>
+
+                  <div class="peer-list" id="migrate-peer-list">
+                    <!-- Sibling peer nodes loaded dynamically -->
+                  </div>
+                </div>
+              </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Sticky Compare Bar -->
+<div class="cmp-bar" id="cmp-bar">
+  <div class="selected">
+    <div class="slot a" id="slot-a">
+      <span class="lbl">A</span>
+      <span class="val">--</span>
+    </div>
+    <div class="arrow">-&gt;</div>
+    <div class="slot b" id="slot-b">
+      <span class="lbl">B</span>
+      <span class="val">--</span>
+    </div>
+  </div>
+  <div class="cmp-controls">
+    <label class="cmp-direction-wrap" for="cmp-direction">
+      <span>Direction</span>
+      <select id="cmp-direction">
+        <option value="AtoB">A -&gt; B</option>
+        <option value="BtoA">B -&gt; A</option>
+      </select>
+    </label>
+    <button class="btn btn-secondary btn-sm" id="clear-sel-btn">Clear</button>
+    <button class="btn btn-primary btn-sm" id="open-cmp-btn">Compare Checkpoints</button>
+    <button class="btn btn-primary btn-sm" id="open-migrate-btn">Prepare Migration</button>
+  </div>
+</div>
+
+<!-- Toast element -->
+<div id="toast">
+  <span id="toastMsg">Action complete</span>
+</div>
+
+<!-- Confirm modal -->
+<div class="cm-modal-backdrop" id="cmConfirmBack"></div>
+<section class="cm-modal" id="cmConfirmModal" role="dialog" aria-modal="true" aria-labelledby="cmConfirmTitle">
+  <div class="cm-modal-head">
+    <div>
+      <div class="cm-modal-eyebrow" id="cmConfirmEyebrow">Confirm rollout</div>
+      <h2 id="cmConfirmTitle">Deploy validated config?</h2>
+    </div>
+    <button class="icon-btn" id="cmConfirmClose" type="button" aria-label="Close">
+      <svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <p class="cm-modal-message" id="cmConfirmMessage"></p>
+  <div class="cm-modal-list" id="cmConfirmList"></div>
+  <div class="cm-modal-foot">
+    <button class="btn btn-secondary" id="cmConfirmSecondary" type="button">Cancel</button>
+    <button class="btn btn-primary" id="cmConfirmPrimary" type="button">Deploy</button>
+  </div>
+</section>
+
+<!-- Rename checkpoint modal -->
+<div class="cm-modal-backdrop" id="cmRenameBack"></div>
+<section class="cm-modal" id="cmRenameModal" role="dialog" aria-modal="true" aria-labelledby="cmRenameTitle">
+  <div class="cm-modal-head">
+    <div>
+      <div class="cm-modal-eyebrow">Checkpoint label</div>
+      <h2 id="cmRenameTitle">Rename checkpoint</h2>
+    </div>
+    <button class="icon-btn" id="cmRenameClose" type="button" aria-label="Close">
+      <svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <p class="cm-modal-message">Give this checkpoint a unique display name. The underlying version and timestamp stay unchanged.</p>
+  <label class="cm-field">
+    <span>Name</span>
+    <input id="cmRenameInput" type="text" maxlength="80" autocomplete="off" placeholder="for example: 2.0.0-v2 rollback baseline">
+  </label>
+  <div class="cm-field-help" id="cmRenameHelp">Use letters, numbers, spaces, hyphen, underscore, or dot. Names must be unique for this service.</div>
+  <div class="cm-modal-foot">
+    <button class="btn btn-secondary" id="cmRenameCancel" type="button">Cancel</button>
+    <button class="btn btn-primary" id="cmRenameSubmit" type="button">Save name</button>
+  </div>
+</section>
+<script>
+  window.IKTARA_SESSION = {
+    lastVisited: {
+      cluster_name: "{{ session_last_visited.cluster_name|default:''|escapejs }}",
+      node_name: "{{ session_last_visited.node_name|default:''|escapejs }}",
+      service_name: "{{ session_last_visited.service_name|default:''|escapejs }}"
+    }
+  };
+</script>
+<script>
+(function(){
+  // Helper utility functions
+  const $ = s => document.querySelector(s);
+  const $$ = s => Array.from(document.querySelectorAll(s));
+
+  const setBtnLoading = (btn, loading, text = 'Processing...') => {
+    if (!btn) return;
+    if (loading) {
+      if (!btn.hasAttribute('data-orig-html')) btn.setAttribute('data-orig-html', btn.innerHTML);
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa fa-spinner fa-spin" style="margin-right:8px;"></i>${text}`;
+    } else {
+      btn.disabled = false;
+      if (btn.hasAttribute('data-orig-html')) btn.innerHTML = btn.getAttribute('data-orig-html');
+    }
+  };
+
+  // Global variables tracking state
+  let currentServiceId = null;
+  let activeYamlContent = "";
+  let activeDatabaseFallbackConfig = "";
+  let isEditing = false;
+  let pickA = null;
+  let pickB = null;
+  let compareDirection = 'AtoB';
+  let currentMigrationArtifactId = '';
+  let latestMigrationApplyContext = null;
+  let migrationSavedYaml = '';
+  let migrationLastValidationOk = false;
+  let migrationValidationTimer = null;
+  let currentConfigCapabilities = {
+    snapshot_enabled: true,
+    apply_enabled: true,
+    restore_enabled: true,
+    restart_required: false,
+    disabled_reason: ''
+  };
+  let latestSnapshots = [];
+  let checkpointFilter = 'all';
+  const renameState = { snapshot: null, currentName: '' };
+  const currentUserDisplayName = "{{ request.user.username|escapejs }}";
+
+  // Active query parameters for deep linking
+  const urlParams = new URLSearchParams(window.location.search);
+  const deepClusterId = urlParams.get('cluster_id');
+  const deepNodeId = urlParams.get('node_id');
+  const deepServiceId = urlParams.get('service_id');
+
+  // Custom Toast helper
+  function showToast(msg, kind) {
+    const t = $('#toast');
+    $('#toastMsg').textContent = msg;
+    t.className = '';
+    if(kind) t.classList.add(kind);
+    t.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  const confirmState = { primary: null, secondary: null };
+
+  function escapeHtml(value) {
+    return String(value || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function closeConfirmModal() {
+    $('#cmConfirmBack')?.classList.remove('open');
+    $('#cmConfirmModal')?.classList.remove('open');
+    confirmState.primary = null;
+    confirmState.secondary = null;
+  }
+
+  function openConfirmModal(options) {
+    const cfg = options || {};
+    $('#cmConfirmEyebrow').textContent = cfg.eyebrow || 'Confirm action';
+    $('#cmConfirmTitle').textContent = cfg.title || 'Confirm action';
+    $('#cmConfirmMessage').textContent = cfg.message || '';
+    $('#cmConfirmList').innerHTML = (cfg.items || []).map(item => `
+      <div class="cm-modal-item">
+        <div class="name">${escapeHtml(item.name || 'Item')}</div>
+        <div class="meta">${escapeHtml(item.meta || '')}</div>
+      </div>
+    `).join('');
+    $('#cmConfirmPrimary').textContent = cfg.primaryLabel || 'Continue';
+    $('#cmConfirmSecondary').textContent = cfg.secondaryLabel || 'Cancel';
+    confirmState.primary = cfg.onPrimary || closeConfirmModal;
+    confirmState.secondary = cfg.onSecondary || closeConfirmModal;
+    $('#cmConfirmBack').classList.add('open');
+    $('#cmConfirmModal').classList.add('open');
+  }
+
+  $('#cmConfirmBack')?.addEventListener('click', closeConfirmModal);
+  $('#cmConfirmClose')?.addEventListener('click', closeConfirmModal);
+  $('#cmConfirmPrimary')?.addEventListener('click', () => (confirmState.primary || closeConfirmModal)());
+  $('#cmConfirmSecondary')?.addEventListener('click', () => (confirmState.secondary || closeConfirmModal)());
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && $('#cmConfirmModal')?.classList.contains('open')) {
+      closeConfirmModal();
+    }
+    if (event.key === 'Escape' && $('#cmRenameModal')?.classList.contains('open')) {
+      closeRenameSnapshotModal();
+    }
+  });
+
+  $('#cmRenameBack')?.addEventListener('click', closeRenameSnapshotModal);
+  $('#cmRenameClose')?.addEventListener('click', closeRenameSnapshotModal);
+  $('#cmRenameCancel')?.addEventListener('click', closeRenameSnapshotModal);
+  $('#cmRenameSubmit')?.addEventListener('click', submitRenameSnapshot);
+  $('#cmRenameInput')?.addEventListener('input', validateRenameInput);
+  $('#cmRenameInput')?.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      submitRenameSnapshot();
+    }
+  });
+
+  $$('[data-checkpoint-filter]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      checkpointFilter = chip.dataset.checkpointFilter || 'all';
+      $$('[data-checkpoint-filter]').forEach(item => item.classList.remove('on'));
+      chip.classList.add('on');
+      renderCheckpointTimeline(latestSnapshots);
+    });
+  });
+
+  function switchToPane(paneName) {
+    $$('.ws-tabs .tab').forEach(t => t.classList.remove('active'));
+    $(`.ws-tabs .tab[data-pane="${paneName}"]`).classList.add('active');
+    $$('.tab-pane').forEach(p => p.classList.remove('active'));
+    $(`#pane-${paneName}`).classList.add('active');
+  }
+
+  function formatSnapshotTimestamp(ts) {
+    const raw = String(ts || '');
+    if (!raw) {
+      return '-';
+    }
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const pad2 = n => String(n).padStart(2, '0');
+
+    const compactMatch = raw.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
+    let dateObj = null;
+    if (compactMatch) {
+      dateObj = new Date(Date.UTC(
+        parseInt(compactMatch[1], 10),
+        parseInt(compactMatch[2], 10) - 1,
+        parseInt(compactMatch[3], 10),
+        parseInt(compactMatch[4], 10),
+        parseInt(compactMatch[5], 10),
+        parseInt(compactMatch[6], 10)
+      ));
+    } else {
+      const parsed = new Date(raw);
+      if (!Number.isNaN(parsed.getTime())) {
+        dateObj = parsed;
+      }
+    }
+
+    if (!dateObj) {
+      return raw;
+    }
+
+    const day = pad2(dateObj.getDate());
+    const monthLabel = months[dateObj.getMonth()];
+    const year = dateObj.getFullYear();
+    const hour = pad2(dateObj.getHours());
+    const minute = pad2(dateObj.getMinutes());
+    return `${day}-${monthLabel}-${year} ${hour}:${minute}`;
+  }
+
+  function snapshotDisplayName(snap) {
+    return String((snap && (snap.display_name || snap.snapshot_name || snap.default_name)) || '').trim()
+      || `v${(snap && snap.version) || ''}`;
+  }
+
+  function getInitials(name) {
+    const cleaned = String(name || '').trim();
+    if (!cleaned) return 'PO';
+    return cleaned.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+  }
+
+  function snapshotActionMessage(snap, originalIndex) {
+    if (snap && snap.is_custom_name) return 'Checkpoint label renamed for easier rollback selection.';
+    if (originalIndex === 0) return 'Active configuration checkpoint captured from runtime config.';
+    return 'Backup configuration checkpoint retained for comparison or rollback.';
+  }
+
+  function stringifyMigrationConfig(value) {
+    function toYaml(node, indent) {
+      const pad = ' '.repeat(indent);
+      if (node === null || node === undefined) {
+        return 'null';
+      }
+      if (Array.isArray(node)) {
+        if (!node.length) {
+          return '[]';
+        }
+        const lines = [];
+        node.forEach(item => {
+          if (item !== null && typeof item === 'object') {
+            const nested = toYaml(item, indent + 2).split('\n');
+            lines.push(pad + '- ' + nested[0]);
+            nested.slice(1).forEach(line => {
+              lines.push(pad + '  ' + line);
+            });
+          } else {
+            lines.push(pad + '- ' + String(item));
+          }
+        });
+        return lines.join('\n');
+      }
+      if (typeof node === 'object') {
+        const keys = Object.keys(node);
+        if (!keys.length) {
+          return '{}';
+        }
+        const lines = [];
+        keys.forEach(key => {
+          const val = node[key];
+          if (val !== null && typeof val === 'object') {
+            lines.push(pad + key + ':');
+            lines.push(toYaml(val, indent + 2));
+          } else {
+            lines.push(pad + key + ': ' + String(val));
+          }
+        });
+        return lines.join('\n');
+      }
+      return String(node);
+    }
+
+    return toYaml(value, 0);
+  }
+
+  function getOrderedSnapshots() {
+    if (!pickA || !pickB) {
+      return null;
+    }
+
+    if (compareDirection === 'BtoA') {
+      return {
+        source: pickB,
+        target: pickA,
+      };
+    }
+
+    return {
+      source: pickA,
+      target: pickB,
+    };
+  }
+
+  function resetSnapshotPreview() {
+    const previewCard = $('#snapshot-preview-card');
+    if (previewCard) {
+      previewCard.style.display = 'none';
+    }
+    const previewContent = $('#snapshot-preview-content');
+    if (previewContent) {
+      previewContent.textContent = '';
+    }
+  }
+
+  function resetMigrationWorkspace() {
+    currentMigrationArtifactId = '';
+    latestMigrationApplyContext = null;
+    migrationSavedYaml = '';
+    migrationLastValidationOk = false;
+    clearTimeout(migrationValidationTimer);
+    $('#migrate-empty-state').style.display = 'flex';
+    $('#migrate-active-container').style.display = 'none';
+    $('#migrationInlineDiffContainer').innerHTML = '';
+    $('#migrationDiffStatus').textContent = 'Select two columns and click Diff Selected.';
+    $('#migrationApplyResult').textContent = 'Prepare a migration result before applying it live.';
+    $('#btnRestoreMigratedConfig').disabled = true;
+    $('#btnApplyMigratedConfig').disabled = true;
+    $('#migration-validation-bar').style.display = 'none';
+    $('#migration-edit-mode').textContent = 'READ-ONLY';
+    $('#migrationResultPre').textContent = '';
+    $('#migrationResultEditor').value = '';
+    $('#migrationResultPre').style.display = 'block';
+    $('#migrationResultEditor').style.display = 'none';
+    $('#migration-edit-btn').style.display = 'inline-flex';
+    $('#migration-done-btn').style.display = 'none';
+    $('#migration-cancel-btn').style.display = 'none';
+  }
+
+  function updateActiveCheckpointCallout(activeCheckpoint, driftState) {
+    const activeCallout = $('#active-checkpoint-callout');
+    if (!activeCheckpoint) {
+      activeCallout.style.display = 'none';
+      return;
+    }
+
+    activeCallout.style.display = 'flex';
+    $('#active-checkpoint-name').textContent = snapshotDisplayName(activeCheckpoint);
+    $('#active-checkpoint-meta').textContent = 'timestamp: ' + formatSnapshotTimestamp(activeCheckpoint.timestamp);
+
+    const driftEl = $('#active-checkpoint-drift');
+    driftEl.textContent = driftState || 'Editor matches active checkpoint';
+    if (driftEl.textContent.indexOf('differs') !== -1 || driftEl.textContent.indexOf('No checkpoint') !== -1) {
+      driftEl.style.color = 'var(--warn)';
+    } else {
+      driftEl.style.color = 'var(--ok)';
+    }
+  }
+
+  function refreshWorkspaceMetaFromSnapshots(snapshots, currentConfigOverride) {
+    const snapshotList = Array.isArray(snapshots) ? snapshots : [];
+    $('#meta-total-checkpoints').textContent = snapshotList.length;
+    $('#tabs-checkpoint-count').textContent = snapshotList.length;
+    renderCheckpointTimeline(snapshotList);
+    updateActiveCheckpointCallout(snapshotList.length ? snapshotList[0] : null, 'Editor matches active checkpoint');
+
+    if (typeof currentConfigOverride === 'string') {
+      activeYamlContent = currentConfigOverride;
+      if (!isEditing) {
+        editorTextarea.value = currentConfigOverride;
+      }
+    }
+  }
+
+  function applyConfigCapabilities(capabilities) {
+    currentConfigCapabilities = Object.assign({
+      snapshot_enabled: true,
+      apply_enabled: true,
+      restore_enabled: true,
+      restart_required: false,
+      disabled_reason: ''
+    }, capabilities || {});
+
+    const reason = currentConfigCapabilities.disabled_reason || 'This target does not expose editable runtime config.';
+    const canSnapshot = !!currentConfigCapabilities.snapshot_enabled;
+    const canApply = !!currentConfigCapabilities.apply_enabled;
+
+    ['#ws-capture-cp-btn', '#ws-refresh-live-btn'].forEach(selector => {
+      const btn = $(selector);
+      if (btn) {
+        btn.disabled = !canSnapshot;
+        btn.title = canSnapshot ? '' : reason;
+      }
+    });
+
+    if (btnEdit) {
+      btnEdit.style.opacity = canApply ? '1' : '0.45';
+      btnEdit.title = canApply ? 'Edit Config' : reason;
+    }
+    if (saveBtn) {
+      saveBtn.title = canApply ? '' : reason;
+    }
+
+    const applyMode = $('#editor-apply-mode');
+    if (applyMode && currentConfigCapabilities.restart_required) {
+      applyMode.value = 'restart';
+    }
+  }
+
+  // Bind inventory navigator tree accordion toggles
+  $$('.nv-cluster-head').forEach(h => {
+    h.addEventListener('click', () => h.parentElement.classList.toggle('open'));
+  });
+  $$('.nv-node-head').forEach(h => {
+    h.addEventListener('click', () => h.parentElement.classList.toggle('open'));
+  });
+
+  // Client-side quick filter on inventory tree items
+  const filterInput = $('#nav-filter-input');
+  if (filterInput) {
+    filterInput.addEventListener('input', () => {
+      const q = filterInput.value.toLowerCase().trim();
+      $$('.nv-service').forEach(item => {
+        const text = item.textContent.toLowerCase();
+        const parentNode = item.closest('.nv-node');
+        const parentCluster = item.closest('.nv-cluster');
+
+        if (text.includes(q)) {
+          item.style.display = 'flex';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+
+      // Auto-open containers if match found
+      if (q.length > 0) {
+        $$('.nv-cluster, .nv-node').forEach(container => {
+          container.classList.add('open');
+        });
+      }
+    });
+  }
+
+  // Load configuration workspace dynamically via fetch
+  async function selectService(serviceId) {
+    if (!serviceId) return;
+
+    currentServiceId = serviceId;
+    const visitNode = $(`.nv-service[data-service-id="${serviceId}"]`);
+if (visitNode) {
+    const visitCluster = visitNode.closest('.nv-cluster');
+    const visitNodeEl  = visitNode.closest('.nv-node');
+    fetch('/PlatformIO/ConfigManager/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            'user-action':  'track_visit',
+            'cluster_name': visitCluster ? visitCluster.dataset.clusterName : '',
+            'node_name':    visitNodeEl  ? visitNodeEl.dataset.nodeName     : '',
+            'service_name': visitNode.dataset.serviceName || ''
+        })
+    });
+}
+    pickA = null;
+    pickB = null;
+    refreshCompareBar();
+    resetSnapshotPreview();
+    resetMigrationWorkspace();
+
+    // Toggle visual selected state in rail tree
+    $$('.nv-service').forEach(x => x.classList.remove('selected'));
+    const treeNode = $(`.nv-service[data-service-id="${serviceId}"]`);
+    if (treeNode) {
+      treeNode.classList.add('selected');
+      // Ensure node and cluster open up
+      let parentNode = treeNode.closest('.nv-node');
+      if (parentNode) parentNode.classList.add('open');
+      let parentCluster = treeNode.closest('.nv-cluster');
+      if (parentCluster) parentCluster.classList.add('open');
+    }
+
+    const configContent = $('.config-pane');
+    if (configContent) { configContent.style.opacity = '0.5'; configContent.style.pointerEvents = 'none'; }
+    try {
+      const response = await fetch('/PlatformIO/ConfigManager/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          'user-action': 'get_service_workspace',
+          'service_id': serviceId
+        })
+      });
+      const data = await response.json();
+
+      if (configContent) { configContent.style.opacity = '1'; configContent.style.pointerEvents = 'auto'; }
+      if (!data.success) {
+        showToast(data.error || "Failed to load workspace", "err");
+        return;
+      }
+
+      // Transition empty state to workspace
+      $('#ws-empty-state').style.display = 'none';
+      $('#ws-active-container').style.display = 'block';
+
+      // Load context path tags
+      const sInfo = data.service_info;
+      $('#ctx-cluster-name').textContent = sInfo.cluster_name;
+      $('#ctx-node-name').textContent = sInfo.node_name;
+      $('#ctx-service-name').textContent = sInfo.service_name;
+
+      // Populate Workspace metadata metrics
+      $('#meta-service-id').textContent = sInfo.service_id;
+      $('#meta-service-type').textContent = sInfo.service_type + ' (' + (sInfo.service_version || 'N/A') + ')';
+      $('#meta-node-name').textContent = sInfo.node_name;
+      $('#meta-total-checkpoints').textContent = data.snapshot_count || data.snapshots.length;
+      $('#tabs-checkpoint-count').textContent = data.snapshot_count || data.snapshots.length;
+      $('#meta-config-source').textContent = data.config_source_label || 'Latest checkpoint';
+
+      // Context file paths labels
+      $('#editor-file-path').textContent = data.config_path || '/etc/config.yaml';
+      $('#editor-file-title').textContent = data.file_label || 'config.yaml';
+      applyConfigCapabilities(data.config_capabilities || {});
+
+      // Active Checkpoint Callout Setup
+      updateActiveCheckpointCallout(data.active_checkpoint, data.drift_state);
+
+      // Current Config Setup
+      activeYamlContent = data.current_config;
+      activeDatabaseFallbackConfig = data.database_fallback_config || "";
+      const editorTextarea = $('#config-editor-textarea');
+      editorTextarea.value = activeYamlContent;
+      exitEditMode();
+
+      // Checkpoint Timeline Setup
+      renderCheckpointTimeline(data.snapshots);
+
+      // Migrate / Fleet Peer Setup
+      renderMigratePeers(data.peers);
+
+    } catch (err) {
+      console.error(err);
+        showToast("Error executing configuration load", "err");
+    }
+  }
+
+  // Timeline renderer
+  function renderCheckpointTimeline(snapshots) {
+    const container = $('#checkpoint-timeline-container');
+    container.innerHTML = '';
+    latestSnapshots = Array.isArray(snapshots) ? snapshots : [];
+
+    if (!latestSnapshots.length) {
+      container.innerHTML = '<div class="cm-empty-inline">No historical checkpoints found.</div>';
+      return;
+    }
+
+    const filteredSnapshots = latestSnapshots
+      .map((snap, idx) => ({ snap, idx }))
+      .filter(({ snap, idx }) => {
+        if (checkpointFilter === 'active') return idx === 0;
+        if (checkpointFilter === 'renamed') return !!snap.is_custom_name;
+        if (checkpointFilter === 'backup') return idx > 0;
+        return true;
+      });
+
+    if (!filteredSnapshots.length) {
+      container.innerHTML = '<div class="cm-empty-inline">No checkpoints match this filter.</div>';
+      return;
+    }
+
+    filteredSnapshots.forEach(({ snap, idx }) => {
+      const item = document.createElement('div');
+      item.className = `cp-item ${idx === 0 ? 'active' : ''}`;
+      item.dataset.version = snap.version;
+      item.dataset.timestamp = snap.timestamp;
+      const snapName = snapshotDisplayName(snap);
+      const versionText = `v${snap.version}`;
+      const customBadge = snap.is_custom_name ? '<span class="badge manual">Renamed</span>' : '';
+
+      item.innerHTML = `
+        <div class="cp-row">
+          <div class="cp-left">
+            <div class="cp-id">
+              <span class="ver">${escapeHtml(snapName)}</span>
+              <span class="hash">${escapeHtml(versionText)}</span>
+              <span class="hash">${formatSnapshotTimestamp(snap.timestamp)}</span>
+              ${customBadge}
+              <span class="badge ${idx === 0 ? 'active' : 'manual'}">${idx === 0 ? 'Active' : 'Backup'}</span>
+            </div>
+            <div class="cp-msg">${escapeHtml(snapshotActionMessage(snap, idx))}</div>
+            <div class="cp-meta">
+              <div class="avatar">${escapeHtml(getInitials(currentUserDisplayName))}</div>
+              <span>${escapeHtml(currentUserDisplayName || 'Platform Operator')}</span>
+            </div>
+          </div>
+          <div class="cp-right cp-right-actions">
+            <div class="cp-actions-row">
+              <button class="btn btn-secondary btn-sm view-snapshot-btn btn-compact">View</button>
+              <button class="btn btn-secondary btn-sm rename-snapshot-btn btn-compact">Rename</button>
+              <div class="pick compare-picker" data-idx="${idx}" data-version="${snap.version}" data-timestamp="${snap.timestamp}">
+                <span class="sq"></span> Compare
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      item.querySelector('.compare-picker').addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleCompareSelection(snap);
+      });
+
+      const viewBtn = item.querySelector('.view-snapshot-btn');
+      if (viewBtn) {
+        viewBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          setBtnLoading(viewBtn, true, 'Loading...');
+          try {
+            const response = await fetch('/PlatformIO/ConfigManager/', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                'user-action': 'view_snapshot',
+                'service_id': currentServiceId,
+                'version': snap.version,
+                'timestamp': snap.timestamp
+              })
+            });
+            const resData = await response.json();
+            setBtnLoading(viewBtn, false);
+            if (resData.success) {
+              $('#snapshot-preview-card').style.display = 'block';
+              $('#snapshot-preview-content').textContent = resData.content || '';
+              $('#snapshot-preview-meta').textContent = snapshotDisplayName(snap) + ' · ' + formatSnapshotTimestamp(snap.timestamp);
+              showToast('Loaded checkpoint ' + snapshotDisplayName(snap), 'ok');
+              return;
+            }
+            showToast('Snapshot view failed: ' + resData.error, 'err');
+          } catch (err) {
+            setBtnLoading(viewBtn, false);
+            console.error(err);
+            showToast('Error loading checkpoint view', 'err');
+          }
+        });
+      }
+
+      const renameBtn = item.querySelector('.rename-snapshot-btn');
+      if (renameBtn) {
+        renameBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openRenameSnapshotModal(snap);
+        });
+      }
+
+      container.appendChild(item);
+    });
+  }
+
+  function validateRenameInput() {
+    const input = $('#cmRenameInput');
+    const help = $('#cmRenameHelp');
+    const submit = $('#cmRenameSubmit');
+    const name = String(input.value || '').trim();
+    const normalized = name.toLowerCase();
+    const original = String(renameState.currentName || '').trim().toLowerCase();
+    const duplicate = latestSnapshots.some(snap => {
+      if (isSameSnapshot(snap, renameState.snapshot)) return false;
+      return snapshotDisplayName(snap).trim().toLowerCase() === normalized;
+    });
+    let message = 'Use letters, numbers, spaces, hyphen, underscore, or dot. Names must be unique for this service.';
+    let valid = true;
+
+    if (!name) {
+      message = 'Checkpoint name cannot be empty.';
+      valid = false;
+    } else if (!/^[A-Za-z0-9][A-Za-z0-9._ -]{0,79}$/.test(name)) {
+      message = 'Start with a letter or number. Only letters, numbers, spaces, hyphen, underscore, and dot are allowed.';
+      valid = false;
+    } else if (duplicate) {
+      message = 'Another checkpoint already uses this name. Choose a unique label.';
+      valid = false;
+    } else if (normalized === original) {
+      message = 'Name is unchanged. Edit it or cancel safely.';
+      valid = false;
+    }
+
+    input.classList.toggle('invalid', !valid);
+    help.classList.toggle('err', !valid);
+    help.textContent = message;
+    submit.disabled = !valid;
+    return valid;
+  }
+
+  function closeRenameSnapshotModal() {
+    $('#cmRenameBack')?.classList.remove('open');
+    $('#cmRenameModal')?.classList.remove('open');
+    renameState.snapshot = null;
+    renameState.currentName = '';
+  }
+
+  function openRenameSnapshotModal(snap) {
+    renameState.snapshot = snap;
+    renameState.currentName = snapshotDisplayName(snap);
+    $('#cmRenameInput').value = renameState.currentName;
+    validateRenameInput();
+    $('#cmRenameBack').classList.add('open');
+    $('#cmRenameModal').classList.add('open');
+    setTimeout(() => {
+      $('#cmRenameInput')?.focus();
+      $('#cmRenameInput')?.select();
+    }, 50);
+  }
+
+  async function submitRenameSnapshot() {
+    if (!renameState.snapshot || !validateRenameInput()) return;
+    const cleanedName = String($('#cmRenameInput').value || '').trim();
+    const btn = $('#cmRenameSubmit');
+    setBtnLoading(btn, true, 'Saving...');
+    try {
+      const response = await fetch('/PlatformIO/ConfigManager/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          'user-action': 'rename_checkpoint',
+          'service_id': currentServiceId,
+          'version': renameState.snapshot.version,
+          'timestamp': renameState.snapshot.timestamp,
+          'new_name': cleanedName
+        })
+      });
+      const data = await response.json();
+      setBtnLoading(btn, false);
+      if (data.success) {
+        closeRenameSnapshotModal();
+        renderCheckpointTimeline(data.snapshots || []);
+        const driftText = ($('#active-checkpoint-drift') && $('#active-checkpoint-drift').textContent) || 'Editor matches active checkpoint';
+        updateActiveCheckpointCallout(data.active_checkpoint, driftText);
+        showToast(data.msg || 'Checkpoint renamed', 'ok');
+        return;
+      }
+      $('#cmRenameInput').classList.add('invalid');
+      $('#cmRenameHelp').classList.add('err');
+      $('#cmRenameHelp').textContent = data.error || 'Snapshot rename failed.';
+    } catch (err) {
+      setBtnLoading(btn, false);
+      console.error(err);
+      showToast('Error renaming checkpoint', 'err');
+    }
+  }
+
+  function isSameSnapshot(left, right) {
+    if (!left || !right) return false;
+    return String(left.version) === String(right.version) &&
+      String(left.timestamp) === String(right.timestamp);
+  }
+
+  function refreshCheckpointPickerStates() {
+    $$('.cp-right .compare-picker').forEach((btn) => {
+      const snapRef = {
+        version: btn.dataset.version,
+        timestamp: btn.dataset.timestamp
+      };
+      btn.classList.remove('picked-a', 'picked-b');
+      btn.innerHTML = '<span class="sq"></span> Compare';
+
+      if (isSameSnapshot(pickA, snapRef)) {
+        btn.classList.add('picked-a');
+        btn.innerHTML = '<span class="sq"></span> Selected A';
+        return;
+      }
+      if (isSameSnapshot(pickB, snapRef)) {
+        btn.classList.add('picked-b');
+        btn.innerHTML = '<span class="sq"></span> Selected B';
+      }
+    });
+  }
+
+  // Toggle comparison checkpoint selection with one control per checkpoint
+  function toggleCompareSelection(snap) {
+    if (isSameSnapshot(pickA, snap)) {
+      pickA = null;
+      showToast(`Removed checkpoint v${snap.version} from Slot A`, "ok");
+    } else if (isSameSnapshot(pickB, snap)) {
+      pickB = null;
+      showToast(`Removed checkpoint v${snap.version} from Slot B`, "ok");
+    } else if (!pickA) {
+      pickA = snap;
+      showToast(`Selected checkpoint v${snap.version} for Slot A`, "ok");
+    } else if (!pickB) {
+      pickB = snap;
+      showToast(`Selected checkpoint v${snap.version} for Slot B`, "ok");
+    } else {
+      pickA = pickB;
+      pickB = snap;
+      showToast(`Moved previous Slot B to Slot A and selected v${snap.version} for Slot B`, "ok");
+    }
+
+    refreshCheckpointPickerStates();
+    refreshCompareBar();
+  }
+
+  // Refresh visual state of sticky Compare Bar
+  function refreshCompareBar() {
+    const bar = $('#cmp-bar');
+    if (pickA || pickB) {
+      bar.style.display = 'flex';
+      $('#slot-a .val').textContent = pickA ? `v${pickA.version}` : '--';
+      $('#slot-b .val').textContent = pickB ? `v${pickB.version}` : '--';
+      $('#slot-a').className = `slot a ${!pickA ? 'empty' : ''}`;
+      $('#slot-b').className = `slot b ${!pickB ? 'empty' : ''}`;
+    } else {
+      bar.style.display = 'none';
+    }
+  }
+
+  $('#cmp-direction').addEventListener('change', (e) => {
+    compareDirection = e.target.value;
+  });
+
+  // Clear compare bar button
+  $('#clear-sel-btn').addEventListener('click', () => {
+    pickA = null;
+    pickB = null;
+    refreshCheckpointPickerStates();
+    refreshCompareBar();
+  });
+
+  // Action: Open comparison pane and compute diff
+  $('#open-cmp-btn').addEventListener('click', async () => {
+    const ordered = getOrderedSnapshots();
+    if (!ordered) {
+      showToast("Please pick both A and B checkpoints to compare", "err");
+      return;
+    }
+
+    switchToPane('compare');
+    const btn = $('#open-cmp-btn');
+    setBtnLoading(btn, true, 'Comparing...');
+
+    // Show loading
+    $('#compare-empty-state').style.display = 'none';
+    const diffWrapper = $('#compare-diff-wrapper');
+    const diffContent = $('#compare-diff-content');
+    diffWrapper.style.display = 'block';
+    diffContent.innerHTML = '<div class="cm-loading-inline"><i class="fa fa-spinner fa-spin" style="margin-right:8px;"></i>Computing structure-aware unified diff metrics...</div>';
+
+    try {
+      const response = await fetch('/PlatformIO/ConfigManager/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          'user-action': 'get_snapshots_diff',
+          'service_id': currentServiceId,
+          'snap1': ordered.source,
+          'snap2': ordered.target
+        })
+      });
+      const data = await response.json();
+      setBtnLoading(btn, false);
+
+      if (data.success) {
+        diffContent.innerHTML = data.diff_html;
+      } else {
+        diffContent.innerHTML = `<div class="validation-guard error guard-visible">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+          <span class="message">Diff failure: ${data.msg}</span>
+        </div>`;
+      }
+    } catch (err) {
+      setBtnLoading(btn, false);
+      console.error(err);
+      showToast("Error calling diff metrics generator", "err");
+    }
+  });
+
+  function updateMigrationApplyState() {
+    $('#btnApplyMigratedConfig').disabled = !(currentMigrationArtifactId && migrationLastValidationOk);
+  }
+
+  function setMigrationEditMode(editing) {
+    $('#migrationResultPre').style.display = editing ? 'none' : 'block';
+    $('#migrationResultEditor').style.display = editing ? 'block' : 'none';
+    $('#migration-edit-btn').style.display = editing ? 'none' : 'inline-flex';
+    $('#migration-done-btn').style.display = editing ? 'inline-flex' : 'none';
+    $('#migration-cancel-btn').style.display = editing ? 'inline-flex' : 'none';
+    $('#migration-edit-mode').textContent = editing ? 'EDITING' : 'READ-ONLY';
+  }
+
+  async function validateMigrationYaml(yamlText) {
+    try {
+      const response = await fetch('/PlatformIO/ConfigManager/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          'user-action': 'validate_yaml',
+          'service_id': currentServiceId,
+          'yaml_text': yamlText
+        })
+      });
+      const data = await response.json();
+      const validationBar = $('#migration-validation-bar');
+      validationBar.style.display = 'flex';
+      if (data.success) {
+        validationBar.className = 'validation-guard success';
+        $('#migration-validation-msg').textContent = 'Migration YAML syntax valid. Apply is enabled.';
+        migrationLastValidationOk = true;
+      } else {
+        validationBar.className = 'validation-guard error';
+        $('#migration-validation-msg').textContent = 'Migration YAML syntax error: ' + (data.msg || data.error || 'Unknown error');
+        migrationLastValidationOk = false;
+      }
+      updateMigrationApplyState();
+      return !!data.success;
+    } catch (err) {
+      console.error(err);
+      $('#migration-validation-bar').style.display = 'flex';
+      $('#migration-validation-bar').className = 'validation-guard error';
+      $('#migration-validation-msg').textContent = 'Validation request failed.';
+      migrationLastValidationOk = false;
+      updateMigrationApplyState();
+      return false;
+    }
+  }
+
+  function getCurrentMigrationYaml() {
+    if ($('#migrationResultEditor').style.display !== 'none') {
+      return $('#migrationResultEditor').value;
+    }
+    return $('#migrationResultPre').textContent || '';
+  }
+
+  function renderMigrationPreview(data, sourceSnapshot, targetSnapshot) {
+    $('#migrate-empty-state').style.display = 'none';
+    $('#migrate-active-container').style.display = 'block';
+    switchToPane('migrate');
+
+    $('#migration-source-version').textContent = 'v' + (sourceSnapshot.version || '-');
+    $('#migration-source-meta').textContent = formatSnapshotTimestamp(sourceSnapshot.timestamp) + ' · Source';
+    $('#migration-target-version').textContent = 'v' + (targetSnapshot.version || '-');
+    $('#migration-target-meta').textContent = formatSnapshotTimestamp(targetSnapshot.timestamp) + ' · Target';
+
+    const migrationOutput = data.final_merged_config_yaml || JSON.stringify(data.final_merged_config || {}, null, 2);
+    const config1Output = stringifyMigrationConfig(data.config_rank_1 || {});
+    const config2Output = stringifyMigrationConfig(data.config_rank_2 || {});
+
+    migrationSavedYaml = migrationOutput;
+    currentMigrationArtifactId = (data.migration_artifact || {}).id || '';
+    latestMigrationApplyContext = null;
+    migrationLastValidationOk = true;
+
+    $('#migrationResultPre').textContent = migrationOutput;
+    $('#migrationResultEditor').value = migrationOutput;
+    $('#migrationConfig1Pre').textContent = config1Output;
+    $('#migrationConfig2Pre').textContent = config2Output;
+    $('#migration-result-meta').textContent = 'Source v' + (sourceSnapshot.version || '-') + ' -> Target v' + (targetSnapshot.version || '-');
+    $('#migration-validation-bar').style.display = 'flex';
+    $('#migration-validation-bar').className = 'validation-guard success';
+    $('#migration-validation-msg').textContent = 'Migration result prepared successfully. You can edit it before applying.';
+    $('#btnRestoreMigratedConfig').disabled = true;
+    $('#migrationApplyResult').textContent = 'Migration prepared. Review the result, edit if needed, then apply live.';
+    $('#migrationDiffLeft').value = 'migration_result';
+    $('#migrationDiffRight').value = 'config_2';
+    $('#migrationInlineDiffContainer').innerHTML = '';
+    $('#migrationDiffStatus').textContent = 'Select two columns and click Diff Selected.';
+    setMigrationEditMode(false);
+    updateMigrationApplyState();
+  }
+
+  async function prepareMigrationFromSelection() {
+    const btn = $('#open-migrate-btn');
+    const ordered = getOrderedSnapshots();
+    if (!ordered) {
+      showToast('Please pick both A and B checkpoints before preparing migration', 'err');
+      return;
+    }
+
+    $('#migrate-empty-state').style.display = 'none';
+    $('#migrate-active-container').style.display = 'block';
+    switchToPane('migrate');
+    $('#migrationApplyResult').textContent = 'Preparing migration result from selected checkpoints...';
+    setBtnLoading(btn, true, 'Preparing...');
+
+    try {
+      const response = await fetch('/PlatformIO/ConfigManager/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          'user-action': 'prepare_migration',
+          'service_id': currentServiceId,
+          'source_version': ordered.source.version,
+          'source_timestamp': ordered.source.timestamp,
+          'target_version': ordered.target.version,
+          'target_timestamp': ordered.target.timestamp
+        })
+      });
+      const data = await response.json();
+      setBtnLoading(btn, false);
+      if (data.success) {
+        renderMigrationPreview(data, ordered.source, ordered.target);
+        showToast('Migration result prepared successfully', 'ok');
+        return;
+      }
+      resetMigrationWorkspace();
+      showToast(data.error || 'Migration preparation failed', 'err');
+    } catch (err) {
+      setBtnLoading(btn, false);
+      console.error(err);
+      resetMigrationWorkspace();
+      showToast('Error preparing migration', 'err');
+    }
+  }
+
+  $('#open-migrate-btn').addEventListener('click', () => {
+    prepareMigrationFromSelection();
+  });
+
+  $('#migration-edit-btn').addEventListener('click', () => {
+    $('#migrationResultEditor').value = migrationSavedYaml || $('#migrationResultPre').textContent || '';
+    setMigrationEditMode(true);
+    validateMigrationYaml($('#migrationResultEditor').value);
+  });
+
+  $('#migration-done-btn').addEventListener('click', async () => {
+    const valid = await validateMigrationYaml($('#migrationResultEditor').value);
+    if (!valid) {
+      showToast('Fix YAML syntax errors before finishing edit mode', 'err');
+      return;
+    }
+    migrationSavedYaml = $('#migrationResultEditor').value;
+    $('#migrationResultPre').textContent = migrationSavedYaml;
+    setMigrationEditMode(false);
+    showToast('Migration result updated', 'ok');
+  });
+
+  $('#migration-cancel-btn').addEventListener('click', () => {
+    $('#migrationResultEditor').value = migrationSavedYaml;
+    $('#migrationResultPre').textContent = migrationSavedYaml;
+    setMigrationEditMode(false);
+    $('#migration-validation-bar').style.display = 'none';
+    migrationLastValidationOk = true;
+    updateMigrationApplyState();
+  });
+
+  $('#migrationResultEditor').addEventListener('input', () => {
+    clearTimeout(migrationValidationTimer);
+    migrationValidationTimer = setTimeout(() => {
+      validateMigrationYaml($('#migrationResultEditor').value);
+    }, 400);
+  });
+
+  function getMigrationColumnText(columnKey) {
+    if (columnKey === 'migration_result') {
+      return getCurrentMigrationYaml();
+    }
+    if (columnKey === 'config_2') {
+      return $('#migrationConfig2Pre').textContent || '';
+    }
+    if (columnKey === 'config_1') {
+      return $('#migrationConfig1Pre').textContent || '';
+    }
+    return '';
+  }
+
+  function getMigrationColumnLabel(columnKey) {
+    if (columnKey === 'migration_result') return 'Migration Result';
+    if (columnKey === 'config_2') return 'Config 2';
+    if (columnKey === 'config_1') return 'Config 1';
+    return 'Unknown';
+  }
+
+  function buildMigrationDiffRows(leftLines, rightLines) {
+    const n = leftLines.length;
+    const m = rightLines.length;
+    const dp = Array.from({ length: n + 1 }, () => Array(m + 1).fill(0));
+
+    for (let i = n - 1; i >= 0; i -= 1) {
+      for (let j = m - 1; j >= 0; j -= 1) {
+        if (leftLines[i] === rightLines[j]) {
+          dp[i][j] = dp[i + 1][j + 1] + 1;
+        } else {
+          dp[i][j] = Math.max(dp[i + 1][j], dp[i][j + 1]);
+        }
+      }
+    }
+
+    const rows = [];
+    let lIdx = 0;
+    let rIdx = 0;
+    while (lIdx < n && rIdx < m) {
+      if (leftLines[lIdx] === rightLines[rIdx]) {
+        rows.push({ kind: 'same', left: leftLines[lIdx], right: rightLines[rIdx] });
+        lIdx += 1;
+        rIdx += 1;
+      } else if (dp[lIdx + 1][rIdx] >= dp[lIdx][rIdx + 1]) {
+        rows.push({ kind: 'del', left: leftLines[lIdx], right: '' });
+        lIdx += 1;
+      } else {
+        rows.push({ kind: 'add', left: '', right: rightLines[rIdx] });
+        rIdx += 1;
+      }
+    }
+    while (lIdx < n) {
+      rows.push({ kind: 'del', left: leftLines[lIdx], right: '' });
+      lIdx += 1;
+    }
+    while (rIdx < m) {
+      rows.push({ kind: 'add', left: '', right: rightLines[rIdx] });
+      rIdx += 1;
+    }
+    return rows;
+  }
+
+  function runMigrationColumnDiff() {
+    const leftKey = $('#migrationDiffLeft').value;
+    const rightKey = $('#migrationDiffRight').value;
+    const container = $('#migrationInlineDiffContainer');
+
+    if (leftKey === rightKey) {
+      $('#migrationDiffStatus').textContent = 'Choose two different columns for diff.';
+      container.innerHTML = '';
+      return;
+    }
+
+    const rows = buildMigrationDiffRows(
+      String(getMigrationColumnText(leftKey)).split('\n'),
+      String(getMigrationColumnText(rightKey)).split('\n')
+    );
+    let leftLineNo = 1;
+    let rightLineNo = 1;
+    let body = '';
+
+    rows.forEach(row => {
+      let leftNo = '';
+      let rightNo = '';
+      let leftClass = '';
+      let rightClass = '';
+      if (row.kind === 'same') {
+        leftNo = String(leftLineNo++);
+        rightNo = String(rightLineNo++);
+      } else if (row.kind === 'del') {
+        leftNo = String(leftLineNo++);
+        leftClass = ' diff-del';
+      } else if (row.kind === 'add') {
+        rightNo = String(rightLineNo++);
+        rightClass = ' diff-add';
+      }
+
+      body += '<tr>'
+        + '<td class="diff-line-no">' + leftNo + '</td>'
+        + '<td class="diff-line' + leftClass + '">' + escapeHtml(row.left || '') + '</td>'
+        + '<td class="diff-line-no">' + rightNo + '</td>'
+        + '<td class="diff-line' + rightClass + '">' + escapeHtml(row.right || '') + '</td>'
+        + '</tr>';
+    });
+
+    container.innerHTML = '<table class="diff-table">'
+      + '<thead>'
+      + '<tr><th colspan="2" class="diff-header">' + escapeHtml(getMigrationColumnLabel(leftKey)) + '</th>'
+      + '<th colspan="2" class="diff-header">' + escapeHtml(getMigrationColumnLabel(rightKey)) + '</th></tr>'
+      + '<tr><th class="diff-info">#</th><th class="diff-info">Content</th><th class="diff-info">#</th><th class="diff-info">Content</th></tr>'
+      + '</thead><tbody>' + body + '</tbody></table>';
+    $('#migrationDiffStatus').textContent = 'Showing diff: '
+      + getMigrationColumnLabel(leftKey) + ' vs ' + getMigrationColumnLabel(rightKey);
+  }
+
+  $('#btnMigrationDiffSelected').addEventListener('click', () => {
+    runMigrationColumnDiff();
+  });
+
+  $('#btnMigrationClearDiff').addEventListener('click', () => {
+    $('#migrationInlineDiffContainer').innerHTML = '';
+    $('#migrationDiffStatus').textContent = 'Select two columns and click Diff Selected.';
+  });
+
+  $('#btnApplyMigratedConfig').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const yamlText = getCurrentMigrationYaml();
+    if (!currentMigrationArtifactId) {
+      showToast('Prepare migration before applying it live', 'err');
+      return;
+    }
+    if ($('#migrationResultEditor').style.display !== 'none') {
+      const valid = await validateMigrationYaml(yamlText);
+      if (!valid) {
+        showToast('Fix migration YAML errors before apply', 'err');
+        return;
+      }
+      migrationSavedYaml = yamlText;
+      $('#migrationResultPre').textContent = yamlText;
+      setMigrationEditMode(false);
+    }
+
+    $('#migrationApplyResult').textContent = 'Applying migration result to the live service...';
+    setBtnLoading(btn, true, 'Applying...');
+    try {
+      const response = await fetch('/PlatformIO/ConfigManager/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          'user-action': 'apply_migration',
+          'service_id': currentServiceId,
+          'migration_artifact_id': currentMigrationArtifactId,
+          'apply_mode': $('#migrationApplyMode').value,
+          'edited_migration_yaml': migrationSavedYaml
+        })
+      });
+      const data = await response.json();
+      setBtnLoading(btn, false);
+      if (data.success) {
+        const applyResult = data.apply_result || {};
+        latestMigrationApplyContext = {
+          backup_path: applyResult.backup_path || '',
+          resolved_config_path: applyResult.resolved_config_path || '',
+          apply_mode: applyResult.apply_mode || $('#migrationApplyMode').value
+        };
+        $('#btnRestoreMigratedConfig').disabled = !(latestMigrationApplyContext.backup_path && latestMigrationApplyContext.resolved_config_path);
+        $('#migrationApplyResult').textContent = 'Migration applied successfully. Backup: '
+          + (applyResult.backup_path || '-') + ' · Resolved path: ' + (applyResult.resolved_config_path || '-');
+        showToast('Migration applied successfully', 'ok');
+        refreshWorkspaceMetaFromSnapshots(data.snapshots, migrationSavedYaml);
+        return;
+      }
+      $('#migrationApplyResult').textContent = 'Apply failed: ' + (data.error || 'Unknown error');
+      showToast(data.error || 'Migration apply failed', 'err');
+    } catch (err) {
+      setBtnLoading(btn, false);
+      console.error(err);
+      $('#migrationApplyResult').textContent = 'Apply request failed.';
+      showToast('Error applying migration', 'err');
+    }
+  });
+
+  $('#btnRestoreMigratedConfig').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    if (!latestMigrationApplyContext || !latestMigrationApplyContext.backup_path || !latestMigrationApplyContext.resolved_config_path) {
+      showToast('Restore is only available after a successful migration apply', 'err');
+      return;
+    }
+
+    $('#migrationApplyResult').textContent = 'Restoring latest applied migration backup...';
+    setBtnLoading(btn, true, 'Restoring...');
+    try {
+      const response = await fetch('/PlatformIO/ConfigManager/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          'user-action': 'restore_migration',
+          'service_id': currentServiceId,
+          'backup_path': latestMigrationApplyContext.backup_path,
+          'resolved_config_path': latestMigrationApplyContext.resolved_config_path,
+          'apply_mode': $('#migrationApplyMode').value
+        })
+      });
+      const data = await response.json();
+      setBtnLoading(btn, false);
+      if (data.success) {
+        const restoreResult = data.restore_result || {};
+        $('#migrationApplyResult').textContent = 'Migration restore completed successfully. Backup: '
+          + (restoreResult.backup_path || latestMigrationApplyContext.backup_path)
+          + ' · Resolved path: '
+          + (restoreResult.resolved_config_path || latestMigrationApplyContext.resolved_config_path);
+        showToast('Migration restore completed successfully', 'ok');
+        refreshWorkspaceMetaFromSnapshots(data.snapshots);
+        return;
+      }
+      $('#migrationApplyResult').textContent = 'Restore failed: ' + (data.error || 'Unknown error');
+      showToast(data.error || 'Migration restore failed', 'err');
+    } catch (err) {
+      setBtnLoading(btn, false);
+      console.error(err);
+      $('#migrationApplyResult').textContent = 'Restore request failed.';
+      showToast('Error restoring migration', 'err');
+    }
+  });
+
+  // Render Migrate Tab Peer Card list
+  function renderMigratePeers(peers) {
+    const container = $('#migrate-peer-list');
+    container.innerHTML = '';
+
+    if (!peers || peers.length === 0) {
+      container.innerHTML = '<div class="cm-empty-inline">No sibling peer node instances of this type exist in the cluster.</div>';
+      return;
+    }
+
+    peers.forEach(peer => {
+      const card = document.createElement('div');
+      card.className = 'peer-card';
+      card.innerHTML = `
+        <div class="info">
+          <span class="nm">${peer.node_name} / ${peer.service_name}</span>
+          <span class="ip">IP address: ${peer.node_ip} · service_id: ${peer.service_id}</span>
+        </div>
+        <button class="btn btn-secondary btn-sm sync-peer-btn">
+          Sync validated config
+        </button>
+      `;
+
+      card.querySelector('.sync-peer-btn').addEventListener('click', (e) => {
+        const syncBtn = e.currentTarget;
+        openConfirmModal({
+          eyebrow: 'Peer rollout',
+          title: 'Deploy validated config?',
+          message: `This applies the currently validated source config to ${peer.node_name}. Use this only after reviewing the migration diff.`,
+          items: [{
+            name: `${peer.node_name} / ${peer.service_name}`,
+            meta: `service_id: ${peer.service_id} · ${peer.node_ip || 'no IP recorded'}`,
+          }],
+          primaryLabel: 'Deploy to peer',
+          secondaryLabel: 'Cancel',
+          onPrimary: async () => {
+            closeConfirmModal();
+            const rolloutYaml = (currentMigrationArtifactId && migrationLastValidationOk)
+              ? getCurrentMigrationYaml()
+              : activeYamlContent;
+            showToast(`Applying rollout to ${peer.node_name}...`, "ok");
+            setBtnLoading(syncBtn, true, 'Syncing...');
+
+            try {
+              const response = await fetch('/PlatformIO/ConfigManager/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  'user-action': 'direct_apply_config',
+                  'service_id': peer.service_id,
+                  'yaml_text': rolloutYaml,
+                  'apply_mode': 'reload'
+                })
+              });
+              const resData = await response.json();
+              if (resData.success) {
+                showToast(`Rollout sync to peer ${peer.node_name} complete!`, "ok");
+              } else {
+                showToast(`Peer sync failed: ${resData.error}`, "err");
+              }
+            } catch (err) {
+              console.error(err);
+              showToast("Error sending sync query", "err");
+            } finally {
+              setBtnLoading(syncBtn, false);
+            }
+          },
+          onSecondary: closeConfirmModal,
+        });
+      });
+
+      container.appendChild(card);
+    });
+  }
+
+  // Current Config Tab Workspace Mode transitions
+  const editorTextarea = $('#config-editor-textarea');
+  const btnEdit = $('#editor-action-edit');
+  const btnValidate = $('#editor-action-validate');
+  const btnCancel = $('#editor-action-cancel');
+  const btnViewFallback = $('#editor-action-view-fallback');
+  const footerForm = $('#editor-footer-form');
+  const saveBtn = $('#editor-save-btn');
+  const modeIndicator = $('#editor-mode-indicator');
+  const validationBar = $('#editor-validation-bar');
+
+  function enterEditMode() {
+    if (!currentConfigCapabilities.apply_enabled) {
+      showToast(currentConfigCapabilities.disabled_reason || 'Config apply is disabled for this target', 'err');
+      return;
+    }
+    isEditing = true;
+    editorTextarea.readOnly = false;
+    editorTextarea.style.background = "var(--bg)";
+    editorTextarea.style.color = "var(--ink-1)";
+    editorTextarea.style.border = "1px solid var(--navy)";
+    btnEdit.style.display = "none";
+    if (btnViewFallback) btnViewFallback.style.display = "none";
+    btnValidate.style.display = "inline-flex";
+    btnCancel.style.display = "inline-flex";
+    footerForm.style.display = "flex";
+    modeIndicator.textContent = "EDIT MODE (GUARDED)";
+    modeIndicator.style.color = "var(--navy)";
+    if (currentConfigCapabilities.restart_required) {
+      $('#editor-apply-mode').value = 'restart';
+    }
+    saveBtn.disabled = true; // Disabled until successfully validated!
+  }
+
+  function exitEditMode() {
+    isEditing = false;
+    editorTextarea.readOnly = true;
+    editorTextarea.style.background = "transparent";
+    editorTextarea.style.color = "";
+    editorTextarea.style.border = "none";
+    btnEdit.style.display = "inline-flex";
+    if (btnViewFallback) btnViewFallback.style.display = "inline-flex";
+    btnValidate.style.display = "none";
+    btnCancel.style.display = "none";
+    footerForm.style.display = "none";
+    modeIndicator.textContent = "VIEW MODE";
+    modeIndicator.style.color = "var(--ink-4)";
+    validationBar.style.display = "none";
+  }
+
+  btnEdit.addEventListener('click', enterEditMode);
+  if (btnViewFallback) {
+    btnViewFallback.addEventListener('click', () => {
+      enterEditMode();
+      editorTextarea.value = activeDatabaseFallbackConfig;
+      showToast("Loaded database fallback template. Edit and validate to apply it.", "info");
+    });
+  }
+  btnCancel.addEventListener('click', () => {
+    editorTextarea.value = activeYamlContent;
+    exitEditMode();
+  });
+  editorTextarea.addEventListener('input', () => {
+    if (!isEditing) return;
+    saveBtn.disabled = true;
+    validationBar.style.display = 'none';
+  });
+
+  // Action: YAML Validation Guard
+  btnValidate.addEventListener('click', async () => {
+    const yamlText = editorTextarea.value;
+    validationBar.style.display = 'none';
+    setBtnLoading(btnValidate, true, 'Validating...');
+
+    try {
+      const response = await fetch('/PlatformIO/ConfigManager/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          'user-action': 'validate_yaml',
+          'service_id': currentServiceId,
+          'yaml_text': yamlText
+        })
+      });
+      const data = await response.json();
+
+      validationBar.style.display = 'flex';
+      if (data.success) {
+        validationBar.className = 'validation-guard success';
+        $('#editor-validation-msg').textContent = "YAML syntax validated successfully! Changes are safe to apply.";
+        saveBtn.disabled = false; // Enable Apply changes!
+        showToast("YAML syntax valid", "ok");
+      } else {
+        validationBar.className = 'validation-guard error';
+        $('#editor-validation-msg').textContent = `YAML syntax error: ${data.msg || data.error || 'Unknown error'}`;
+        saveBtn.disabled = true; // Keep blocked!
+        showToast("YAML syntax error", "err");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error checking validation status", "err");
+    } finally {
+      setBtnLoading(btnValidate, false);
+    }
+  });
+
+  async function applyCurrentEditorConfig() {
+    if (!currentConfigCapabilities.apply_enabled) {
+      showToast(currentConfigCapabilities.disabled_reason || 'Config apply is disabled for this target', 'err');
+      return;
+    }
+    const yamlText = editorTextarea.value;
+    const mode = currentConfigCapabilities.restart_required ? 'restart' : $('#editor-apply-mode').value;
+
+    showToast("Applying validated config & starting backup...", "ok");
+    setBtnLoading(saveBtn, true, 'Applying...');
+
+    try {
+      const response = await fetch('/PlatformIO/ConfigManager/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          'user-action': 'direct_apply_config',
+          'service_id': currentServiceId,
+          'yaml_text': yamlText,
+          'apply_mode': mode
+        })
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        showToast("Configuration applied & container reloaded!", "ok");
+        activeYamlContent = yamlText;
+        exitEditMode();
+        // Refresh workspace info to load new checkpoint
+        selectService(currentServiceId);
+      } else {
+        showToast(data.error || "Failed to apply config changes", "err");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error applying changes", "err");
+    } finally {
+      setBtnLoading(saveBtn, false);
+    }
+  }
+
+  // Action: Apply configuration (direct apply with rollback security)
+  $('#editor-save-btn').addEventListener('click', () => {
+    const mode = currentConfigCapabilities.restart_required ? 'restart' : $('#editor-apply-mode').value;
+    openConfirmModal({
+      eyebrow: 'Apply validated YAML',
+      title: 'Apply configuration?',
+      message: 'This writes the validated editor content to the runtime config path and creates rollback context before reload or restart.',
+      primaryLabel: 'Apply now',
+      secondaryLabel: 'Cancel',
+      items: [{
+        name: $('#editor-file-title').textContent || 'config.yaml',
+        meta: `${mode === 'restart' ? 'Hard restart' : 'Graceful reload'} · ${$('#editor-file-path').textContent || ''}`
+      }],
+      onPrimary: () => {
+        closeConfirmModal();
+        applyCurrentEditorConfig();
+      },
+      onSecondary: closeConfirmModal,
+    });
+  });
+
+  // Tab panes switcher
+  $$('.ws-tabs .tab').forEach(t => {
+    t.addEventListener('click', () => {
+      $$('.ws-tabs .tab').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      const pane = t.dataset.pane;
+      $$('.tab-pane').forEach(p => p.classList.remove('active'));
+      $(`#pane-${pane}`).classList.add('active');
+    });
+  });
+
+  // Refresh Workspace action button
+  $('#ws-refresh-btn').addEventListener('click', () => {
+    if (currentServiceId) {
+      selectService(currentServiceId);
+      showToast("Workspace refreshed", "ok");
+    }
+  });
+
+  // Action: Capture Checkpoint / Capture from Live
+  async function captureCheckpoint(btn, toastMessage) {
+    if (!currentServiceId) return;
+    if (!currentConfigCapabilities.snapshot_enabled) {
+      showToast(currentConfigCapabilities.disabled_reason || "Config snapshot is disabled for this target", "err");
+      return;
+    }
+    setBtnLoading(btn, true, 'Capturing...');
+    showToast(toastMessage || "Capturing current configuration backup snapshot...", "ok");
+    try {
+      const response = await fetch('/PlatformIO/ConfigManager/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          'user-action': 'create_checkpoint',
+          'service_id': currentServiceId
+        })
+      });
+      const data = await response.json();
+      setBtnLoading(btn, false);
+      if (data.success) {
+        showToast("Backup snapshot successfully captured!", "ok");
+        selectService(currentServiceId);
+      } else {
+        showToast(data.error || "Failed to capture checkpoint", "err");
+      }
+    } catch (err) {
+      setBtnLoading(btn, false);
+      console.error(err);
+      showToast("Error capturing snapshot", "err");
+    }
+  }
+
+  $('#ws-capture-cp-btn').addEventListener('click', (e) => {
+    captureCheckpoint(e.currentTarget, "Capturing current configuration backup snapshot...");
+  });
+
+  $('#ws-refresh-live-btn').addEventListener('click', (e) => {
+    captureCheckpoint(e.currentTarget, "Capturing a checkpoint from the live running container...");
+  });
+
+  $('#view-active-snap-btn').addEventListener('click', () => {
+    editorTextarea.value = activeYamlContent;
+    exitEditMode();
+    showToast("Reverted view to active checkpoint", "ok");
+  });
+
+  // Event delegation on tree rail node clicks
+  $$('.nv-service').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const sId = btn.dataset.serviceId;
+      selectService(sId);
+    });
+  });
+
+  // Handle deep-link loading parameters, falling back to session last_visited
+  document.addEventListener('DOMContentLoaded', () => {
+    if (deepServiceId) {
+      selectService(deepServiceId);
+      return;
+    }
+
+    const sv = (window.IKTARA_SESSION || {}).lastVisited || {};
+    if (sv.cluster_name && sv.node_name && sv.service_name) {
+      // Find the matching .nv-service node by service_name within the right cluster/node
+      const match = Array.from(document.querySelectorAll('.nv-service')).find(el => {
+        const inCluster = el.closest('.nv-cluster');
+        const inNode = el.closest('.nv-node');
+        return (
+          inCluster && inCluster.dataset.clusterName === sv.cluster_name &&
+          inNode && inNode.dataset.nodeName === sv.node_name &&
+          el.dataset.serviceName === sv.service_name
+        );
+      });
+
+      if (match) {
+        selectService(match.dataset.serviceId);
+      }
+    }
+  });
+
+})();
+</script>
+<script src="{% static 'javascript/theme.js' %}"></script>
+</body>
+</html>

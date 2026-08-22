@@ -1,0 +1,1503 @@
+/*<------------------------------------------cPlatformStyles_v02 CSS----------------------------------------->
+* Copyright         : Iktara Data Sciences
+* File Name         : cPlatformStyles_v02.css
+* Description       : Update CSS for styling and easy understand
+
+* Revision History  :
+* Date				Author    		        Comments
+* ------------------------------------------------------------------------------------------------------------
+* 14-Dec-21 		Kapil		            Created.
+<----------------------------------------------------------------------------------------------------------->*/
+
+/* cProjectStyle.css */
+@import './cProjectStyle.css';
+@import './cDateRangeStyle.css';
+@import './cDataTable.css';
+
+:root {
+  --ik-black: #000;
+  --ik-white: #fff;
+  --ik-grey: #ccc;
+  --ik-dark-grey: #292c31;
+  --ik-light-yellow: #f3e1c9;
+}
+
+body {
+    padding: 0px;
+    background: var(--ik-grey) !important;
+    margin: 0px;
+    display: block;
+    font-family: var(--ik-font-family);
+}
+
+@media (min-width: 360px) and (max-width: 2560px) { body  { display: block; }}
+
+a {
+    text-decoration:none;
+}
+
+/*<-----------------NavBar CSS--------------->*/
+
+.ik-navbar{
+    z-index:100;
+    justify-content:center;
+    position:absolute;
+    background:  var(--ik-white);
+    display:inline-block;
+    top:25%;
+    width:75%;
+    left:14.8%;
+    border-radius:40% 40% 0 0;
+}
+
+.ik-nav-button {
+    display:flex;
+    justify-content:space-between;
+    z-index:99;
+    box-shadow:none;
+    position:fixed;
+    top:5.8%;
+    height:6.5%;
+    background:  var(--ik-grey);
+    width:93%;
+    left:8%;
+}
+
+.ik-right-container {
+    position:absolute;
+    left:7.2%;
+    top:12.5%;
+    width:93%;
+    background:  var(--ik-grey);
+    padding:0px 10px;
+}
+
+/*<-----------------sideBar CSS--------------->*/
+.ik-menu-icon {
+    font-size:16px;
+    text-align:center;
+    color:  var(--ik-black);
+}
+
+.ik-nav-link {
+    font-size:12px;
+    text-align:center;
+    padding:5px 0px;
+}
+
+.ik-sidebar-text {
+    font-style: normal;
+    font-size:11px;
+    top:1px;
+    color:  var(--ik-black);
+    font-weight:700;
+    font-family: var(--ik-font-family);
+}
+
+.ik-menu-txt {
+    height:8.5vh;
+    width:7vw;
+    color:  var(--ik-white);
+    display:flex;
+    border-bottom:1px solid   var(--ik-grey);
+    justify-content:center;
+    align-items:center;
+}
+
+.ik-menu-txt:hover {
+    background :  var(--ik-grey);
+}
+
+.ik-side-nav {
+    position:fixed;
+    top:6%;
+    height:100%;
+    background:  var(--ik-white);
+    max-width:7%;
+    padding:1px;
+    font-family: var(--ik-font-family);
+}
+
+input[type="time"]::-webkit-calendar-picker-indicator{filter: invert(40%);}
+input[type="date"]::-webkit-calendar-picker-indicator{filter: invert(40%);}
+
+/*<-----------------Table CSS-------------------------->*/
+.ik-formLabel {
+    font-size:12px;
+    margin:0px;
+}
+
+.ik-formControl {
+    color:#eecef;
+    font-size:11px;
+    background:var(--ik-white);
+    input::placeholder { color:   var(--ik-dark-grey) !important; }
+}
+
+.ik-formSelect {
+    appearance: none;
+    margin-right: 19px;
+    background-size: 13px 13px;
+    color:   var(--ik-dark-grey);
+    font-size: 11px;
+}
+
+.ik-tr1 th{
+    color: var(--ik-text-color);
+}
+
+.ik-tr1 td{
+    font-size:12px !important;
+}
+
+.ik-tr1 {
+    text-align:center;
+    font-size:13px;
+    font-weight:400;
+    color: var(--ik-dark-grey);
+    border-bottom:1px solid #bbc4cb;
+    vertical-align: top;
+}
+
+.ik-tr2 {
+    font-family: var(--ik-font-family);
+    font-size:11px;
+    text-align: center;
+}
+
+.ik-tr5 {
+    font-family: var(--ik-font-family);
+    font-size:12px;
+    text-align: center;
+}
+
+.ik-th {
+    font-family: var(--ik-font-family);
+    font-size:13px;
+    margin:0px;
+    padding:0px;
+}
+
+.ik-td {
+    font-family: var(--ik-font-family);
+    font-size:11px;
+    display:flex;
+    align-items:center;
+    text-align: center;
+}
+
+.ik-table {
+    font-size:11px;
+    font-family: var(--ik-font-family);
+}
+
+.ik-h1 {
+    font-size:13px;
+    font-weight:500;
+    color: var(--ik-white);
+}
+
+.ik-h2 {
+    font-size:12px;
+}
+
+.ik-btn {
+    color:  var(--ik-white)!Important;
+    box-shadow:none !important;
+    font-size:13px;
+    margin-top:10px;
+}
+
+.ik-txt-head {
+    color:  var(--ik-dark-grey);
+    font-size:14px;
+}
+
+.ik-txt {
+    font-family: var(--ik-font-family);
+    font-size:12px;
+}
+
+.ik-txt2 {
+    font-style:oblique;
+    font-size:12px;
+}
+
+.ik-txt3 {
+    font-family: var(--ik-font-family);
+    font-size:12px;
+    color:  var(--ik-dark-grey);
+}
+
+.ik-actionIcon {
+    border:none;
+    color:  var(--ik-dark-grey);
+    background:none;
+    padding:0px;
+}
+
+.ik-token-hover:hover {
+    overflow: visible;
+}
+
+.ik-token-hover {
+     max-width: 340px;
+     overflow: hidden;
+     text-overflow: ellipsis;
+     white-space: nowrap;
+}
+
+::-webkit-scrollbar {
+    width:2px;
+}
+
+::-webkit-scrollbar-thumb {
+    display:block;
+    background:#4d0707;
+    border-radius: 10px;
+}
+
+.ik-tableScroll {
+    background:  var(--ik-white);
+    border:1px solid #afacac;
+    box-shadow: 0 0 10px #aba7a7;
+    border-bottom-left-radius:5px;
+    border-bottom-right-radius:5px;
+    padding:0px;
+    margin:0px;
+    height: 75vh;
+    overflow-x: hidden;
+    box-shadow: 0 0 5px #aba7a7;
+}
+
+.ik-alarmTable {
+    background:  var(--ik-white);
+    border:1px solid #afacac;
+    box-shadow: 0 0 10px #aba7a7;
+    border-bottom-left-radius:5px;
+    border-bottom-right-radius:5px;
+    padding:0px;
+    margin:0px;
+    height: 28vh;
+    overflow-x: hidden;
+    box-shadow: 0 0 5px #aba7a7;
+}
+
+.ik-loading {
+    position: absolute;
+    top: 45%;
+    right: 48%;
+    z-index:99;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height:40px;
+    border: 5px solid   var(--ik-grey);
+    border-top: 5px solid var(--ik-bg-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/*<-----------------Modal filter CSS--------------->*/
+.ik-filter-name {
+    padding:8px 15px;
+    font-size: 12px;
+    background:   var(--ik-grey);
+    width:100%;
+    color:  var(--ik-black);
+    text-align:left;
+    border: 0.05px solid   var(--ik-white);
+    border-right: 0px solid   var(--ik-white);
+    cursor: ointer;
+}
+
+.ik-search_filter {
+    background:   var(--ik-white);
+    width:100%;
+    color:  var(--ik-black);
+    padding:5px 10px;
+    font-size:12px;
+    border: 1px solid #ced4da !important;
+}
+
+.ik-filter-content {
+    height:75vh !important;
+    overflow: auto;
+}
+
+.dt-search {
+    display:block;
+}
+.dt-length {
+    display:block;
+}
+.dt-length select {
+    width:60px;
+ }
+
+.dt-paging-button {
+    font-size:12px !important;
+}
+
+.dt-layout-cell {
+    margin:0px;
+    display:inline-block;
+}
+
+select .dt-input {
+    width:50%;
+}
+.dt-input {
+    font-size:12px !important;
+    padding:2px 8px !important;
+}
+
+.dt-layout-row {
+    margin:0px;
+}
+.dt-info {
+    font-size:12px !important;
+}
+
+/*<-----------------------------------------Modal CSS---------------------------------->*/
+.ik-modalHeader {
+    background-color: var(--ik-bg-color);
+    padding:5px 5px;
+    border:1px solid var(--ik-white);
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+.ik-modalTitle {
+    color:   var(--ik-white);
+    font-family: var(--ik-font-family);
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.ik-modalBody {
+    background: var(--ik-white); color: var(--ik-dark-grey);
+}
+
+.ik-modalFooter {
+    background:  var(--ik-white);
+    padding:4px 10px;
+    border:1px solid   var(--ik-white);
+}
+
+.ik-modalContent {
+    max-height:70vh;
+    overflow:scroll;
+}
+
+.ik-close-btn {
+    font-family: var(--ik-font-family);
+    font-size:13px;
+    color:  var(--ik-white)!important;
+    background-color: var(--ik-bg-color);
+}
+
+.ik-add-btn {
+    font-family: var(--ik-font-family);
+    font-size:13px;
+    color:  var(--ik-white)!important;
+    background-color: var(--ik-bg-color);
+}
+
+.ik-model-input {
+    background-color:transparent;
+    padding: 20px 0px 0px 20px;
+    border:none;
+    color:  var(--ik-black);
+    font-size:23px;
+}
+
+.modal{
+    width:75%;
+    top:6%;
+    left:17%;
+}
+
+.modal-dialog {
+    position: relative;
+    top:0%;
+    margin-top:0;
+    animation: mymove 1s linear;
+}
+
+@keyframes mymove {
+    from {top: -40%;} to
+         {top: 0%;}
+    }
+
+.ik-accordionBtn {
+    background:  var(--ik-white) !important;
+    display:flex;
+    justify-content:space-between;
+}
+
+.ik-accordionItem {
+    overflow-x: hidden;
+    padding:0px;
+    background:  var(--ik-white);
+    margin:0px 0px;
+    box-shadow: 0 0 3px #aba7a7;
+    border-radius:1px 2px 5px 5px;
+}
+
+/*<-----------------node-dragBox CSS--------------->*/
+.ik-node-dragBox {
+    border-radius:15px ;
+    background:  var(--ik-white);
+    box-shadow:2px 2px 2px 2px grey;
+    max-height:75vh;
+}
+
+.left-services{
+    position:absolute;
+    max-height:65vh;
+    top:7%;
+    overflow:auto;
+    max-width:13rem;
+}
+
+.left-service{
+    position:absolute;
+    max-height:20vh;
+}
+
+.ik-node-dropBox {
+    border-radius:15px;
+    min-width:220px !important;
+    height: 47vh;
+    gap: 5px;
+    display:flex;
+    justify-content:flex-start;
+    flex-direction:column;
+    align-items: stretch;
+}
+
+.ik-sub-nodeDrop {
+    border-radius:5px;
+    height:30px;
+    font-size:11px;
+}
+
+.ik-sub-dropbox {
+    min-height:19rem;
+    border-radius:10px;
+    padding:10px 0px;
+}
+
+.ik-ngf-box {
+    width:120px;
+    height: 400px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    border-radius:10px;
+    border:none;
+    color:  var(--ik-black);
+    background: var(--ik-light-yellow);
+}
+
+.ik-input-edit {
+    opacity: 0;
+    transition: all 0.2s;
+}
+
+.ik-input-edit:hover {
+    opacity:1;
+}
+
+/*<-----------------BadgesCSS--------------->*/
+.ik-badges {
+    display : flex;
+    gap : 20px;
+    width : 1000px;
+    margin : auto;
+    justify-content : end;
+    height : 28px;
+    margin-top : -4px;
+}
+
+.ik-badges-div {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.ik-badges-p {
+    font-size: 11px;
+    font-weight: bold;
+    color : var(--ik-text-color);
+    margin-top : 20px;
+}
+
+.ik-date{
+    width:12vw !important;
+}
+
+.ik-graph {
+    margin-bottom:12px;
+    box-shadow: none;
+}
+
+.ik-scroll-btn {
+ color: var(--ik-text-color);
+}
+
+.ik-canvas-chart {
+    display:flex;
+    height:27vh;
+    justify-content:center;
+    align-items:start;
+    position:relative;
+}
+
+.ik-canvas-echart {
+    left:47%;
+    bottom:10%;
+    position:absolute;
+    font-weight:100;
+}
+
+.ik-containerFluid {
+    display: flex;
+    flex-wrap: wrap;
+    border-radius:5px;
+    background: var(--ik-white);
+}
+
+.ik-key {
+    color : #334f77;
+    text-align: start;
+    font-weight : bolder;
+    font-size : 12px;
+}
+
+.ik-value {
+    border-radius:4px;
+    border:1px solid black;
+    padding:3px 5px;
+    margin:1% 5px 5% 5px;
+    color: black;
+    font-weight : bold;
+    width : 15vw;
+    overflow : hidden;
+}
+
+.ik-error {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ik-error:hover {
+    overflow: visible;
+}
+
+.ik-model-box .ik-dashboard-box {
+    overflow:scroll;
+    height: 10vh;
+}
+
+.ik-slider {
+    width:44vw;
+    height:97%;
+    position: relative;
+    overflow: hidden;
+}
+
+.ik-arrow {
+    position: absolute;
+    top:2.8%;
+    transform: translateY(-50%);
+    background:transparent;
+    border: none;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    z-index: 1;
+}
+
+.ik-left-arrow {
+    left: 10px;
+    top:10px;
+}
+
+.ik-right-arrow {
+    top:10px;
+    right: 0px;
+}
+
+.ik-slide {
+    display: none;
+}
+
+.ik-slide div {
+    width: 100%;
+}
+
+.display {
+    display: none;
+}
+
+#example {
+    font-family: Arial, sans-serif;
+    border-collapse: collapse;
+    width: 100%;
+}
+
+#example th, #example td {
+    padding: 8px;
+    text-align: left;
+    color: black;
+    text-align: center;
+}
+
+#example tbody tr {
+    background: var(--ik-white);
+}
+
+#nav-parameter_range {
+    opacity : 0;
+}
+
+.loading-table {
+    width:100%;
+    max-height:58vh !important;
+    overflow: auto;
+    position:relative;
+}
+
+.table-responsive{
+  overflow-x: hidden;
+  background:#fff;
+  border:1px solid #afacac;
+  box-shadow: 0 0 10px #aba7a7;
+  border-bottom-left-radius:5px;
+  border-bottom-right-radius:5px;
+  padding:0px;
+  margin:0px; }
+
+.ik-loading-span {
+    position:absolute;
+    z-index:99;
+    left:45%;
+    width:30vw;
+    color:var(--ik-text-color);
+    font-weight:600;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
+.no-flex {
+    display: block !important;
+}
+
+.ik-scroll-table {
+    width:45vw;
+    overflow-x: hidden;
+    height: 27.5vh;
+}
+
+.addModal:hover {
+    background: var(--ik-bg-color);
+    color: var(--ik-white);
+}
+
+.table thead th {
+    width:10%;
+}
+
+.table thead th:nth-child(6) {
+    width:18%;
+}
+
+.table tbody td:nth-child(6) {
+    width:18%;
+}
+
+.table tbody td {
+    width:10%;
+}
+
+#device_name{
+    max-height:22px;
+}
+
+.myChart-row {
+    box-shadow: 0 0 5px #aba7a7;
+    border-radius:6px;
+    background: var(--ik-white);
+}
+
+#log-id tr td:nth-child(4),
+#log-id tr td:nth-child(5),
+#log-id tr td:nth-child(6) {
+    width: 20% !important;
+    text-align:left;
+}
+
+/*<-----------------Toast CSS--------------->*/
+
+.ik-bg-color{
+    font-size:13px;
+    background: var(--ik-bg-color);
+    color: var(--ik-white);
+}
+
+.btn-close{ font-size:10px; }
+
+.toast-header{
+    font-size:13px;
+    padding:0px;
+    color:#000;
+    border:none !important;
+}
+
+.ik-toast{
+    padding:10px;
+    border-radius:5px;
+    width:30vw;
+}
+
+.ik-toast-body p{
+    font-size:13px;
+    padding:1px ;
+    margin:0px;
+    border:none;
+    background:#dbede5 !important;
+    font-weight: bold;
+}
+
+.ik-msg-alert {
+    position: absolute;
+    bottom: 16%;
+    right: 0%;
+    width: 30vw;
+    z-index: 1050;
+}
+
+/*<-----------------AddCSS--------------->*/
+.hidden {
+    display: none;
+}
+
+.accordion-button::after {
+    display: none;
+}
+
+.accordion-tr {
+    white-space:nowrap;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    margin-bottom:30px;
+}
+
+.ik-col-2 {
+    width: 12vw;
+}
+
+.ik-ReRunModal {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: inherit;
+    margin-right: 10px;
+}
+
+.ik-nav-box .ik-dashboard-box {
+    overflow:scroll;
+    height:110px;
+    display:block;
+}
+
+.ik-table-Wrap2 {
+    height:52vh !important;
+    overflow: auto;
+    max-height: 52vh !important;
+}
+
+/*<-----------------graph dashboard CSS--------------->*/
+
+.ik-graph-border {
+    box-shadow: 0 0 5px #aba7a7;
+    border:1px solid #cdcdcd;
+    border-radius:2px;
+    padding:5px;
+    height:32vh;
+    width:45.5vw;
+    background: var(--ik-white);
+    margin-top:10px;
+}
+
+.ik-scrollable-card {
+    background:#EAE4DD;
+}
+
+.ik-graph {
+    box-shadow: 0 0 10px #cdcdcd;
+    border:1px solid #cdcdcd;
+    border-radius:2px;
+    padding:5px;
+    display:block;
+    justify-content:space-between;
+    background: var(--ik-white);
+}
+
+.loading-table {
+    min-height:58vh;
+    overflow: auto;
+    padding:5px 1px;
+}
+
+.ik-scroll-btn {
+    font-size: 12px;
+    cursor: pointer;
+    border:1px solid var(--ik-white);
+    background-color: var(--ik-white);
+    width:20px;
+    height:20px;
+    border-radius:120px;
+    padding: 0px;
+    font-weight :bolder;
+}
+
+.ik-circle {
+    border:1px solid var(--ik-grey);
+    border-radius:10px;
+    background: var(--ik-white);
+    width: 100px;
+    height : 22px;
+    display : flex;
+    padding : 0 10px;
+    margin: 0;
+    position : relative;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.ik-heading {
+    position:sticky;
+    top:0;
+    z-index: 2;
+    background: var(--ik-white);
+}
+
+.ik-dashboard-box{
+    background: var(--ik-white);
+    font-weight:600;
+    display:block;
+    box-shadow: 0 0 10px #aba7a7;
+    border-radius:5px;
+    border:1px solid #cdcdcd;
+    padding:5px 2px;
+}
+
+/*<-----------------Mobile-display-None--------------->*/
+.common-body {
+    overflow:hidden;
+}
+
+#message {
+    display: none;
+}
+
+@media (min-width: 768px) and (max-width: 2560px) {
+    #demo {
+      display: none;
+    }
+    #message {
+      display: block;
+    }
+}
+
+.addButton {
+    height: 25px;
+    width:25px;
+    font-size:16px;
+    padding:0px 8px;
+    background:var(--ik-bg-color);
+    border-radius:3px;
+    color:#fff !important;
+}
+/*<---------------------------Map CSS---------------------------->*/
+
+.ik-map {
+    width: 98%;
+    height: 95%;
+    border-radius: 15px;
+    z-index:1;
+}
+
+.ik-map-container {
+    height: 80vh;
+    padding: 45px 5px 5px 17px;
+    margin: 3px;
+    border-radius: 10px;
+}
+
+.ik-legend {
+    position: absolute;
+    top:0px;
+    right: 25px;
+    background-color: var(--ik-white);
+    padding: 5px;
+    border-radius: 5px;
+    border: 1px solid var(--ik-grey);
+    font-size: 12px;
+    z-index: 2;
+}
+
+.ik-legend-item {
+    margin-bottom: 5px;
+}
+
+.ik-legend-dot {
+    width: 10px;
+    height: 10px;
+    display: inline-block;
+    margin-right: 5px;
+}
+
+/*<-----------------------------DeviceView Panel----------------------------->*/
+
+.panel,
+.panel-body {
+    box-shadow: none;
+}
+
+.panel-group .panel-heading {
+    padding: 0;
+    background: var(--ik-white);
+}
+
+.panel-group .panel-heading a {
+    font-family:var(--ik-font-family);
+    font-style: normal;
+    font-weight: 500;
+    font-size: 13px;
+    line-height: 25px;
+    text-align: start;
+    color:   var(--ik-black);
+    padding:1px 10px;
+    border-bottom:1px solid var(--ik-grey);
+}
+
+/*<-----------------------------Slider Css----------------------------->*/
+
+.HourlyChart{
+    background: var(--ik-white);
+    width:45.8vw;
+    padding:5px 2px;
+}
+
+.segment {
+    height: 100%;
+}
+
+.red {
+    background: #EE4E4E;
+}
+
+.yellow {
+    background: #ffc107;
+}
+
+.green {
+    background: #20c997;
+}
+
+.scale-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+}
+
+.scale {
+    display: flex;
+    width: 300px;
+    height: 20px;
+    border: 1px solid var(--ik-grey);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.caroufredsel_wrapper {
+    height:500px !important;
+}
+
+.state {
+    stroke: var(--ik-white);
+    stroke-width: 1px;
+    cursor: pointer;
+}
+
+.fa-circle {
+    font-size:7px;
+    color: var(--ik-text-color);
+}
+
+.ik-slider ul.ik-slider pagnation li a {
+    color: var(--ik-grey);
+}
+
+.ik-slider ul.ik-slider pagnation li.selected a {
+    color: #937AFF;
+}
+
+.ik-slider, .ik-slider ul.carousel, .ik-slider ul.carousel li {
+    width:100%;
+    text-align: center;
+}
+
+/*<---------------------------Integrated CSS---------------------------->*/
+.ik-slider {
+    width:44vw;
+    height:97%;
+    position: absolute;
+    overflow: hidden;
+}
+
+.ik-shape-upper {
+    border-radius:5px;
+    grid-column: 1 / 1;
+    grid-row: 1 / 2;
+    position: relative;
+    width:50%;
+    background: var(--ik-white);
+    height:75%;
+}
+
+
+.ik-shape-lower {
+    border-radius:5px;
+    position: relative;
+    background: var(--ik-white);
+    overflow:scroll;
+    grid-column: 1 / 3;
+    grid-row: 2 / 2;
+}
+
+.ik-shape-lower:before {
+    display: block;
+    content: "";
+    height:1px;
+    background: var(--ik-grey);
+    border-radius:5px;
+    position: relative;
+    left: 50%;
+}
+
+/* <----------------- Responsive Styles ---------------> */
+
+.chat-con{
+    width: 45%;
+    height: 84vh;
+    background-color: #f9f9f9;
+    box-shadow: 5px 5px 20px rgba(0, 0, 0, 0.3);
+    margin: 0 auto;
+    margin-top: 20px;
+    border-radius: 5px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.chat-header{
+    width: 100%;
+    background-color: #f9f9f9;
+    text-align: center;
+    border-radius: 10px;
+    display: flex;
+    justify-content: start;
+    align-items: center;
+    padding : 0px 5px;
+}
+
+.chat-header h1{
+    font-size: 16px;
+    color:#ff9b57;
+    font-weight: bold;
+}
+
+.chat-container{
+    width: 100%;
+    padding:15px;
+    height: 75vh;
+    background-color: #fff;
+    border-radius: 10px;
+    overflow: scroll;
+    border : 1px solid #e6e6e6;
+    box-shadow: 0 0px 2px rgba(0, 0, 0, 0.1);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.chat-container::-webkit-scrollbar {
+    display: none;
+}
+
+.input-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 600px;
+}
+
+.input-field {
+    flex-grow: 1;
+}
+
+.input-field input {
+    width: 39vw;
+    height: 35px;
+    padding: 5px 10px;
+    border : 1px solid #e6e6e6;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+.input-field input:focus{ outline : none }
+
+.input-field input::placeholder {
+    font-style: italic;
+    opacity: 0.8;
+    font-size : 12px; }
+
+.submit-button { width: 20%; }
+
+.submit-button button {
+    width: 100%;
+    height: 35px;
+    width : 35px;
+    border: none;
+    background: #ff9b57;
+    color: white;
+    font-weight: bolder;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 50px;
+    padding : 5px; }
+
+.chat-box{
+    gap : 10px;
+    padding : 10px;
+    margin-bottom : 20px
+}
+
+.query-con{
+    padding : 5px;
+    color : black;
+    text-align: left;
+    font-weight : 200;
+    font-size : 13px;
+    border-radius : 5px; }
+
+  p {
+      font-size: 12px;
+      font-weight : 600;
+      gap: 20px;
+  }
+
+.responseDiv{ background: #e0eaf1; }
+
+.response{
+    padding : 5px;
+    background-color: #BCCCDC;
+    color : black;
+    font-weight : 600;
+    font-size : 13px;
+    border-radius : 5px;
+    width : 35vw;
+}
+
+.accordion-header{ border:none; background:#fff ;}
+.accordion-header.active{ background:#ccc !important; }
+
+.sidebar {
+    height: 94vh;
+    width: 27%;
+    top: 2%;
+    position:absolute;
+    left: -90%;
+    background:#fff;
+    transition: left 0.3s ease;
+    z-index: 1000;
+    overflow: scroll;
+    overflow-x: hidden;
+}
+.response-con p{ margin:1px 15px; }
+.sidebar.active { left: 0; }
+
+.response p{
+    margin-left : 0px;
+}
+
+span{ margin-top : 5px; }
+
+.loader {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: -15px 0 transparent, 15px 0 transparent;
+  box-sizing: border-box;
+  animation: shadowPulse 2s linear infinite; }
+
+.table-title {
+    font-weight: bold;
+    font-size: 16px;
+    text-align: center;
+    margin-bottom: 5px;
+    padding-bottom: 5px; }
+
+.table-container {
+    width: 100%;
+    overflow-x: auto;
+    border-radius: 8px;
+    padding: 5px;
+    max-height: 300px;
+    overflow-y: auto;
+    overflow-x: auto; }
+
+.table-container::-webkit-scrollbar {
+    width: 3px;
+    height: 3px; }
+
+.responsive-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto; }
+
+.responsive-table thead tr {
+    background-color: #0078ff;
+    color: white;
+    text-align: left; }
+
+.responsive-table th, .responsive-table td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    white-space: normal; }
+
+.responsive-table tbody tr:nth-child(even) {
+    background-color: #f9f9f9; }
+
+.responsive-table tbody tr:hover {
+    background-color: #e0e0e0; }
+
+
+
+@keyframes shadowPulse {
+  33% {
+    background: #FFF;
+    box-shadow: -15px 0 #FF3D00, 15px 0 #FFF;
+  }
+  66% {
+    background: #FF3D00;
+    box-shadow: -15px 0 #FFF, 15px 0 #FFF;
+  }
+  100% {
+    background: #FFF;
+    box-shadow: -15px 0 #FFF, 15px 0 #FF3D00;
+  }
+}
+
+.ik-formCon {
+    margin: 40px auto;
+    height: 80vh;
+    width : 40vw;
+    background-color: #fff;
+    overflow: scroll;
+    margin-right: 18px;
+    border-radius: 0px 5px 5px 0px;
+}
+
+.ik-formCon {
+    scrollbar-width: thin;
+    scrollbar-color: white transparent;
+}
+
+.nav-img{ height:10%; width:10%;}
+
+.AI-Platform{ width:60%;}
+
+@media (min-width: 1024px) and (max-width: 1600px) {
+     #drag-dropBox .wrapper {
+         max-width: 100%;
+         max-width: 100%;
+         overflow: auto;
+    }
+
+    .wrapper{ width:100%;}
+
+    #drag-drop-container {
+        width: 50%;
+    }
+    .title-text {
+        font-size: 14px;
+    }
+    .textarea {
+        width: 100%;
+    }
+    .sidebar {
+        width: 27%;
+        left: -100%;
+    }
+    .sidebar.active {
+        left: 0;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1023.99px) {
+    #drag-dropBox .wrapper { max-width: 100%; overflow: auto; }
+    .input-field input { width: 64vw; }
+    .chat-container{ height: 75vh;}
+    .chat-con{ width: 90% !important; margin:0 5%; height:80vh; }
+    .wrapper{ width:100%;}
+    .side-head{ width:80%;}
+    .response-con{ width:100%; }
+    .sidebar { top:5%; width: 80% !important; height: 92vh;}
+    #drag-drop-container { width: 70%; }
+    .title-text { font-size: 14px; }
+    .textarea { width: 100%; }
+    .sidebar { width: 80%; left: -100%; }
+    .sidebar.active { left: 0; }
+    .response{ margin-left:2px; width:70vw; }
+}
+
+@media (min-width: 300px) and (max-width: 767.99px) {
+    .input-field input { width: 64vw; }
+    .chat-con{ width: 90% !important; margin:10% 5%; height:80vh; }
+    .chat-container{ height: 75vh;}
+    #drag-dropBox { max-width: 100%; overflow: scroll; }
+    .side-head{ width:80%;}
+    .response-con{ width:100%; }
+    .sidebar { top:5%; width: 80% !important; left: -90%; height: 92vh;}
+    .wrapper{ width:100%;}
+    #drag-drop-container { width: 95%; }
+    .header { flex-direction: column; align-items: center; }
+    .title-text { font-size: 12px; text-align: center; }
+    .img { width: 25px; height: 25px; }
+    .textarea { height: 35px; font-size: 10px; }
+    #submit-btn { width: 30px; height: 30px; }
+    .response{ margin-left:2px; width:70vw; }
+    .app{ display:none;}
+    .ik-top-nav2{ width:100%;}
+    .ik-navbar{ width:70%; }
+    .AI-Platform{ width:100%;}
+    .nav-img{ height:13%; width:13%;}
+}
+
+
+
+
+
+
+
+/* ===== Final Enhanced Styles for Filter Modal UI ===== */
+
+/* Date range picker fix
+.daterangepicker {
+    left: 37%; !important;
+}*/
+
+/* Modal container adjustments */
+.modal-content.ik-filter-content {
+    border-radius: 10px !important;
+    border: 1px solid #ddd !important;
+    max-height: 75vh !important;
+    width: 65% !important;
+    margin: auto !important;
+}
+
+/* Modal header bottom border */
+.ik-filter-content .modal-header {
+    border-bottom: 1px solid #eee !important;
+}
+
+/* Tab buttons */
+.filterNames .ik-filter-name,
+.nav-pills .nav-link {
+    color: #333 !important;
+    font-weight: 500 !important;
+    font-size: 14px !important;
+    border-left: 4px solid transparent !important;
+    border-radius: 0 !important;
+    background: #f9f8fa;
+    padding: 10px 15px !important;
+    text-align: left !important;
+}
+
+/* Active tab */
+.filterNames .ik-filter-name.active,
+.filterNames .show > .ik-filter-name,
+.nav-pills .nav-link.active,
+.nav-pills .show > .nav-link {
+    color: #e53935 !important;
+    background-color: #fcebeb !important;
+    border-left: 4px solid #e53935 !important;
+}
+
+/* Modal body background */
+.ik-filter-content .modal-body {
+    background-color: #fff !important;
+}
+
+/* "Get Values" button */
+#apply_btn {
+    background-color: #e53935 !important;
+    color: white !important;
+    font-weight: bold !important;
+    border-radius: 5px !important;
+    width:15vw;
+    border: none !important;
+}
+
+/* "Select All" button custom look */
+#selectAll {
+    background-color: white !important;
+    color: #e53935 !important;
+    font-size: 0.7rem !important;
+    font-weight: bold !important;
+    margin-left: auto !important;
+    position: relative !important;
+    height: 35px !important;
+    width: 90px !important;
+    border: 1px solid #e53935 !important;
+    padding: 4px 10px !important;
+    border-radius: 4px !important;
+    transition: 0.3s ease all;
+}
+
+/* Hover effect for Select All */
+#selectAll:hover {
+    background-color: #e53935 !important;
+    color: white !important;
+}
+
+/* Input focus style */
+.ik-search_filter:focus {
+    outline: none !important;
+    border-color: #e53935 !important;
+    box-shadow: 0 0 0 0.2rem rgba(229, 57, 53, 0.25) !important;
+}
+
+.filter-modal-footer{
+    height: 10%;
+    border-top: 1px solid #ccc;
+    display:flex;
+    justify-content:center;
+}

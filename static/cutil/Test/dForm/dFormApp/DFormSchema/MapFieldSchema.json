@@ -1,0 +1,186 @@
+{
+  "ApplicationConfig": {
+        "group_con": "form-group",
+        "e_type": "dynamicRow",
+        "e_display": true,
+        "e_name": "app_config",
+       "row_Schema": [
+          {
+            "f_display_name": "SelectCategory",
+            "f_name": "select_category",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": [
+              "Inventory",
+              "Performance",
+              "Link",
+              "MAC"
+            ],
+            "a_onChange": "selectCategory(event)",
+            "b_rows" : ["ApplicationConfig"],
+            "b_name" : ["Inventory", "Performance", "Link", "MAC"],
+            "f_editable" : false,
+            "f_bgColor": ""
+          },
+          {
+            "f_display_name": "SelectOem",
+            "f_name": "select_oem",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": [
+              "Cambium",
+              "Radwin",
+              "Aviat"
+            ],
+            "a_onChange": "selectOem(event)",
+            "b_name" : ["Inventory", "Performance", "Link", "MAC"],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "SelectCircle",
+            "f_name": "select_circle",
+            "f_type": "multi_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": ["circle1"],
+            "a_onChange": "showOptions(event)",
+            "b_name": ["Inventory", "Performance", "Link", "MAC"],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "SelectRuleSet",
+            "f_name": "select_ruleset",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": ["rule1","rule2"],
+            "a_onChange": "window.forms.dFormDefaultFunc(event)",
+            "b_name": ["Inventory", "Performance", "Link"],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "TimePeriod",
+            "f_name": "time_period",
+            "f_type": "single_select",
+            "f_required": false,
+            "f_display": false,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": [
+               "1Day",
+              "LastWeek"
+            ],
+            "a_onChange": "window.forms.dFormDefaultFunc(event)",
+            "b_name": ["Performance", "Link"],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "SelectPerfRuleset",
+            "f_name": "select_perf_ruleset",
+            "f_type": "single_select",
+            "f_required": false,
+            "f_display": false,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": [],
+            "a_onChange": "window.forms.dFormDefaultFunc(event)",
+            "b_name": ["Link"],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "SheetName",
+            "f_name": "sheet_name",
+            "f_type": "text",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": [],
+            "a_onChange": "window.forms.dFormDefaultFunc(event)",
+            "b_name": ["Inventory", "Performance", "Link", "MAC"],
+            "b_rows": []
+          }
+       ]
+    },
+
+  "StaticTrainingServer": {
+    "group_con": "static_server_Json",
+    "e_type": "staticAccordion",
+    "e_display": true,
+    "e_name": "StaticServer",
+    "row_Schema": {
+      "StaticTrainingServer": {
+        "group_con": "",
+        "e_type": "dynamicRow",
+        "e_display": true,
+        "e_name": "training_field_info",
+        "row_Schema": [
+          {
+            "f_display_name": "SelectCluster",
+            "f_name": "cluster_name",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": ["Test1", "Test2", "Test3"],
+            "a_onChange": "selectCluster(event)",
+            "b_name" : ["Test1", "Test2", "Test3"],
+            "b_rows": ["StaticTrainingServer"]
+          },
+          {
+            "f_display_name": "TrainingServer",
+            "f_name": "training_server",
+            "f_type": "single_select",
+            "f_required": false,
+            "f_display": false,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": ["Test2", "Test3"],
+            "a_onChange": "window.forms.dFormDefaultFunc(event)",
+            "b_name" : ["Test1"],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "CPU",
+            "f_name": "num_cpu",
+            "f_type": "number",
+            "f_required": false,
+            "f_display": false,
+            "f_width": 2,
+            "v_default": "",
+            "v_min": 1,
+            "v_max": 5,
+            "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+            "b_name" : ["Test2"],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "GPU",
+            "f_name": "num_gpu",
+            "f_type": "number",
+            "f_required": false,
+            "f_display": false,
+            "f_width": 2,
+            "v_default": "",
+            "v_min": 1,
+            "v_max": 5,
+            "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+            "b_name" : ["Test3"],
+            "b_rows": []
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,85 @@
+/*<------------------------------------------cPlatformStyles_v02 CSS----------------------------------------->
+* Copyright         : Iktara Data Sciences
+* File Name         : cProjectStyles.css
+* Description       : Update CSS for styling and easy understand
+
+* Revision History  :
+* Date				Author    		        Comments
+* ------------------------------------------------------------------------------------------------------------
+* 14-Dec-21 		Kapil		            Created.
+<----------------------------------------------------------------------------------------------------------->*/
+
+/* variables.css */
+:root {
+  --ik-bg-color: #e40000;
+  --ik-text-color: #e40000;
+  --ik-font-family: 'Nunito', sans-serif;
+}
+
+/* <----------------- Responsive Styles ---------------> */
+
+@media (min-width: 1024px) and (max-width: 1600px) {
+     #drag-dropBox .wrapper {
+         max-width: 100%;
+         max-width: 100%;
+         overflow: auto;
+    }
+
+    .wrapper{ width:100%;}
+
+    #drag-drop-container {
+        width: 50%;
+    }
+    .title-text {
+        font-size: 14px;
+    }
+    .textarea {
+        width: 100%;
+    }
+    .sidebar {
+        width: 27%;
+        left: -100%;
+    }
+    .sidebar.active {
+        left: 0;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1023.99px) {
+    #drag-dropBox .wrapper { max-width: 100%; overflow: auto; }
+    .input-field input { width: 64vw; }
+    .chat-container{ height: 75vh;}
+    .chat-con{ width: 90% !important; margin:0 5%; height:80vh; }
+    .wrapper{ width:100%;}
+    .side-head{ width:80%;}
+    .response-con{ width:100%; }
+    .sidebar { top:5%; width: 80% !important; height: 92vh;}
+    #drag-drop-container { width: 70%; }
+    .title-text { font-size: 14px; }
+    .textarea { width: 100%; }
+    .sidebar { width: 80%; left: -100%; }
+    .sidebar.active { left: 0; }
+    .response{ margin-left:2px; width:70vw; }
+}
+
+@media (min-width: 300px) and (max-width: 767.99px) {
+    .input-field input { width: 64vw; }
+    .chat-con{ width: 90% !important; margin:0 5%; height:80vh; }
+    .chat-container{ height: 75vh;}
+    #drag-dropBox { max-width: 100%; overflow: scroll; }
+    .side-head{ width:80%;}
+    .response-con{ width:100%; }
+    .sidebar { top:5%; width: 80% !important; left: -90%; height: 92vh;}
+    .wrapper{ width:100%;}
+    #drag-drop-container { width: 95%; }
+    .header { flex-direction: column; align-items: center; }
+    .title-text { font-size: 12px; text-align: center; }
+    .img { width: 25px; height: 25px; }
+    .textarea { height: 35px; font-size: 10px; }
+    #submit-btn { width: 30px; height: 30px; }
+    .response{ margin-left:2px; width:70vw; }
+}
+
+
+
+

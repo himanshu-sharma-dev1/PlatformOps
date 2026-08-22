@@ -1,0 +1,738 @@
+ALGO_INFO_OPTIONS:
+  Anomaly:
+  - Anomaly_OCS
+  - Anomaly_LOF
+  - Anomaly_IF
+  - Anomaly_PM
+  - Anomaly_LSTM
+  AutoEncoder:
+  - ACCESSIBILITY
+  - RELIABILITY
+  - RETAINABILITY
+  - MOBILITY
+  - VOICE_INTEGRITY
+  - DATA_INTEGRITY
+  - RECHARGE
+  - USAGE_DATA
+  - USAGE_VOICE
+  - NETWORK
+  CausalML:
+  - LinearDML
+  - NonParamDML
+  - CausalForestDML
+  - MetaLearner
+  GenAI_DocModels:
+  - Microsoft LayoutLM-base
+  - Microsoft LayoutLM3-base
+  - Clova-ix Donut-base
+  NLP:
+  - Google_T5
+  - Google_Bert
+  - Meta_Bart
+  Pattern_Mining:
+  - prefixSpan
+  - SPADE
+  - EpisodeMining
+  ReinforceLearning:
+  - PerformanceRetriever
+  Rule_Mining:
+  - FP-Growth
+  - Apriori
+  Stock_Forecast:
+  - BI_LSTM
+  Supervised:
+  - LR
+  - LGM
+  - NN
+  - XGBOOST
+  - XGBOOST_REGRESSION
+  Supervised-Unbalanced:
+  - LGM_UB
+  - NN_UB
+  - XGBOOST_UB
+  TelecomChurn:
+  - XGBOOST_Churn_UB
+  - XGBOOST_Churn_PREDICTION
+  - AUTO_GLUON_CHURN_UB
+  Telecom_KPI_Prediction:
+  - LSTM_Multivariate
+  TimeSeries_Forecast:
+  - DeepAR
+  - Prophet
+  - PM-ARIMA
+  - LSTM
+AMI_MAPPINGS:
+  AMI_NAME_MAPPING:
+    Debian 12 (Bookworm):
+      ap-south-1: ami-0c1e4b1d38c49b2a0
+      us-west-1: ami-05cb48b49a89ccee7
+    Ubuntu Server 20.04 LTS:
+      ap-south-1: ami-0c1a7f89451184c8b
+      us-west-1: ami-0fc682b2a42e57ca2
+  AMI_USERNAME_MAPPING:
+    Debian 12 (Bookworm): admin
+    Ubuntu Server 20.04 LTS: ubuntu
+  INSTANCE_TYPE_MAPPING:
+    Burstable Micro Instance: t2.micro
+    GPU-Accelerated Instance (NVIDIA T4): g4dn.xlarge
+    General Purpose Large Instance: t3.xlarge
+    General Purpose Medium Instance: m5.large
+CPLATFORM_CONFIG:
+  dataflow_agent_flag: Disable
+  default_response: I'm an AI assistant that can help answer questions, analyze information,
+    and assist with a wide range of tasks. I couldn't help with that request as phrased.
+    Could you try rewording it or provide a little more detail?
+  intents: []
+  llm:
+    llm_host: ''
+    llm_model: llama3.1
+    llm_port: ''
+  llm_params:
+    format: json
+    keep_alive: -1
+    num_ctx: 4096
+    num_predict: 128
+    temperature: 0.1
+    timeout: 60
+  mail:
+    mail_agent: ''
+    mail_host: ''
+    mail_password: ''
+    mail_port: 34
+    mail_use_tls: true
+    mail_username: ''
+  mcp:
+    mcp_gateway_uri: ''
+    mcp_server_uri: ''
+  mcp_config:
+    flag_meta_data: false
+    follow_up_question: false
+    guardrail_ai_flag: false
+    guardrail_dspy_flag: false
+    guardrail_flag: false
+    intent_flag: false
+    log_file_name: airtelChurn_server
+    platform_id: airtel-churn
+    tool_access: external
+    tools_config_path: tools.json
+    use_gateway_tools: false
+  prometheus:
+    prometheus_server_ip: 216.48.189.217
+    prometheus_server_port: '9010'
+  repo:
+    master_auth_type: Password
+    master_host: 216.48.189.217
+    master_password: DDRPVP@ecjkt457
+    master_path: /home/ubuntu/Backup_Platform/iktara/Repository
+    master_pem_file_name: null
+    master_pem_file_text: null
+    master_username: root
+    repo_role: Primary
+    repo_sync: LOCAL
+  service:
+    cplatform_url: ''
+    deploy_status: NOT DEPLOYED
+    gpu_flag: Disable
+    mcp_url: ''
+    service_install: MANUAL
+    service_ip: 216.48.189.217
+    service_port: 80
+    service_version: 2.0.0
+    text2sql_url: ''
+    time_zone: Asia/Kolkata
+  widget:
+    report_queue: cPlatform_dataflow
+    report_url: ''
+    template_name: airtelTaw/dChatEmail.html
+DATAFLOW_CONFIG:
+  AviatAlarm:
+    file_types:
+    - csv
+    - xlsx
+    ingestion:
+    - BackEnd
+    log_params:
+    - Filename
+    - Total Alm
+    - Alm Reject
+    - Alm Raise
+    - Alm Clear
+    - Ingested Time(s)
+  AviatInventory:
+    file_types:
+    - csv
+    - xlsx
+    ingestion:
+    - FrontEnd
+    - BackEnd
+    log_params:
+    - Filename
+    - Total Dev
+    - Dev Reject
+    - Dev Create
+    - Dev Upd
+    - Dev Delete
+    - Ingested Time(s)
+  AviatPerformance:
+    file_types:
+    - csv
+    - xlsx
+    ingestion:
+    - BackEnd
+    log_params:
+    - Filename
+    - total_records
+    - total_links
+    - ingest_time(m)
+  BusinessProfileMonthly:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  CDRDailyData:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  CDRMonthlyData:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  CambiumAlarm:
+    file_types:
+    - csv
+    - xlsx
+    ingestion:
+    - FrontEnd
+    - BackEnd
+    log_params:
+    - Filename
+    - Total Alm
+    - Alm Reject
+    - Alm Raise
+    - Alm Clear
+    - Ingested Time(s)
+  CambiumEvent:
+    file_types:
+    - csv
+    - xlsx
+    ingestion:
+    - BackEnd
+    log_params:
+    - Filename
+    - Total Dev
+    - ingest_time(m)
+  CambiumInventory:
+    file_types:
+    - csv
+    - xlsx
+    ingestion:
+    - FrontEnd
+    - BackEnd
+    log_params:
+    - Filename
+    - Total Dev
+    - Dev Reject
+    - Dev Create
+    - Dev Upd
+    - Dev Delete
+    - Ingested Time(s)
+  CambiumPerformance:
+    file_types:
+    - csv
+    - xlsx
+    ingestion:
+    - BackEnd
+    log_params:
+    - Filename
+    - total_records
+    - total_links
+    - ingest_time(m)
+  ComplaintDailyData:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  ComplaintMonthlyData:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  GridClassificationMonthly:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  GroundHogDailyData:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  GroundHogMonthlyData:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  HistoricalStockData:
+    file_types:
+    - ''
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  MNPData:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  MetaMonthlyData:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  MonthlyChurnData:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  MwPlanning:
+    file_types:
+    - csv
+    - xlsx
+    ingestion:
+    - FrontEnd
+    - BackEnd
+    log_params:
+    - Filename
+    - Total Dev
+    - Dev Reject
+    - Dev Create
+    - Dev Upd
+    - Dev Delete
+    - Ingested Time(s)
+  NEPData:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  NetworkProfileMonthly:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  PostpaidMonthlyData:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  PrepaidMonthlyData:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  RAGIngestion:
+    file_types:
+    - ''
+    ingestion:
+    - FrontEnd
+    - BackEnd
+    log_params:
+    - No Docs
+    - Doc Types
+    - No Chunks
+    - Ingested Time(s)
+  RTStockData:
+    file_types:
+    - csv
+    - xlsx
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total_rows_inserted
+    - Total_volume
+  RadwinInventory:
+    file_types:
+    - csv
+    - xlsx
+    ingestion:
+    - FrontEnd
+    - BackEnd
+    log_params:
+    - Filename
+    - Total Dev
+    - Dev Reject
+    - Dev Create
+    - Dev Upd
+    - Dev Delete
+    - Ingested Time(s)
+  RadwinPerformance:
+    file_types:
+    - csv
+    - xlsx
+    ingestion:
+    - BackEnd
+    log_params:
+    - Filename
+    - total_records
+    - total_links
+    - ingest_time(m)
+  RechargeMonthlyData:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  RibbonDailyData:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  RibbonMonthlyData:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  RotationalMonthlyChurner:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+  StockFundamental:
+    file_types:
+    - ''
+    ingestion:
+    - BackEnd
+    log_params:
+    - Symbol_list
+    - Ingested Time(s)
+  UbrPlanning:
+    file_types:
+    - csv
+    - xlsx
+    ingestion:
+    - FrontEnd
+    - BackEnd
+    log_params:
+    - Filename
+    - Total Dev
+    - Dev Reject
+    - Dev Create
+    - Dev Upd
+    - Dev Delete
+    - Ingested Time(s)
+  UserProfileMonthly:
+    file_types:
+    - csv
+    ingestion:
+    - BackEnd
+    log_params:
+    - Total Records
+    - Ingested Time
+DATAFLOW_OPTIONS:
+  ANS:
+  - CambiumInventory
+  - CambiumAlarm
+  - CambiumPerformance
+  - CambiumEvent
+  - RadwinInventory
+  - RadwinPerformance
+  - UbrPlanning
+  - AviatPerformance
+  - AviatAlarm
+  - AviatInventory
+  - MwPlanning
+  AgenticNOC:
+  - CambiumInventory
+  - CambiumAlarm
+  - CambiumPerformance
+  - RadwinInventory
+  - RadwinPerformance
+  - RadwinAlarm
+  - AviatPerformance
+  - AviatAlarm
+  - AviatInventory
+  AirtelChurn:
+  - CDRDailyData
+  - CDRMonthlyData
+  - RibbonDailyData
+  - RibbonMonthlyData
+  - GroundHogDailyData
+  - GroundHogMonthlyData
+  - NEPData
+  - MNPData
+  - MonthlyChurnData
+  - MetaMonthlyData
+  - ComplaintDailyData
+  - ComplaintMonthlyData
+  - RotationalMonthlyChurner
+  - UserProfileMonthly
+  - NetworkProfileMonthly
+  - PrepaidMonthlyData
+  - PostpaidMonthlyData
+  - RechargeMonthlyData
+  - BusinessProfileMonthly
+  - GridClassificationMonthly
+  RAG:
+  - RAGIngestion
+  optionCopilot:
+  - HistoricalStockData
+  - StockFundamental
+GCP_MAPPING:
+  IMAGE_NAME_MAPPING:
+    Debian 12 (Bookworm): debian-cloud/debian-12
+    Ubuntu Server 20.04 LTS: ubuntu-minimal-2204-jammy-v20250530
+  IMAGE_USERNAME_MAPPING:
+    Debian 12 (Bookworm): debian
+    Ubuntu Server 20.04 LTS: ubuntu
+  INSTANCE_TYPE_MAPPING:
+    GPU-Accelerated (NVIDIA T4): n1-standard-4
+    General Purpose Large: e2-standard-4
+    General Purpose Micro: e2-micro
+INFRA_SERVICE_GROUPNAME_MAP:
+  InfraAirflowDagProcessor: airflow
+  InfraAirflowPostgreSQL: postgres
+  InfraAirflowRedis: redis-server
+  InfraAirflowScheduler: airflow
+  InfraAirflowTriggerer: airflow
+  InfraAirflowWorker: 'airflow worker '
+  InfraClickHouse: clickhouse-serv
+  InfraKafkaExporter: kafka_exporter
+  InfraNiFi: java
+  InfraNodeExporter: node_exporter
+  InfraPostgreSQLCore: postgres
+  InfraProcessExporter: process-exporte
+  InfraPrometheus: prometheus
+  InfraPrometheusANS: prometheus
+  InfraPrometheusRAG: prometheus
+  InfraRabbitMQ: beam.smp
+  InfraRedisCore: redis-server
+INSTANCE_PROVISION:
+  backend_port_range:
+    end: 9010
+    start: 9000
+MODEL_RETRIEVER_OPTIONS:
+  ANS:
+  - PerformanceRetriever
+  - KPIPredictionRetriever
+  AirtelChurn:
+  - ChurnData
+  DataJam:
+  - InfluxRetriever
+  optionCopilot:
+  - StockDataRetriever
+REALTIME_DATAFLOW_CONFIG:
+  ANS: {}
+  GenAI: {}
+REPORT_OPTIONS:
+  ANS:
+    report_hdlr_fn: ans_get_report
+    report_hdlr_path: Proxy.views
+  GenAI:
+    report_hdlr_fn: lsi_generate_report
+    report_hdlr_path: ProxyLSI.src.Report
+RETRIEVER_CONFIG:
+  ANS:
+    retriever_hdlr_fn: ans_get_train_data
+    retriever_hdlr_path: Proxy.views
+  DataJam:
+    retriever_hdlr_fn: datajam_get_train_data
+    retriever_hdlr_path: ProxyDataJam.views
+  GenAI:
+    retriever_hdlr_fn: lsi_common_retriever
+    retriever_hdlr_path: ProxyLSI.src.Retriever
+  optionCopilot:
+    retriever_hdlr_fn: option_get_train_data
+    retriever_hdlr_path: ProxyoptionCopilot.views
+SERVICE_INSTALL_MAPPING:
+  ANS:
+    VERSION:
+      1.0.0: proxyAns
+      2.0.0: proxyAns
+  ASR:
+    VERSION:
+      1.0.0: Asr
+      2.0.0: Asr
+  AgenticNOC:
+    VERSION:
+      1.0.0: agenticnoc
+  Airflow:
+    VERSION:
+      1.0.0: Airflow
+  AirtelChurn:
+    VERSION:
+      1.0.0: airtelChurn
+      2.0.0: airtelChurn
+  ConvCall:
+    VERSION:
+      1.0.0: convCall
+      2.0.0: convCall
+  ConvForm:
+    VERSION:
+      1.0.0: convForm
+      2.0.0: convForm
+  InferenceServer:
+    VERSION:
+      1.0.0: dInfer
+      2.0.0: dInfer
+  MCPServer:
+    VERSION:
+      1.0.0: mcpServer
+      2.0.0: mcpServer
+  McpProxy:
+    VERSION:
+      1.0.0: mcpProxy
+  ProxyDataJam:
+    VERSION:
+      1.0.0: ProxyDataJam
+  RAG:
+    VERSION:
+      1.0.0: Rag
+      1.1.0: Rag2
+      2.0.0: Rag
+      2.1.0: Rag2
+  TTS:
+    VERSION:
+      1.0.0: tts
+      2.0.0: tts
+  Text2CLK:
+    VERSION:
+      1.0.0: text2clk
+      2.0.0: text2clk
+  Text2SQL:
+    VERSION:
+      1.0.0: text2sql
+      2.0.0: text2sql
+  TrainingServer:
+    VERSION:
+      1.0.0: dTrain
+      2.0.0: dTrain
+  optionCopilot:
+    VERSION:
+      1.0.0: optionCopilot
+      2.0.0: optionCopilot
+SERVICE_KEYS:
+  AIOrchestrator:
+  - Default
+  ANS:
+  - Cambium
+  - Radwin
+  - Aviat
+  - Default
+  ASR:
+  - Default
+  Airflow:
+  - Default
+  AirtelChurn:
+  - Default
+  ConvForm:
+  - Default
+  DataJam:
+  - Default
+  InferenceServer:
+  - Default
+  MCPServer:
+  - Default
+  McpProxy:
+  - Default
+  ProxyDataJam:
+  - Default
+  RAG:
+  - Default
+  TTS:
+  - Default
+  Text2CLK:
+  - Default
+  Text2SQL:
+  - Default
+  TrainingServer:
+  - Default
+  optionCopilot:
+  - Default
+STREAMFLOW_CONFIG:
+  OptionData:
+    file_types:
+    - csv
+    - xlsx
+    ingestion:
+    - BackEnd
+    log_params:
+    - Ingested Time(s)
+  TickerData:
+    file_types:
+    - csv
+    - xlsx
+    ingestion:
+    - BackEnd
+    log_params:
+    - Ingested Time(s)
+  fyersStream:
+    file_types:
+    - none
+    ingestion:
+    - BackEnd
+    log_params:
+    - Ingested Time(s)
+    - Total Ticks
+STREAMFLOW_OPTIONS:
+  optionCopilot:
+  - TickerData
+  - OptionData
+  - fyersStream

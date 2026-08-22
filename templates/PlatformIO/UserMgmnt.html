@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+{% include "nav.html" %}
+{% block content %}
+<head>
+    <meta charset="UTF-8">
+    {% load static %}
+    <script type="module" src="{% static 'dform/DForm.js' %}"></script>
+</head>
+<style>
+  @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    .animate-slide-in {
+        animation: slideInRight 0.4s ease-out;
+    }
+</style>
+<body class="common-body">
+<div class="container-fluid mt-4">
+    <div class="row flex-nowrap">
+   {% include "PlatformIO/Toast.html" %}
+<!--Top-Button Section------------------------------------->
+        <div class="row ik-nav-button">
+            <div class="col-lg-1 text-center">
+                <button type="button" class="btn ik-btn px-2  m-0" data-bs-toggle="modal" data-bs-tooltip="tooltip"
+                    title="Add Template" data-bs-target="#addModal" onclick="addUser(event)">
+                    <span class="fs-4 bi bi-plus-square-fill text-dark"></span>
+                </button>
+            </div>
+        </div>
+        {% include "PlatformIO/PlatformSideBar.html" %}
+        <div class="col-10 col-lg-10 ik-right-container">
+<!--Table Section------------------------------------------>
+            <table class="table table-sm">
+                <thead class="sticky-top" style="vertical-align:top;">
+                    <tr class="ik-tr1">
+                        <th style="width:20%; text-align:left;">User Name</th>
+                        <th style="width:20%; text-align:left;">User Email</th>
+                        <th style="width:10%; text-align:left;">User Number</th>
+                        <th style="width:10%; text-align:left;">Role</th>
+                        <th style="width:10%;">Created Date</th>
+                        <th style="width:10%;">Last Login(UTC)</th>
+                        <th style="width:10%;">Login Count</th>
+                        <th style="width:10%;">Action</th>
+                    </tr>
+                </thead>
+            </table>
+            <div class="table-responsive w-100 ik-tableScroll">
+                <table class="table table-sm" id="dynamicTable">
+                    <tbody id="table-body">
+                        {% for user in user_data %}
+                            <tr class="text-center ik-tr1">
+                                <td style="width:20%; text-align:left;">{{ user.user_name }}</td>
+                                <td style="width:20%; text-align:left;">{{ user.user_email }}</td>
+                                <td style="width:10%; text-align:left;">{{ user.user_number }}</td>
+                                <td style="width:10%; text-align:left;">{{ user.user_role }}</td>
+                                <td style="width:10%;">{{ user.created_date }}</td>
+                                <td style="width:10%;">{{ user.last_login }}</td>
+                                <td style="width:10%;">{{ user.login_count }}</td>
+                                <td style="width:10%;">
+                                   <button type="button" class="fs-6 bi bi-trash ik-actionIcon" data-bs-toggle="modal"
+                                                data-bs-target="#DeleteModal" data-bs-whatever="{{ value.report_name }}" onclick="deleteUser({{ forloop.counter0 }})"></button>
+                                    <button type="button" class="fs-6 bi bi-pen ik-actionIcon" data-bs-toggle="modal" data-bs-target="#EditModal"
+                                        data-bs-backdrop="static" data-bs-keyboard="true" data-bs-whatever="{{ user.user_id }}" onclick="editUser(event, {{ forloop.counter0 }})">
+                                    </button>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+<!--Add Modal Section-------------------------------------->
+            <div class="row">
+                <div class="modal fade" id="addModal" data-bs-backdrop="static" data-bs-keyboard="true" tabindex="-1"
+                                                                 aria-labelledby="addModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header p-0 pt-1 pb-1 ik-modalHeader">
+                            <h6 class="modal-title ik-modalTitle" id="addModalLabel">Add User</h6>
+                        </div>
+                        <div class="modal-body ik-modalBody">
+                            <form method="post" enctype="multipart/form-data" action="">
+                                {% csrf_token %}
+                                <div class="form-group"></div>
+
+                                <div class="modal-footer ik-modalFooter">
+                                    <input type="hidden" name="json_data" id="json_data">
+                                    <button type="button" class="btn ik-close-btn px-2 py-1" data-bs-dismiss="modal">Close</button>
+                                    <button type="button" class="btn ik-add-btn px-2 py-1" onclick="createJson(event)">Add</button>
+                                    <input type="hidden" name="user-action" value="add">
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+<!--Edit Modal Section------------------------------------->
+            <div class="modal fade" id="EditModal" data-bs-backdrop="static" data-bs-keyboard="true" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-xl">
+                   <div class="modal-content">
+                        <div class="modal-header p-0 pt-1 pb-1 ik-modalHeader">
+                            <h6 class="modal-title ik-modalTitle" id="editModalLabel">Edit Users</h6>
+                        </div>
+                        <div class="modal-body ik-modalBody">
+                            <form method="post" enctype="multipart/form-data" action="">
+                                {% csrf_token %}
+                                <div class="form-group"></div>
+                                <div class="modal-footer ik-modalFooter">
+                                    <input type="hidden" name="json_data" id="edit_json_data">
+                                    <button type="button" class="btn ik-close-btn px-2 py-1" data-bs-dismiss="modal">Close</button>
+                                    <button type="button" value="edit" name="user-action" class="btn ik-add-btn px-2 py-1" onclick="createJson(event)">Submit</button>
+                                    <input type="hidden" name="user-action" value="edit">
+                                </div>
+                            </form>
+                        </div>
+                   </div>
+                </div>
+            </div>
+<!--Delete Modal Section----------------------------------->
+            <div class="modal fade" id="DeleteModal" data-bs-backdrop="static" data-bs-keyboard="true" tabindex="-1" aria-labelledby="DeleteModalabel" aria-hidden="true">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header ik-modalHeader">
+                            <h6 class="modal-title ik-modalTitle" id="DeleteModalabel">Delete Users</h6>
+                        </div>
+                        <div class="modal-body py-5 ik-modalBody">
+                            <form method="post" enctype="multipart/form-data" action="">
+                                {% csrf_token %}
+                                <div class="form-group">
+                                    <h6 id="delete_config" class="form-label ik-formLabel"></h6>
+                                </div>
+                                <input type="hidden" name="user_id" id="delete_json_data">
+                                <input type="hidden" name="user_email" id="delete_user_email">
+                                <div class="modal-footer ik-modalFooter">
+                                    <button type="button" class="btn ik-close-btn px-2 py-1" data-bs-dismiss="modal">Close</button>
+                                    <button type="submit" value="delete" name="user-action" class="btn ik-add-btn px-2 py-1">Delete</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+/* -------------this function working on EditModal-------------- */
+let user_schema = {{ user_schema | safe }}
+let user_info = {{user_data |safe}}
+
+function showMessage(message, isSuccess = true) {
+    if (!message) return;
+
+    // Toast container (bottom-right)
+    let container = document.querySelector('.ik-msg-alert');
+    if (container) container?.remove();
+
+    container = document.createElement('div');
+    container.className = 'ik-msg-alert toast-container position-fixed bottom-0 end-0 p-3';
+    container.setAttribute('aria-live', 'polite');
+    container.setAttribute('aria-atomic', 'true');
+    document.body.appendChild(container);
+
+
+    // Create toast element
+    const toastEl = document.createElement('div');
+    toastEl.className = 'toast ik-toast mb-2 animate-slide-in';
+    toastEl.setAttribute('role', 'alert');
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
+    toastEl.style.cssText = `
+        border-left: 10px solid ${isSuccess ? 'green' : 'red'};
+        background: ${isSuccess ? '#dbede5' : '#fdecea'};
+    `;
+
+    toastEl.innerHTML = `
+        <div class="toast-header bg-transparent">
+            <strong class="me-auto">User Response</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="ik-toast-body p-1">
+            <i class="fs-5 bi ${isSuccess ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger'} me-2"></i>${message}
+        </div>
+    `;
+
+    container.appendChild(toastEl);
+
+    const toast = new bootstrap.Toast(toastEl, {
+        delay: 3000,
+        autohide: true
+    });
+
+    toast.show();
+    toastEl.addEventListener('hidden.bs.toast', () => {
+        toastEl.remove();
+    });
+}
+
+
+
+//ADD
+function addUser(event) {
+    const button = event.currentTarget;
+    const modalId = button.getAttribute('data-bs-target');
+    window.forms.dFormCreate(user_schema, modalId, null)
+}
+
+// Create JSON
+async function createJson(event) {
+    let form = event.target.parentNode.parentNode;
+    let data = await window.forms.dFormCreateJson(event, user_schema);
+
+    if (!('status' in data)) {
+        form.submit();
+    } else {
+        showMessage(data.mess, false);
+    }
+}
+
+
+//Edit
+function editUser(event, index){
+    let data = user_info[index]
+    const button = event.currentTarget;
+
+    const modalId = button.getAttribute('data-bs-target');
+    window.forms.dFormCreate(user_schema, modalId, data, 'edit')
+
+    document.querySelector('.UserEmail ').querySelector('input').readOnly = true;
+}
+
+//Delete
+function deleteUser(index){
+    let data_app = user_info[index]
+    let deleteHeading = document.querySelector('#delete_config')
+    let deleteField= document.querySelector('#delete_json_data')
+    let deleteEmailField = document.querySelector('#delete_user_email')
+
+
+    deleteHeading.innerText = `Do You Want To Delete This User : ${data_app.user_name}`
+    deleteHeading.style.cssText = 'font-size : 14px; color : rgb(255,  0, 0)'
+
+    deleteField.value = data_app.user_id
+    deleteEmailField.value = data_app.user_email
+}
+
+
+</script>
+</body>
+{% endblock %}
+{% include "footer.html" %}
+</html>
+
+

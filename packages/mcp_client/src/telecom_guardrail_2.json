@@ -1,0 +1,63 @@
+{
+  "traces": [],
+  "train": [],
+  "demos": [
+    {
+      "augmented": true,
+      "query": "show churn trend by district for the last 6 months",
+      "verdict": "in_scope",
+      "category": "churn analytics",
+      "reason": "This is a churn trend analysis by geography over time."
+    },
+    {
+      "augmented": true,
+      "query": "compare churn rate between prepaid and postpaid subscribers",
+      "verdict": "in_scope",
+      "category": "churn analytics",
+      "reason": "This compares churn behavior between different subscriber types."
+    },
+    {
+      "augmented": true,
+      "query": "show top 20 users with highest network score",
+      "verdict": "in_scope",
+      "category": "customer analytics",
+      "reason": "This is a query to identify high-value customers based on network score."
+    },
+    {
+      "augmented": true,
+      "query": "show top 20 users with lowest network score",
+      "verdict": "in_scope",
+      "category": "quality of service analytics",
+      "reason": "This is a query about network performance, likely related to churn prevention."
+    }
+  ],
+  "signature": {
+    "instructions": "Classify whether a query belongs to the Airtel churn analytics platform.",
+    "fields": [
+      {
+        "prefix": "Query:",
+        "description": "User query to classify"
+      },
+      {
+        "prefix": "Verdict:",
+        "description": "Return exactly one of: in_scope, out_of_scope"
+      },
+      {
+        "prefix": "Category:",
+        "description": "Short label such as churn analytics, retention, politics, weather, corporate, or general"
+      },
+      {
+        "prefix": "Reason:",
+        "description": "Short explanation for the decision"
+      }
+    ]
+  },
+  "lm": null,
+  "metadata": {
+    "dependency_versions": {
+      "python": "3.11",
+      "dspy": "3.1.3",
+      "cloudpickle": "3.1"
+    }
+  }
+}

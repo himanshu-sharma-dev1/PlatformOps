@@ -1,0 +1,468 @@
+{
+  "ModelNameField": {
+    "group_con": "form-group",
+    "e_type": "staticRow",
+    "e_display": true,
+    "e_name": "static_data",
+    "row_Schema": [
+      {
+        "f_display_name": "ModelName",
+        "f_name": "model_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "onSelectDemo(event)"
+      }
+    ]
+  },
+
+  "dataSetSchema": {
+    "group_con": "dataSet_type_Json",
+    "e_type": "staticAccordion",
+    "e_display": true,
+    "e_name": "DataSetInfo",
+    "row_Schema": {
+      "staticAccRowSchema": {
+        "group_con": "",
+        "e_type": "staticRow",
+        "e_display": true,
+        "e_name": "static_field_info",
+        "row_Schema": [
+          {
+            "f_display_name": "DataSetType",
+            "f_name": "dataset_type",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 3,
+            "v_default": "",
+            "v_options": [
+              "External_DataSet",
+              "Internal_DataSet",
+              "DB_Pull_Dataset"
+            ],
+            "a_onChange": "selectDatasetType(event)",
+            "b_name" : [],
+            "b_rows": ["commonFieldSchema"]
+          },
+          {
+            "f_display_name": "ConnectionType",
+            "f_name": "connection_type",
+            "f_type": "single_select",
+            "f_required": false,
+            "f_display": false,
+            "f_width": 3,
+            "v_default": "",
+            "v_options": [
+              "FTP",
+              "S3",
+              "LOCAL",
+              "SFTP"
+            ],
+            "a_onChange": "selectConnectionType(event)",
+            "b_name" : ["External_DataSet"],
+            "b_rows": ["connectionTypeSchema"]
+          },
+          {
+            "f_display_name": "ServiceName",
+            "f_name": "service_name",
+            "f_type": "single_select",
+            "f_required": false,
+            "f_display": false,
+            "f_width": 3,
+            "v_default": "",
+            "v_options": [
+              "Airtel_TAW",
+              "GenAI"
+            ],
+            "a_onChange": "selectServiceName(event)",
+            "b_name" : [],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "RetrieveType",
+            "f_name": "retrieve_type",
+            "f_type": "single_select",
+            "f_required": false,
+            "f_display": false,
+            "f_width": 3,
+            "v_default": "",
+            "v_options": [],
+            "a_onChange": "selectRetrieveType(event)",
+            "b_name" : [],
+            "b_rows" : ["retrieverFieldSchema"]
+          }
+        ]
+      },
+      "connectionTypeSchema": {
+        "group_con": "static-accordion",
+        "e_type": "staticRow",
+        "e_display": false,
+        "e_name": "connection_type_info",
+        "row_Schema": [
+          {
+            "f_display_name": "URL",
+            "f_name": "url",
+            "f_type": "text",
+            "f_required": true,
+            "f_display": false,
+            "f_width": 3,
+            "v_default": "",
+            "a_onChange": "onSelectDemo(event)",
+            "b_name": ["FTP", "SFTP"]
+          },
+          {
+            "f_display_name": "UserName",
+            "f_name": "user_name",
+            "f_type": "text",
+            "f_required": false,
+            "f_display": false,
+            "f_width": 3,
+            "v_default": "",
+            "a_onChange": "onSelectDemo(event)",
+            "b_name": ["FTP", "SFTP"]
+          },
+          {
+            "f_display_name": "Password",
+            "f_name": "password",
+            "f_type": "password",
+            "f_required": false,
+            "f_display": false,
+            "f_width": 3,
+            "v_default": "",
+            "a_onChange": "onSelectDemo(event)",
+            "b_name": ["FTP", "SFTP"]
+          },
+          {
+            "f_display_name": "BucketName",
+            "f_name": "bucket_name",
+            "f_type": "text",
+            "f_required": false,
+            "f_display": false,
+            "f_width": 3,
+            "v_default": "",
+            "a_onChange": "onSelectDemo(event)",
+            "b_name": ["S3"]
+          },
+          {
+            "f_display_name": "AwsAccessKeyId",
+            "f_name": "aws_access_key_id",
+            "f_type": "text",
+            "f_required": false,
+            "f_display": false,
+            "f_width": 3,
+            "v_default": "",
+            "a_onChange": "onSelectDemo(event)",
+            "b_name": ["S3"]
+          },
+          {
+            "f_display_name": "AwsSecretAccessKey",
+            "f_name": "aws_secret_access_key",
+            "f_type": "text",
+            "f_required": false,
+            "f_display": false,
+            "f_width": 3,
+            "v_default": "",
+            "a_onChange": "onSelectDemo(event)",
+            "b_name": ["S3"]
+          }
+        ]
+      },
+      "commonFieldSchema": {
+        "group_con": "static-accordion",
+        "e_type": "staticRow",
+        "e_display": false,
+        "e_name": "common_field_info",
+        "row_Schema": [
+          {
+            "f_display_name": "RemotePath",
+            "f_name": "remote_path",
+            "f_type": "text",
+            "f_required": false,
+            "f_display": true,
+            "f_width": 3,
+            "v_default": "",
+            "a_onChange": "onSelectDemo(event)",
+            "b_name" : ["External_DataSet"]
+          },
+          {
+            "f_display_name": "TrainingData",
+            "f_name": "training_data",
+            "f_type": "text",
+            "f_required": false,
+            "f_display": true,
+            "f_width": 3,
+            "v_default": "",
+            "a_onChange": "onSelectDemo(event)",
+            "b_name" : ["External_DataSet"]
+          },
+          {
+            "f_display_name": "FeatureConfig",
+            "f_name": "feature_config",
+            "f_type": "text",
+            "f_required": false,
+            "f_display": true,
+            "f_width": 3,
+            "v_default": "",
+            "a_onChange": "onSelectDemo(event)",
+            "b_name" : ["External_DataSet"]
+          },
+          {
+            "f_display_name": "FeatureConfigCol",
+            "f_name": "feature_config_col",
+            "f_type": "text",
+            "f_required": false,
+            "f_display": true,
+            "f_width": 3,
+            "v_default": "",
+            "a_onChange": "onSelectDemo(event)",
+            "b_name" : ["External_DataSet"]
+          }
+        ]
+      },
+      "retrieverFieldSchema":  {
+        "group_con": "static-accordion",
+        "e_type": "staticRow",
+        "e_display": false,
+        "e_name": "retriever_field_info",
+        "row_Schema": [
+          {
+            "f_display_name": "OEM",
+            "f_name": "Oem",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 3,
+            "v_default": "",
+            "v_options": ["Radwin", "Cambium", "Airtel"],
+            "a_onChange": "onSelectOem(event)",
+            "b_name": ["PerformanceRetriever","KPIPredictionRetriever"]
+          },
+          {
+            "f_display_name": "Circles",
+            "f_name": "Circle_List",
+            "f_type": "multi_select",
+            "f_required": false,
+            "f_display": true,
+            "f_width": 3,
+            "v_default": "",
+            "v_options": [],
+            "a_onChange": "showCircle(event)",
+            "b_name": ["PerformanceRetriever","KPIPredictionRetriever","ChurnData"]
+          },
+          {
+            "f_display_name": "ParamList",
+            "f_name": "Parameter_List",
+            "f_type": "multi_select",
+            "f_required": false,
+            "f_display": true,
+            "f_width": 3,
+            "v_default": "",
+            "v_options": [],
+            "a_onChange": "showParam(event)",
+            "b_name": ["PerformanceRetriever"]
+          },
+          {
+            "f_display_name": "Date",
+            "f_name": "Date",
+            "f_type": "date",
+            "f_required": false,
+            "f_display": true,
+            "f_width": 3,
+            "a_onChange": "onSelectDemo(event)",
+            "b_name" : ["PerformanceRetriever","KPIPredictionRetriever"]
+          },
+          {
+            "f_display_name": "AggrLevel",
+            "f_name": "Aggr_Level",
+            "f_type": "single_select",
+            "f_required": false,
+            "f_display": true,
+            "f_width": 3,
+            "v_default": "",
+            "v_options": ["Hour", "Daily", "Raw"],
+            "a_onChange": "onSelectDemo(event)",
+            "b_name" : ["PerformanceRetriever"]
+          },
+          {
+            "f_display_name": "AggrFunction",
+            "f_name": "Aggr_Function",
+            "f_type": "single_select",
+            "f_required": false,
+            "f_display": true,
+            "f_width": 3,
+            "v_default": "",
+            "v_options": ["MIN", "MAX", "AVG", "SUM"],
+            "a_onChange": "onSelectDemo(event)",
+            "b_name" : ["PerformanceRetriever"]
+          },
+          {
+            "f_display_name": "AggrType",
+            "f_name": "Aggr_Type",
+            "f_type": "multi_select",
+            "f_required": false,
+            "f_display": true,
+            "f_width": 3,
+            "v_default": "",
+            "v_options": ["MIN", "MAX", "AVG", "SUM"],
+            "a_onChange": "onSelectDemo(event)",
+            "b_name" : ["KPIPredictionRetriever"]
+          }
+        ]
+      }
+    }
+  },
+
+  "trainingServer": {
+    "group_con": "training_server_Json",
+    "e_type": "staticAccordion",
+    "e_display": true,
+    "e_name": "TrainingServer",
+    "row_Schema": {
+      "staticAccRowSchema": {
+        "group_con": "",
+        "e_type": "dynamicRow",
+        "e_display": true,
+        "e_name": "training_field_info",
+        "row_Schema": [
+          {
+            "f_display_name": "SelectCluster",
+            "f_name": "cluster",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": ["LLMCluster", "ModelCluster"],
+            "a_onChange": "selectCluster(event)",
+            "b_name" : [],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "TrainingServer",
+            "f_name": "training_server",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": [],
+            "a_onChange": "onSelectDemo(event)",
+            "b_name" : [],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "CPU",
+            "f_name": "cpu",
+            "f_type": "number",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_min": 1,
+            "v_max": 5,
+            "a_onSelect": "onSelectDemo(event)",
+            "b_name" : [],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "GPU",
+            "f_name": "gpu",
+            "f_type": "number",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_min": 1,
+            "v_max": 5,
+            "a_onSelect": "onSelectDemo(event)",
+            "b_name" : [],
+            "b_rows": []
+          }
+        ]
+      }
+    }
+  },
+
+  "scheduleInfo": {
+    "group_con": "schedule_info_Json",
+    "e_type": "staticAccordion",
+    "e_display": true,
+    "e_name": "ScheduleInfo",
+    "row_Schema": {
+      "staticAccRowSchema": {
+        "group_con": "",
+        "e_type": "staticRow",
+        "e_display": true,
+        "e_name": "schedule_field_info",
+        "row_Schema": [
+          {
+            "f_display_name": "StartDate",
+            "f_name": "start_date",
+            "f_type": "date",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 3,
+            "v_default": "",
+            "a_onChange": "onSelectDemo(event)",
+            "b_name" : [],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "Time",
+            "f_name": "time",
+            "f_type": "time",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 3,
+            "v_default": "",
+            "a_onChange": "onSelectDemo(event)",
+            "b_name" : [],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "TimeZone",
+            "f_name": "time_zone",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 3,
+            "v_default": "",
+            "v_options" : [
+              "US/Eastern",
+              "US/Central",
+              "US/Pacific",
+              "Europe/London",
+              "UTC",
+              "Europe/Belgrade",
+              "Asia/Kolkata"
+            ],
+            "a_onSelect": "onSelectDemo(event)",
+            "b_name" : [],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "Periodicity",
+            "f_name": "periodicity",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_width": 3,
+            "v_default": "",
+            "v_options" : [
+              "HOURLY",
+              "DAILY",
+              "WEEKLY",
+              "MONTHLY"
+            ],
+            "a_onSelect": "onSelectDemo(event)",
+            "b_name" : [],
+            "b_rows": []
+          }
+        ]
+      }
+    }
+  }
+}

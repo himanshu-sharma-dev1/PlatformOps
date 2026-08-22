@@ -1,0 +1,669 @@
+.chip {
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--bg-card);
+    height: 40px;
+    position: relative;
+}
+
+/* custom dropdown arrow — replaces native one */
+.chip::after {
+    content: '';
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid var(--ink-4);
+}
+
+/* only show arrow when chip wraps a select */
+.chip:not(:has(select))::after {
+    display: none;
+}
+
+.chip select {
+    border: none;
+    outline: none;
+    background: transparent;
+    appearance: none;
+    color: var(--model-gray);
+    font-size: 14px;
+    width: 100%;
+    cursor: pointer;
+    padding-right: 20px; /* space for custom arrow */
+}
+
+/* ── PILL (status badge) These complement whatever pill base styles live in ds.css.
+   Defined here as a safety net so cards render even if ds.css is slow. */
+.pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+}
+
+.pill-info {
+    background: var(--info-bg);
+    color: var(--info);
+}
+
+.pill-success {
+    background: var(--ok-bg);
+    color: var(--ok);
+}
+
+.pill-danger {
+    background: var(--err-bg);
+    color: var(--err);
+}
+
+.pill-neutral {
+    background: var(--bg-sunken);
+    color: var(--ink-3);
+}
+
+.pill[data-status='Scheduled'] {
+    background: var(--warn-bg);
+    color: var(--warn);
+}
+
+/* TrainingInProcess — blue, same pattern as Scheduled yellow */
+.pill[data-status='TrainingInProcess'] {
+    background: var(--info-bg);
+    color: var(--info);
+    gap: 6px;
+}
+
+.pill[data-status='TrainingInProcess']::before {
+    display: none;
+}
+
+/* Live pulsing dot inside the TrainingInProcess pill */
+.pill[data-status='TrainingInProcess'] .live-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--info);
+    flex-shrink: 0;
+    animation: live-dot-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes live-dot-pulse {
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.25;
+        transform: scale(0.65);
+    }
+}
+
+.artifact-job {
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--bg-card);
+}
+
+.artifact-job-head {
+    width: 100%;
+    border: 0;
+    background: var(--bg-sunken);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-3);
+    padding: var(--s-3);
+    cursor: pointer;
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+}
+
+.artifact-job-head:hover {
+    background: var(--navy-50);
+}
+
+.artifact-job-title {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    min-width: 0;
+}
+
+.artifact-job-caret {
+    color: var(--ink-4);
+    transition: transform 0.15s ease;
+}
+
+.artifact-job.open .artifact-job-caret {
+    transform: rotate(90deg);
+}
+
+.artifact-job-id {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.artifact-job-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    flex-shrink: 0;
+}
+
+.artifact-job-count {
+    font-size: 11px;
+    color: var(--ink-4);
+}
+
+.artifact-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.artifact-status.completed {
+    background: var(--ok-bg);
+    color: var(--ok);
+}
+
+.artifact-status.failed {
+    background: var(--err-bg);
+    color: var(--err);
+}
+
+.artifact-status.running {
+    background: var(--info-bg);
+    color: var(--info);
+}
+
+.artifact-status.pending,
+.artifact-status.queued,
+.artifact-status.unknown {
+    background: var(--bg-sunken);
+    color: var(--ink-3);
+}
+
+.artifact-job-body {
+    display: none;
+    flex-direction: column;
+    gap: var(--s-2);
+    padding: var(--s-3);
+    max-height: min(300px, 42vh);
+    overflow-y: auto;
+}
+
+.artifact-job.open .artifact-job-body {
+    display: flex;
+    height: 300px;
+}
+
+.artifact-job-message {
+    padding: var(--s-3);
+    color: var(--ink-4);
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+.artifact-job-message.error {
+    color: var(--err);
+    background: var(--err-bg);
+    border: 1px solid var(--err);
+    border-radius: var(--r-sm);
+}
+
+.step-pane.active[data-pane-content='artifacts'] .artifact-list {
+    min-height: 0;
+    padding-bottom: var(--s-4);
+}
+
+/* ── MODEL GRID ────────────────────────────────────────────────────────────── */
+.model-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--s-4);
+}
+
+@media (width <= 1200px) {
+    .model-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (width <= 768px) {
+    .model-cards {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ── MODEL CARD ────────────────────────────────────────────────────────────── */
+.model-card {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    padding: var(--s-5);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition:
+        border-color 0.15s,
+        box-shadow 0.15s,
+        transform 0.15s;
+}
+
+.model-card:hover {
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow-2);
+    transform: translateY(-1px);
+}
+
+/* ── CARD STATE ACCENTS ────────────────────────────────────────────────────── */
+.model-card.training {
+    border-color: var(--info);
+}
+
+.model-card.training::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--info);
+    animation: train-pulse 2s ease-in-out infinite;
+}
+
+.model-card.failed::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--err);
+}
+
+@keyframes train-pulse {
+    50% {
+        opacity: 0.4;
+    }
+}
+
+/* ── CARD HEADER ───────────────────────────────────────────────────────────── */
+.mc-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--s-3);
+    margin-bottom: var(--s-3);
+}
+
+.header-meta {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    font-size: 12px;
+    color: var(--ink-4);
+}
+
+.mc-title-block {
+    min-width: 0;
+    flex: 1;
+}
+
+.mc-title {
+    font-family: var(--display);
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    overflow-wrap: break-word;
+}
+
+.mc-sub {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 22vw;
+    padding: 5px;
+    border-bottom: 5px;
+    margin-top: 15px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-4);
+}
+
+/* ── ALGORITHM TAGS ────────────────────────────────────────────────────────── */
+.mc-sub .algo-tag {
+    background: var(--bg-sunken);
+    padding: 2px 7px;
+    border-radius: 99px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-2);
+}
+
+.mc-sub .algo-tag.cat {
+    color: var(--navy);
+    background: var(--navy-100);
+}
+
+/* ── DESCRIPTION ───────────────────────────────────────────────────────────── */
+.mc-desc {
+    font-size: 12px;
+    color: var(--ink-3);
+    line-height: 1.5;
+    min-height: 34px;
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--s-3);
+    margin-top: var(--s-4);
+    padding-top: var(--s-4);
+    border-top: 1px solid var(--line);
+}
+
+.stat .v {
+    font-family: var(--display);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+}
+
+.stat .l {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-4);
+    margin-top: 2px;
+}
+
+.health-bar {
+    display: flex;
+    gap: 2px;
+    margin-top: var(--s-2);
+}
+
+.health-bar .slot {
+    flex: 1;
+    height: 4px;
+    border-radius: 1px;
+    background: var(--bg-sunken);
+}
+
+.health-bar .slot.ok {
+    background: var(--ok);
+}
+
+.health-bar .slot.warn {
+    background: var(--warn);
+}
+
+.health-bar .slot.err {
+    background: var(--err);
+}
+
+/* ── KPI SECTION ───────────────────────────────────────────────────────────── */
+.mc-kpis {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--s-2);
+    padding: var(--s-3) 0;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    margin-bottom: var(--s-3);
+}
+
+.mc-kpi {
+    text-align: center;
+}
+
+.mc-kpi .v {
+    font-family: var(--display);
+    font-size: 20px;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    line-height: 1;
+}
+
+.mc-kpi .v.warn {
+    color: var(--warn);
+}
+
+.mc-kpi .v.err {
+    color: var(--err);
+}
+
+.mc-kpi .v.ok {
+    color: var(--ok);
+}
+
+.mc-kpi .l {
+    margin-top: 4px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-4);
+}
+
+/* ── CARD FOOTER ───────────────────────────────────────────────────────────── */
+.mc-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--ink-4);
+}
+
+.mc-foot .author {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.mc-foot .avatar-sm {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--navy-100);
+    color: var(--navy);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 600;
+}
+
+/* ── TRAINING PROGRESS ─────────────────────────────────────────────────────── */
+.mc-progress {
+    margin-top: var(--s-3);
+    padding-top: var(--s-3);
+    border-top: 1px solid var(--line);
+}
+
+.mc-progress .bar {
+    height: 5px;
+    margin-top: 6px;
+    background: var(--bg-sunken);
+    border-radius: 99px;
+    overflow: hidden;
+}
+
+.mc-progress .bar .fill {
+    height: 100%;
+    background: var(--info);
+    border-radius: 99px;
+    transition: width 0.4s ease;
+}
+
+.mc-progress .row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--ink-3);
+}
+
+.mc-progress .row .v {
+    font-family: var(--mono);
+    color: var(--ink-2);
+}
+
+/* ── INVITE CARD ───────────────────────────────────────────────────────────── */
+.model-card.invite {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 280px;
+    text-align: center;
+    border-style: dashed;
+}
+
+.model-card.invite .ring {
+    width: 48px;
+    height: 48px;
+    margin-bottom: var(--s-3);
+    border-radius: 50%;
+    border: 1px dashed var(--line-2);
+    background: var(--bg-card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-3);
+}
+
+.model-card.invite .pitch {
+    font-family: var(--display);
+    font-size: 20px;
+    font-style: italic;
+    color: var(--ink-3);
+}
+
+.model-card.invite .sub-pitch {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--ink-4);
+}
+
+/* ── ALGORITHM CHIPS ───────────────────────────────────────────────────────── */
+.algo-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.algo-chip.supervised {
+    background: var(--navy-100);
+    color: var(--navy);
+}
+
+.algo-chip.timeseries {
+    background: var(--accent-bg);
+    color: var(--accent);
+}
+
+.algo-chip.anomaly {
+    background: var(--warn-bg);
+    color: var(--warn);
+}
+
+.algo-chip.nlp {
+    background: var(--accent-bg);
+    color: var(--accent);
+}
+
+.algo-chip.pattern {
+    background: var(--info-bg);
+    color: var(--info);
+}
+
+.algo-chip.causal {
+    background: var(--warn-bg);
+    color: var(--warn);
+}
+
+.action-group {
+    display: flex;
+    gap: var(--s-2);
+}
+
+/* Small button variant for card actions */
+.btn-sm {
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    gap: 4px;
+    border-radius: var(--r-sm);
+    line-height: 1.4;
+}
+
+.btn-sm .ic-sm {
+    width: 12px;
+    height: 12px;
+}
+
+.card-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btn-danger {
+    background: var(--err-bg);
+    color: var(--err);
+    border: 1px solid var(--err);
+}
+
+.btn-danger:hover {
+    background: var(--err);
+    color: var(--ink-inverse);
+}
+
+/* Keep old class for any other references */
+.delete-model-btn {
+    display: none;
+}

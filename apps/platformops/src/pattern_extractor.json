@@ -1,0 +1,48 @@
+{
+  "predict": {
+    "traces": [],
+    "train": [],
+    "demos": [
+      {
+        "periodicity": "hourly",
+        "logs_json": "[{\"timestamp\": \"2026-04-01 10:00:00\", \"fields\": {\"Total_rows_inserted\": 70}}, {\"timestamp\": \"2026-04-01 11:00:00\", \"fields\": {\"Total_rows_inserted\": 70}}, {\"timestamp\": \"2026-04-01 12:00:00\", \"fields\": {\"Total_rows_inserted\": 70}}, {\"timestamp\": \"2026-04-01 13:00:00\", \"fields\": {\"Total_rows_inserted\": 70}}, {\"timestamp\": \"2026-04-01 14:00:00\", \"fields\": {\"Total_rows_inserted\": 70}}, {\"timestamp\": \"2026-04-01 15:00:00\", \"fields\": {\"Total_rows_inserted\": 70}}, {\"timestamp\": \"2026-04-01 16:00:00\", \"fields\": {\"Total_rows_inserted\": 70}}, {\"timestamp\": \"2026-04-01 17:00:00\", \"fields\": {\"Total_rows_inserted\": 70}}, {\"timestamp\": \"2026-04-01 18:00:00\", \"fields\": {\"Total_rows_inserted\": 70}}, {\"timestamp\": \"2026-04-01 19:00:00\", \"fields\": {\"Total_rows_inserted\": 70}}]",
+        "field_patterns_json": "{\"Total_rows_inserted\": {\"type\": \"numeric\", \"mean\": 70, \"min\": 70, \"max\": 70, \"trend\": \"stable\", \"variance\": \"none\", \"missing_count\": 0}, \"timestamp_pattern\": {\"expected_interval_seconds\": 3600, \"missing_timestamps\": 0, \"irregularity\": \"none\"}}",
+        "overall_behavior": "Perfectly consistent hourly inserts with constant row count.",
+        "anomalies_seen": "[]"
+      }
+    ],
+    "signature": {
+      "instructions": "Extract structured patterns from logs with a specified periodicity, including field-specific patterns, a timestamp pattern, and an overall behavior summary. Detect and describe any anomalies. Output must be strictly formatted as JSON and include the timestamp_pattern field.",
+      "fields": [
+        {
+          "prefix": "Periodicity:",
+          "description": "${periodicity}"
+        },
+        {
+          "prefix": "Logs Json:",
+          "description": "${logs_json}"
+        },
+        {
+          "prefix": "Field Patterns Json:",
+          "description": "STRICT JSON with field patterns and timestamp_pattern. Must include timestamp_pattern."
+        },
+        {
+          "prefix": "Overall Behavior:",
+          "description": "${overall_behavior}"
+        },
+        {
+          "prefix": "Anomalies Seen:",
+          "description": "${anomalies_seen}"
+        }
+      ]
+    },
+    "lm": null
+  },
+  "metadata": {
+    "dependency_versions": {
+      "python": "3.11",
+      "dspy": "3.2.0",
+      "cloudpickle": "3.1"
+    }
+  }
+}

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Iktara · Clusters</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ds.css">
+<style>
+.region-badge{
+  display:inline-flex; align-items:center; gap:5px;
+  font-family:var(--mono); font-size:10px; color:var(--ink-3);
+  background:var(--bg-sunken); padding:3px 7px; border-radius:99px;
+  margin-top:6px;
+}
+.region-badge .dot{width:5px; height:5px; border-radius:50%; background:var(--navy-500);}
+.health-bar{display:flex; gap:2px; margin-top:var(--s-2);}
+.health-bar .slot{flex:1; height:4px; border-radius:1px; background:var(--bg-sunken);}
+.health-bar .slot.ok{background:var(--ok);}
+.health-bar .slot.warn{background:var(--warn);}
+.health-bar .slot.err{background:var(--err);}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">i</div>
+      <div class="name">Iktara</div>
+    </div>
+    <div class="sb-group">Identity</div>
+    <div class="sb-item"><svg class="ic ico" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>Users</div>
+
+    <div class="sb-group">Infrastructure</div>
+    <div class="sb-item active"><svg class="ic ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-11h-6M7 12H1"/></svg>Clusters</div>
+    <div class="sb-item"><svg class="ic ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Applications</div>
+
+    <div class="sb-group">Data</div>
+    <div class="sb-item"><svg class="ic ico" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>Batch I/O</div>
+    <div class="sb-item"><svg class="ic ico" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>Stream I/O</div>
+    <div class="sb-item"><svg class="ic ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>Logs</div>
+
+    <div class="sb-group">Models</div>
+    <div class="sb-item"><svg class="ic ico" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>Train</div>
+    <div class="sb-item"><svg class="ic ico" viewBox="0 0 24 24"><path d="M3 3v18h18M7 12l4-4 4 4 6-6"/></svg>Infer</div>
+    <div class="sb-item"><svg class="ic ico" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>Compare</div>
+
+    <div class="sb-group">Observability</div>
+    <div class="sb-item"><svg class="ic ico" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Monitoring</div>
+
+    <div class="sb-foot">
+      <div class="avatar">SA</div>
+      <div class="who">Sandhya Arora<div class="role">System admin</div></div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <div class="topbar">
+      <div class="crumb">Iktara<span class="sep">/</span><span>Infrastructure</span><span class="sep">/</span><span>Clusters</span></div>
+      <div class="topbar-right">
+        <button class="icon-btn"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></button>
+        <button class="icon-btn"><svg class="ic" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg></button>
+        <button class="icon-btn"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01"/></svg></button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <div class="page-head">
+        <div class="titles">
+          <h1>Compute <em>clusters</em></h1>
+          <p class="sub">Five clusters across three regions. One degraded — Mumbai standby is auto-recovering. No action required.</p>
+        </div>
+        <div class="actions">
+          <button class="btn btn-secondary">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M1 4v6h6M23 20v-6h-6M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
+            Sync nodes
+          </button>
+          <button class="btn btn-primary">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Add cluster
+          </button>
+        </div>
+      </div>
+
+      <div class="meta-strip">
+        <div class="meta"><div class="v">5</div><div class="l">Clusters</div></div>
+        <div class="meta"><div class="v">68</div><div class="l">Nodes online</div></div>
+        <div class="meta"><div class="v">187</div><div class="l">Services</div></div>
+        <div class="meta"><div class="v">99.4% <span class="delta down">−0.3</span></div><div class="l">Uptime 30d</div></div>
+      </div>
+
+      <div class="toolbar">
+        <div class="search">
+          <svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" placeholder="Search clusters…">
+        </div>
+        <div class="chip">Type: All</div>
+        <div class="chip">Region: All</div>
+        <div class="chip">+ Filter</div>
+
+        <div class="view-switch" style="margin-left:auto;">
+          <button class="active" title="Card view">
+            <svg class="ic ic-sm" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            Cards
+          </button>
+          <button title="Table view">
+            <svg class="ic ic-sm" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            Table
+          </button>
+        </div>
+      </div>
+
+      <!-- CARD GRID -->
+      <div class="cards-grid">
+
+        <div class="card">
+          <div class="head">
+            <div>
+              <div class="title">prod-mumbai-1</div>
+              <div class="sub-id">k8s · cl_3f8a · ap-south-1</div>
+            </div>
+            <span class="pill pill-ok">Healthy</span>
+          </div>
+          <div class="desc">Primary inference cluster serving model traffic for the Mumbai region.</div>
+          <div class="health-bar">
+            <div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div>
+          </div>
+          <div class="stats">
+            <div class="stat"><div class="v">12</div><div class="l">Nodes</div></div>
+            <div class="stat"><div class="v">47</div><div class="l">Services</div></div>
+            <div class="stat"><div class="v">99.9%</div><div class="l">Uptime 30d</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="head">
+            <div>
+              <div class="title">prod-mumbai-2</div>
+              <div class="sub-id">k8s · cl_5e2b · ap-south-1</div>
+            </div>
+            <span class="pill pill-warn">Degraded</span>
+          </div>
+          <div class="desc">Standby cluster. One node unreachable since 09:42 IST — auto-recovery in progress.</div>
+          <div class="health-bar">
+            <div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot warn"></div><div class="slot warn"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div>
+          </div>
+          <div class="stats">
+            <div class="stat"><div class="v">8/9</div><div class="l">Nodes</div></div>
+            <div class="stat"><div class="v">32</div><div class="l">Services</div></div>
+            <div class="stat"><div class="v">96.8%</div><div class="l">Uptime 30d</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="head">
+            <div>
+              <div class="title">prod-bangalore-1</div>
+              <div class="sub-id">k8s · cl_7d1c · ap-south-2</div>
+            </div>
+            <span class="pill pill-ok">Healthy</span>
+          </div>
+          <div class="desc">Training workloads. GPU-enabled nodes for model training and offline inference batches.</div>
+          <div class="health-bar">
+            <div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div>
+          </div>
+          <div class="stats">
+            <div class="stat"><div class="v">16</div><div class="l">Nodes</div></div>
+            <div class="stat"><div class="v">38</div><div class="l">Services</div></div>
+            <div class="stat"><div class="v">99.7%</div><div class="l">Uptime 30d</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="head">
+            <div>
+              <div class="title">stage-bangalore-1</div>
+              <div class="sub-id">k8s · cl_9a4f · ap-south-2</div>
+            </div>
+            <span class="pill pill-ok">Healthy</span>
+          </div>
+          <div class="desc">Staging environment. Mirrors production topology for pre-release validation.</div>
+          <div class="health-bar">
+            <div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div>
+          </div>
+          <div class="stats">
+            <div class="stat"><div class="v">6</div><div class="l">Nodes</div></div>
+            <div class="stat"><div class="v">22</div><div class="l">Services</div></div>
+            <div class="stat"><div class="v">99.5%</div><div class="l">Uptime 30d</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="head">
+            <div>
+              <div class="title">edge-delhi-1</div>
+              <div class="sub-id">standalone · cl_0c8e · north-india</div>
+            </div>
+            <span class="pill pill-ok">Healthy</span>
+          </div>
+          <div class="desc">Edge deployment for low-latency inference in the north region. Single-zone.</div>
+          <div class="health-bar">
+            <div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot warn"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div>
+          </div>
+          <div class="stats">
+            <div class="stat"><div class="v">4</div><div class="l">Nodes</div></div>
+            <div class="stat"><div class="v">11</div><div class="l">Services</div></div>
+            <div class="stat"><div class="v">98.9%</div><div class="l">Uptime 30d</div></div>
+          </div>
+        </div>
+
+        <!-- ADD NEW CARD (subtle invitation) -->
+        <div class="card" style="border-style:dashed; display:flex; align-items:center; justify-content:center; min-height:240px; cursor:pointer; background:transparent;">
+          <div style="text-align:center; color:var(--ink-4);">
+            <div style="width:40px; height:40px; border-radius:50%; background:var(--bg-card); border:1px dashed var(--line-2); display:flex; align-items:center; justify-content:center; margin:0 auto var(--s-3);">
+              <svg class="ic" style="color:var(--ink-3);" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            </div>
+            <div style="font-family:var(--display); font-size:18px; font-style:italic;">Add another cluster</div>
+            <div style="font-size:12px; margin-top:4px;">Connect Kubernetes, standalone, or edge</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+</body>
+</html>

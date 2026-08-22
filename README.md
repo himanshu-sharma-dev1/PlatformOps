@@ -1,103 +1,56 @@
 # PlatformOps
 
-[![CI Status](https://github.com/cplatform/platformops/actions/workflows/ci.yml/badge.svg)](https://github.com/cplatform/platformops/actions/workflows/ci.yml)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115.6-009688.svg?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
-[![React](https://img.shields.io/badge/React-18-61DAFB.svg?style=flat&logo=react)](https://react.dev)
-[![Terraform](https://img.shields.io/badge/Terraform-1.5.0+-7B42BC.svg?style=flat&logo=terraform)](https://www.terraform.io)
-[![Helm](https://img.shields.io/badge/Helm-3-0F1689.svg?style=flat&logo=helm)](https://helm.sh)
-[![Python](https://img.shields.io/badge/Python-3.12-3776AB.svg?style=flat&logo=python)](https://www.python.org)
+A streamlined, production-grade DevOps and SRE control plane featuring the native cPlatform UI, dynamic schema-driven form engines, and robust orchestration workflows across **6 core operational pages**, free of machine learning, dataflow pipeline, or proxy application bloat.
 
-A FastAPI/React DevOps and SRE control plane being ported from the legacy
-`cPlatform` implementation. The current delivery is a functional selected-page
-MVP: the UI can remain visually different while the operator workflows use
-real isolated Docker/Ansible operations and cPlatform-compatible behavior.
+---
 
-See [the MVP status handoff](docs/mvp-status.md) for the evidence-scoped
-acceptance status and limitations, the [selected-page functional parity
-mapping](docs/selected-page-functional-parity.md) for authoritative behavior
-coverage, the [current-page implementation plan](docs/current-pages-cplatform-parity-plan.md)
-for the fixed seven-page delivery scope, the [golden Redis fixture](docs/redis-seven-page-acceptance-fixture.md)
-for the authoritative cross-page acceptance run, the [per-page execution
-plans](docs/page-plans/README.md) for implementation and regression detail, and
-the [next validation
-plan](docs/next-validation-plan.md) for immediate execution. The [isolated runtime
-guide](docs/isolated-platformops.md) contains the Compose lifecycle details.
+## 🎯 Scope: 6 Core Pages
 
-> **Current runtime:** PlatformOps uses host port **9020**. Optional Mailpit
-> uses **9010**. The existing cPlatform deployment and its network are kept
-> untouched.
+1. **Users & RBAC** (`/PlatformIO/Users/`): Multi-tenant user provisioning, invitations, and role-based permissions (`System_Admin`, `Operational`).
+2. **Clusters, Nodes & Services** (`/PlatformIO/ClusterView/`, `/PlatformIO/ClusterConfig/`): Cluster topology, SSH host registration, catalog-driven service provisioning, and Ansible deployment orchestration.
+3. **Config Manager** (`/PlatformIO/ConfigManager/`): Live runtime configuration editor, snapshot timeline, diff comparison, and one-click rollback engine.
+4. **Performance Monitoring** (`/PlatformIO/SystemMonitoring/`): Host resource utilization, Prometheus node/service telemetry, and circular metric gauges.
+5. **Monitoring & SRE** (`/PlatformIO/Monitoring/`): Service health monitoring, uptime tracking, and GlitchTip error tracking/APM integration.
+6. **Diagnostics & Logging** (`/PlatformIO/Diagnostics/`): Real-time container log streaming, Loki log history query engine, and diagnostic archive exports.
 
-## Key Subsystems & Features
+---
 
-> This section inventories existing repository functionality. It is not the
-> cPlatform parity backlog. Current parity work is limited to the seven pages
-> named in the implementation plan; PlatformOps-only and Advanced features must
-> not be used to claim cPlatform completion.
+## 🏗️ Architecture & Isolation
 
-### 1. Dependency-Aware Lifecycle Governance
-- **Deletion Safety Modal**: Prevents accidental deletes of services, nodes, or clusters by running a real-time impact assessment.
-- **Dependency Guardrail**: Deletion of critical infrastructure cards (e.g. `postgres-core`, `redis-core`, `rabbitmq-core`, etc.) or resources with active downstream dependents is strictly blocked unless `force=true` is provided.
-- **Force-Delete Policy Gates**: `force=true` actions require a strong reason and, for risky targets, an active maintenance window before deletion is allowed.
-- **Approval Governance**: Risky force deletes also require approved force-delete requests with two-person authorization and one-time consumption.
-- **Cascade Deletion**: Node and cluster deletions require force flags if active nodes/services exist, cascading deletion cleanly and logging structured audit events.
-- **App Isolation**: Application cards can be deleted safely without accidentally removing shared backing infrastructure dependencies.
+PlatformOps runs as a standalone Django application (`apps.platformops`) powered by Gunicorn inside an isolated Docker network (`platformops_network`).
 
-### 2. Subsystem-Level Topological Rollout
-- **Rollout Sequencer**: Generates sequential rollout steps sorted topologically based on dependencies for planes like `shared-data-plane`, `vector-plane`, `distributed-training-plane`, etc.
-- **Dependency Order Integrity**: For example, `vector-plane` automatically schedules `etcd` and `MinIO` bootstrap before initializing `Milvus`.
-- **Infrastructure Isolation**: Airflow workflow planes isolate their local `airflow-postgres` and `airflow-redis` resources from the global postgres-core/redis-core DB cards.
-- **Placement Advisor**: Recommends the best node for a target service based on dependency readiness, node health, and projected CPU/memory/storage risk.
-- **Placement Auto-Deploy**: Optionally executes a one-click deployment on the best-ranked node, including auto-install of missing dependencies before deploying the main card.
+### Service Stack (`docker-compose.yml`)
+- **Web App**: `platformops_web` (Gunicorn on host port **`9020:8000`**)
+- **Database**: `platformops_db` (`iktaraai/services:postgres-1.0.0` on internal port `5432`)
+- **Cache & Message Broker**: `platformops_redis` (`iktaraai/services:redis-1.0.0` on `6379`) and `platformops_rabbitmq` (`cplatform-rabbitmq:latest` on `5672`)
+- **Telemetry Ingestion & Error Tracking**:
+  - `platformops_loki`: Loki 3.2.1 for log aggregation (`http://platformops_loki:3100`)
+  - `platformops_alloy`: Alloy 1.5.1 for telemetry forwarding
+  - `platformops_glitchtip_web` & `platformops_glitchtip_worker`: GlitchTip 6.1.9 for error tracking and APM
+  - `platformops_glitchtip_postgres` & `platformops_glitchtip_valkey`: Dedicated GlitchTip backing storage
 
-### 3. DTrain Distributed ML Training Control Plane
-- **Training Showcase**: A specialized dashboard representing `dtrain-tracker`, `dtrain-controller`, and `dtrain-workers` status and readiness.
-- **Simulation Metrics**: Returns GPU availability status and deterministic metrics tracking active, queued, completed, and failed training jobs.
+> **Complete Isolation Guarantee:** The PlatformOps stack runs strictly on `platformops_network` with dedicated volumes and ports, with zero cross-talk, shared volumes, or interference with cPlatform containers on `cplatform_iktara_cPlatform`.
 
-### 4. Diagnostics, Config, and Backup Parity
-- **Capability Metadata**: Exposes container target logs, log paths, sudo privilege requirements, and backup support for 40+ service cards.
-- **Config Strategy**: Differentiates between Live config files, Catalog-generated configs, and deliberately configless helper cards.
-- **Backup Strategy Policy**: Distinguishes database dumps, volume archives, object-store archives, config-only backups, and no backup required, warning on stateful cards lacking backup.
-- **Alloy Log Pipeline**: Includes `alloy-core` as an observability infrastructure card for log collection pipeline parity in addition to Loki/Prometheus.
-- **Observability Pipeline Board**: Surfaces per-node Alloy/Loki/Prometheus/exporter readiness, ingestion state, and latest diagnostics signal timestamps.
+---
 
-### 5. Parity Audit and Lifecycle Telemetry
-- **Catalog Coverage Audit**: Aggregates diagnostics/config/backup readiness for every catalog service card with per-card issue reporting.
-- **Lifecycle Audit Window**: Summarizes blocked, forced, and safe delete activity over a configurable time window from operational events.
-- **Filtered Operations Feed**: Supports category/level/search filtering for faster troubleshooting and governance reviews.
+## 🚀 Quick Start
 
-### 6. DevOps & infrastructure packaging
-- **Combined production image:** the [web/API Dockerfile](ops/docker/web-api/Dockerfile) builds the React bundle and serves it from the FastAPI image.
-- **Isolated runtime:** [docker-compose.isolated.yml](ops/compose/docker-compose.isolated.yml) provides project-scoped PostgreSQL, Redis, RabbitMQ, Prometheus, Loki, Mailpit, and a private DinD engine.
-- **Infrastructure templates:** Terraform is available under [ops/terraform/aws/](ops/terraform/aws/) and a Helm chart under [ops/helm/platformops/](ops/helm/platformops/); these are packaging/templates, not part of the selected-page runtime acceptance gate.
-- **Developer workflows:** the [Makefile](Makefile) provides compile, unit, build, isolated verification, and isolated lifecycle targets.
-
-## Quick Start
-
-### Recommended isolated MVP
-
+### Starting the Stack
 ```bash
-make isolated-verify
-make build
-PLATFORMOPS_ENABLE_MAILPIT=1 PLATFORMOPS_SMTP_HOST=mailpit make isolated-up
+docker compose up -d
 ```
 
-Open `http://127.0.0.1:9020` and sign in with the development bootstrap
-credentials `admin` / `admin`. Mailpit is available at
-`http://127.0.0.1:9010`. Stop the stack with `make isolated-down`; its named
-volumes are retained.
+### Accessing PlatformOps
+- **URL**: [http://localhost:9020/](http://localhost:9020/)
+- **Default Username**: `admin`
+- **Default Password**: `admin`
+- **Default Login Landing**: `/PlatformIO/ClusterView/`
 
-### Local development
-
-For backend hot reload, install the Python dependencies and run
-`make api`. For the Vite development server:
-
+### Verifying Stack Health
 ```bash
-cd apps/web
-npm install
-npm run dev
+docker compose ps
 ```
 
-The local development server is normally available at `http://localhost:5173`.
 The legacy `compose-up` target is a separate compatibility stack on port 9002;
 do not use it for isolated MVP verification or against the live cPlatform
 deployment.

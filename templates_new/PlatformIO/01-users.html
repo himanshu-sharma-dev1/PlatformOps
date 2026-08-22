@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+{% include "sidebar.html" %}
+<head>
+<meta charset="UTF-8">
+<title>PlatformOps · Users</title>
+{% load static %}
+<style>
+/* ─────────────────────────────────────
+   Invite-user flow + pending invite UX
+   ───────────────────────────────────── */
+
+.pending-meta{
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:11px; font-family:var(--mono); color:var(--ink-4);
+  margin-top:2px;
+}
+.pending-meta .dot{
+  width:6px; height:6px; border-radius:50%; flex-shrink:0;
+}
+.pending-meta .dot.fresh{background:var(--ok);}
+.pending-meta .dot.midway{background:var(--warn);}
+.pending-meta .dot.expiring{background:var(--err);}
+.pending-meta .sep{color:var(--ink-5);}
+.pending-meta .expiring-soon{color:var(--err); font-weight:500;}
+.pending-meta .expired{color:var(--err); font-weight:500;}
+
+.expiry-bar{
+  height:2px; background:var(--bg-sunken); border-radius:1px;
+  margin-top:4px; max-width:120px; overflow:hidden;
+}
+.expiry-bar .fill{
+  height:100%; background:var(--ok); border-radius:1px;
+  transition:width .3s ease;
+}
+.expiry-bar .fill.midway{background:var(--warn);}
+.expiry-bar .fill.expiring{background:var(--err);}
+
+.tab .ex-count{
+  font-family:var(--mono); font-size:9px; color:var(--err);
+  background:var(--err-bg); padding:1px 5px; border-radius:99px;
+  margin-left:4px;
+}
+
+.menu{
+  position:absolute;
+  background:var(--bg-card); border:1px solid var(--line);
+  border-radius:var(--r-md); box-shadow:var(--shadow-3);
+  padding:var(--s-1); min-width:200px; z-index:60;
+  display:none;
+}
+.menu.open{display:block;}
+.menu button{
+  display:flex; align-items:center; gap:8px;
+  width:100%; padding:7px 10px; font-size:13px;
+  background:none; border:none; border-radius:var(--r-sm);
+  color:var(--ink-2); cursor:pointer; text-align:left;
+  font-family:inherit;
+}
+.menu button:hover{background:var(--bg-sunken); color:var(--ink);}
+.menu button.danger{color:var(--err);}
+.menu button.danger:hover{background:var(--err-bg);}
+.menu .divider{height:1px; background:var(--line); margin:var(--s-1) 0;}
+.menu .ic{width:13px; height:13px; opacity:0.65;}
+.menu .shortcut{margin-left:auto; font-family:var(--mono); font-size:10px; color:var(--ink-5);}
+
+.bulk-bar{
+  position:sticky; top:0;
+  display:none;
+  align-items:center; gap:var(--s-3);
+  padding:var(--s-2) var(--s-4);
+  background:var(--navy); color:#fff;
+  border-radius:var(--r-md);
+  margin-bottom:var(--s-3);
+  font-size:13px;
+  box-shadow:var(--shadow-2);
+  z-index:5;
+}
+.bulk-bar.show{display:flex;}
+.bulk-bar .count{font-family:var(--mono); font-weight:500;}
+.bulk-bar .actions{display:flex; gap:var(--s-2); margin-left:auto;}
+.bulk-bar .actions button{
+  font-family:var(--body); font-size:12px; font-weight:500;
+  padding:5px 12px; border-radius:var(--r-sm);
+  background:rgba(255,255,255,0.12); color:#fff; border:none;
+  cursor:pointer;
+}
+.bulk-bar .actions button:hover{background:rgba(255,255,255,0.22);}
+.bulk-bar .actions button.danger:hover{background:var(--err);}
+.bulk-bar .close-x{
+  background:none; border:none; color:#fff; font-size:18px;
+  cursor:pointer; opacity:0.7; padding:0 4px;
+}
+.bulk-bar .close-x:hover{opacity:1;}
+
+@keyframes row-highlight{
+  0%{background:var(--ok-bg);}
+  100%{background:transparent;}
+}
+.tbl tbody tr.just-added{animation:row-highlight 2.4s ease-out;}
+
+.invite-summary-preview{
+  background:var(--bg-sunken); border:1px solid var(--line);
+  border-radius:var(--r-md); padding:var(--s-3) var(--s-4);
+  margin-top:var(--s-4);
+}
+.invite-summary-preview h4{
+  font-size:10px; text-transform:uppercase; letter-spacing:0.1em;
+  color:var(--ink-4); font-weight:600; margin-bottom:6px;
+}
+.invite-summary-preview .preview-line{
+  font-size:12px; color:var(--ink-3); line-height:1.55;
+}
+.invite-summary-preview .preview-line strong{color:var(--ink); font-family:var(--mono); font-size:11px;}
+
+.toast{
+  position:fixed; bottom:24px; right:24px; z-index:90;
+  background:var(--ink); color:#fff; padding:10px 16px;
+  border-radius:var(--r-md); font-size:13px; box-shadow:var(--shadow-3);
+  display:flex; align-items:center; gap:10px;
+  opacity:0; transform:translateY(8px); pointer-events:none;
+  transition:opacity .2s, transform .2s;
+}
+.toast.show{opacity:1; transform:translateY(0);}
+.toast.ok{background:var(--ok);}
+.toast.err{background:var(--err);}
+.toast .ic{width:16px; height:16px;}
+
+.dialog-back{
+  position:fixed; inset:0; background:rgba(20,24,31,0.45);
+  opacity:0; pointer-events:none; transition:opacity .2s;
+  z-index:70; display:flex; align-items:center; justify-content:center;
+}
+.dialog-back.open{opacity:1; pointer-events:auto;}
+.dialog{
+  background:var(--bg-card); border-radius:var(--r-lg);
+  box-shadow:var(--shadow-3); max-width:520px; width:90%;
+  transform:scale(0.96); transition:transform .2s;
+  overflow:hidden;
+}
+.dialog-back.open .dialog{transform:scale(1);}
+.dialog-head{padding:var(--s-5) var(--s-6) var(--s-3);}
+.dialog-head h3{font-family:var(--display); font-size:22px; font-weight:400; letter-spacing:-0.01em;}
+.dialog-head h3 em{font-style:italic; color:var(--navy);}
+.dialog-head .ico-bg{
+  width:36px; height:36px; border-radius:50%;
+  background:var(--navy-100); color:var(--navy);
+  display:flex; align-items:center; justify-content:center;
+  margin-bottom:var(--s-3);
+}
+.dialog-head .ico-bg.danger{background:var(--err-bg); color:var(--err);}
+.dialog-body{padding:0 var(--s-6) var(--s-4); font-size:13px; color:var(--ink-2);}
+.dialog-body p{margin-bottom:var(--s-3); line-height:1.6;}
+.dialog-foot{
+  padding:var(--s-3) var(--s-6) var(--s-5);
+  display:flex; justify-content:flex-end; gap:var(--s-2);
+  border-top:1px solid var(--line);
+  background:var(--bg-sunken);
+}
+
+.invite-url{
+  display:flex; align-items:center; gap:8px;
+  background:var(--bg); border:1px solid var(--line); border-radius:var(--r-md);
+  padding:8px 10px; margin:var(--s-3) 0;
+  font-family:var(--mono); font-size:11px; color:var(--ink-2);
+}
+.invite-url .url-text{
+  flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.invite-url button{
+  flex-shrink:0;
+  background:var(--navy); color:#fff; border:none;
+  padding:5px 12px; border-radius:var(--r-sm);
+  font-family:var(--body); font-size:11px; font-weight:500;
+  cursor:pointer;
+}
+.invite-url button:hover{background:var(--navy-700, var(--navy));}
+.invite-url button.copied{background:var(--ok);}
+
+.confirm-input{
+  font-family:var(--mono); font-size:13px;
+  padding:8px 12px; border-radius:var(--r-md);
+  border:1px solid var(--line-2); background:var(--bg-card);
+  color:var(--ink); outline:none; width:100%;
+  margin-top:8px;
+}
+.confirm-input:focus{border-color:var(--err); box-shadow:0 0 0 3px var(--err-bg);}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- MAIN ────────────────────────────── -->
+  <main class="main">
+    {% include "navbar.html" %}
+    <div class="content">
+
+      <!-- PAGE HEAD -->
+      <div class="page-head">
+        <div class="titles">
+          <h1>People with <em>access</em></h1>
+          <p class="sub">System administrators, operators, and analysts who can sign in to Iktara. Last reviewed 12 days ago.</p>
+        </div>
+        <div class="actions">
+          <button class="btn btn-secondary">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Export
+          </button>
+          <button class="btn btn-primary">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Invite user
+          </button>
+        </div>
+      </div>
+
+      <!-- META STRIP -->
+      <div class="meta-strip">
+        <div class="meta"><div class="v">{{ total_users }}</div><div class="l">Total users</div></div>
+        <div class="meta"><div class="v">{{ active_users }}</div><div class="l">Active</div></div>
+        <div class="meta"><div class="v">{{ admin_users }}</div><div class="l">System Admins</div></div>
+        <div class="meta"><div class="v">{{ pending_users }}</div><div class="l">Pending invites</div></div>
+      </div>
+
+      <!-- TABS -->
+      <div class="tabs">
+        <div class="tab active" data-filter="all">All users <span class="count">{{ total_users }}</span></div>
+        <div class="tab" data-filter="active">Active <span class="count">{{ active_users }}</span></div>
+        <div class="tab" data-filter="pending">Pending <span class="count">{{ pending_users }}</span></div>
+        <!--<div class="tab" data-filter="disabled">Disabled <span class="count">{{ disabled_users }}</span></div>-->
+        <div class="search">
+          <svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" placeholder="Search by name, email, or role…">
+        </div>
+        <div style="margin-left:auto; font-size:12px; color:var(--ink-4);" id="showingInfo">Showing <strong style="color:var(--ink-2);">0</strong></div>
+      </div>
+
+      <!-- TOOLBAR -->
+      <div class="toolbar"></div>
+
+      <!-- BULK ACTION BAR -->
+      <div class="bulk-bar" id="bulkBar">
+          <span class="count" id="bulkCount">0 selected</span>
+          <div class="actions">
+            <button data-bulk-act="resend">Resend invitations</button>
+          </div>
+          <button class="close-x" id="bulkClear">×</button>
+      </div>
+
+      <!-- TABLE -->
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th class="ck"><input type="checkbox"></th>
+              <th>User</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th id="sortLastLogin" style="cursor:pointer; user-select:none;">Last login <span id="sortIcon">↕</span></th>
+              <th class="r">Relative Activity</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="userTbody">
+            {% for user in user_data %}
+            <tr data-user-id="{{ user.user_id }}" data-status="{{ user.status }}" data-created-date="{{ user.created_date }}">
+              <td><input type="checkbox" class="row-check"></td>
+              <td>
+                <div class="primary">{{ user.user_name }}</div>
+                <div class="id">{{ user.user_email }}</div>
+                {% if user.status == 'pending' %}
+                <div class="pending-meta">
+                  <span class="dot fresh"></span>
+                  <span>invited {{ user.created_date }}</span>
+                  <span class="sep">·</span>
+                  <span class="expiry-text">pending acceptance</span>
+                </div>
+                <div class="expiry-bar"><div class="fill" style="width:0%"></div></div>
+                {% endif %}
+              </td>
+              <td>
+                <span class="pill {% if user.user_role == 'System_Admin' %}pill-info{% else %}pill-muted{% endif %}">
+                  {{ user.user_role }}
+                </span>
+              </td>
+              <td>
+                {% if user.status == 'active' %}
+                  <span class="pill pill-ok">Active</span>
+                {% elif user.status == 'pending' %}
+                  <span class="pill pill-info">Pending</span>
+                {% elif user.status == 'disabled' %}
+                  <span class="pill pill-err">Disabled</span>
+                {% else %}
+                  <span class="pill pill-warn">{{ user.status|capfirst }}</span>
+                {% endif %}
+              </td>
+              <td data-ts="{{ user.last_login_ts|default:0 }}">{{ user.last_login|default:"—" }}</td>
+              <td class="right num">{{ user.activity_percent }}%</td>
+              <td>
+                <div class="row-acts">
+                  {% if user.status == 'pending' %}
+                      {% if current_user_role == 'System_Admin' %}
+                      <button class="btn btn-ghost btn-sm" data-act="menu"
+                        data-email="{{ user.user_email }}"
+                        data-token="{{ user.invite_token }}">⋯</button>
+                      {% else %}
+                      <span style="font-size:11px; color:var(--ink-4);">—</span>
+                      {% endif %}
+                    {% else %}
+                    {% if current_user_role == 'System_Admin' %}
+                    <button class="btn btn-ghost btn-sm btn-edit"
+                      data-user-id="{{ user.user_id }}"
+                      data-user-name="{{ user.user_name }}"
+                      data-user-email="{{ user.user_email }}"
+                      data-user-role="{{ user.user_role }}"
+                      data-user-number="{{ user.user_number }}">Edit</button>
+                    <button class="btn btn-ghost btn-sm" data-act="menu"
+                      data-email="{{ user.user_email }}"
+                      data-user-id="{{ user.user_id }}">⋯</button>
+                    {% else %}
+                    <span style="font-size:11px; color:var(--ink-4);">—</span>
+                    {% endif %}
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" style="text-align:center; color:var(--ink-4); padding:var(--s-6);">No users found.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:var(--s-4); font-size:12px; color:var(--ink-4);">
+        <div id="pageInfo">Page 1 of 1</div>
+        <div style="display:flex; gap:var(--s-2);">
+          <button class="btn btn-secondary btn-sm" id="prevBtn" disabled>← Previous</button>
+          <button class="btn btn-secondary btn-sm" id="nextBtn">Next →</button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- INVITE USER DRAWER ───────────────────────── -->
+<div class="drawer-backdrop" id="inviteBack"></div>
+<aside class="drawer" id="inviteDrawer">
+  <div class="drawer-head">
+    <h2>Invite a user</h2>
+    <button class="icon-btn" id="closeInviteBtn"><svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="drawer-body">
+    <form method="POST" action="/PlatformIO/Users/" id="inviteForm">
+      {% csrf_token %}
+      <input type="hidden" name="user-action" value="invite_user">
+      <div class="field">
+        <label>Full name <span style="color:var(--err);">*</span></label>
+        <input class="input" id="invName" name="user_name" placeholder="e.g. Arjun Mehta">
+      </div>
+      <div class="field">
+        <label>Email address <span style="color:var(--err);">*</span></label>
+        <input class="input" id="invEmail" name="user_email" type="email" placeholder="name@iktara.io">
+        <div class="hint">An invitation link will be sent here. The link is valid for <strong>30 days</strong>.</div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Phone (optional)</label>
+          <input class="input" id="invPhone" name="user_number" placeholder="+91 …">
+        </div>
+        <div class="field">
+          <label>Role <span style="color:var(--err);">*</span></label>
+          <select class="select" id="invRole" name="user_role">
+            <option>Management</option>
+            <option>Operational</option>
+            <option>System_Admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label class="checkbox" style="display:flex; margin-bottom:6px;"><input type="checkbox" id="permPipelines" name="permissions" value="configure_pipelines"> Configure data pipelines</label>
+        <label class="checkbox" style="display:flex; margin-bottom:6px;"><input type="checkbox" id="permModels" name="permissions" value="deploy_models"> Deploy &amp; modify models</label>
+        <label class="checkbox" style="display:flex; margin-bottom:6px;"><input type="checkbox" id="permClusters" name="permissions" value="manage_clusters"> Manage clusters &amp; applications</label>
+        <label class="checkbox" style="display:flex;"><input type="checkbox" id="permUsers" name="permissions" value="manage_users"> Manage other users</label>
+      </div>
+      <div class="invite-summary-preview">
+        <h4>What happens next</h4>
+        <div class="preview-line">
+          <strong id="prevEmail">arjun@iktara.io</strong> will receive an email with a secure link.<br>
+          When they click it, they'll set their password and join as <strong id="prevRole">Management</strong>.<br>
+          The link expires in <strong>30 days</strong>. You can resend, copy, or revoke it from the user list.
+        </div>
+      </div>
+    </form>
+  </div>
+  <div class="drawer-foot">
+    <button class="btn btn-ghost" id="inviteCancelBtn">Cancel</button>
+    <button class="btn btn-primary" id="sendInviteBtn" type="submit" form="inviteForm">
+      <svg class="ic" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      Send invitation
+    </button>
+  </div>
+</aside>
+
+<!-- COPY-LINK DIALOG ───────────────────────── -->
+<div class="dialog-back" id="copyLinkBack">
+  <div class="dialog">
+    <div class="dialog-head">
+      <div class="ico-bg">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+      </div>
+      <h3>Invitation link for <em id="copyLinkUser">user</em></h3>
+    </div>
+    <div class="dialog-body">
+      <p>Use this link to onboard the user directly (e.g. in person) without waiting for email delivery. Anyone with this link can complete the invitation, so share it carefully.</p>
+      <div class="invite-url">
+        <span class="url-text" id="inviteUrlText">https://iktara.io/invite/accept?token=…</span>
+        <button id="copyLinkBtn">Copy</button>
+      </div>
+      <p style="font-size:12px; color:var(--ink-4);">
+        Expires <strong id="copyLinkExpiry">in 27 days</strong>. After expiry, the link will redirect to a "request a new invite" page.
+      </p>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-secondary" id="copyLinkCloseBtn">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- REVOKE-CONFIRM DIALOG ───────────────────────── -->
+<div class="dialog-back" id="revokeBack">
+  <div class="dialog">
+    <div class="dialog-head">
+      <div class="ico-bg danger">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+      </div>
+      <h3>Revoke invitation?</h3>
+    </div>
+    <div class="dialog-body">
+      <p>The invitation for <strong id="revokeUserName">user</strong> will be cancelled. The link in their email will stop working immediately. You can always invite them again later.</p>
+      <p style="font-size:12px; color:var(--ink-4);">Type the email address to confirm:</p>
+      <p style="font-family:var(--mono); font-size:12px; color:var(--ink-2); margin:6px 0;"><span id="revokeConfirmEmail">name@iktara.io</span></p>
+      <input class="confirm-input" id="revokeConfirmInput" placeholder="Type the email to enable Revoke">
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-secondary" id="revokeCancelBtn">Keep invitation</button>
+      <button class="btn btn-primary" id="revokeConfirmBtn" disabled style="background:var(--err); border-color:var(--err);">Revoke</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE-USER DIALOG ───────────────────────── -->
+<div class="dialog-back" id="deleteUserBack">
+  <div class="dialog">
+    <div class="dialog-head">
+      <div class="ico-bg danger">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg>
+      </div>
+      <h3>Delete user?</h3>
+    </div>
+    <div class="dialog-body">
+      <p>This will permanently delete <strong id="deleteUserName">user</strong> and remove all their access. This cannot be undone.</p>
+      <p style="font-size:12px; color:var(--ink-4);">Type the email address to confirm:</p>
+      <p style="font-family:var(--mono); font-size:12px; color:var(--ink-2); margin:6px 0;"><span id="deleteConfirmEmail">name@iktara.io</span></p>
+      <input class="confirm-input" id="deleteConfirmInput" placeholder="Type the email to enable Delete">
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-secondary" id="deleteCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="deleteConfirmBtn" disabled style="background:var(--err); border-color:var(--err);">Delete permanently</button>
+    </div>
+  </div>
+</div>
+
+<!-- ROW OVERFLOW MENU ───────────────────────── -->
+<div class="menu" id="rowMenu">
+  <!-- pending users only -->
+  <button data-act="copy-link" class="menu-pending-only"><svg class="ic" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>Copy invitation link</button>
+  <button data-act="resend" class="menu-pending-only"><svg class="ic" viewBox="0 0 24 24"><path d="M1 4v6h6M23 20v-6h-6M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>Resend invitation</button>
+  <!--<button data-act="change-role" class="menu-pending-only"><svg class="ic" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>Change role</button>-->
+  <div class="divider menu-pending-only"></div>
+  <button class="danger menu-pending-only" data-act="revoke"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>Revoke invitation</button>
+  <!-- active/disabled users only -->
+  <button class="danger menu-active-only" data-act="delete-user"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg>Delete user</button>
+</div>
+
+<!-- TOAST ───────────────────────── -->
+<div class="toast" id="toast">
+  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  <span id="toastMsg">Saved</span>
+</div>
+
+<!-- EDIT USER DRAWER ───────────────────────── -->
+<div class="drawer-backdrop" id="db"></div>
+<aside class="drawer" id="dr">
+  <div class="drawer-head">
+    <h2>Edit user</h2>
+    <button class="icon-btn" id="closeEditBtn"><svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="drawer-body">
+    <form method="POST" action="/PlatformIO/Users/" id="editForm">
+      {% csrf_token %}
+      <input type="hidden" name="user-action" value="edit">
+      <div class="field">
+        <label>Full name</label>
+        <input class="input" id="editName" name="user_name">
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input class="input" id="editEmail" name="user_email" readonly>
+        <div class="hint">Email is the login identifier and cannot be changed.</div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Phone</label>
+          <input class="input" id="editPhone" name="user_number">
+        </div>
+        <div class="field">
+          <label>Role</label>
+          <select class="select" id="editRole" name="user_role">
+            <option value="System_Admin">System_Admin</option>
+            <option value="Operational">Operational</option>
+            <option value="Management">Management</option>
+          </select>
+        </div>
+      </div>
+    <!--<div class="field">-->
+    <!--<label>New password <span style="color:var(&#45;&#45;ink-4); font-size:11px;">(leave blank to keep current)</span></label>-->
+    <!--<input class="input" id="editPassword" name="password" type="password" placeholder="Enter new password">-->
+    <!--</div>-->
+    </form>
+  </div>
+  <div class="drawer-foot">
+    <button class="btn btn-ghost" id="cancelEditBtn">Cancel</button>
+    <button class="btn btn-primary" type="submit" form="editForm">Save changes</button>
+  </div>
+</aside>
+
+<!-- Pass Django template values to external JS -->
+<script>
+  window.CSRF_TOKEN     = '{{ csrf_token }}';
+  window.CPLATFORM_URL  = '{{ cplatform_url }}';
+</script>
+<script>
+  // All user IDs and data for bulk selection across pages
+  window.ALL_USER_IDS = [
+    {% for user in user_data %}
+      "{{ user.user_id }}"{% if not forloop.last %},{% endif %}
+    {% endfor %}
+  ];
+
+  window.ALL_USER_DATA = [
+    {% for user in user_data %}
+    {
+      "user_id": "{{ user.user_id }}",
+      "user_email": "{{ user.user_email }}",
+      "status": "{{ user.status }}"
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+  ];
+</script>
+{% include 'chatbot/chatbot_widget.html' %}
+<script src="{% static 'javascript/users.js' %}"></script>
+<script src="{% static 'javascript/theme.js' %}"></script>
+</body>
+</html>

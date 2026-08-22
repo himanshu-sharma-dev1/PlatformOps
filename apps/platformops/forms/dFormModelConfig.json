@@ -1,0 +1,147 @@
+{
+  "ModelNameField": {
+    "group_con": "form-group",
+    "e_type": "staticRow",
+    "e_display": true,
+    "e_name": "static_data",
+    "row_Schema": [
+      {
+        "f_display_name": "ModelInferenceName",
+        "f_name": "model_infer_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": true,
+        "f_width": 2,
+        "v_default": "",
+        "f_editable": false,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)"
+      },
+      {
+        "f_display_name": "ModelName",
+        "f_name": "model_name",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": true,
+        "f_width": 2,
+        "v_default": "",
+        "v_options": [],
+        "a_onChange": "selectModelName(event)",
+        "f_editable": false,
+        "b_name" : [],
+        "b_rows": []
+      }
+    ]
+  },
+
+  "AlgoConfigSchema": {
+    "group_con": "algo_config_Json",
+    "e_type": "dynamicRow",
+    "e_display": true,
+    "e_name": "algo_config",
+    "row_Schema" : [
+        {
+          "f_display_name": "SelectAlgo",
+          "f_name": "algo_id",
+          "f_type": "single_select",
+          "f_required": true,
+          "f_display": true,
+          "f_editable": true,
+          "f_width": 2,
+          "v_default": "",
+          "v_options": [],
+          "a_onChange": "window.forms.dFormDefaultFunc(event)",
+          "b_name" : [],
+          "b_rows": []
+        },
+
+        {
+          "f_display_name": "AlgoWeight",
+          "f_name": "algo_weight",
+          "f_type": "number",
+          "f_required": true,
+          "f_display": true,
+          "f_editable": true,
+          "f_width": 2,
+          "v_default": "",
+          "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+          "b_name" : [],
+          "b_rows": []
+        }
+      ]
+    },
+
+  "inferenceServer": {
+    "group_con": "inference_server_Json",
+    "e_type": "staticAccordion",
+    "e_display": true,
+    "e_name": "InferenceServer",
+    "row_Schema": {
+      "staticAccRowSchema": {
+        "group_con": "",
+        "e_type": "dynamicRow",
+        "e_display": true,
+        "e_name": "inference_field_info",
+        "row_Schema": [
+          {
+            "f_display_name": "SelectCluster",
+            "f_name": "cluster_name",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_editable": false,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": [],
+            "a_onChange": "selectCluster(event)",
+            "b_name" : [],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "InferenceServer",
+            "f_name": "inference_server",
+            "f_type": "single_select",
+            "f_required": true,
+            "f_display": true,
+            "f_editable": false,
+            "f_width": 2,
+            "v_default": "",
+            "v_options": [],
+            "a_onChange": "window.forms.dFormDefaultFunc(event)",
+            "b_name" : [],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "CPU",
+            "f_name": "num_cpu",
+            "f_type": "number",
+            "f_required": true,
+            "f_display": true,
+            "f_editable": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_min": 1,
+            "v_max": 5,
+            "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+            "b_name" : [],
+            "b_rows": []
+          },
+          {
+            "f_display_name": "GPU",
+            "f_name": "num_gpu",
+            "f_type": "number",
+            "f_required": true,
+            "f_display": true,
+            "f_editable": true,
+            "f_width": 2,
+            "v_default": "",
+            "v_min": 1,
+            "v_max": 5,
+            "a_onSelect": "window.forms.dFormDefaultFunc(event)",
+            "b_name" : [],
+            "b_rows": []
+          }
+        ]
+      }
+    }
+  }
+}

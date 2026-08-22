@@ -1,0 +1,161 @@
+services:
+  postgres:
+    image: iktaraai/services:postgres-1.0.0
+    container_name: platformops_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: postgres
+    volumes:
+      - platformops_postgres_data:/var/lib/postgresql/data
+    networks:
+      - platformops_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: iktaraai/services:redis-1.0.0
+    container_name: platformops_redis
+    restart: always
+    networks:
+      - platformops_network
+
+  rabbitmq:
+    image: cplatform-rabbitmq:latest
+    container_name: platformops_rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+    networks:
+      - platformops_network
+
+  loki:
+    image: grafana/loki:3.2.1
+    container_name: platformops_loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/config.yaml
+    volumes:
+      - ./config/observability/loki-config.yaml:/etc/loki/config.yaml:ro
+      - platformops_loki_data:/loki
+    networks:
+      - platformops_network
+
+  alloy:
+    image: grafana/alloy:v1.5.1
+    container_name: platformops_alloy
+    restart: unless-stopped
+    depends_on:
+      - loki
+    volumes:
+      - ./config/observability/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - platformops_alloy_data:/var/lib/alloy
+    networks:
+      - platformops_network
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+
+  glitchtip_postgres:
+    image: postgres:16
+    container_name: platformops_glitchtip_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: glitchtip
+      POSTGRES_USER: glitchtip
+      POSTGRES_PASSWORD: change-me
+    volumes:
+      - platformops_glitchtip_pg_data:/var/lib/postgresql/data
+    networks:
+      - platformops_network
+
+  glitchtip_valkey:
+    image: valkey/valkey:7.2
+    container_name: platformops_glitchtip_valkey
+    command: valkey-server --save 60 1000 --appendonly yes
+    restart: unless-stopped
+    volumes:
+      - platformops_glitchtip_valkey_data:/data
+    networks:
+      - platformops_network
+
+  glitchtip_web:
+    image: iktaraai/services:glitchtip-iktara-6.1.9
+    container_name: platformops_glitchtip_web
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://glitchtip:change-me@platformops_glitchtip_postgres:5432/glitchtip
+      REDIS_URL: redis://platformops_glitchtip_valkey:6379/0
+      GLITCHTIP_DOMAIN: http://platformops_glitchtip_web:8000
+      SECRET_KEY: platformops-glitchtip-secret-key-2026
+      ENABLE_OPEN_USER_REGISTRATION: "False"
+    depends_on:
+      - glitchtip_postgres
+      - glitchtip_valkey
+    volumes:
+      - ./config/observability/patch_glitchtip_schema.py:/tmp/patch_glitchtip_schema.py:ro
+      - ./config/observability/glitchtip_runtime_map.yaml:/tmp/glitchtip_runtime_map.yaml:ro
+    command: sh -lc "python /tmp/patch_glitchtip_schema.py && ./bin/start.sh"
+    networks:
+      - platformops_network
+
+  glitchtip_worker:
+    image: iktaraai/services:glitchtip-iktara-6.1.9
+    container_name: platformops_glitchtip_worker
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://glitchtip:change-me@platformops_glitchtip_postgres:5432/glitchtip
+      REDIS_URL: redis://platformops_glitchtip_valkey:6379/0
+      SERVER_ROLE: worker
+      SECRET_KEY: platformops-glitchtip-secret-key-2026
+    depends_on:
+      - glitchtip_postgres
+      - glitchtip_valkey
+    volumes:
+      - ./config/observability/patch_glitchtip_schema.py:/tmp/patch_glitchtip_schema.py:ro
+      - ./config/observability/glitchtip_runtime_map.yaml:/tmp/glitchtip_runtime_map.yaml:ro
+    command: sh -lc "python /tmp/patch_glitchtip_schema.py && ./bin/start.sh"
+    networks:
+      - platformops_network
+
+  web:
+    image: iktaraai/services:cPlatform-AIP-3.0.0
+    container_name: platformops_web
+    restart: always
+    ports:
+      - "9020:8000"
+    command: gunicorn --bind 0.0.0.0:8000 --workers 2 --timeout 120 config.wsgi:application
+    environment:
+      PYTHONPATH: /app:/app/apps:/app/packages
+      DJANGO_SETTINGS_MODULE: config.settings
+      DJANGO_ENV_FILE: /app/config/local.env
+    volumes:
+      - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - platformops_network
+
+networks:
+  platformops_network:
+    name: platformops_network
+    driver: bridge
+
+volumes:
+  platformops_postgres_data:
+    name: platformops_postgres_data
+  platformops_loki_data:
+    name: platformops_loki_data
+  platformops_alloy_data:
+    name: platformops_alloy_data
+  platformops_glitchtip_pg_data:
+    name: platformops_glitchtip_pg_data
+  platformops_glitchtip_valkey_data:
+    name: platformops_glitchtip_valkey_data

@@ -1,0 +1,39 @@
+{
+  "ApplicationConfig": {
+    "group_con": "form-group",
+    "e_type": "staticRow",
+    "e_display": true,
+    "e_name": "app_config",
+    "row_Schema": [
+      {
+        "f_display_name": "SelectOem",
+        "f_name": "select_oem",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": true,
+        "f_width": 2,
+        "v_default": "",
+        "v_options": [
+          "Cambium",
+          "Radwin"
+        ],
+        "a_onChange": "selectOem(event)",
+        "b_name" : [],
+        "b_rows": []
+      },
+      {
+        "f_display_name": "Parameters",
+        "f_name": "select_ruleset",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": true,
+        "f_width": 2,
+        "v_default": "",
+        "v_options": [],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [],
+        "b_rows": []
+      }
+    ]
+  }
+}

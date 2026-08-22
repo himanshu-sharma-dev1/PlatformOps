@@ -1,0 +1,4946 @@
+<!DOCTYPE html>
+<html lang="en">
+{% load static %}
+{% include "sidebar.html" %}
+<head>
+<meta charset="UTF-8">
+<title>PlatformOps · Diagnostics & Logs</title>
+<style>
+/* ─────────────────────────────────────
+   Diagnostics & Logs Custom Styles
+   ───────────────────────────────────── */
+
+/* Page header */
+.dx-header {
+  padding: var(--s-5) var(--s-6);
+  margin-bottom: var(--s-5);
+}
+.dx-header .top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--s-5);
+}
+.dx-header h1 {
+  font-family: var(--display);
+  font-weight: 300;
+  font-size: 36px;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  margin: 0 0 var(--s-2) 0;
+}
+.dx-header h1 em {
+  font-style: italic;
+  color: var(--navy);
+  font-weight: 400;
+}
+.dx-header .sub {
+  color: var(--ink-2);
+  font-size: 14px;
+  max-width: 64ch;
+  margin-top: 6px;
+}
+
+.dx-stats {
+  display: flex;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 30px;
+  padding: var(--s-5) 0 0;
+  margin-top: var(--s-4);
+}
+.dx-stats .stat {
+  display: flex;
+  flex-direction: column;
+}
+.dx-stats .stat .v {
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.dx-stats .stat .v.ok { color: var(--ok); }
+.dx-stats .stat .v.warn { color: var(--warn); }
+.dx-stats .stat .v.err { color: var(--err); }
+.dx-stats .stat .l {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-4);
+  margin-top: 6px;
+}
+.dx-stats .stat .sub {
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 3px;
+  font-family: var(--mono);
+}
+.dx-stats .stat .v .live {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--err);
+  margin-left: 8px;
+  vertical-align: middle;
+  animation: livepulse 1.4s infinite;
+}
+@keyframes livepulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Two-column layout */
+.dx-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: var(--s-4);
+  align-items: start;
+}
+
+/* Service navigator (left rail) */
+.nav-card {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  position: sticky;
+  top: var(--s-4);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.nav-search {
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--line);
+  position: relative;
+}
+.nav-search input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 7px 10px 7px 30px;
+  font-family: var(--body);
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--bg);
+}
+.nav-search input:focus {
+  outline: none;
+  border-color: var(--navy-100);
+}
+.nav-search svg {
+  position: absolute;
+  left: 22px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  color: var(--ink-4);
+  pointer-events: none;
+}
+
+.nav-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--s-2) 0;
+}
+.nv-cluster {
+  margin-bottom: 2px;
+}
+.nv-cluster-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+  user-select: none;
+}
+.nv-cluster-head:hover {
+  background: var(--bg-sunken);
+}
+.nv-cluster-head .chev {
+  width: 10px;
+  height: 10px;
+  color: var(--ink-3);
+  transition: transform .15s;
+}
+.nv-cluster.open .nv-cluster-head .chev {
+  transform: rotate(90deg);
+}
+.nv-cluster-head .nm {
+  flex: 1;
+}
+.nv-cluster-head .meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-4);
+}
+
+.nv-nodes {
+  display: none;
+}
+.nv-cluster.open .nv-nodes {
+  display: block;
+}
+
+.nv-node-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px var(--s-4) 6px 8px;
+  font-size: 12px;
+  color: var(--ink-2);
+  cursor: pointer;
+  user-select: none;
+}
+.nv-node-head:hover {
+  background: var(--bg-sunken);
+}
+.nv-node-head .chev {
+  width: 9px;
+  height: 9px;
+  color: var(--ink-3);
+  transition: transform .15s;
+}
+.nv-node.open .nv-node-head .chev {
+  transform: rotate(90deg);
+}
+.nv-node-head .nm {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.nv-node-head .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.nv-node-head .dot.ok { background: var(--ok); }
+.nv-node-head .dot.warn { background: var(--warn); }
+.nv-node-head .dot.err { background: var(--err); }
+
+.nv-services {
+  display: none;
+}
+.nv-node.open .nv-services {
+  display: block;
+}
+
+.nv-service {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px var(--s-4) 7px 26px;
+  font-size: 12px;
+  color: var(--ink-2);
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: background .1s, border-color .1s;
+  position: relative;
+}
+.nv-service:hover {
+  background: var(--bg-sunken);
+}
+.nv-service.selected {
+  background: var(--navy-50);
+  color: var(--navy);
+  border-left-color: var(--navy);
+}
+.nv-service .ico {
+  width: 14px;
+  height: 14px;
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+.nv-service.selected .ico {
+  color: var(--navy);
+}
+.nv-service .nm {
+  flex: 1;
+  font-weight: 500;
+}
+.nv-service .rate {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-4);
+}
+.nv-service.selected .rate {
+  color: var(--navy);
+}
+.nv-service .err-flag {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--err);
+}
+
+.nav-foot {
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--ink-4);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.nav-foot .legend {
+  display: flex;
+  gap: var(--s-3);
+  align-items: center;
+}
+.nav-foot .legend .item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.nav-foot .legend .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+/* Workspace (right side) */
+.workspace-card {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  height: 100vh;
+  padding: var(--s-5);
+  display: flex;
+  flex-direction: column;
+}
+
+.ws-context {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  margin-bottom: var(--s-4);
+}
+.ws-context-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--s-4) var(--s-5);
+  border-bottom: 1px solid var(--line);
+}
+.ws-context-top .path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.ws-context-top .path .seg {
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.ws-context-top .path .seg.now {
+  color: var(--navy);
+  font-weight: 500;
+}
+.ws-context-top .path .sep {
+  color: var(--ink-4);
+}
+.ws-context-row-1 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.ws-context-row-1 .path {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ws-context-row-1 .row-1-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ws-context-row-2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  margin-bottom: 16px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.ws-context-row-2 .row-2-ops {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ws-meta-capsule-strip {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.ws-meta-capsule-strip .meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.ws-meta-capsule-strip .meta-item .lbl {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-4);
+  font-weight: 600;
+}
+.ws-meta-capsule-strip .meta-item .val {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+.ws-meta-capsule-strip .meta-item .val.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 9999px;
+  padding: 2px 10px;
+  font-size: 11px;
+}
+.ws-meta-capsule-strip .meta-item .val.status-pill .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.ws-meta-capsule-strip .meta-item .val.severity {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 9999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.ws-meta-capsule-strip .meta-item .val.severity.ok {
+  color: var(--ok);
+  border-color: rgba(46, 204, 113, 0.2);
+}
+.ws-meta-capsule-strip .meta-item .val.severity.err {
+  color: var(--err);
+  border-color: rgba(231, 76, 60, 0.2);
+}
+.dx-capsule-select {
+  border-radius: 9999px !important;
+  padding: 5px 16px 5px 12px !important;
+  border: 1px solid var(--line) !important;
+  background: var(--bg-card) !important;
+  color: var(--ink) !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  outline: none !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer;
+  height: 30px;
+  line-height: 18px;
+}
+.dx-capsule-select:hover {
+  border-color: var(--navy-100) !important;
+}
+.select-pill-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.select-pill-wrapper select {
+  padding-left: 28px !important;
+}
+.select-pill-wrapper .select-icon {
+  position: absolute;
+  left: 10px;
+  width: 12px;
+  height: 12px;
+  color: var(--ink-4);
+  pointer-events: none;
+}
+.btn-capsule {
+  border-radius: 9999px !important;
+  padding: 5px 16px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  height: 30px;
+}
+.dx-evidence-console {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--s-3);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-2);
+  max-height: 250px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.dx-insight-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr);
+  gap: var(--s-4);
+  margin-bottom: var(--s-4);
+}
+.dx-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.dx-panel .head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: var(--s-4) var(--s-5);
+  border-bottom: 1px solid var(--line);
+}
+.dx-panel .head .ttl {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.dx-panel .head .sub {
+  font-size: 11px;
+  color: var(--ink-4);
+  font-family: var(--mono);
+}
+.dx-panel .body {
+  padding: var(--s-4) var(--s-5);
+}
+.dx-summary-copy {
+  margin: 0 0 var(--s-4);
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.dx-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+.dx-kv {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--bg);
+}
+.dx-kv .k {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-4);
+}
+.dx-kv .v {
+  font-size: 12px;
+  color: var(--ink);
+  font-family: var(--mono);
+  word-break: break-word;
+}
+.dx-kv .v.ok { color: var(--ok); }
+.dx-kv .v.warn { color: var(--warn); }
+.dx-kv .v.err { color: var(--err); }
+.dx-issue-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: var(--s-4);
+}
+.dx-issue-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.dx-issue-chip .sev {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+.dx-issue-chip .sev.ok { color: var(--ok); }
+.dx-issue-chip .sev.warn { color: var(--warn); }
+.dx-issue-chip .sev.err { color: var(--err); }
+.dx-events {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.dx-event {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--bg);
+}
+.dx-event .top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.dx-event .nm {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.dx-event .ts {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--ink-4);
+}
+.dx-event .msg {
+  font-size: 12px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+.dx-empty-note {
+  padding: 20px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-md);
+  color: var(--ink-4);
+  font-size: 12px;
+  text-align: center;
+}
+.source-help {
+  width: 100%;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ink-4);
+}
+.file-stream-group {
+  display: none;
+}
+
+.ws-meta {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+}
+.ws-meta .m {
+  display: flex;
+  flex-direction: column;
+}
+.ws-meta .m .k {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-4);
+}
+.ws-meta .m .v {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink);
+  margin-top: 4px;
+}
+.ws-meta .m .v.ok { color: var(--ok); }
+.ws-meta .m .v.warn { color: var(--warn); }
+.ws-meta .m .v.err { color: var(--err); }
+.ws-meta .m .v .live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--err);
+  margin-right: 6px;
+  vertical-align: middle;
+  animation: livepulse 1.4s infinite;
+}
+
+/* Workspace tabs */
+.ws-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: var(--s-4);
+  border-bottom: 1px solid var(--line);
+}
+.ws-tabs .tab {
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-3);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color .15s, border-color .15s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+.ws-tabs .tab:hover {
+  color: var(--ink);
+}
+.ws-tabs .tab.active {
+  color: var(--ink);
+  border-bottom-color: var(--navy);
+}
+.ws-tabs .tab .badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  background: var(--bg-sunken);
+  color: var(--ink-3);
+  padding: 1px 6px;
+  border-radius: 99px;
+}
+.ws-tabs .tab.active .badge {
+  background: var(--navy-100);
+  color: var(--navy);
+}
+.ws-tabs .tab .live-pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--err);
+  animation: livepulse 1.4s infinite;
+}
+
+/* Tab panes */
+.tab-pane {
+  display: none;
+}
+.tab-pane.active {
+  display: block;
+}
+
+/* PANE 1: LIVE TAIL */
+.live-toolbar {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--s-3) var(--s-4);
+  margin-bottom: var(--s-3);
+  display: flex;
+  gap: var(--s-3);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.live-toolbar .group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.live-toolbar .lbl {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-4);
+}
+.live-toolbar .chip {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  font-size: 11px;
+  color: var(--ink-3);
+  cursor: pointer;
+  background: var(--bg-card);
+  font-family: var(--body);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  user-select: none;
+}
+.live-toolbar .chip:hover {
+  border-color: var(--line-strong);
+}
+.live-toolbar .chip.on {
+  background: var(--navy);
+  color: #fff;
+  border-color: var(--navy);
+}
+.live-toolbar .chip.lvl-info.on { background: var(--info); border-color: var(--info); }
+.live-toolbar .chip.lvl-warn.on { background: var(--warn); border-color: var(--warn); }
+.live-toolbar .chip.lvl-err.on { background: var(--err); border-color: var(--err); }
+.live-toolbar .chip.lvl-debug.on { background: var(--ink-3); border-color: var(--ink-3); }
+
+.live-toolbar .search {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+  max-width: 380px;
+}
+.live-toolbar .search input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 6px 10px 6px 28px;
+  font-size: 12px;
+  font-family: var(--mono);
+  background: var(--bg-card);
+}
+.live-toolbar .search svg {
+  position: absolute;
+  left: 8px;
+  top: 7px;
+  width: 13px;
+  height: 13px;
+  color: var(--ink-4);
+}
+.live-toolbar .stream-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  background: var(--err-bg);
+  color: var(--err);
+  border: 1px solid var(--err);
+}
+.live-toolbar .stream-btn.paused {
+  background: var(--bg-sunken);
+  color: var(--ink-3);
+  border-color: var(--line-strong);
+}
+.live-toolbar .stream-btn .pip {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: livepulse 1.4s infinite;
+}
+.live-toolbar .stream-btn.paused .pip {
+  animation: none;
+}
+
+.live-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr) auto;
+  gap: var(--s-4);
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--s-3) var(--s-5);
+  margin-bottom: var(--s-3);
+  align-items: center;
+}
+.live-metrics .lm {
+  display: flex;
+  flex-direction: column;
+}
+.live-metrics .lm .v {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 500;
+}
+.live-metrics .lm .v.err { color: var(--err); }
+.live-metrics .lm .v.warn { color: var(--warn); }
+.live-metrics .lm .v.info { color: var(--info); }
+.live-metrics .lm .l {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-4);
+  margin-top: 2px;
+}
+
+/* CSS sparkline bars */
+.spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 32px;
+  width: 140px;
+}
+.spark .bar {
+  flex: 1;
+  background: var(--ink-3);
+  border-radius: 1px;
+  min-height: 2px;
+  transition: height 0.2s ease, background 0.2s ease;
+}
+.spark .bar.info { background: var(--info); }
+.spark .bar.warn { background: var(--warn); }
+.spark .bar.err { background: var(--err); }
+
+.log-viewer {
+  background: #1c1c1a;
+  border-radius: var(--r-lg);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.55;
+  height: 560px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #2e2e2c;
+}
+.log-viewer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px var(--s-4);
+  background: #252523;
+  border-bottom: 1px solid #2e2e2c;
+  font-size: 11px;
+  color: #b8b3a8;
+}
+.log-viewer-head .nm {
+  font-weight: 500;
+  color: #e8e3d8;
+}
+.log-viewer-head .nm .live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e35d5d;
+  margin-right: 6px;
+  vertical-align: middle;
+  animation: livepulse 1.4s infinite;
+}
+.log-viewer-head .ctrls {
+  display: flex;
+  gap: var(--s-3);
+  align-items: center;
+}
+.log-viewer-head .ctrls span {
+  cursor: pointer;
+  user-select: none;
+}
+.log-viewer-head .ctrls span:hover {
+  color: #fff;
+}
+.log-viewer-head .ctrls .sep {
+  color: #555;
+}
+
+.log-viewer.fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 99999;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  display: flex;
+  flex-direction: column;
+  background: #1c1c1a;
+  box-sizing: border-box;
+}
+.log-viewer.fullscreen .log-stream {
+  flex: 1 !important;
+  height: calc(100vh - 75px) !important;
+  max-height: none !important;
+  border-radius: 0;
+}
+body.terminal-active {
+  overflow: hidden !important;
+}
+body.terminal-active .sidebar,
+body.terminal-active .topbar {
+  display: none !important;
+}
+
+.log-stream {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--s-3) 0;
+  color: #c8c4b8;
+}
+.log-line {
+  display: grid;
+  grid-template-columns: 90px 60px 1fr;
+  gap: var(--s-3);
+  padding: 2px var(--s-4);
+  align-items: baseline;
+}
+.log-line:hover {
+  background: #252523;
+}
+.log-line.new {
+  animation: flashIn .5s ease-out;
+}
+@keyframes flashIn {
+  0% { background: rgba(227, 93, 93, 0.15); }
+  100% { background: transparent; }
+}
+.log-line .t {
+  color: #7a7468;
+  font-size: 11px;
+}
+.log-line .lvl {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-align: left;
+}
+.log-line .lvl.INFO, .log-line .lvl.info { color: #6b9ee2; }
+.log-line .lvl.WARN, .log-line .lvl.warn { color: #e0a13d; }
+.log-line .lvl.ERR, .log-line .lvl.error, .log-line .lvl.ERR_FAIL { color: #e35d5d; }
+.log-line .lvl.DEBUG, .log-line .lvl.debug { color: #777167; }
+.log-line .lvl.OK { color: #5dad7d; }
+.log-line .msg {
+  color: #d8d3c5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.log-viewer-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px var(--s-4);
+  background: #252523;
+  border-top: 1px solid #2e2e2c;
+  font-size: 11px;
+  color: #888273;
+  font-family: var(--mono);
+}
+.log-viewer-foot .stat {
+  display: flex;
+  gap: var(--s-3);
+}
+.log-viewer-foot .scroll-tail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: #b8b3a8;
+  user-select: none;
+}
+.log-viewer-foot .scroll-tail.on {
+  color: #5dad7d;
+}
+.history-foot {
+  flex-direction: column;
+  gap: 8px;
+  height: auto;
+  padding: 10px 12px;
+}
+.history-pager-row {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+.history-pager-meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.history-pager-nav {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.history-pill {
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg-card);
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+.history-pill.on {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+.history-pill:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* PANE 2: LOG FILES */
+.lf-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+.lf-toolbar .filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.lf-toolbar .chip {
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  font-size: 11px;
+  color: var(--ink-3);
+  cursor: pointer;
+  background: var(--bg-card);
+  user-select: none;
+}
+.lf-toolbar .chip:hover {
+  border-color: var(--line-strong);
+}
+.lf-toolbar .chip.on {
+  background: var(--navy);
+  color: #fff;
+  border-color: var(--navy);
+}
+.lf-toolbar .search {
+  position: relative;
+}
+.lf-toolbar .search input {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 6px 10px 6px 28px;
+  font-size: 12px;
+  width: 220px;
+  background: var(--bg-card);
+}
+.lf-toolbar .search svg {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  width: 13px;
+  height: 13px;
+  color: var(--ink-4);
+}
+
+.lf-bulk {
+  background: var(--navy-50);
+  border: 1px solid var(--navy-100);
+  border-radius: var(--r-md);
+  padding: var(--s-3) var(--s-4);
+  margin-bottom: var(--s-3);
+  display: none;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+.lf-bulk .left {
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lf-bulk .left .count {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--navy);
+}
+.lf-bulk .right {
+  display: flex;
+  gap: 8px;
+}
+
+.lf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  margin-bottom: var(--s-4);
+}
+.lf-table th {
+  text-align: left;
+  padding: 10px var(--s-4);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-4);
+  font-weight: 500;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-sunken);
+}
+.lf-table td {
+  padding: 10px var(--s-4);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--body);
+  font-size: 12px;
+  vertical-align: middle;
+}
+.lf-table tr:last-child td {
+  border-bottom: none;
+}
+.lf-table tr:hover td {
+  background: var(--bg-sunken);
+}
+.lf-table tr.sel td {
+  background: var(--navy-50);
+}
+
+.lf-table td.chk { width: 32px; }
+.lf-table td.chk input { cursor: pointer; }
+.lf-table td.fn {
+  font-family: var(--mono);
+  color: var(--ink);
+}
+.lf-table td.fn .subpath {
+  margin-top: 4px;
+  color: var(--ink-4);
+  font-size: 10px;
+  word-break: break-all;
+}
+.lf-table td.fn .ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-sm);
+  background: var(--bg-sunken);
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+.lf-table td.range {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.lf-table td.size {
+  font-family: var(--mono);
+  color: var(--ink-2);
+  text-align: right;
+}
+.lf-table td.lines {
+  font-family: var(--mono);
+  color: var(--ink-2);
+  text-align: right;
+}
+.lf-table td.events {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.lf-table td.events .e {
+  display: inline-flex;
+  gap: 8px;
+}
+.lf-table td.events .e .item {
+  display: flex;
+  gap: 3px;
+  align-items: baseline;
+}
+.lf-table td.events .e .item.warn { color: var(--warn); }
+.lf-table td.events .e .item.err { color: var(--err); }
+.lf-table td.actions {
+  text-align: right;
+}
+.lf-table td.actions .btn {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+.lf-pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--s-3) var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--bg-sunken);
+  font-size: 11px;
+  color: var(--ink-3);
+  font-family: var(--mono);
+}
+.lf-pager .nav {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.lf-pager .nav button {
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  background: var(--bg-card);
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.lf-pager .nav button.on {
+  background: var(--navy);
+  color: #fff;
+  border-color: var(--navy);
+}
+.lf-pager .nav button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.lf-pager .nav .dots {
+  padding: 0 2px;
+  color: var(--ink-4);
+}
+
+.lf-preview-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 16, 28, 0.48);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 90;
+  padding: 24px;
+}
+.lf-preview-modal.open {
+  display: flex;
+}
+.lf-preview-card {
+  width: min(980px, 100%);
+  max-height: min(82vh, 900px);
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.lf-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.lf-preview-head .meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.lf-preview-head .ttl {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.lf-preview-head .sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lf-preview-body {
+  padding: 0;
+  overflow: auto;
+  background: #0f172a;
+}
+.lf-preview-body pre {
+  margin: 0;
+  padding: 18px;
+  color: #dbe7ff;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.lf-preview-empty {
+  padding: 28px 18px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.dx-info-card {
+  width: min(520px, 100%);
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-lg);
+  padding: 22px;
+}
+.dx-info-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.dx-info-eyebrow {
+  color: var(--ink-4);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.dx-info-title {
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 26px;
+  font-weight: 500;
+  margin-top: 4px;
+}
+.dx-info-message {
+  color: var(--ink-3);
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 18px;
+}
+.dx-info-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* PANE 3: ANALYTICS */
+.an-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: var(--s-4);
+}
+
+.chat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  display: flex;
+  flex-direction: column;
+  min-height: 640px;
+  max-height: 720px;
+}
+.chat-head {
+  padding: var(--s-3) var(--s-5);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-sunken);
+}
+.chat-head .ttl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 500;
+}
+.chat-head .ttl .ai-pip {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--navy), #1f5a99);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: #fff;
+  font-weight: 600;
+}
+.chat-head .scope {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.chat-body {
+  flex: 1;
+  padding: var(--s-4) var(--s-5);
+  overflow-y: auto;
+}
+.msg {
+  margin-bottom: var(--s-4);
+  max-width: 88%;
+}
+.msg.user { margin-left: auto; }
+.msg.ai { margin-right: auto; }
+.msg-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--ink-4);
+}
+.msg.user .msg-head { justify-content: flex-end; }
+.msg .avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+}
+.msg.user .avatar { background: var(--navy-100); color: var(--navy); }
+.msg.ai .avatar { background: linear-gradient(135deg, var(--navy), #1f5a99); color: #fff; }
+.msg .name { font-weight: 500; color: var(--ink-3); }
+.msg .ts { font-family: var(--mono); font-size: 10px; }
+
+.msg-body {
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink);
+}
+.msg.user .msg-body { background: var(--navy-50); color: var(--ink); }
+.msg.ai .msg-body { background: var(--bg); border: 1px solid var(--line); }
+
+.msg-body p { margin-bottom: 8px; }
+.msg-body p:last-child { margin-bottom: 0; }
+.msg-body code {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: var(--bg-sunken);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--accent, #b8531a);
+}
+.msg-body ul { padding-left: 18px; margin: 8px 0; }
+.msg-body li { margin-bottom: 4px; }
+.msg-body strong { font-weight: 600; }
+
+.ai-artifact {
+  margin-top: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  background: var(--bg-sunken);
+  border-radius: var(--r-sm);
+  border-left: 3px solid var(--navy);
+}
+.ai-artifact .ttl {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-4);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.ai-artifact.log-evidence .ev-line {
+  display: grid;
+  grid-template-columns: 80px 45px 1fr;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 3px 0;
+}
+.ai-artifact.log-evidence .ev-line .t { color: var(--ink-4); }
+.ai-artifact.log-evidence .ev-line .lvl { font-weight: 600; }
+.ai-artifact.log-evidence .ev-line .lvl.ERR { color: var(--err); }
+.ai-artifact.log-evidence .ev-line .lvl.WARN { color: var(--warn); }
+.ai-artifact.log-evidence .ev-line .lvl.INFO { color: var(--info); }
+.ai-artifact.log-evidence .ev-line .msg { color: var(--ink-2); word-break: break-all; }
+.ai-artifact .ev-foot {
+  font-size: 10px;
+  color: var(--ink-4);
+  margin-top: 6px;
+  font-family: var(--mono);
+}
+
+.ai-chart {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: var(--s-3);
+  margin-top: var(--s-3);
+}
+.ai-chart .ttl {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-4);
+  margin-bottom: 8px;
+}
+.ai-chart .bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 80px;
+}
+.ai-chart .bars .b {
+  flex: 1;
+  background: var(--ink-3);
+  border-radius: 2px 2px 0 0;
+  position: relative;
+}
+.ai-chart .bars .b.spike { background: var(--err); }
+.ai-chart .axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--ink-4);
+}
+
+.suggestions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: var(--s-3);
+}
+.suggestions .s {
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  font-size: 11px;
+  color: var(--ink-2);
+  cursor: pointer;
+  background: var(--bg-card);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  user-select: none;
+}
+.suggestions .s:hover {
+  border-color: var(--navy);
+  color: var(--navy);
+}
+.suggestions .s svg { width: 11px; height: 11px; }
+
+.chat-input {
+  border-top: 1px solid var(--line);
+  padding: var(--s-3) var(--s-4);
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.chat-input textarea {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 9px 12px;
+  font-family: var(--body);
+  font-size: 13px;
+  background: var(--bg);
+  resize: none;
+  min-height: 38px;
+  max-height: 120px;
+  line-height: 1.4;
+}
+.chat-input textarea:focus {
+  outline: none;
+  border-color: var(--navy-100);
+}
+.chat-input .send {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-md);
+  background: var(--navy);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.chat-input .send svg { width: 16px; height: 16px; }
+.chat-input .opts {
+  display: flex;
+  gap: 0;
+  align-items: center;
+  margin-right: 4px;
+}
+.chat-input .opt-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-4);
+  padding: 6px;
+}
+.chat-input .opt-btn:hover { color: var(--ink-2); }
+.chat-input .opt-btn svg { width: 16px; height: 16px; }
+
+.an-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+.an-side-card {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.an-side-card .head {
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-sunken);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-4);
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.an-side-card .body {
+  padding: var(--s-3) var(--s-4);
+}
+
+.an-scope-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 12px;
+  border-bottom: 1px dotted var(--line);
+}
+.an-scope-item:last-child { border-bottom: none; }
+.an-scope-item .k { color: var(--ink-3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+.an-scope-item .v { font-family: var(--mono); font-size: 11px; color: var(--ink); }
+
+.starter-q {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg-card);
+  color: var(--ink-2);
+  font-family: var(--body);
+  font-size: 12px;
+  cursor: pointer;
+  margin-bottom: 6px;
+}
+.starter-q:last-child { margin-bottom: 0; }
+.starter-q:hover { border-color: var(--navy); background: var(--navy-50); color: var(--navy); }
+
+.recent-q {
+  font-size: 11px;
+  color: var(--ink-3);
+  padding: 6px 0;
+  border-bottom: 1px dotted var(--line);
+  cursor: pointer;
+}
+.recent-q:last-child { border-bottom: none; }
+.recent-q:hover { color: var(--navy); }
+.recent-q .when { font-family: var(--mono); font-size: 9px; color: var(--ink-4); display: block; margin-top: 2px; }
+
+.cited {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+  color: var(--navy);
+  font-weight: 600;
+}
+
+/* Empty state styling */
+.empty-state {
+  text-align: center;
+  padding: var(--s-10) var(--s-5);
+  color: var(--ink-3);
+}
+.empty-state svg {
+  width: 48px;
+  height: 48px;
+  color: var(--ink-4);
+  margin-bottom: var(--s-4);
+}
+.empty-state h3 {
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: var(--s-2);
+}
+.empty-state p {
+  font-size: 14px;
+  max-width: 42ch;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--navy);
+  color: #fff;
+  border-radius: var(--r-md);
+  padding: 12px 20px;
+  font-size: 13px;
+  box-shadow: var(--shadow-3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 9999;
+  transform: translateY(100px);
+  opacity: 0;
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
+}
+.toast.show {
+  transform: translateY(0);
+  opacity: 1;
+}
+.toast.err {
+  background: var(--err);
+}
+.toast.ok {
+  background: var(--ok);
+}
+.toast.warn {
+  background: var(--warn);
+}
+.toast.info {
+  background: var(--info);
+}
+
+.tree-head{
+  padding:var(--s-3) var(--s-4);
+  border-bottom:1px solid var(--line);
+}
+
+.tree-head h3{font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-3); margin:0;}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- MAIN WRAPPER -->
+  <main class="main">
+    {% include "navbar.html" %}
+    <div class="content">
+      <!-- PAGE HEADER -->
+      <div class="dx-header">
+        <div class="top">
+          <div>
+            <h1>Diagnostics <em>&amp; Logs</em></h1>
+            <p class="sub">Live log streaming for any service on any node, historical log file archive with selective download, and LLM-powered analytics to investigate incidents in natural language.</p>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-secondary" type="button" onclick="openDiagnosticsInfoModal('Saved queries', 'The saved query library is not connected yet on this page. Starter prompts and recent local queries remain available in the analyst panel.')">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+              Saved queries
+            </button>
+            <button class="btn btn-secondary" type="button" onclick="openDiagnosticsInfoModal('Alert rules', 'Alert rule management is not wired on this page yet. Current diagnostics still show live errors, archive previews, and analysis output.')">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+              Alert rules
+            </button>
+          </div>
+        </div>
+
+        <div class="dx-stats">
+          <div class="stat">
+            <div class="v" id="stat-active-services">-- <span class="live" title="Live"></span></div>
+            <div class="l">Services streaming</div>
+            <div class="sub" id="stat-active-nodes">across -- nodes</div>
+          </div>
+          <div class="stat">
+            <div class="v" id="stat-log-rate">--</div>
+            <div class="l">Log events rate</div>
+            <div class="sub">1h moving avg</div>
+          </div>
+          <div class="stat">
+            <div class="v err" id="stat-hourly-errors">--</div>
+            <div class="l">Errors · last hour</div>
+            <div class="sub" id="stat-hourly-errors-pct">-- vs prev hour</div>
+          </div>
+          <div class="stat">
+            <div class="v" id="stat-archived-size">--</div>
+            <div class="l">Archived logs</div>
+            <div class="sub">90-day retention</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TWO-COLUMN WORKSPACE -->
+      <div class="dx-layout">
+
+        <!-- LEFT RAIL: COLLAPSIBLE COLLABORATIVE TREE -->
+        <aside class="nav-card">
+          <div class="tree-head"><h3>Targets</h3></div>
+          <div class="nav-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input id="nav-filter-input" placeholder="Filter services, nodes…">
+          </div>
+          <div class="nav-tree" id="inventory-tree">
+            {% for index, cluster in cluster_info.items %}
+              <div class="nv-cluster open" data-cluster-name="{{ cluster.cluster_name }}">
+                <div class="nv-cluster-head">
+                  <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                  <span class="nm">{{ cluster.cluster_name }}</span>
+                  <span class="meta">{{ cluster.node_info|length }} nodes</span>
+                </div>
+                <div class="nv-nodes">
+                  {% for idx, node in cluster.node_info.items %}
+                    <div class="nv-node open" data-node-name="{{ node.node_name }}">
+                        <div class="nv-node-head">
+                          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                          <span class="dot warn" title="Status unknown until diagnostics are loaded"></span>
+                          <span class="nm">{{ node.node_name }}</span>
+                        </div>
+                      <div class="nv-services">
+                        {% for s_idx, service in node.service_info.items %}
+                          <div class="nv-service" data-service-id="{{ service.service_id }}" data-service-name="{{ service.service_name }}" data-node-name="{{ node.node_name }}" data-cluster-name="{{ cluster.cluster_name }}">
+                            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                            <span class="nm">{{ service.service_name }}</span>
+                            <span class="rate">{{ service.service_type }}</span>
+                          </div>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            {% empty %}
+              <div style="padding: var(--s-5); text-align: center; color: var(--ink-4); font-size: 12px;">No active inventory available.</div>
+            {% endfor %}
+          </div>
+          <div class="nav-foot">
+            <span id="nav-summary-span">Runtime inventory</span>
+            <div class="legend">
+              <div class="item"><span class="dot" style="background:var(--ok);"></span>OK</div>
+            </div>
+          </div>
+        </aside>
+
+        <!-- RIGHT RAIL: MAIN PANEL -->
+        <div>
+
+          <!-- DEFAULT EMPTY STATE -->
+          <div class="workspace-card" id="ws-empty-state">
+            <div class="empty-state">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+              <h3>No Service Selected</h3>
+              <p>Select an active service instance from the left rail navigator tree to load the live diagnostics tail and operational analytics card.</p>
+            </div>
+          </div>
+
+          <!-- ACTIVE WORKSPACE -->
+          <div id="ws-active-container" style="display:none;">
+
+            <!-- CONTEXT HEADER BAR -->
+            <div class="ws-context" style="padding: 16px 20px;">
+              <!-- Row 1: Breadcrumbs & Global Actions -->
+              <div class="ws-context-row-1" style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+                <div class="path" style="display: flex; align-items: center; gap: 6px;">
+                  <svg class="ic" viewBox="0 0 24 24" style="color:var(--ink-3);"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-11h-6M7 12H1"/></svg>
+                  <span class="seg" id="ctx-cluster-name">cluster</span>
+                  <span class="sep" style="color:var(--ink-4);">/</span>
+                  <span class="seg" id="ctx-node-name">node</span>
+                  <span class="sep" style="color:var(--ink-4);">/</span>
+                  <span class="seg now" id="ctx-service-name" style="color:var(--navy); font-weight:500;">service</span>
+                </div>
+
+                <div class="row-1-actions" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                  <button class="btn btn-secondary btn-capsule" onclick="downloadLogs()">
+                    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                    <span>Download current</span>
+                  </button>
+                  <div class="select-pill-wrapper">
+                    <svg class="select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    <select class="dx-capsule-select" id="diag-window-select" title="Diagnostics window">
+                      <option value="current">Current</option>
+                      <option value="24h">24 Hours</option>
+                      <option value="7d">7 Days</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Row 2: Target Ops -->
+              <div class="ws-context-row-2" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;">
+                <select class="dx-capsule-select" id="diag-target-select" title="Diagnostics target">
+                  <option value="main">Main container</option>
+                </select>
+                  <button class="btn btn-ghost btn-capsule" id="ws-backfill-btn">
+                    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 11-.57-8.38l5.67-5.67"/></svg>
+                    <span>Backfill to Loki</span>
+                  </button>
+                  <button class="btn btn-secondary btn-capsule" id="open-config-manager-btn" type="button" style="display:none;">
+                    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 113 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+                    <span>Open config manager</span>
+                  </button>
+                  <button class="btn btn-secondary btn-capsule" id="open-infra-card-btn" type="button" style="display:none;">
+                    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7h10M7 12h10M7 17h10"/></svg>
+                    <span>Open infra card</span>
+                  </button>
+              </div>
+
+              <!-- Row 3: Cohesive Horizontal Metadata Status Strip -->
+              <div class="ws-context-status-bar" style="display: flex; align-items: center; gap: 24px; padding-top: 12px; border-top: 1px dashed var(--line); flex-wrap: wrap;">
+                <div class="meta-item" style="display: flex; align-items: center; gap: 6px; font-size: 11px;">
+                  <span class="lbl" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-4); font-weight: 600;">Status</span>
+                    <span class="val status-pill" id="ctx-service-status" style="display: inline-flex; align-items: center; gap: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 9999px; padding: 2px 10px; font-size: 11px; color: var(--ink-2); font-weight: 500;"><span class="dot" style="width: 6px; height: 6px; border-radius: 50%; background: var(--ink-4);"></span>not selected</span>
+                </div>
+                <div class="meta-item" style="display: flex; align-items: center; gap: 6px; font-size: 11px;">
+                  <span class="lbl" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-4); font-weight: 600;">Target Volume</span>
+                  <span class="val mono" id="ctx-service-volume" style="font-family: var(--mono); font-size: 11px; background: var(--bg-sunken); border: 1px solid var(--line); padding: 2px 8px; border-radius: 6px; color: var(--ink-2); font-weight: 500;">--</span>
+                </div>
+                <div class="meta-item" style="display: flex; align-items: center; gap: 6px; font-size: 11px;">
+                  <span class="lbl" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-4); font-weight: 600;">Severity Alert</span>
+                  <span class="val severity ok" id="ctx-service-severity" style="display: inline-flex; align-items: center; gap: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 9999px; padding: 2px 10px; font-size: 11px; font-weight: 600; color: var(--ok); border-color: rgba(46, 204, 113, 0.2);">Low</span>
+                </div>
+                <div class="meta-item" style="display: flex; align-items: center; gap: 6px; font-size: 11px;">
+                  <span class="lbl" style="text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-4); font-weight: 600;">Loki Sync</span>
+                    <span class="val" id="ctx-service-sync" style="color: var(--ink-2); font-weight: 500;">Not checked</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- WORKSPACE TABS -->
+            <div class="ws-tabs">
+              <div class="tab active" data-tab-target="diagnostics">
+                Diagnostics <span class="badge" style="background:var(--ok-light, rgba(46, 204, 113, 0.15)); color:var(--ok);">Cockpit</span>
+              </div>
+              <div class="tab" data-tab-target="live-tail">
+                Live tail <span class="live-pip"></span>
+              </div>
+              <div class="tab" data-tab-target="log-files">
+                Log files <span class="badge" id="tab-files-count">--</span>
+              </div>
+              <div class="tab" data-tab-target="analytics">
+                Log Analyst <span class="badge" style="background:var(--navy-100); color:var(--navy);">AI</span>
+              </div>
+            </div>
+
+            <!-- TABS CONTENT -->
+
+            <!-- PANE 0: DIAGNOSTICS DASHBOARD -->
+            <div class="tab-pane active" id="pane-diagnostics">
+              <div class="dx-insight-grid">
+
+                <div class="dx-panel">
+                  <div class="head" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%;">
+                    <div>
+                      <div class="ttl">Diagnostics Summary</div>
+                      <div class="sub" id="diag-summary-checked">Awaiting service selection</div>
+                    </div>
+                    <button class="btn btn-ghost btn-capsule" id="diag-refresh-btn" style="padding: var(--s-1) var(--s-3); height: 28px; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px;" onclick="fetchDiagnosticsData()">
+                      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 12px; height: 12px;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 11-.57-8.38l5.67-5.67"/></svg>
+                      <span>Refresh</span>
+                    </button>
+                  </div>
+                  <div class="body" style="display: flex; flex-direction: column; gap: 20px;">
+                    <div>
+                      <p class="dx-summary-copy" id="diag-summary-text" style="margin-bottom: 12px;">Select a service to load runtime diagnostics, current severity, source coverage, and target-specific findings.</p>
+                      <div class="dx-summary-grid">
+                        <div class="dx-kv"><span class="k">Primary Root Cause</span><span class="v" id="diag-root-cause">--</span></div>
+                        <div class="dx-kv"><span class="k">Target Scope</span><span class="v" id="diag-target-label">--</span></div>
+                        <div class="dx-kv"><span class="k">Coverage</span><span class="v" id="diag-coverage">--</span></div>
+                        <div class="dx-kv"><span class="k">Source Provenance</span><span class="v" id="diag-source-provenance">--</span></div>
+                        <div class="dx-kv"><span class="k">Runtime Status</span><span class="v" id="diag-runtime-status">--</span></div>
+                        <div class="dx-kv"><span class="k">Runtime Error</span><span class="v" id="diag-runtime-error">None</span></div>
+                      </div>
+                    </div>
+
+                    <!-- Top Evidence Logs Console -->
+                    <div>
+                      <h4 style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-3); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px; height:12px; color:var(--ink-4);"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+                        Top Evidence
+                      </h4>
+                      <div class="dx-evidence-console" id="diag-evidence-console">No query anomalies or warning signatures indexed for this timeline.</div>
+                    </div>
+
+                    <!-- Recent Lifecycle Events -->
+                    <div>
+                      <h4 style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-3); margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                        <span style="display: inline-flex; align-items: center; gap: 6px;">
+                          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px; height:12px; color:var(--ink-4);"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                          Recent Lifecycle Events
+                        </span>
+                        <span id="diag-events-sub" style="font-family: var(--mono); font-size: 10px; font-weight: 500; color: var(--ink-4); text-transform: none;">0 target events</span>
+                      </h4>
+                      <div class="dx-events" id="diag-events-list" style="border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg); padding: 12px; max-height: 250px; overflow-y: auto;">
+                        <div class="dx-empty-note">Recent events will appear here when the selected target supports service events.</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- RIGHT SIDE: DEDICATED ISSUE GROUPS BAR -->
+                <div class="dx-panel">
+                  <div class="head">
+                    <div class="ttl">Issue Groups</div>
+                    <div class="sub" style="font-weight:600; color:var(--warn);">Anomaly signatures</div>
+                  </div>
+                  <div class="body" style="max-height: 700px; overflow-y: auto;">
+                    <div class="dx-issue-list" id="diag-issues-list" style="margin-top: 0; display: flex; flex-direction: column; gap: 12px; width: 100%;">
+                      <div class="dx-empty-note" style="width:100%; border:none; padding:10px 0;">No active issues or runtime anomalies identified.</div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- PANE 1: LIVE TAIL -->
+            <div class="tab-pane" id="pane-live-tail">
+              <div class="live-toolbar">
+                <div class="group">
+                  <span class="lbl">Source:</span>
+                  <select id="log-source-select" class="dx-select" style="min-width:180px; padding:4px 8px; font-size:11px;">
+                    <!-- Populated dynamically -->
+                  </select>
+                </div>
+                  <div class="group file-stream-group" id="file-stream-group">
+                    <span class="lbl">File stream:</span>
+                    <select id="log-file-stream-select" class="dx-select" style="min-width:180px; padding:4px 8px; font-size:11px;">
+                      <option value="all">All</option>
+                    </select>
+                  </div>
+                  <div class="group">
+                    <span class="lbl">Tail:</span>
+                    <select id="tail-lines-select" class="dx-select" style="width:86px; padding:4px 8px; font-size:11px;">
+                      <option value="100">100</option>
+                      <option value="250" selected>250</option>
+                      <option value="500">500</option>
+                      <option value="1000">1000</option>
+                    </select>
+                  </div>
+                  <div class="group">
+                    <span class="lbl">History:</span>
+                    <select id="history-page-size-select" class="dx-select" style="width:86px; padding:4px 8px; font-size:11px;">
+                      <option value="100">100</option>
+                      <option value="250" selected>250</option>
+                      <option value="500">500</option>
+                      <option value="1000">1000</option>
+                    </select>
+                  </div>
+                  <div class="group">
+                    <span class="lbl">Poll:</span>
+                    <select id="poll-interval-select" class="dx-select" style="width:92px; padding:4px 8px; font-size:11px;">
+                      <option value="1000">1s</option>
+                      <option value="2500" selected>2.5s</option>
+                      <option value="5000">5s</option>
+                      <option value="10000">10s</option>
+                    </select>
+                  </div>
+                <div class="group">
+                  <span class="lbl">Levels:</span>
+                  <div class="chip lvl-info on" onclick="toggleFilterChip(this, 'INFO')">Info</div>
+                  <div class="chip lvl-warn on" onclick="toggleFilterChip(this, 'WARN')">Warn</div>
+                  <div class="chip lvl-err on" onclick="toggleFilterChip(this, 'ERR')">Error</div>
+                  <div class="chip lvl-debug on" onclick="toggleFilterChip(this, 'DEBUG')">Debug</div>
+                </div>
+                <div class="search">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                  <input id="live-search-input" placeholder="Regex / Text filter…">
+                </div>
+                <div class="stream-btn" id="live-stream-toggle-btn" onclick="toggleLiveTailing()">
+                  <span class="pip"></span>
+                  <span class="lbl">Streaming</span>
+                </div>
+                <div class="source-help" id="log-source-help">Diagnostics source capabilities will update when a service is selected.</div>
+              </div>
+
+              <!-- Sparkline Metrics Strip -->
+              <div class="live-metrics">
+                <div class="lm">
+                  <div class="v" id="metric-lines-count">0</div>
+                  <div class="l">Tail lines</div>
+                </div>
+                <div class="lm">
+                  <div class="v info" id="metric-info-count">0</div>
+                  <div class="l">Infos</div>
+                </div>
+                <div class="lm">
+                  <div class="v warn" id="metric-warn-count">0</div>
+                  <div class="l">Warnings</div>
+                </div>
+                <div class="lm">
+                  <div class="v err" id="metric-err-count">0</div>
+                  <div class="l">Errors</div>
+                </div>
+                <div class="lm" style="text-align:right;">
+                  <div class="spark" id="metric-sparkline">
+                    <!-- Sparkline populated dynamically -->
+                  </div>
+                  <div class="l">Event rate sparkline</div>
+                </div>
+              </div>
+
+              <!-- Console log terminal -->
+              <div class="log-viewer">
+                <div class="log-viewer-head">
+                  <div class="nm"><span class="live-dot"></span>console stream</div>
+                  <div class="ctrls" style="display: flex; align-items: center; gap: 6px;">
+                    <span onclick="manualRefreshLiveLogs()" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Refresh logs immediately">
+                      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 11px; height: 11px;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 11-.57-8.38l5.67-5.67"/></svg>
+                      Refresh logs
+                    </span>
+                    <span class="sep">|</span>
+                    <span onclick="copyConsoleLogs()" style="cursor: pointer;">Copy logs</span>
+                    <span class="sep">|</span>
+                    <span onclick="clearConsoleLogs()" style="cursor: pointer;">Clear console</span>
+                    <span class="sep">|</span>
+                    <span onclick="toggleLogViewerFullscreen()" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" id="fullscreen-toggle-btn" title="Toggle Fullscreen Terminal">
+                      <svg id="fullscreen-icon" class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 11px; height: 11px;"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                      <span id="fullscreen-text">Maximize</span>
+                    </span>
+                  </div>
+                </div>
+                <div class="log-stream" id="log-console-stream">
+                  <!-- Log entries stream dynamically here -->
+                </div>
+                <div class="log-viewer-foot history-foot">
+                  <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                    <div class="stat" id="log-console-stats">Loaded 0 lines · delta filter 0 lines</div>
+                    <div class="scroll-tail on" id="log-console-scroll-toggle" onclick="toggleAutoScroll()">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px; height:11px;"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+                      Auto-scroll
+                    </div>
+                  </div>
+                  <div id="log-history-pager-row" class="history-pager-row">
+                    <div class="history-pager-meta" id="log-history-page-meta">History page metadata</div>
+                    <div class="history-pager-nav" id="log-history-pager-nav"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- PANE 2: HISTORICAL LOG ARCHIVES -->
+            <div class="tab-pane" id="pane-log-files">
+              <div class="lf-toolbar">
+                  <div class="filters">
+                    <div class="chip on" id="lf-filter-all">All archives</div>
+                    <div class="chip" id="lf-filter-gz">Gzipped only</div>
+                    <select id="archive-page-size-select" class="dx-select" style="padding:5px 8px; font-size:11px;">
+                      <option value="10" selected>10 / page</option>
+                      <option value="25">25 / page</option>
+                      <option value="50">50 / page</option>
+                    </select>
+                  </div>
+                <div class="search">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                  <input id="lf-search-input" placeholder="Search archive files…">
+                </div>
+              </div>
+
+              <!-- Bulk Action Bar -->
+              <div class="lf-bulk" id="lf-bulk-bar">
+                <div class="left">
+                  Selected <span class="count" id="lf-bulk-count">0</span> files
+                </div>
+                <div class="right">
+                  <button class="btn btn-ghost btn-sm" onclick="bulkArchiveReset()">Deselect all</button>
+                  <button class="btn btn-secondary btn-sm" onclick="bulkArchiveDownload()">
+                    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                    Bulk download (.zip)
+                  </button>
+                </div>
+              </div>
+
+              <!-- Archives table -->
+              <table class="lf-table">
+                <thead>
+                  <tr>
+                    <th class="chk"><input type="checkbox" id="lf-select-all-checkbox" onclick="toggleAllArchiveCheckboxes(this)"></th>
+                    <th>File name</th>
+                    <th>Time window</th>
+                    <th style="text-align:right;">Size</th>
+                    <th style="text-align:right;">Approx lines</th>
+                    <th>Sample metrics</th>
+                    <th style="text-align:right;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="lf-table-body">
+                  <!-- Dynamic archive rows -->
+                </tbody>
+              </table>
+
+              <div class="lf-pager">
+                <span>
+                  Showing <span id="lf-pager-count">0-0</span> of <span id="lf-pager-total">0</span> files
+                  · <span id="lf-pager-size">0 MB</span> total
+                  · <span id="lf-pager-pages">Page 0 / 0</span>
+                </span>
+                <div class="nav" id="lf-pager-nav"></div>
+              </div>
+            </div>
+
+            <!-- PANE 3: LOG ANALYST (AI CHAT) -->
+            <div class="tab-pane" id="pane-analytics">
+              <div class="an-layout">
+
+                <!-- Chat Window -->
+                <div class="chat-card">
+                  <div class="chat-head">
+                    <div class="ttl">
+                      <div class="ai-pip">Y</div>
+                      Iktara Log Analyst
+                    </div>
+                    <div class="scope" id="chat-scope-label">PROD // api-gateway</div>
+                  </div>
+                  <div class="chat-body" id="chat-conversation-body">
+                    <!-- Dynamic chat messages stream -->
+                    <div class="msg ai">
+                      <div class="msg-head">
+                        <div class="avatar">Y</div>
+                        <span class="name">Log Analyst</span>
+                        <span class="ts" id="chat-welcome-ts">12:00</span>
+                      </div>
+                      <div class="msg-body">
+                        <p>Hello! I am Iktara Log Analyst, your advanced operations assistant. I can inspect active logs, trace errors, analyze cluster events, and summarize system state to diagnose incidents.</p>
+                        <p>Ask a question about this service's status or choose one of the starter queries on the right to begin.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <form class="chat-input" id="chat-input-form" onsubmit="submitLogAnalystQuery(event)">
+                    <div class="opts">
+                      <button type="button" class="opt-btn" onclick="openDiagnosticsInfoModal('Voice query', 'Voice typing is not enabled in this local diagnostics build. Type the diagnostic question directly and submit it to Log Analyst.')" title="Voice Query"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v10M19 10a7 7 0 01-14 0"/></svg></button>
+                      <button type="button" class="opt-btn" onclick="openDiagnosticsInfoModal('Attach evidence', 'Manual log upload is not connected yet. Use the log archive picker to preview and download node-mounted service logs.')" title="Attach evidence"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
+                    </div>
+                    <textarea id="chat-input-textarea" placeholder="Ask a diagnostic question (e.g. 'Why did connection fail?')" rows="1" onkeydown="handleChatTextareaKey(event)"></textarea>
+                    <button class="send" type="submit" title="Send question"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg></button>
+                  </form>
+                </div>
+
+                <!-- Chat Sidebar Context -->
+                <div class="an-side">
+
+                  <div class="an-side-card">
+                    <div class="head">Scope & State</div>
+                    <div class="body">
+                      <div class="an-scope-item">
+                        <span class="k">Subsystem</span>
+                        <span class="v" id="an-scope-type">api-gateway</span>
+                      </div>
+                      <div class="an-scope-item">
+                        <span class="k">Host Node</span>
+                        <span class="v" id="an-scope-node">node-01-api</span>
+                      </div>
+                      <div class="an-scope-item">
+                        <span class="k">Log Window</span>
+                        <span class="v" id="an-scope-window">1 Hour</span>
+                      </div>
+                      <div class="an-scope-item">
+                        <span class="k">Active errors</span>
+                        <span class="v" style="color:var(--err);" id="an-scope-errors">--</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="an-side-card">
+                    <div class="head">Starter Queries</div>
+                    <div class="body" id="an-starter-queries-container">
+                      <button class="starter-q" onclick="insertStarterQuery('Summarize diagnostic findings and root cause')">Summarize findings & root cause</button>
+                      <button class="starter-q" onclick="insertStarterQuery('List recent error warnings and check severity')">List recent warning occurrences</button>
+                      <button class="starter-q" onclick="insertStarterQuery('Show cluster events timeline for this service')">Show events timeline</button>
+                    </div>
+                  </div>
+
+                  <div class="an-side-card">
+                    <div class="head">Recent queries</div>
+                    <div class="body" id="an-recent-queries-container">
+                      <div class="recent-q" onclick="insertStarterQuery('Show log frequency spike anomalies')">
+                        Show log frequency anomalies
+                        <span class="when">10m ago · user query</span>
+                      </div>
+                      <div class="recent-q" onclick="insertStarterQuery('Verify database dependency latency')">
+                        Verify database connection failures
+                        <span class="when">1h ago · user query</span>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+</div>
+
+<!-- Toast notification element -->
+<div class="toast" id="toast-indicator">
+  <span id="toast-message">Message</span>
+</div>
+
+<div class="lf-preview-modal" id="lf-preview-modal">
+  <div class="lf-preview-card">
+    <div class="lf-preview-head">
+      <div class="meta">
+        <div class="ttl" id="lf-preview-title">Log preview</div>
+        <div class="sub" id="lf-preview-path">--</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" type="button" onclick="closeArchivePreview()">Close</button>
+    </div>
+    <div class="lf-preview-body" id="lf-preview-body">
+      <div class="lf-preview-empty">Select a log file to preview.</div>
+    </div>
+  </div>
+</div>
+
+<div class="lf-preview-modal" id="dx-info-modal">
+  <div class="dx-info-card" role="dialog" aria-modal="true" aria-labelledby="dx-info-title">
+    <div class="dx-info-head">
+      <div>
+        <div class="dx-info-eyebrow">Diagnostics notice</div>
+        <div class="dx-info-title" id="dx-info-title">Feature status</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" type="button" onclick="closeDiagnosticsInfoModal()">Close</button>
+    </div>
+    <div class="dx-info-message" id="dx-info-message">This diagnostic action is not available yet.</div>
+    <div class="dx-info-foot">
+      <button class="btn btn-primary" type="button" onclick="closeDiagnosticsInfoModal()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==========================================
+     JavaScript logic
+     ========================================== -->
+<script>
+  window.IKTARA_SESSION = {
+    lastVisited: {
+      cluster_name: "{{ session_last_visited.cluster_name|default:''|escapejs }}",
+      node_name:    "{{ session_last_visited.node_name|default:''|escapejs }}",
+      service_name: "{{ session_last_visited.service_name|default:''|escapejs }}"
+    }
+  };
+</script>
+<script>
+let selectedServiceId = "";
+let selectedServiceName = "";
+let selectedNodeName = "";
+let selectedClusterName = "";
+let selectedDiagnosticTarget = "main";
+let selectedDiagnosticWindow = "current";
+const currentUserDisplayName = "{{ request.user.username|escapejs }}";
+
+let liveLogs = [];
+let nextCursor = "";
+let isTailing = true;
+let autoScroll = true;
+let liveLogsAbortController = null;
+let liveLogsNextPollTimer = null;
+let liveLogsPendingRefresh = false;
+let currentSource = "container_live";
+let activeFilters = {
+  "INFO": true,
+  "WARN": true,
+  "ERR": true,
+  "DEBUG": true
+};
+
+// History Log & Archive Paging States
+let currentPollingMode = "live";
+let historyCursorOlder = "";
+let historyCursorNewer = "";
+let historyHasOlder = false;
+let historyHasNewer = false;
+let historyTotalLines = 0;
+let historyTotalPages = 0;
+let historyCurrentPage = 1;
+let archivePageSize = 10;
+let archiveCurrentPage = 1;
+let currentArchiveFilter = "all";
+let liveLogsRequestSeq = 0;
+let liveLogsRequestInFlight = false;
+let queuedLiveLogsRequest = null;
+let diagnosticsFetchSeq = 0;
+let currentDiagnosticsPayload = null;
+let currentBackfillReadiness = { ready: false, missing: ["Select a service first"], message: "Select a service first" };
+let latestCapabilityReasons = {};
+let latestAccessibleVolumeRoots = [];
+let latestResolvedVolumeRoots = [];
+let latestResolvedFileLogPaths = [];
+let archivePreviewRequestSeq = 0;
+let liveLogsPollDelayMs = 2500;
+
+function preferredVolumeRoot(accessibleRoots, resolvedRoots, rawPaths) {
+  const preferredAccessible = Array.isArray(accessibleRoots) && accessibleRoots.length ? accessibleRoots[0] : "";
+  const preferredResolved = Array.isArray(resolvedRoots) && resolvedRoots.length ? resolvedRoots[0] : "";
+  const preferredRaw = Array.isArray(rawPaths) && rawPaths.length ? rawPaths[0] : "";
+  let path = preferredAccessible || preferredResolved || preferredRaw || "No file-log path configured for selected target";
+  while (path.startsWith("//")) {
+    path = path.substring(1);
+  }
+  return path;
+}
+
+function selectedNumber(selectId, fallback) {
+  const el = document.getElementById(selectId);
+  const value = el ? parseInt(el.value, 10) : NaN;
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function formatBrowserTime(value, fallback = "--:--:--") {
+  if (!value) return fallback;
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleTimeString([], { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  }
+  const match = String(value).match(/(\d{2}:\d{2}:\d{2})/);
+  return match ? match[1] : fallback;
+}
+
+function formatBrowserDateTime(value, fallback = "--") {
+  if (!value) return fallback;
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return `${parsed.toLocaleDateString()} ${parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  }
+  return String(value).substring(0, 19).replace("T", " ");
+}
+
+function setContextStatus(label, variant = "info") {
+  const status = document.getElementById("ctx-service-status");
+  if (!status) return;
+  const colorMap = {
+    streaming: "var(--ok)",
+    ok: "var(--ok)",
+    loading: "var(--warn)",
+    snapshot: "var(--ink-4)",
+    paused: "var(--ink-4)",
+    unavailable: "var(--err)",
+    error: "var(--err)",
+    info: "var(--ink-4)"
+  };
+  const color = colorMap[variant] || colorMap.info;
+  status.innerHTML = `<span class="dot" style="width: 6px; height: 6px; border-radius: 50%; background: ${color};"></span>${escapeHtml(label)}`;
+  status.style.color = color;
+}
+
+function updateSelectedNodeHealth(status) {
+  const selected = document.querySelector(`.nv-service[data-service-id="${selectedServiceId}"]`);
+  const node = selected ? selected.closest(".nv-node") : null;
+  const dot = node ? node.querySelector(".nv-node-head .dot") : null;
+  if (!dot) return;
+  dot.classList.remove("ok", "warn", "err");
+  const normalized = String(status || "").toLowerCase();
+  if (normalized.includes("error") || normalized.includes("fail") || normalized.includes("down")) {
+    dot.classList.add("err");
+    dot.title = "Diagnostics reports node/service error";
+  } else if (normalized.includes("running") || normalized.includes("healthy") || normalized.includes("ok")) {
+    dot.classList.add("ok");
+    dot.title = "Diagnostics reports healthy/running";
+  } else {
+    dot.classList.add("warn");
+    dot.title = "Diagnostics status unknown or partial";
+  }
+}
+
+function targetKindLabel(target) {
+  const source = String((target && target.source_type) || "").toLowerCase();
+  if (source.includes("managed external")) return "Infrastructure Card";
+  if (source.includes("local container")) return "Dependency";
+  if (source.includes("helper")) return "Helper";
+  return "Main";
+}
+
+function targetOptionLabel(target) {
+  const kind = targetKindLabel(target);
+  const container = target.container_name ? ` · ${target.container_name}` : "";
+  return `${kind}: ${target.label || target.target_id}${container}`;
+}
+
+function renderPathReadiness(readiness) {
+  const srcHelp = document.getElementById("log-source-help");
+  if (!srcHelp || !readiness) return;
+  const checked = readiness.checked_paths || [];
+  if (!checked.length) return;
+  const readable = checked.filter(item => item.readable).length;
+  const skipped = checked.length - readable;
+  const suffix = readiness.requires_become ? " Backfill uses sudo/become for root-owned mounts." : "";
+  srcHelp.innerText = `File-log paths checked: ${readable} readable, ${skipped} skipped or permission blocked.${suffix}`;
+}
+
+function updateBackfillReadiness(readiness) {
+  currentBackfillReadiness = readiness || { ready: false, missing: ["Backfill readiness unavailable"], message: "Backfill readiness unavailable" };
+  const btn = document.getElementById("ws-backfill-btn");
+  const sync = document.getElementById("ctx-service-sync");
+  if (!btn) return;
+  const ready = !!currentBackfillReadiness.ready;
+  btn.disabled = !ready;
+  btn.title = currentBackfillReadiness.message || "";
+  if (sync) {
+    if (ready) {
+      sync.innerHTML = `<span style="color: var(--ok); font-weight: 500;">Ready · Loki configured${currentBackfillReadiness.requires_become ? " · sudo/become required" : ""}</span>`;
+    } else {
+      sync.innerHTML = `<span style="color: var(--warn); font-weight: 500;">${escapeHtml(currentBackfillReadiness.message || "Backfill unavailable")}</span>`;
+    }
+  }
+}
+
+function setBackfillLoading(isLoading) {
+  const btn = document.getElementById("ws-backfill-btn");
+  if (!btn) return;
+  btn.disabled = isLoading || !currentBackfillReadiness.ready;
+  btn.classList.toggle("loading", isLoading);
+  btn.innerHTML = `
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 11-.57-8.38l5.67-5.67"/></svg>
+    <span>${isLoading ? "Syncing logs..." : "Backfill to Loki"}</span>
+  `;
+}
+
+function resetLiveHistoryState(resetLogs = true) {
+  if (resetLogs) {
+    clearConsoleLogs(true);
+    liveLogs = [];
+  }
+  nextCursor = "";
+  historyCursorOlder = "";
+  historyCursorNewer = "";
+  historyHasOlder = false;
+  historyHasNewer = false;
+  historyTotalLines = 0;
+  historyTotalPages = 0;
+  historyCurrentPage = 1;
+  clearLiveLogsNextPoll();
+  liveLogsPendingRefresh = false;
+  queuedLiveLogsRequest = null;
+  liveLogsRequestSeq += 1;
+}
+
+function updateSourceHelpText() {
+  const srcHelp = document.getElementById("log-source-help");
+  if (!srcHelp) return;
+  const reason = latestCapabilityReasons[currentSource] || "";
+  if (reason) {
+    srcHelp.innerText = reason;
+    return;
+  }
+  if (currentSource === "container_live") {
+    srcHelp.innerText = `Streaming active stdout/stderr lines directly from docker engine socket on ${selectedNodeName}.`;
+    return;
+  }
+  if (currentSource === "container_history") {
+    srcHelp.innerText = `Reading container history snapshots from Loki for ${selectedDiagnosticWindow}.`;
+    return;
+  }
+  if (currentSource === "file_live") {
+    srcHelp.innerText = `Tailing live file logs from resolved target volume paths.`;
+    return;
+  }
+  srcHelp.innerText = `Reading historical file logs for the selected target and window.`;
+}
+
+function applyFileStreamOptions(availableStreams, selectedStream) {
+  const fileStreamSelect = document.getElementById("log-file-stream-select");
+  if (!fileStreamSelect) return;
+  const streams = Array.isArray(availableStreams) ? availableStreams : [];
+  const previous = String(selectedStream || fileStreamSelect.value || "all");
+  fileStreamSelect.innerHTML = "";
+
+  if (streams.length === 0) {
+    fileStreamSelect.innerHTML = '<option value="all">All files</option>';
+    fileStreamSelect.value = "all";
+    return;
+  }
+
+  streams.forEach(stream => {
+    const opt = document.createElement("option");
+    opt.value = stream.id || "all";
+    opt.innerText = stream.label || stream.id || "all";
+    fileStreamSelect.appendChild(opt);
+  });
+
+  fileStreamSelect.value = previous;
+  if (fileStreamSelect.value !== previous && streams.length > 0) {
+    fileStreamSelect.value = streams[0].id || "all";
+  }
+}
+
+function isLiveTailTabActive() {
+  const pane = document.getElementById("pane-live-tail");
+  return !!(pane && pane.classList.contains("active"));
+}
+
+function liveLogsSourceUsesPolling(sourceId) {
+  return sourceId === "container_live" || sourceId === "file_live";
+}
+
+function clearLiveLogsNextPoll() {
+  if (liveLogsNextPollTimer) {
+    clearTimeout(liveLogsNextPollTimer);
+    liveLogsNextPollTimer = null;
+  }
+}
+
+function abortActiveLiveLogsRequest(statusMessage) {
+  if (liveLogsAbortController) {
+    liveLogsAbortController.abort();
+    liveLogsAbortController = null;
+  }
+  if (statusMessage) {
+    document.getElementById("log-console-stats").innerText = statusMessage;
+  }
+}
+
+function setLiveLogsStatus(message) {
+  const stats = document.getElementById("log-console-stats");
+  if (stats && message) {
+    stats.innerText = message;
+  }
+}
+
+function scheduleNextLiveLogsPoll() {
+  clearLiveLogsNextPoll();
+  if (!isLiveTailTabActive() || !isTailing || !selectedServiceId) return;
+  if (!liveLogsSourceUsesPolling(currentSource) || currentPollingMode === "snapshot") return;
+  if (liveLogsRequestInFlight || liveLogsPendingRefresh) return;
+  setLiveLogsStatus("Waiting for next poll...");
+  liveLogsNextPollTimer = setTimeout(() => {
+    liveLogsNextPollTimer = null;
+    fetchLiveLogs("latest", "", { reason: "poll" });
+  }, liveLogsPollDelayMs);
+}
+
+function queueLiveLogsRequest(direction, cursor, options) {
+  queuedLiveLogsRequest = {
+    direction: direction,
+    cursor: cursor,
+    options: options || {}
+  };
+  liveLogsPendingRefresh = true;
+}
+
+function resetLiveLogsContext(statusMessage) {
+  clearLiveLogsNextPoll();
+  queuedLiveLogsRequest = null;
+  liveLogsPendingRefresh = false;
+  abortActiveLiveLogsRequest(statusMessage || "");
+  liveLogsRequestSeq += 1;
+}
+
+function updateFileStreamVisibility() {
+  const fileStreamGroup = document.getElementById("file-stream-group");
+  if (!fileStreamGroup) return;
+  fileStreamGroup.style.display = currentSource === "file_live" ? "block" : "none";
+}
+
+function activateLiveTailPane() {
+  if (!selectedServiceId) return;
+  if (currentPollingMode === "snapshot" && historyCurrentPage > 0) {
+    fetchLiveLogs("latest", "", { reason: "tab_activate", historyPage: historyCurrentPage, immediate: true });
+    return;
+  }
+  fetchLiveLogs("latest", "", { reason: "tab_activate", immediate: true });
+}
+
+function deactivateLiveTailPane() {
+  resetLiveLogsContext("Live tail paused while tab is inactive.");
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+  // Stats strip loading mock values
+  updateHeaderStats();
+
+  // Collapsible navigator tree controllers
+  initNavigatorTree();
+
+  // Tab switching logic
+  initWorkspaceTabs();
+
+  // Wire target and window selections
+  const targetSelect = document.getElementById("diag-target-select");
+  if (targetSelect) {
+    targetSelect.addEventListener("change", function() {
+      handleTargetChange(this.value);
+    });
+  }
+  const windowSelect = document.getElementById("diag-window-select");
+  if (windowSelect) {
+    windowSelect.addEventListener("change", function() {
+      selectedDiagnosticWindow = this.value;
+      handleTargetChange(selectedDiagnosticTarget);
+    });
+  }
+
+  // Wire log-source-select change listener
+  const logSourceSelect = document.getElementById("log-source-select");
+  if (logSourceSelect) {
+    logSourceSelect.addEventListener("change", function() {
+      currentSource = this.value;
+      resetLiveLogsContext("Current request canceled due to source change.");
+      resetLiveHistoryState(true);
+      updateFileStreamVisibility();
+      updateSourceHelpText();
+      if (isLiveTailTabActive()) {
+        fetchLiveLogs("latest", "", { reason: "source_change", immediate: true });
+      }
+    });
+  }
+
+  // Wire log-file-stream-select change listener
+  const fileStreamSelect = document.getElementById("log-file-stream-select");
+  if (fileStreamSelect) {
+    fileStreamSelect.addEventListener("change", function() {
+      resetLiveLogsContext("Current request canceled due to file stream change.");
+      resetLiveHistoryState(true);
+      if (isLiveTailTabActive()) {
+        fetchLiveLogs("latest", "", { reason: "file_stream_change", immediate: true });
+      }
+    });
+  }
+  const tailLinesSelect = document.getElementById("tail-lines-select");
+  if (tailLinesSelect) {
+    tailLinesSelect.addEventListener("change", function() {
+      resetLiveHistoryState(true);
+      if (isLiveTailTabActive()) {
+        fetchLiveLogs("latest", "", { reason: "tail_size_change", immediate: true });
+      }
+    });
+  }
+  const historyPageSizeSelect = document.getElementById("history-page-size-select");
+  if (historyPageSizeSelect) {
+    historyPageSizeSelect.addEventListener("change", function() {
+      resetLiveHistoryState(true);
+      if (isLiveTailTabActive()) {
+        fetchLiveLogs("latest", "", { reason: "history_size_change", historyPage: 1, immediate: true });
+      }
+    });
+  }
+  const pollIntervalSelect = document.getElementById("poll-interval-select");
+  if (pollIntervalSelect) {
+    pollIntervalSelect.addEventListener("change", function() {
+      liveLogsPollDelayMs = selectedNumber("poll-interval-select", 2500);
+      clearLiveLogsNextPoll();
+      scheduleNextLiveLogsPoll();
+      showToast(`Polling interval set to ${this.options[this.selectedIndex].text}`, "info");
+    });
+  }
+
+  // Wire historical file search input listener
+  const lfSearchInput = document.getElementById("lf-search-input");
+  if (lfSearchInput) {
+    lfSearchInput.addEventListener("input", function() {
+      archiveCurrentPage = 1;
+      renderArchivesGrid();
+    });
+  }
+
+  // Wire historical archive chips
+  const filterAll = document.getElementById("lf-filter-all");
+  const filterGz = document.getElementById("lf-filter-gz");
+  if (filterAll && filterGz) {
+    filterAll.addEventListener("click", function() {
+      filterAll.classList.add("on");
+      filterGz.classList.remove("on");
+      currentArchiveFilter = "all";
+      archiveCurrentPage = 1;
+      renderArchivesGrid();
+    });
+    filterGz.addEventListener("click", function() {
+      filterGz.classList.add("on");
+      filterAll.classList.remove("on");
+      currentArchiveFilter = "gz";
+      archiveCurrentPage = 1;
+      renderArchivesGrid();
+    });
+  }
+  const archivePageSizeSelect = document.getElementById("archive-page-size-select");
+  if (archivePageSizeSelect) {
+    archivePageSizeSelect.addEventListener("change", function() {
+      archivePageSize = selectedNumber("archive-page-size-select", 10);
+      archiveCurrentPage = 1;
+      renderArchivesGrid();
+    });
+  }
+
+  const previewModal = document.getElementById("lf-preview-modal");
+  if (previewModal) {
+    previewModal.addEventListener("click", function(event) {
+      if (event.target === previewModal) {
+        closeArchivePreview();
+      }
+    });
+  }
+  const infoModal = document.getElementById("dx-info-modal");
+  if (infoModal) {
+    infoModal.addEventListener("click", function(event) {
+      if (event.target === infoModal) {
+        closeDiagnosticsInfoModal();
+      }
+    });
+  }
+  document.addEventListener("keydown", function(event) {
+    if (event.key === "Escape") {
+      closeDiagnosticsInfoModal();
+    }
+  });
+
+  // Handle tree query routing if provided in GET parameters
+  const defaultServId = "{{ selected_service_id }}";
+  if (defaultServId) {
+    const defaultEl = document.querySelector(`.nv-service[data-service-id="${defaultServId}"]`);
+    if (defaultEl) {
+      defaultEl.click();
+      let parent = defaultEl.closest('.nv-nodes');
+      if (parent) {
+        parent.style.display = 'block';
+        parent.closest('.nv-cluster').classList.add('open');
+      }
+    }
+  } else {
+    // fallback to session last visited — setTimeout ensures listeners are wired first
+    setTimeout(function() {
+      const sv = (window.IKTARA_SESSION || {}).lastVisited || {};
+      if (sv.cluster_name && sv.node_name && sv.service_name) {
+        const match = Array.from(document.querySelectorAll('.nv-service')).find(el => {
+          const inCluster = el.closest('.nv-cluster');
+          const inNode = el.closest('.nv-node');
+          return (
+            inCluster && inCluster.dataset.clusterName.trim() === sv.cluster_name.trim() &&
+            inNode && inNode.dataset.nodeName.trim() === sv.node_name.trim() &&
+            el.dataset.serviceName.trim() === sv.service_name.trim()
+          );
+        });
+        if (match) {
+          match.closest('.nv-node').classList.add('open');
+          match.closest('.nv-cluster').classList.add('open');
+          match.click();
+        }
+      }
+    }, 100);
+  }
+});
+
+function updateHeaderStats() {
+  const activeServices = document.querySelectorAll(".nv-service").length;
+  const activeNodes = document.querySelectorAll(".nv-node").length;
+
+  document.getElementById("stat-active-services").innerHTML = `${activeServices} <span class="live" title="Live"></span>`;
+  document.getElementById("stat-active-nodes").innerText = `across ${activeNodes} nodes`;
+
+  fetch("/PlatformIO/Diagnostics/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ "user-action": "global_diagnostics_metrics" })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success && data.metrics) {
+      const logRate = data.metrics.logRate || 0;
+      let logRateStr = logRate < 1000 ? `${logRate.toFixed(1)}/s` : `${(logRate / 1000).toFixed(1)}K/s`;
+      document.getElementById("stat-log-rate").innerText = logRateStr;
+
+      const hourlyErrors = data.metrics.hourlyErrors || 0;
+      document.getElementById("stat-hourly-errors").innerText = hourlyErrors;
+      // For now, no prev hour data is returned, just use --
+      document.getElementById("stat-hourly-errors-pct").innerText = `-- vs prev hour`;
+
+      const archivedSizeDisplay = data.metrics.archivedSizeDisplay || "--";
+      document.getElementById("stat-archived-size").innerText = archivedSizeDisplay;
+    }
+  })
+  .catch(err => console.error("Failed to fetch diagnostics metrics:", err));
+}
+
+function initNavigatorTree() {
+  // Search bar tree filtering
+  const filterInput = document.getElementById("nav-filter-input");
+  filterInput.addEventListener("input", function (e) {
+    const val = e.target.value.toLowerCase().trim();
+    const services = document.querySelectorAll(".nv-service");
+
+    services.forEach(serv => {
+      const name = serv.dataset.serviceName.toLowerCase();
+      const parentNode = serv.closest(".nv-node");
+
+      if (name.includes(val)) {
+        serv.style.display = "flex";
+      } else {
+        serv.style.display = "none";
+      }
+    });
+  });
+
+  // Cluster headers toggles
+  document.querySelectorAll(".nv-cluster-head").forEach(head => {
+    head.addEventListener("click", function () {
+      const cluster = this.closest(".nv-cluster");
+      cluster.classList.toggle("open");
+    });
+  });
+
+  // Node headers toggles
+  document.querySelectorAll(".nv-node-head").forEach(head => {
+    head.addEventListener("click", function () {
+      const node = this.closest(".nv-node");
+      node.classList.toggle("open");
+    });
+  });
+
+  // Service element selection
+  document.querySelectorAll(".nv-service").forEach(serv => {
+    serv.addEventListener("click", function () {
+      if (selectedServiceId) {
+        saveActiveWorkspaceToCache(selectedServiceId);
+      }
+
+      document.querySelectorAll(".nv-service").forEach(s => s.classList.remove("selected"));
+      this.classList.add("selected");
+
+      selectedServiceId = this.dataset.serviceId;
+      selectedServiceName = this.dataset.serviceName;
+      selectedNodeName = this.dataset.nodeName;
+      selectedClusterName = this.dataset.clusterName;
+
+      fetch('/PlatformIO/Diagnostics/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({
+            'user-action':  'track_visit',
+            'cluster_name': selectedClusterName,
+            'node_name':    selectedNodeName,
+            'service_name': selectedServiceName
+        })
+    });
+
+    loadServiceWorkspace();
+    });
+  });
+}
+
+function initWorkspaceTabs() {
+  document.querySelectorAll(".ws-tabs .tab").forEach(tab => {
+    tab.addEventListener("click", function () {
+      document.querySelectorAll(".ws-tabs .tab").forEach(t => t.classList.remove("active"));
+      this.classList.add("active");
+
+      const target = this.dataset.tabTarget;
+      document.querySelectorAll(".tab-pane").forEach(pane => pane.classList.remove("active"));
+      document.getElementById(`pane-${target}`).classList.add("active");
+
+      if (target === "live-tail") {
+        activateLiveTailPane();
+      } else {
+        deactivateLiveTailPane();
+      }
+
+      if (target === "log-files") {
+        loadHistoricalFilesTable();
+      }
+    });
+  });
+}
+
+let diagnosticsWorkspaceCache = {};
+try {
+  const cached = localStorage.getItem('cplatform_diagnostics_cache');
+  if (cached) {
+    diagnosticsWorkspaceCache = JSON.parse(cached);
+  }
+} catch (e) {
+  console.warn("Unable to load diagnostics workspace cache from localStorage:", e);
+}
+
+function saveActiveWorkspaceToCache(serviceId) {
+  if (!serviceId) return;
+  const chatBody = document.getElementById("chat-conversation-body");
+  const logBody = document.getElementById("log-console-body");
+  const filesBody = document.getElementById("lf-files-tbody");
+  const summaryText = document.getElementById("diag-summary-text");
+  const activeTabEl = document.querySelector(".ws-tabs .tab.active");
+  
+  diagnosticsWorkspaceCache[serviceId] = {
+    // DOM HTML Content
+    chatHtml: chatBody ? chatBody.innerHTML : null,
+    logsHtml: logBody ? logBody.innerHTML : null,
+    filesHtml: filesBody ? filesBody.innerHTML : null,
+    summaryHtml: summaryText ? summaryText.innerHTML : null,
+    
+    // JS States
+    chatHistory: [...chatConversationHistory],
+    diagnosticsPayload: currentDiagnosticsPayload,
+    
+    // Scroll positions
+    logsScrollTop: logBody ? logBody.scrollTop : 0,
+    chatScrollTop: chatBody ? chatBody.scrollTop : 0,
+    
+    // Selection state
+    selectedDiagnosticTarget: selectedDiagnosticTarget,
+    selectedDiagnosticWindow: selectedDiagnosticWindow,
+    activeTab: activeTabEl ? activeTabEl.dataset.tabTarget : "diagnostics",
+    
+    // Polling states
+    currentPollingMode: currentPollingMode,
+    nextCursor: nextCursor,
+    historyPage: historyCurrentPage,
+    
+    // Volume details
+    primaryVolume: document.getElementById("ctx-service-volume") ? document.getElementById("ctx-service-volume").innerText : "",
+    severityText: document.getElementById("ctx-service-severity") ? document.getElementById("ctx-service-severity").innerText : "",
+    severityClass: document.getElementById("ctx-service-severity") ? document.getElementById("ctx-service-severity").className : "",
+    severityColor: document.getElementById("ctx-service-severity") ? document.getElementById("ctx-service-severity").style.color : "",
+    severityBorderColor: document.getElementById("ctx-service-severity") ? document.getElementById("ctx-service-severity").style.borderColor : "",
+    errorCountText: document.getElementById("an-scope-errors") ? document.getElementById("an-scope-errors").innerText : "0",
+    
+    timestamp: Date.now()
+  };
+
+  // Pruning: Keep only the 10 most recently used service caches to avoid local storage quota limits
+  try {
+    const keys = Object.keys(diagnosticsWorkspaceCache);
+    if (keys.length > 10) {
+      const sortedKeys = keys.sort((a, b) => {
+        return (diagnosticsWorkspaceCache[a].timestamp || 0) - (diagnosticsWorkspaceCache[b].timestamp || 0);
+      });
+      while (sortedKeys.length > 10) {
+        const oldestKey = sortedKeys.shift();
+        delete diagnosticsWorkspaceCache[oldestKey];
+      }
+    }
+    localStorage.setItem('cplatform_diagnostics_cache', JSON.stringify(diagnosticsWorkspaceCache));
+  } catch (e) {
+    console.warn("Unable to save diagnostics workspace cache to localStorage:", e);
+  }
+}
+
+function restoreActiveWorkspaceFromCache(serviceId) {
+  if (!serviceId || !diagnosticsWorkspaceCache[serviceId]) return false;
+  
+  const cache = diagnosticsWorkspaceCache[serviceId];
+  
+  // Restore DOM HTML content
+  const chatBody = document.getElementById("chat-conversation-body");
+  if (chatBody && cache.chatHtml !== null) chatBody.innerHTML = cache.chatHtml;
+  
+  const logBody = document.getElementById("log-console-body");
+  if (logBody && cache.logsHtml !== null) logBody.innerHTML = cache.logsHtml;
+  
+  const filesBody = document.getElementById("lf-files-tbody");
+  if (filesBody && cache.filesHtml !== null) filesBody.innerHTML = cache.filesHtml;
+  
+  const summaryText = document.getElementById("diag-summary-text");
+  if (summaryText && cache.summaryHtml !== null) summaryText.innerHTML = cache.summaryHtml;
+  
+  // Restore JS States
+  chatConversationHistory = [...(cache.chatHistory || [])];
+  currentDiagnosticsPayload = cache.diagnosticsPayload;
+  selectedDiagnosticTarget = cache.selectedDiagnosticTarget || "main";
+  selectedDiagnosticWindow = cache.selectedDiagnosticWindow || "current";
+  nextCursor = cache.nextCursor || "";
+  historyCurrentPage = cache.historyPage || 0;
+  currentPollingMode = cache.currentPollingMode || "live";
+  
+  // Restore headers / context tags
+  if (document.getElementById("ctx-service-volume")) document.getElementById("ctx-service-volume").innerText = cache.primaryVolume || "";
+  if (document.getElementById("ctx-service-severity")) {
+    const sevEl = document.getElementById("ctx-service-severity");
+    sevEl.innerText = cache.severityText || "";
+    sevEl.className = cache.severityClass || "val severity ok";
+    sevEl.style.color = cache.severityColor || "";
+    sevEl.style.borderColor = cache.severityBorderColor || "";
+  }
+  if (document.getElementById("an-scope-errors")) document.getElementById("an-scope-errors").innerText = cache.errorCountText || "0";
+  
+  // Restore scroll positions
+  if (logBody) logBody.scrollTop = cache.logsScrollTop || 0;
+  if (chatBody) chatBody.scrollTop = cache.chatScrollTop || 0;
+  
+  // Click the active tab to restore view state
+  const activeTabTarget = cache.activeTab || "diagnostics";
+  const tabEl = document.querySelector(`.ws-tabs .tab[data-tab-target="${activeTabTarget}"]`);
+  if (tabEl) {
+    tabEl.click();
+  }
+  
+  return true;
+}
+
+function loadServiceWorkspace() {
+  // Hide empty state, show workspace card
+  document.getElementById("ws-empty-state").style.display = "none";
+  document.getElementById("ws-active-container").style.display = "block";
+  closeArchivePreview();
+
+  // Context mapping
+  document.getElementById("ctx-cluster-name").innerText = selectedClusterName;
+  document.getElementById("ctx-node-name").innerText = selectedNodeName;
+  document.getElementById("ctx-service-name").innerText = selectedServiceName;
+
+  document.getElementById("an-scope-type").innerText = selectedServiceName;
+  document.getElementById("an-scope-node").innerText = selectedNodeName;
+  document.getElementById("chat-scope-label").innerText = `${selectedClusterName.toUpperCase()} // ${selectedServiceName}`;
+
+  // Attempt to restore workspace from cache
+  const wasRestored = restoreActiveWorkspaceFromCache(selectedServiceId);
+
+  if (wasRestored) {
+    // If restored, trigger background refreshes silently in the background
+    fetchDiagnosticsData();
+    if (currentPollingMode === "live" && isLiveTailTabActive()) {
+      fetchLiveLogs("latest", "", { reason: "workspace_restore", immediate: true });
+    }
+  } else {
+    // No cache: reset and perform initial load
+    resetChatWindow();
+
+    selectedDiagnosticTarget = "main";
+    selectedDiagnosticWindow = "current";
+    currentBackfillReadiness = { ready: false, missing: ["Loading diagnostics"], message: "Loading diagnostics" };
+    updateBackfillReadiness(currentBackfillReadiness);
+    setContextStatus("loading", "loading");
+    
+    const windowSelect = document.getElementById("diag-window-select");
+    if (windowSelect) {
+      windowSelect.value = "current";
+    }
+    const scopeWindow = document.getElementById("an-scope-window");
+    if (scopeWindow) {
+      scopeWindow.innerText = "1 Hour";
+    }
+
+    currentPollingMode = "live";
+    resetLiveLogsContext("");
+    resetLiveHistoryState(true);
+
+    // Set default diagnostics tab as active
+    document.querySelector('.tab[data-tab-target="diagnostics"]').click();
+
+    // Load diagnostics packet
+    fetchDiagnosticsData();
+  }
+
+  isTailing = true;
+  const toggleBtn = document.getElementById("live-stream-toggle-btn");
+  if (toggleBtn) {
+    toggleBtn.classList.remove("paused");
+    toggleBtn.querySelector(".lbl").innerText = "Streaming";
+  }
+  updateFileStreamVisibility();
+  setLiveLogsStatus("Open Live Tail to start streaming logs.");
+}
+
+function handleTargetChange(targetId) {
+  selectedDiagnosticTarget = targetId;
+  closeArchivePreview();
+  resetLiveLogsContext("Current request canceled due to target change.");
+  resetLiveHistoryState(true);
+
+  // Load diagnostics packet
+  fetchDiagnosticsData();
+
+  if (isLiveTailTabActive()) {
+    fetchLiveLogs("latest", "", { reason: "target_change", immediate: true });
+  }
+
+  if (document.getElementById("pane-log-files").classList.contains("active")) {
+    loadHistoricalFilesTable();
+  }
+}
+
+function fetchDiagnosticsData() {
+  if (!selectedServiceId) return;
+  setContextStatus("loading", "loading");
+  const requestId = ++diagnosticsFetchSeq;
+  const expectedServiceId = selectedServiceId;
+  const expectedTarget = selectedDiagnosticTarget;
+  const expectedWindow = selectedDiagnosticWindow;
+  const body = {
+    "user-action": "service_diagnostics",
+    "service_id": selectedServiceId,
+    "window": selectedDiagnosticWindow,
+    "diagnostic_target": selectedDiagnosticTarget
+  };
+
+  fetch("/PlatformIO/Diagnostics/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCookie("csrftoken")
+    },
+    body: JSON.stringify(body)
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (
+      requestId !== diagnosticsFetchSeq ||
+      expectedServiceId !== selectedServiceId ||
+      expectedTarget !== selectedDiagnosticTarget ||
+      expectedWindow !== selectedDiagnosticWindow
+    ) {
+      return;
+    }
+    if (data.success && data.service_diagnostics) {
+      const diag = data.service_diagnostics;
+      currentDiagnosticsPayload = diag;
+
+      // Update resolved target volume roots
+      latestCapabilityReasons = diag.capability_reasons || {};
+      latestAccessibleVolumeRoots = diag.accessible_volume_roots || [];
+      latestResolvedVolumeRoots = diag.resolved_volume_roots || [];
+      latestResolvedFileLogPaths = diag.resolved_file_log_paths || [];
+      const primaryVolume = preferredVolumeRoot(latestAccessibleVolumeRoots, latestResolvedVolumeRoots, latestResolvedFileLogPaths);
+      document.getElementById("ctx-service-volume").innerText = primaryVolume;
+      updateBackfillReadiness(diag.backfill_readiness || {});
+      renderPathReadiness(diag.file_log_readiness || {});
+
+      const sevVal = diag.overall_severity || "Low";
+      const sevEl = document.getElementById("ctx-service-severity");
+      sevEl.innerText = sevVal;
+      if (sevVal.toLowerCase() === "high" || sevVal.toLowerCase() === "error" || sevVal.toLowerCase() === "err") {
+        sevEl.className = "val severity err";
+        sevEl.style.color = "var(--err)";
+        sevEl.style.borderColor = "rgba(231, 76, 60, 0.2)";
+      } else {
+        sevEl.className = "val severity ok";
+        sevEl.style.color = "var(--ok)";
+        sevEl.style.borderColor = "rgba(46, 204, 113, 0.2)";
+      }
+
+      document.getElementById("an-scope-errors").innerText = diag.issue_groups.length;
+
+      // Update scope window label
+      const windowSelect = document.getElementById("diag-window-select");
+      const scopeWindow = document.getElementById("an-scope-window");
+      if (windowSelect && scopeWindow) {
+        scopeWindow.innerText = windowSelect.options[windowSelect.selectedIndex].text;
+      }
+
+      // Update Diagnostics Summary fields
+      const summaryChecked = document.getElementById("diag-summary-checked");
+      if (summaryChecked) {
+        const checkTime = diag.checked_at || new Date().toISOString();
+        summaryChecked.innerText = `Checked at: ${formatBrowserDateTime(checkTime)} browser time`;
+      }
+
+      const summaryText = document.getElementById("diag-summary-text");
+      if (summaryText) {
+        summaryText.innerText = diag.summary || "No diagnostics summary details calculated for this service container.";
+      }
+
+      const rootCauseEl = document.getElementById("diag-root-cause");
+      if (rootCauseEl) {
+        const rc = diag.primary_root_cause || "None Detected";
+        rootCauseEl.innerText = rc;
+        if (rc === "None Detected" || rc === "Healthy") {
+          rootCauseEl.className = "v ok";
+        } else {
+          rootCauseEl.className = "v err";
+        }
+      }
+
+      const targetLabel = document.getElementById("diag-target-label");
+      if (targetLabel) {
+        targetLabel.innerText = diag.selected_target ? targetOptionLabel(diag.selected_target) : selectedDiagnosticTarget;
+      }
+
+      const coverageEl = document.getElementById("diag-coverage");
+      if (coverageEl) {
+        const caps = diag.target_capabilities || {};
+        const capParts = [
+          `container-live:${caps.container_live ? "yes" : "no"}`,
+          `container-history:${caps.container_history ? "yes" : "no"}`,
+          `file-live:${caps.file_live ? "yes" : "no"}`,
+          `file-history:${caps.file_history ? "yes" : "no"}`,
+          `events:${caps.service_events ? "yes" : "main-only"}`
+        ];
+        coverageEl.innerText = capParts.join(" · ");
+      }
+
+      const provEl = document.getElementById("diag-source-provenance");
+      if (provEl) {
+        const roots = Array.isArray(diag.accessible_volume_roots) && diag.accessible_volume_roots.length
+          ? diag.accessible_volume_roots
+          : (Array.isArray(diag.resolved_volume_roots) ? diag.resolved_volume_roots : []);
+        const rootText = roots.length ? roots.join(", ") : "No resolved file-log root";
+        provEl.innerText = `log-source=${(diag.raw_log_info && diag.raw_log_info.log_source) ? diag.raw_log_info.log_source : "container"} · roots=${rootText}`;
+      }
+
+      const runStatusEl = document.getElementById("diag-runtime-status");
+      if (runStatusEl) {
+        const rStatus = (diag.current_status && diag.current_status.overall_status) ? diag.current_status.overall_status : "running";
+        runStatusEl.innerText = rStatus;
+        updateSelectedNodeHealth(rStatus);
+        if (rStatus.toLowerCase() === "running" || rStatus.toLowerCase() === "healthy") {
+          runStatusEl.className = "v ok";
+          setContextStatus("streaming", "streaming");
+        } else {
+          runStatusEl.className = "v err";
+          setContextStatus(rStatus.toLowerCase() || "unavailable", "error");
+        }
+      }
+
+      const runErrEl = document.getElementById("diag-runtime-error");
+      if (runErrEl) {
+        const rErr = (diag.current_status && diag.current_status.error) ? diag.current_status.error : ((diag.raw_log_info && diag.raw_log_info.node_error) ? diag.raw_log_info.node_error : "None");
+        runErrEl.innerText = rErr;
+        if (rErr === "None" || rErr === "None detected") {
+          runErrEl.className = "v ok";
+        } else {
+          runErrEl.className = "v err";
+        }
+      }
+
+      // Populate Issue chips list
+      const issuesList = document.getElementById("diag-issues-list");
+      if (issuesList) {
+        issuesList.innerHTML = "";
+        if (diag.issue_groups && diag.issue_groups.length > 0) {
+          diag.issue_groups.forEach(group => {
+            const card = document.createElement("div");
+            card.className = "dx-issue-group-card";
+            card.setAttribute("style", "border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg); padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; width: 100%;");
+
+            const sevLower = (group.severity || "info").toLowerCase();
+            const sevClass = (sevLower === "error" || sevLower === "err" || sevLower === "critical") ? "err" : ((sevLower === "warn" || sevLower === "warning") ? "warn" : "ok");
+
+            // Render monospace log lines if present
+            let logsSnippetHtml = "";
+            if (group.evidence && group.evidence.length > 0) {
+              logsSnippetHtml = `
+                <div class="dx-evidence-console" style="margin-top: 6px; max-height: 120px;">${group.evidence.slice(0, 3).join('\n')}</div>
+              `;
+            }
+
+            // Format dates
+            const fSeen = formatBrowserDateTime(group.first_seen);
+            const lSeen = formatBrowserDateTime(group.last_seen);
+
+            card.innerHTML = `
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span class="val severity ${sevClass}" style="text-transform: uppercase; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor;">${group.severity || 'WARN'}</span>
+                  <span style="font-size: 12px; font-weight: 600; color: var(--ink);">${group.category || 'Log Anomaly Group'}</span>
+                </div>
+                <span style="font-family: var(--mono); font-size: 11px; color: var(--ink-4); font-weight:600;">Count: ${group.count}</span>
+              </div>
+              <div style="font-size: 11px; color: var(--ink-3);">
+                First Seen: ${fSeen} | Last Seen: ${lSeen}
+              </div>
+              <p style="font-size: 12px; color: var(--ink-2); margin: 4px 0 0;">${group.brief || 'Warnings were detected repeatedly in the logs.'}</p>
+              ${logsSnippetHtml}
+            `;
+            issuesList.appendChild(card);
+          });
+        } else {
+          issuesList.innerHTML = `<div class="dx-empty-note" style="width:100%; border:none; padding:10px 0;">No active issues or runtime anomalies identified.</div>`;
+        }
+      }
+
+      // Populate Top Evidence Console
+      const evidenceConsole = document.getElementById("diag-evidence-console");
+      if (evidenceConsole) {
+        evidenceConsole.innerHTML = "";
+        let evidenceLines = [];
+        if (diag.top_evidence && diag.top_evidence.length > 0) {
+          evidenceLines = diag.top_evidence.map(ev => {
+            const timeStr = formatBrowserDateTime(ev.timestamp, "--");
+            return `[${timeStr}] [${ev.severity || 'WARN'}] ${ev.message || ev.line}`;
+          });
+        } else {
+          // Fallback: extract evidence from groups
+          if (diag.issue_groups && diag.issue_groups.length > 0) {
+            diag.issue_groups.forEach(g => {
+              if (g.evidence && g.evidence.length > 0) {
+                g.evidence.forEach(line => {
+                  const timeMatch = line.match(/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/) || line.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+                  const timeStr = timeMatch ? formatBrowserDateTime(timeMatch[0]) : "--";
+                  evidenceLines.push(`[${timeStr}] [${g.severity || 'Warning'} | docker_logs] ${line}`);
+                });
+              }
+            });
+          }
+        }
+
+        if (evidenceLines.length > 0) {
+          // Sort descending
+          evidenceLines.sort((a, b) => b.localeCompare(a));
+          evidenceConsole.innerText = evidenceLines.join("\n");
+        } else {
+          evidenceConsole.innerText = "No query anomalies or warning signatures indexed for this timeline.";
+        }
+      }
+
+      // Populate Recent Events timeline
+      const eventsList = document.getElementById("diag-events-list");
+      const eventsSub = document.getElementById("diag-events-sub");
+      if (eventsList) {
+        eventsList.innerHTML = "";
+
+        const events = diag.recent_events || [];
+        if (eventsSub) {
+          eventsSub.innerText = `${events.length} target events in ${selectedDiagnosticWindow}`;
+        }
+
+        if (events && events.length > 0) {
+          events.forEach(ev => {
+            const div = document.createElement("div");
+            div.className = "dx-event";
+
+            const evTime = ev.event_at || ev.timestamp || "";
+            const evTimeStr = formatBrowserTime(evTime, "--:--");
+
+            div.innerHTML = `
+              <div class="top">
+                <span class="nm">${ev.event_trigger || ev.event_name || "Lifecycle Event"}</span>
+                <span class="ts">${evTimeStr}</span>
+              </div>
+              <div class="msg">${ev.event_msg || ev.message || "Target state update."}</div>
+            `;
+            eventsList.appendChild(div);
+          });
+        } else {
+          const eventsReason = (diag.capability_reasons && diag.capability_reasons.service_events)
+            ? diag.capability_reasons.service_events
+            : "Recent events will appear here when the selected target supports service events.";
+          eventsList.innerHTML = `<div class="dx-empty-note">${eventsReason}</div>`;
+        }
+      }
+
+      // Populate target selector dynamically
+      const targetSelect = document.getElementById("diag-target-select");
+      if (targetSelect) {
+        targetSelect.innerHTML = "";
+        if (diag.available_targets && diag.available_targets.length > 0) {
+          diag.available_targets.forEach(target => {
+            const opt = document.createElement("option");
+            opt.value = target.target_id;
+            opt.innerText = targetOptionLabel(target);
+            opt.title = target.container_name || target.label || target.target_id;
+            if (target.target_id === selectedDiagnosticTarget) {
+              opt.selected = true;
+            }
+            targetSelect.appendChild(opt);
+          });
+        } else {
+          const opt = document.createElement("option");
+          opt.value = "main";
+          opt.innerText = `Main Container (${selectedServiceName})`;
+          targetSelect.appendChild(opt);
+        }
+      }
+
+      const selectedTarget = diag.selected_target || {};
+      const configBtn = document.getElementById("open-config-manager-btn");
+      if (configBtn) {
+        configBtn.style.display = selectedServiceId ? "inline-flex" : "none";
+        configBtn.onclick = () => {
+          window.location.href = `/PlatformIO/ConfigManager/?service_id=${encodeURIComponent(selectedServiceId)}`;
+        };
+      }
+      const infraBtn = document.getElementById("open-infra-card-btn");
+      if (infraBtn) {
+        const dependencyTarget = String(selectedTarget.target_id || "main") !== "main";
+        infraBtn.style.display = dependencyTarget ? "inline-flex" : "none";
+        infraBtn.onclick = () => {
+          openDiagnosticsInfoModal(
+            "Open infrastructure card",
+            `Selected target ${selectedTarget.container_name || selectedTarget.label || "dependency"} is managed through its explicit infrastructure/service card. Open that service card from Services before editing config.`
+          );
+        };
+      }
+
+      // Populate Live tail log sources dropdown selector
+      const select = document.getElementById("log-source-select");
+      select.innerHTML = "";
+
+      diag.live_log_sources.forEach(src => {
+        const opt = document.createElement("option");
+        opt.value = src.source_id;
+        if (!src.enabled) {
+          opt.disabled = true;
+          opt.innerText = `${src.label} (Disabled: ${src.disabled_reason || "unsupported"})`;
+        } else {
+          opt.innerText = src.label;
+        }
+        if (src.source_id === currentSource && src.enabled) {
+          opt.selected = true;
+        }
+        select.appendChild(opt);
+      });
+      currentSource = select.value || "container_live";
+      if (!currentSource) {
+        const firstEnabled = (diag.live_log_sources || []).find(src => src.enabled);
+        currentSource = firstEnabled ? firstEnabled.source_id : "container_live";
+      }
+
+      updateFileStreamVisibility();
+      updateSourceHelpText();
+
+      // Change event listeners are bound globally once during DOMContentLoaded to prevent leaks.
+    }
+  })
+    .catch(err => {
+      console.error("Failed to load service diagnostics:", err);
+      setContextStatus("error", "error");
+    });
+}
+
+function pollLiveLogs() {
+  if (!isLiveTailTabActive() || !isTailing || !selectedServiceId) return;
+  if (!liveLogsSourceUsesPolling(currentSource) || currentPollingMode === "snapshot") return;
+  fetchLiveLogs("latest", "", { reason: "poll" });
+}
+
+function manualRefreshLiveLogs() {
+  showToast("Refreshing console logs...");
+  if (currentPollingMode === "snapshot") {
+    fetchLiveLogs("latest", "", {
+      reason: "manual",
+      historyPage: historyCurrentPage || 1,
+      immediate: true
+    });
+  } else {
+    clearConsoleLogs();
+    nextCursor = "";
+    fetchLiveLogs("latest", "", {
+      reason: "manual",
+      immediate: true
+    });
+  }
+}
+
+function fetchLiveLogs(direction = "latest", cursor = "", options = {}) {
+  if (!selectedServiceId || !isLiveTailTabActive()) return;
+  const requestOptions = options || {};
+  const immediateRequest = requestOptions.immediate === true || requestOptions.reason !== "poll";
+
+  if (liveLogsRequestInFlight) {
+    queueLiveLogsRequest(direction, cursor, {
+      ...requestOptions,
+      immediate: immediateRequest
+    });
+    if (immediateRequest) {
+      setLiveLogsStatus("Refresh queued. Waiting for current request to finish.");
+    }
+    return;
+  }
+
+  clearLiveLogsNextPoll();
+  liveLogsPendingRefresh = false;
+  liveLogsRequestInFlight = true;
+  const requestId = ++liveLogsRequestSeq;
+  const expectedServiceId = selectedServiceId;
+  const expectedTarget = selectedDiagnosticTarget;
+  const expectedSource = currentSource;
+  const expectedWindow = selectedDiagnosticWindow;
+  const expectedHistoryPage = Number(requestOptions.historyPage || 0);
+
+  const fileStreamSelect = document.getElementById("log-file-stream-select");
+  const fileStreamVal = currentSource === "file_live" && fileStreamSelect ? fileStreamSelect.value : "all";
+
+  const body = {
+    "user-action": "service_live_logs",
+    "service_id": selectedServiceId,
+    "diagnostic_target": selectedDiagnosticTarget,
+    "tail_lines": String(selectedNumber("tail-lines-select", 250)),
+    "cursor": direction === "latest" ? nextCursor : "",
+    "log_source": currentSource,
+    "file_stream": fileStreamVal,
+    "window": selectedDiagnosticWindow,
+    "page_size": String(selectedNumber("history-page-size-select", 250)),
+    "history_cursor": cursor,
+    "history_direction": direction,
+    "history_page": String(expectedHistoryPage || 0)
+  };
+
+  if (requestOptions.reason === "manual") {
+    setLiveLogsStatus("Refreshing...");
+  } else if (requestOptions.reason && requestOptions.reason.indexOf("history") === 0) {
+    setLiveLogsStatus("Loading history...");
+  } else if (currentPollingMode === "snapshot") {
+    setLiveLogsStatus("Loading history...");
+  } else {
+    setLiveLogsStatus("Loading logs...");
+  }
+
+  liveLogsAbortController = new AbortController();
+  fetch("/PlatformIO/Diagnostics/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCookie("csrftoken")
+    },
+    body: JSON.stringify(body),
+    signal: liveLogsAbortController.signal
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (
+      requestId !== liveLogsRequestSeq ||
+      expectedServiceId !== selectedServiceId ||
+      expectedTarget !== selectedDiagnosticTarget ||
+      expectedSource !== currentSource ||
+      expectedWindow !== selectedDiagnosticWindow ||
+      !isLiveTailTabActive()
+    ) {
+      return;
+    }
+    if (data.success && data.service_live_logs) {
+      const logs = data.service_live_logs;
+      latestCapabilityReasons = logs.capability_reasons || latestCapabilityReasons || {};
+      latestAccessibleVolumeRoots = logs.accessible_volume_roots || latestAccessibleVolumeRoots || [];
+      latestResolvedVolumeRoots = logs.resolved_volume_roots || latestResolvedVolumeRoots || [];
+      latestResolvedFileLogPaths = logs.resolved_file_log_paths || latestResolvedFileLogPaths || [];
+      currentSource = logs.log_source || currentSource;
+      applyFileStreamOptions(logs.available_file_streams || [], logs.selected_file_stream || fileStreamVal);
+      updateFileStreamVisibility();
+      updateSourceHelpText();
+
+      currentPollingMode = logs.polling_mode || "live";
+
+      const btn = document.getElementById("live-stream-toggle-btn");
+      const liveDot = document.querySelector(".log-viewer-head .live-dot");
+      if (btn) {
+        if (currentPollingMode === "snapshot") {
+          btn.classList.add("paused");
+          btn.querySelector(".lbl").innerText = "Snapshot Mode";
+          if (liveDot) liveDot.style.background = "var(--ink-4)";
+        } else {
+          if (isTailing) {
+            btn.classList.remove("paused");
+            btn.querySelector(".lbl").innerText = "Streaming";
+            if (liveDot) liveDot.style.background = "var(--ok)";
+          }
+        }
+      }
+
+      if (currentPollingMode === "snapshot") {
+        liveLogs = [];
+      }
+
+      nextCursor = logs.next_cursor || "";
+
+      historyHasOlder = logs.history_has_older || false;
+      historyHasNewer = logs.history_has_newer || false;
+      historyCursorOlder = logs.history_cursor_older || "";
+      historyCursorNewer = logs.history_cursor_newer || "";
+      historyTotalLines = logs.history_total_lines || 0;
+      historyTotalPages = logs.history_total_pages || 0;
+      historyCurrentPage = logs.history_page || (historyTotalPages > 0 ? 1 : 0);
+
+      if (logs.lines && logs.lines.length > 0) {
+        logs.lines.forEach(line => {
+          if (!line.level) {
+            const msgUpper = (line.message || '').toUpperCase();
+            if (msgUpper.includes('ERR') || msgUpper.includes('FAIL') || msgUpper.includes('CRIT') || msgUpper.includes('EXCEPT')) {
+              line.level = 'ERR';
+            } else if (msgUpper.includes('WARN')) {
+              line.level = 'WARN';
+            } else if (msgUpper.includes('DEBUG')) {
+              line.level = 'DEBUG';
+            } else {
+              line.level = 'INFO';
+            }
+          } else {
+            let l = line.level.toUpperCase();
+            if (l === 'ERROR') l = 'ERR';
+            if (l === 'WARNING') l = 'WARN';
+            line.level = l;
+          }
+          liveLogs.push(line);
+        });
+
+        const tailLimit = selectedNumber("tail-lines-select", 250);
+        if (currentPollingMode === "live" && liveLogs.length > tailLimit) {
+          liveLogs = liveLogs.slice(liveLogs.length - tailLimit);
+        }
+      }
+
+      renderConsoleLogs();
+      renderHistoryPaginationControls();
+      if (requestOptions.reason === "manual") {
+        showToast("Live logs refreshed");
+      }
+    }
+  })
+  .catch(err => {
+    if (err && err.name === "AbortError") {
+      return;
+    }
+    console.error("Fetch logs failed:", err);
+    setLiveLogsStatus("Unable to fetch live logs");
+  })
+  .finally(() => {
+    liveLogsRequestInFlight = false;
+    liveLogsAbortController = null;
+    if (!isLiveTailTabActive()) {
+      return;
+    }
+    if (queuedLiveLogsRequest && selectedServiceId) {
+      const nextRequest = queuedLiveLogsRequest;
+      queuedLiveLogsRequest = null;
+      liveLogsPendingRefresh = false;
+      if (nextRequest.options && nextRequest.options.immediate === true) {
+        fetchLiveLogs(nextRequest.direction, nextRequest.cursor, nextRequest.options || {});
+      } else {
+        liveLogsNextPollTimer = setTimeout(() => {
+          liveLogsNextPollTimer = null;
+          fetchLiveLogs(nextRequest.direction, nextRequest.cursor, nextRequest.options || {});
+        }, liveLogsPollDelayMs);
+      }
+      return;
+    }
+    scheduleNextLiveLogsPoll();
+  });
+}
+
+function renderHistoryPaginationControls() {
+  const pagerRow = document.getElementById("log-history-pager-row");
+  const pagerMeta = document.getElementById("log-history-page-meta");
+  const pagerNav = document.getElementById("log-history-pager-nav");
+  if (!pagerRow) return;
+
+  if (currentPollingMode !== "snapshot" || historyTotalPages <= 0) {
+    pagerRow.style.display = "none";
+    if (pagerMeta) pagerMeta.innerText = "";
+    if (pagerNav) pagerNav.innerHTML = "";
+    return;
+  }
+
+  pagerRow.style.display = "flex";
+  if (pagerMeta) {
+    pagerMeta.innerText = `Page ${historyCurrentPage} / ${historyTotalPages} · ${historyTotalLines} lines · Window ${selectedDiagnosticWindow}`;
+  }
+  if (!pagerNav) return;
+  pagerNav.innerHTML = "";
+
+  function appendPill(label, onClick, enabled, active) {
+    const pill = document.createElement("button");
+    pill.type = "button";
+    pill.className = active ? "history-pill on" : "history-pill";
+    pill.innerText = label;
+    if (!enabled) {
+      pill.disabled = true;
+    } else if (typeof onClick === "function") {
+      pill.addEventListener("click", onClick);
+    }
+    pagerNav.appendChild(pill);
+  }
+  function appendDots() {
+    const dots = document.createElement("span");
+    dots.className = "history-pager-meta";
+    dots.innerText = "...";
+    pagerNav.appendChild(dots);
+  }
+
+  appendPill("Prev", () => {
+    fetchLiveLogs("latest", "", {
+      reason: "history_page_jump",
+      historyPage: Math.max(1, historyCurrentPage - 1),
+      immediate: true
+    });
+  }, historyCurrentPage > 1, false);
+
+  const pagesToShow = [];
+  if (historyTotalPages > 0) {
+    pagesToShow.push(1);
+    for (let page = historyCurrentPage - 1; page <= historyCurrentPage + 1; page += 1) {
+      if (page > 1 && page < historyTotalPages) {
+        pagesToShow.push(page);
+      }
+    }
+    if (historyTotalPages > 1) {
+      pagesToShow.push(historyTotalPages);
+    }
+  }
+
+  const uniquePages = Array.from(new Set(pagesToShow)).sort((a, b) => a - b);
+  let previousPage = 0;
+  uniquePages.forEach(page => {
+    if (previousPage && page - previousPage > 1) {
+      appendDots();
+    }
+    appendPill(String(page), () => {
+      fetchLiveLogs("latest", "", {
+        reason: "history_page_jump",
+        historyPage: page,
+        immediate: true
+      });
+    }, page !== historyCurrentPage, page === historyCurrentPage);
+    previousPage = page;
+  });
+
+  appendPill("Next", () => {
+    fetchLiveLogs("latest", "", {
+      reason: "history_page_jump",
+      historyPage: Math.min(historyTotalPages, historyCurrentPage + 1),
+      immediate: true
+    });
+  }, historyCurrentPage < historyTotalPages, false);
+}
+
+function renderConsoleLogs() {
+  const stream = document.getElementById("log-console-stream");
+  const filterVal = document.getElementById("live-search-input").value.toLowerCase().trim();
+
+  // Filter logs locally
+  let filtered = liveLogs.filter(line => {
+    const lvl = (line.level || 'INFO').toUpperCase();
+    const matchesLvl = activeFilters[lvl] !== false;
+
+    let matchesSearch = true;
+    if (filterVal) {
+      const msg = line.message.toLowerCase();
+      matchesSearch = msg.includes(filterVal);
+    }
+    return matchesLvl && matchesSearch;
+  });
+
+  stream.innerHTML = "";
+
+  if (filtered.length === 0) {
+    stream.innerHTML = `<div style="padding:20px; text-align:center; color:#555; font-family:var(--mono);">-- No active matching log streams --</div>`;
+  } else {
+    filtered.forEach(line => {
+      const div = document.createElement("div");
+      div.className = "log-line new";
+
+      const tShort = formatBrowserTime(line.timestamp, "--:--:--");
+
+      div.innerHTML = `
+        <span class="t">${tShort}</span>
+        <span class="lvl ${line.level}">${line.level}</span>
+        <span class="msg">${escapeHtml(line.message)}</span>
+      `;
+      stream.appendChild(div);
+    });
+  }
+
+  // Update sparkline rates and statistics count
+  document.getElementById("metric-lines-count").innerText = liveLogs.length;
+  const labelEl = document.querySelector("#metric-lines-count + .l");
+  if (labelEl) {
+    labelEl.innerText = currentPollingMode === "snapshot" ? "Snapshot lines" : "Tail lines";
+  }
+
+  const infoC = liveLogs.filter(l => l.level === "INFO").length;
+  const warnC = liveLogs.filter(l => l.level === "WARN").length;
+  const errC = liveLogs.filter(l => l.level === "ERR" || l.level === "ERROR").length;
+
+  document.getElementById("metric-info-count").innerText = infoC;
+  document.getElementById("metric-warn-count").innerText = warnC;
+  document.getElementById("metric-err-count").innerText = errC;
+
+  document.getElementById("log-console-stats").innerText = `Loaded ${liveLogs.length} lines · delta filter ${filtered.length} lines`;
+
+  // Draw pure CSS sparkline rates
+  drawSparklineChart(liveLogs);
+
+  // Auto-scroll
+  if (autoScroll) {
+    stream.scrollTop = stream.scrollHeight;
+  }
+}
+
+function drawSparklineChart(logs) {
+  const spark = document.getElementById("metric-sparkline");
+  spark.innerHTML = "";
+
+  const count = 18;
+  if (!logs || logs.length === 0) {
+    for (let i = 0; i < count; i++) {
+      const bar = document.createElement("span");
+      bar.className = "bar";
+      bar.style.height = "4px";
+      spark.appendChild(bar);
+    }
+    return;
+  }
+
+  // Find min and max timestamps
+  let minTime = Infinity;
+  let maxTime = -Infinity;
+  const parsedLogs = [];
+
+  logs.forEach(l => {
+    if (l.timestamp) {
+      const ts = new Date(l.timestamp).getTime();
+      if (!isNaN(ts)) {
+        minTime = Math.min(minTime, ts);
+        maxTime = Math.max(maxTime, ts);
+        parsedLogs.push({ ts, level: l.level });
+      }
+    }
+  });
+
+  let useIndex = false;
+  if (parsedLogs.length === 0 || minTime === maxTime || minTime === Infinity || maxTime === -Infinity) {
+    useIndex = true;
+  }
+
+  const bins = Array.from({ length: count }, () => ({
+    total: 0,
+    info: 0,
+    warn: 0,
+    err: 0
+  }));
+
+  if (useIndex) {
+    parsedLogs.forEach((l, idx) => {
+      const binIdx = Math.min(count - 1, Math.floor((idx / parsedLogs.length) * count));
+      bins[binIdx].total++;
+      if (l.level === "WARN") bins[binIdx].warn++;
+      else if (l.level === "ERR" || l.level === "ERROR") bins[binIdx].err++;
+      else bins[binIdx].info++;
+    });
+  } else {
+    const binSpan = (maxTime - minTime) / count;
+    parsedLogs.forEach(l => {
+      const binIdx = Math.min(count - 1, Math.floor((l.ts - minTime) / binSpan));
+      bins[binIdx].total++;
+      if (l.level === "WARN") bins[binIdx].warn++;
+      else if (l.level === "ERR" || l.level === "ERROR") bins[binIdx].err++;
+      else bins[binIdx].info++;
+    });
+  }
+
+  const maxBinTotal = Math.max(...bins.map(b => b.total));
+
+  bins.forEach(bin => {
+    const bar = document.createElement("span");
+    bar.className = "bar";
+
+    const total = bin.total;
+    if (total > 0) {
+      // Calculate percentages of each log level in this bin
+      const infoPct = (bin.info / total) * 100;
+      const warnPct = (bin.warn / total) * 100;
+      const errPct = (bin.err / total) * 100;
+
+      // Draw stacked visual representation using CSS gradient (info at bottom, warn middle, err top)
+      const stops = [];
+      let current = 0;
+
+      if (bin.info > 0) {
+        stops.push(`var(--info) ${current}%`);
+        current += infoPct;
+        stops.push(`var(--info) ${current}%`);
+      }
+      if (bin.warn > 0) {
+        stops.push(`var(--warn) ${current}%`);
+        current += warnPct;
+        stops.push(`var(--warn) ${current}%`);
+      }
+      if (bin.err > 0) {
+        stops.push(`var(--err) ${current}%`);
+        current += errPct;
+        stops.push(`var(--err) ${current}%`);
+      }
+
+      if (stops.length > 0) {
+        bar.style.background = `linear-gradient(to top, ${stops.join(', ')})`;
+      }
+
+      // Fallback classes
+      if (bin.err > 0) bar.classList.add("err");
+      else if (bin.warn > 0) bar.classList.add("warn");
+      else if (bin.info > 0) bar.classList.add("info");
+    }
+
+    let h = 4;
+    if (maxBinTotal > 0 && total > 0) {
+      // Use square root scaling so lower-volume warning and info candles are visually scaled and high enough
+      h = 4 + Math.round((Math.sqrt(total) / Math.sqrt(maxBinTotal)) * 28);
+    }
+    bar.style.height = `${h}px`;
+    spark.appendChild(bar);
+  });
+}
+
+function toggleFilterChip(el, lvl) {
+  el.classList.toggle("on");
+  activeFilters[lvl] = el.classList.contains("on");
+  renderConsoleLogs();
+}
+
+// Attach filter input listener
+document.getElementById("live-search-input").addEventListener("input", renderConsoleLogs);
+
+function toggleLiveTailing() {
+  isTailing = !isTailing;
+  const btn = document.getElementById("live-stream-toggle-btn");
+
+  if (isTailing) {
+    btn.classList.remove("paused");
+    btn.querySelector(".lbl").innerText = "Streaming";
+    if (liveLogsSourceUsesPolling(currentSource) && isLiveTailTabActive()) {
+      if (liveLogsRequestInFlight) {
+        queueLiveLogsRequest("latest", "", { reason: "resume", immediate: true });
+        setLiveLogsStatus("Refresh queued. Waiting for current request to finish.");
+      } else {
+        fetchLiveLogs("latest", "", { reason: "resume", immediate: true });
+      }
+    }
+    showToast("Live log stream resumed");
+  } else {
+    btn.classList.add("paused");
+    btn.querySelector(".lbl").innerText = "Paused";
+    clearLiveLogsNextPoll();
+    setLiveLogsStatus("Polling paused");
+    showToast("Live log stream paused");
+  }
+}
+
+function toggleAutoScroll() {
+  autoScroll = !autoScroll;
+  const sc = document.getElementById("log-console-scroll-toggle");
+  if (autoScroll) {
+    sc.classList.add("on");
+    showToast("Console auto-scroll enabled");
+  } else {
+    sc.classList.remove("on");
+    showToast("Console auto-scroll disabled");
+  }
+}
+
+function clearConsoleLogs(quiet) {
+  liveLogs = [];
+  renderConsoleLogs();
+  if (!quiet) {
+    showToast("Console tail cleared");
+  }
+}
+
+function copyConsoleLogs() {
+  const text = liveLogs.map(l => `[${l.timestamp}] [${l.level}] ${l.message}`).join("\n");
+  navigator.clipboard.writeText(text);
+  showToast("Console logs copied to clipboard!");
+}
+
+function downloadLogs() {
+  const text = liveLogs.map(l => `[${l.timestamp}] [${l.level}] ${l.message}`).join("\n");
+  const blob = new Blob([text], {type: "text/plain"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${selectedServiceName}_diagnostics_tail.log`;
+  a.click();
+  showToast("Downloading active tail logs...");
+}
+
+function toggleLogViewerFullscreen() {
+  const viewer = document.querySelector('.log-viewer');
+  const textSpan = document.getElementById('fullscreen-text');
+  const icon = document.getElementById('fullscreen-icon');
+  if (!viewer) return;
+  
+  const isFullscreen = viewer.classList.toggle('fullscreen');
+  document.body.classList.toggle('terminal-active', isFullscreen);
+  
+  if (isFullscreen) {
+    textSpan.innerText = 'Minimize';
+    icon.innerHTML = `<path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/>`;
+    showToast("Terminal fullscreen active");
+  } else {
+    textSpan.innerText = 'Maximize';
+    icon.innerHTML = `<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>`;
+    showToast("Terminal fullscreen closed");
+  }
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const viewer = document.querySelector('.log-viewer');
+    if (viewer && viewer.classList.contains('fullscreen')) {
+      toggleLogViewerFullscreen();
+    }
+  }
+});
+
+// Backfill trigger controller
+document.getElementById("ws-backfill-btn").addEventListener("click", function() {
+  if (!currentBackfillReadiness.ready) {
+    openDiagnosticsInfoModal("Backfill unavailable", currentBackfillReadiness.message || "Backfill readiness is not available for this target.");
+    return;
+  }
+  setBackfillLoading(true);
+
+  const syncStatus = document.getElementById("ctx-service-sync");
+  if (syncStatus) {
+    syncStatus.innerHTML = `<span style="color: var(--warn); display: inline-flex; align-items: center; gap: 6px;"><span class="dot-pulse" style="width:6px; height:6px; border-radius:50%; background:var(--warn); display:inline-block; animation: pulse 1s infinite alternate;"></span>Syncing...</span>`;
+  }
+
+  const body = {
+    "user-action": "service_log_backfill",
+    "service_id": selectedServiceId,
+    "diagnostic_target": selectedDiagnosticTarget
+  };
+
+  fetch("/PlatformIO/Diagnostics/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCookie("csrftoken")
+    },
+    body: JSON.stringify(body)
+  })
+  .then(res => res.json())
+  .then(data => {
+    setBackfillLoading(false);
+
+    if (data.success) {
+      showToast(`Logs backfill synced successfully! ${data.msg}`, "success");
+      if (syncStatus) {
+        const timeStr = new Date().toLocaleTimeString([], { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        syncStatus.innerHTML = `<span style="color: var(--ok); font-weight: 500;">Synced at ${timeStr}</span>`;
+      }
+    } else {
+      showToast(`Sync failed: ${data.msg}`, "error");
+      if (syncStatus) {
+        syncStatus.innerHTML = `<span style="color: var(--err); font-weight: 500;">Failed</span>`;
+      }
+    }
+  })
+  .catch(err => {
+    setBackfillLoading(false);
+    showToast("Backfill server timeout", "error");
+    if (syncStatus) {
+      syncStatus.innerHTML = `<span style="color: var(--err); font-weight: 500;">Failed</span>`;
+    }
+  });
+});
+
+
+/* ==========================================
+   PANE 2: HISTORICAL LOG FILE ARCHIVES
+   ========================================== */
+let archiveFiles = [];
+
+function formatArchiveBytes(sizeBytes) {
+  const bytes = Math.max(0, Number(sizeBytes) || 0);
+  if (bytes >= 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  }
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  if (bytes >= 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${bytes} B`;
+}
+
+function loadHistoricalFilesTable() {
+  const body = {
+    "user-action": "service_list_log_files",
+    "service_id": selectedServiceId,
+    "diagnostic_target": selectedDiagnosticTarget
+  };
+
+  const tbody = document.getElementById("lf-table-body");
+  tbody.innerHTML = `<tr><td colspan="7" style="padding:40px; text-align:center; color:var(--ink-3);">Scanning historical volumes...</td></tr>`;
+
+  fetch("/PlatformIO/Diagnostics/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCookie("csrftoken")
+    },
+    body: JSON.stringify(body)
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      archiveFiles = data.files || [];
+        latestAccessibleVolumeRoots = data.accessible_volume_roots || latestAccessibleVolumeRoots || [];
+        latestResolvedVolumeRoots = data.resolved_volume_roots || latestResolvedVolumeRoots || [];
+        latestResolvedFileLogPaths = data.resolved_file_log_paths || latestResolvedFileLogPaths || [];
+        renderPathReadiness(data.file_log_readiness || {});
+        const primaryVolume = preferredVolumeRoot(latestAccessibleVolumeRoots, latestResolvedVolumeRoots, latestResolvedFileLogPaths);
+      if (primaryVolume) {
+        document.getElementById("ctx-service-volume").innerText = primaryVolume;
+      }
+      document.getElementById("tab-files-count").innerText = archiveFiles.length;
+      archiveCurrentPage = 1;
+      renderArchivesGrid();
+    } else {
+      tbody.innerHTML = `<tr><td colspan="7" style="padding:40px; text-align:center; color:var(--err);">Failed to read directories.</td></tr>`;
+    }
+  })
+  .catch(err => {
+    tbody.innerHTML = `<tr><td colspan="7" style="padding:40px; text-align:center; color:var(--err);">Connection failure.</td></tr>`;
+  });
+}
+
+function renderArchivesGrid() {
+  const tbody = document.getElementById("lf-table-body");
+  tbody.innerHTML = "";
+
+  const searchVal = document.getElementById("lf-search-input").value.toLowerCase().trim();
+
+  let filtered = archiveFiles.filter(f => {
+    if (searchVal && !f.name.toLowerCase().includes(searchVal)) {
+      return false;
+    }
+    if (currentArchiveFilter === "gz" && !f.is_gz) {
+      return false;
+    }
+    return true;
+  });
+
+  const totalFiltered = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / archivePageSize));
+  const totalSizeBytes = filtered.reduce((sum, file) => {
+    return sum + (Number(file.size_bytes) || 0);
+  }, 0);
+
+  if (archiveCurrentPage > totalPages) {
+    archiveCurrentPage = totalPages;
+  }
+  if (archiveCurrentPage < 1) {
+    archiveCurrentPage = 1;
+  }
+
+  const startIndex = (archiveCurrentPage - 1) * archivePageSize;
+  const endIndex = startIndex + archivePageSize;
+  const pageFiles = filtered.slice(startIndex, endIndex);
+
+  // Update pager summary counts
+  const showingStart = totalFiltered > 0 ? startIndex + 1 : 0;
+  const showingEnd = Math.min(endIndex, totalFiltered);
+  document.getElementById("lf-pager-count").innerText = `${showingStart}-${showingEnd}`;
+  document.getElementById("lf-pager-total").innerText = totalFiltered;
+  document.getElementById("lf-pager-size").innerText = formatArchiveBytes(totalSizeBytes);
+  document.getElementById("lf-pager-pages").innerText = `Page ${totalFiltered > 0 ? archiveCurrentPage : 0} / ${totalFiltered > 0 ? totalPages : 0}`;
+
+  // Render navigation page pills (Prev, pages with ellipsis, Next)
+  const navContainer = document.getElementById("lf-pager-nav");
+  if (navContainer) {
+    navContainer.innerHTML = "";
+
+    const appendBtn = (label, onClick, disabled, active) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.innerText = label;
+      if (active) {
+        btn.className = "on";
+      }
+      if (disabled) {
+        btn.disabled = true;
+      } else if (typeof onClick === "function") {
+        btn.addEventListener("click", onClick);
+      }
+      navContainer.appendChild(btn);
+    };
+    const appendDots = () => {
+      const dots = document.createElement("span");
+      dots.className = "dots";
+      dots.innerText = "...";
+      navContainer.appendChild(dots);
+    };
+
+    const canPrev = archiveCurrentPage > 1 && totalFiltered > 0;
+    const canNext = archiveCurrentPage < totalPages && totalFiltered > 0;
+    appendBtn("Prev", () => {
+      archiveCurrentPage -= 1;
+      renderArchivesGrid();
+    }, !canPrev, false);
+
+    if (totalFiltered > 0) {
+      const pagesToShow = [];
+      pagesToShow.push(1);
+      for (let p = archiveCurrentPage - 1; p <= archiveCurrentPage + 1; p += 1) {
+        if (p > 1 && p < totalPages) {
+          pagesToShow.push(p);
+        }
+      }
+      if (totalPages > 1) {
+        pagesToShow.push(totalPages);
+      }
+
+      const uniquePages = Array.from(new Set(pagesToShow)).sort((a, b) => a - b);
+      let prevPage = 0;
+      uniquePages.forEach((p) => {
+        if (prevPage && p - prevPage > 1) {
+          appendDots();
+        }
+        appendBtn(String(p), () => {
+          archiveCurrentPage = p;
+          renderArchivesGrid();
+        }, false, p === archiveCurrentPage);
+        prevPage = p;
+      });
+    }
+
+    appendBtn("Next", () => {
+      archiveCurrentPage += 1;
+      renderArchivesGrid();
+    }, !canNext, false);
+  }
+
+  if (pageFiles.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="padding:40px; text-align:center; color:var(--ink-4);">No historical log archives found.</td></tr>`;
+    return;
+  }
+
+  pageFiles.forEach((file, idx) => {
+    const tr = document.createElement("tr");
+    const absoluteIndex = startIndex + idx;
+    tr.id = `lf-row-${absoluteIndex}`;
+
+    const iconLabel = file.is_gz ? "GZ" : "LOG";
+    const safeName = file.name || "";
+    const safePath = file.resolved_dir || "--";
+    const fileId = file.file_id || "";
+
+    tr.innerHTML = `
+      <td class="chk"><input type="checkbox" class="lf-row-chk" data-name="${safeName}" data-file-id="${fileId}" onclick="archiveCheckboxClicked(this, ${absoluteIndex})"></td>
+      <td class="fn"><span class="ico">${iconLabel}</span>${safeName}<div class="subpath">${safePath}</div></td>
+      <td class="range">${file.time_range}</td>
+      <td class="size" style="text-align:right;">${file.size}</td>
+      <td class="lines" style="text-align:right;">${file.lines}</td>
+      <td class="events">
+        <div class="e">
+          <span class="item info">${file.events.info}</span>
+          <span class="item warn">${file.events.warn}</span>
+          <span class="item err">${file.events.err}</span>
+        </div>
+      </td>
+      <td class="actions" style="text-align:right;"></td>
+    `;
+    const actionsCell = tr.querySelector(".actions");
+    const viewBtn = document.createElement("button");
+    viewBtn.className = "btn btn-ghost btn-sm";
+    viewBtn.type = "button";
+    viewBtn.innerText = "View";
+    viewBtn.addEventListener("click", function() {
+      openArchivePreview(file);
+    });
+    actionsCell.appendChild(viewBtn);
+
+    const downloadBtn = document.createElement("button");
+    downloadBtn.className = "btn btn-secondary btn-sm";
+    downloadBtn.type = "button";
+    downloadBtn.innerText = "Download";
+    downloadBtn.addEventListener("click", function() {
+      downloadSingleArchive(file);
+    });
+    actionsCell.appendChild(downloadBtn);
+    tbody.appendChild(tr);
+  });
+}
+
+function archiveCheckboxClicked(chk, idx) {
+  const tr = document.getElementById(`lf-row-${idx}`);
+  if (chk.checked) {
+    tr.classList.add("sel");
+  } else {
+    tr.classList.remove("sel");
+  }
+  updateArchiveBulkBar();
+}
+
+function toggleAllArchiveCheckboxes(master) {
+  const shouldCheck = typeof master === "boolean" ? master : !!(master && master.checked);
+  const chks = document.querySelectorAll(".lf-row-chk");
+  chks.forEach(chk => {
+    chk.checked = shouldCheck;
+    const tr = chk.closest("tr");
+    if (shouldCheck) {
+      tr.classList.add("sel");
+    } else {
+      tr.classList.remove("sel");
+    }
+  });
+  updateArchiveBulkBar();
+}
+
+function updateArchiveBulkBar() {
+  const selected = document.querySelectorAll(".lf-row-chk:checked");
+  const bar = document.getElementById("lf-bulk-bar");
+
+  if (selected.length > 0) {
+    bar.style.display = "flex";
+    document.getElementById("lf-bulk-count").innerText = selected.length;
+  } else {
+    bar.style.display = "none";
+  }
+}
+
+function bulkArchiveReset() {
+  document.getElementById("lf-select-all-checkbox").checked = false;
+  toggleAllArchiveCheckboxes(false);
+}
+
+function closeArchivePreview() {
+  const modal = document.getElementById("lf-preview-modal");
+  if (modal) {
+    modal.classList.remove("open");
+  }
+}
+
+function openArchivePreview(file) {
+  const modal = document.getElementById("lf-preview-modal");
+  const body = document.getElementById("lf-preview-body");
+  const title = document.getElementById("lf-preview-title");
+  const path = document.getElementById("lf-preview-path");
+  if (!modal || !body || !title || !path || !file) {
+    return;
+  }
+
+  const requestId = ++archivePreviewRequestSeq;
+  title.innerText = file.name || "Log preview";
+  path.innerText = file.resolved_path || file.resolved_dir || "--";
+  body.innerHTML = '<div class="lf-preview-empty">Loading preview...</div>';
+  modal.classList.add("open");
+
+  fetch("/PlatformIO/Diagnostics/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCookie("csrftoken")
+    },
+    body: JSON.stringify({
+      "user-action": "service_view_log_file",
+      "service_id": selectedServiceId,
+      "diagnostic_target": selectedDiagnosticTarget,
+      "file_name": file.name || "",
+      "file_id": file.file_id || "",
+      "limit": 320
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (requestId !== archivePreviewRequestSeq) {
+      return;
+    }
+    if (!data.success) {
+      body.innerHTML = `<div class="lf-preview-empty">${data.error || "Unable to load preview."}</div>`;
+      return;
+    }
+    title.innerText = data.file_name || file.name || "Log preview";
+    path.innerText = data.resolved_path || file.resolved_path || file.resolved_dir || "--";
+    const pre = document.createElement("pre");
+    pre.innerText = data.preview_text || "This file is empty.";
+    body.innerHTML = "";
+    body.appendChild(pre);
+  })
+  .catch(() => {
+    if (requestId !== archivePreviewRequestSeq) {
+      return;
+    }
+    body.innerHTML = '<div class="lf-preview-empty">Preview request failed.</div>';
+  });
+}
+
+function downloadSingleArchive(file) {
+  const name = file && file.name ? file.name : "";
+  const fileId = file && file.file_id ? file.file_id : "";
+  showToast(`Downloading file: ${name}...`);
+
+  const body = {
+    "user-action": "service_download_log_file",
+    "service_id": selectedServiceId,
+    "diagnostic_target": selectedDiagnosticTarget,
+    "file_name": name,
+    "file_id": fileId
+  };
+
+  fetch("/PlatformIO/Diagnostics/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCookie("csrftoken")
+    },
+    body: JSON.stringify(body)
+  })
+  .then(res => {
+    if (!res.ok) throw new Error("Download request failed");
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      return res.json().then(errData => {
+        throw new Error(errData.error || "File download failed");
+      });
+    }
+    return res.blob();
+  })
+  .then(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`Download completed successfully!`, "success");
+  })
+  .catch(err => {
+    console.error("Download failed:", err);
+    showToast(`Error: ${err.message}`, "error");
+  });
+}
+
+function bulkArchiveDownload() {
+  const selected = document.querySelectorAll(".lf-row-chk:checked");
+  const names = Array.from(selected).map(chk => chk.dataset.name);
+  const fileIds = Array.from(selected).map(chk => chk.dataset.fileId || "");
+  if (names.length === 0) {
+    showToast("No files selected for download", "error");
+    return;
+  }
+
+  showToast(`Compiling and downloading ${names.length} logs in a zip archive...`);
+
+  const body = {
+    "user-action": "service_download_bulk_logs",
+    "service_id": selectedServiceId,
+    "diagnostic_target": selectedDiagnosticTarget,
+    "file_names": names,
+    "file_ids": fileIds
+  };
+
+  fetch("/PlatformIO/Diagnostics/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCookie("csrftoken")
+    },
+    body: JSON.stringify(body)
+  })
+  .then(res => {
+    if (!res.ok) throw new Error("Bulk download request failed");
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      return res.json().then(errData => {
+        throw new Error(errData.error || "Bulk file download failed");
+      });
+    }
+    return res.blob();
+  })
+  .then(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${selectedServiceName}_bulk_logs.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`Bulk download completed!`, "success");
+    bulkArchiveReset();
+  })
+  .catch(err => {
+    console.error("Bulk download failed:", err);
+    showToast(`Error: ${err.message}`, "error");
+  });
+}
+
+
+/* ==========================================
+   PANE 3: LOG ANALYST (AI CHATBOT)
+   ========================================== */
+
+function handleChatTextareaKey(e) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    submitLogAnalystQuery(e);
+  }
+}
+
+function insertStarterQuery(q) {
+  const textarea = document.getElementById("chat-input-textarea");
+  textarea.value = q;
+  textarea.focus();
+}
+
+let chatConversationHistory = [];
+
+function resetChatWindow() {
+  chatConversationHistory = [];
+  const body = document.getElementById("chat-conversation-body");
+  if (!body) return;
+  const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+  body.innerHTML = `
+    <div class="msg ai">
+      <div class="msg-head">
+        <div class="avatar">Y</div>
+        <span class="name">Log Analyst</span>
+        <span class="ts">${now}</span>
+      </div>
+      <div class="msg-body">
+        <p>Hello! I am Iktara Log Analyst, your advanced operations assistant. I can inspect active logs, trace errors, analyze cluster events, and summarize system state to diagnose incidents.</p>
+        <p>Ask a question about this service's status or choose one of the starter queries on the right to begin.</p>
+      </div>
+    </div>
+  `;
+}
+
+function submitLogAnalystQuery(e) {
+  if (e) e.preventDefault();
+
+  const textarea = document.getElementById("chat-input-textarea");
+  const queryText = textarea.value.trim();
+  if (!queryText || !selectedServiceId) return;
+
+  textarea.value = "";
+  textarea.style.height = "auto";
+
+  // 1. Render User Message
+  renderChatMessage("user", currentUserDisplayName || "Platform Operator", queryText);
+
+  // 2. Render Bot Typing Bubble
+  const botBubbleId = renderChatTypingBubble();
+
+  // Capture history to send (before appending the new turn)
+  const historyPayload = [...chatConversationHistory];
+
+  // Append user message to history
+  chatConversationHistory.push({ role: "user", content: queryText });
+
+  // 3. API Query
+  const body = {
+    "user-action": "service_log_analytics_chat",
+    "service_id": selectedServiceId,
+    "question": queryText,
+    "window": selectedDiagnosticWindow,
+    "diagnostic_target": selectedDiagnosticTarget,
+    "history": historyPayload
+  };
+
+  fetch("/PlatformIO/Diagnostics/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": getCookie("csrftoken")
+    },
+    body: JSON.stringify(body)
+  })
+  .then(res => res.json())
+  .then(data => {
+    // Remove typing bubble
+    document.getElementById(botBubbleId).remove();
+
+    if (data.success) {
+      renderChatMessage("ai", "Log Analyst", data.answer, data.evidence, data.chart_data, data.suggestions);
+      // Append bot answer to history
+      chatConversationHistory.push({ role: "assistant", content: data.answer });
+      // Keep only the last 6 messages (3 full conversation turns) to avoid token bloat
+      if (chatConversationHistory.length > 6) {
+        chatConversationHistory = chatConversationHistory.slice(-6);
+      }
+    } else {
+      renderChatMessage("ai", "Log Analyst", "I experienced a diagnostic parsing exception. Please check system volumes or run logs backfill first.");
+    }
+  })
+  .catch(err => {
+    document.getElementById(botBubbleId).remove();
+    renderChatMessage("ai", "Log Analyst", "Network connection timed out. Let's retry in a moment.");
+  });
+}
+
+function renderChatTypingBubble() {
+  const body = document.getElementById("chat-conversation-body");
+  const bubbleId = `bubble-${Date.now()}`;
+  const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+  const div = document.createElement("div");
+  div.className = "msg ai";
+  div.id = bubbleId;
+  div.innerHTML = `
+    <div class="msg-head">
+      <div class="avatar">Y</div>
+      <span class="name">Log Analyst</span>
+      <span class="ts">${now}</span>
+    </div>
+    <div class="msg-body" style="color:var(--ink-3); font-style:italic;">
+      Thinking... analyzing logs evidence
+    </div>
+  `;
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+  return bubbleId;
+}
+
+function renderChatMessage(sender, name, answerText, evidence = [], chartData = [], suggestions = []) {
+  const body = document.getElementById("chat-conversation-body");
+  const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+  const avatarText = sender === "user" ? getInitials(currentUserDisplayName) : "Y";
+
+  const div = document.createElement("div");
+  div.className = `msg ${sender}`;
+
+  // 1. Build basic message
+  let html = `
+    <div class="msg-head">
+      <div class="avatar">${avatarText}</div>
+      <span class="name">${name}</span>
+      <span class="ts">${now}</span>
+    </div>
+    <div class="msg-body">
+      ${answerText}
+  `;
+
+  // 2. Embedded Evidence Artifact Card
+  if (evidence && evidence.length > 0) {
+    let evRows = "";
+    evidence.forEach(ev => {
+      evRows += `
+        <div class="ev-line">
+          <span class="t">${ev.t}</span>
+          <span class="lvl ${ev.lvl}">${ev.lvl}</span>
+          <span class="msg">${escapeHtml(ev.msg)}</span>
+        </div>
+      `;
+    });
+
+    html += `
+      <div class="ai-artifact log-evidence">
+        <div class="ttl">Evidence Logs</div>
+        ${evRows}
+        <div class="ev-foot">Total matching: ${evidence.length} cited entries</div>
+      </div>
+    `;
+  }
+
+  // 3. Embedded Interactive Chart
+  if (chartData && chartData.length > 0) {
+    let barsHtml = "";
+    chartData.forEach(val => {
+      const hPct = Math.min(100, Math.max(5, val));
+      const spikeClass = val > 50 ? "spike" : "";
+      barsHtml += `<span class="b ${spikeClass}" style="height:${hPct}%;" title="Error Rate: ${val}%"></span>`;
+    });
+
+    html += `
+      <div class="ai-chart">
+        <div class="ttl">Analyst Timeline · Error density rate</div>
+        <div class="bars">
+          ${barsHtml}
+        </div>
+        <div class="axis">
+          <span>-60m</span>
+          <span>-30m</span>
+          <span>Now</span>
+        </div>
+      </div>
+    `;
+  }
+
+  // Close msg-body
+  html += `</div>`;
+
+  // 4. Suggestions Chips list
+  if (suggestions && suggestions.length > 0) {
+    let sugChips = "";
+    suggestions.forEach(sug => {
+      sugChips += `
+        <div class="s" onclick="insertStarterQuery('${sug.replace(/'/g, "\\'")}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          ${sug}
+        </div>
+      `;
+    });
+
+    html += `
+      <div class="suggestions">
+        ${sugChips}
+      </div>
+    `;
+  }
+
+  div.innerHTML = html;
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+
+  // Add click listener to cited jumps inside AI answers to scroll to matching logs
+  div.querySelectorAll('.cited').forEach(item => {
+    item.addEventListener('click', function() {
+      const stamp = this.innerText;
+      showToast(`Scrolling to cited timestamp: ${stamp}`);
+
+      // Select Live Tail Tab
+      document.querySelector('.tab[data-tab-target="live-tail"]').click();
+
+      // Filter logs stream for timestamp
+      const filterInput = document.getElementById("live-search-input");
+      filterInput.value = stamp;
+      renderConsoleLogs();
+    });
+  });
+}
+
+
+/* ==========================================
+   Utility Helpers
+   ========================================== */
+
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+function getInitials(name) {
+  const cleaned = String(name || "").trim();
+  if (!cleaned) return "PO";
+  return cleaned.split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase();
+}
+
+function openDiagnosticsInfoModal(title, message) {
+  const modal = document.getElementById("dx-info-modal");
+  document.getElementById("dx-info-title").innerText = title || "Feature status";
+  document.getElementById("dx-info-message").innerText = message || "This diagnostic action is not available yet.";
+  if (modal) modal.classList.add("open");
+}
+
+function closeDiagnosticsInfoModal() {
+  const modal = document.getElementById("dx-info-modal");
+  if (modal) modal.classList.remove("open");
+}
+
+function showToast(msg, kind = false) {
+  const t = document.getElementById("toast-indicator");
+  const m = document.getElementById("toast-message");
+  const variant = kind === true ? "error" : (kind || "info");
+  const isErr = variant === "err" || variant === "error";
+  const isOk = variant === "ok" || variant === "success";
+  const isWarn = variant === "warn" || variant === "warning";
+  const isInfo = variant === "info";
+
+  m.innerText = msg;
+  t.classList.toggle("err", isErr);
+  t.classList.toggle("ok", isOk);
+  t.classList.toggle("warn", isWarn);
+  t.classList.toggle("info", isInfo);
+
+  t.classList.add("show");
+  setTimeout(() => {
+    t.classList.remove("show");
+  }, 3500);
+}
+
+function escapeHtml(text) {
+  if (!text) return "";
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+</script>
+<script src="{% static 'javascript/theme.js' %}"></script>
+</body>
+</html>

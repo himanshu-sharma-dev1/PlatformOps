@@ -1,0 +1,55 @@
+{
+    "UserInfo": {
+    "personal_details": [
+      {
+        "f_display_name": "ListMedicalAllergies",
+        "f_name": "list_medical_allergies",
+        "e_question" : "Give me the name of all allergies ?",
+        "f_type": "text",
+        "validation_type" : "str",
+        "f_required": true,
+        "f_display": true,
+        "f_width": 12,
+        "v_default": "",
+        "a_onChange": "onSelectDemo(event)",
+        "v_option": [],
+        "v_condition": "",
+        "v_conditional_field" : "",
+        "appointment_type": "health"
+      },
+      {
+        "f_display_name": "CurrentMedicationsDosage",
+        "f_name": "current_medications_dosage",
+        "e_question" : "What all medication you are taking ?",
+        "f_type": "text",
+        "validation_type" : "str",
+        "f_required": true,
+        "f_display": true,
+        "f_width": 12,
+        "v_default": "",
+        "a_onChange": "onSelectDemo(event)",
+        "v_option": [],
+        "v_condition": "",
+        "v_conditional_field" : "",
+        "appointment_type": "health"
+      },
+      {
+        "f_display_name": "RecentPrecautions",
+        "f_name": "recent_precautions",
+        "e_question" : "What are the recent precautions you have ?",
+        "f_type": "text",
+        "validation_type" : "str",
+        "f_required": true,
+        "f_display": true,
+        "f_width": 12,
+        "v_default": "",
+        "a_onChange": "onSelectDemo(event)",
+        "v_option": [],
+        "v_condition": "",
+        "v_conditional_field" : "",
+        "appointment_type": "health"
+      }
+    ]
+    }
+}
+

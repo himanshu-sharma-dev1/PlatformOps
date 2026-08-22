@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Iktara · Users</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ds.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- SIDEBAR ─────────────────────────── -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">i</div>
+      <div class="name">Iktara</div>
+    </div>
+
+    <div class="sb-group">Identity</div>
+    <div class="sb-item active">
+      <svg class="ic ico" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      Users
+    </div>
+
+    <div class="sb-group">Infrastructure</div>
+    <div class="sb-item"><svg class="ic ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-11h-6M7 12H1"/></svg>Clusters</div>
+    <div class="sb-item"><svg class="ic ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Applications</div>
+
+    <div class="sb-group">Data</div>
+    <div class="sb-item"><svg class="ic ico" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>Batch I/O</div>
+    <div class="sb-item"><svg class="ic ico" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>Stream I/O</div>
+    <div class="sb-item"><svg class="ic ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>Logs</div>
+
+    <div class="sb-group">Models</div>
+    <div class="sb-item"><svg class="ic ico" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>Train</div>
+    <div class="sb-item"><svg class="ic ico" viewBox="0 0 24 24"><path d="M3 3v18h18M7 12l4-4 4 4 6-6"/></svg>Infer</div>
+    <div class="sb-item"><svg class="ic ico" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>Compare</div>
+
+    <div class="sb-group">Observability</div>
+    <div class="sb-item"><svg class="ic ico" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Monitoring</div>
+
+    <div class="sb-foot">
+      <div class="avatar">SA</div>
+      <div class="who">Sandhya Arora<div class="role">System admin</div></div>
+    </div>
+  </aside>
+
+  <!-- MAIN ────────────────────────────── -->
+  <main class="main">
+
+    <div class="topbar">
+      <div class="crumb">Iktara<span class="sep">/</span><span>Identity</span><span class="sep">/</span><span>Users</span></div>
+      <div class="topbar-right">
+        <button class="icon-btn" title="Search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></button>
+        <button class="icon-btn" title="Notifications"><svg class="ic" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg></button>
+        <button class="icon-btn" title="Help"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01"/></svg></button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- PAGE HEAD -->
+      <div class="page-head">
+        <div class="titles">
+          <h1>People with <em>access</em></h1>
+          <p class="sub">System administrators, operators, and analysts who can sign in to Iktara. Last reviewed 12 days ago.</p>
+        </div>
+        <div class="actions">
+          <button class="btn btn-secondary">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Export
+          </button>
+          <button class="btn btn-primary">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Invite user
+          </button>
+        </div>
+      </div>
+
+      <!-- META STRIP -->
+      <div class="meta-strip">
+        <div class="meta"><div class="v">24</div><div class="l">Total users</div></div>
+        <div class="meta"><div class="v">19 <span class="delta">+2</span></div><div class="l">Active 30d</div></div>
+        <div class="meta"><div class="v">3</div><div class="l">Admins</div></div>
+        <div class="meta"><div class="v">5</div><div class="l">Pending invites</div></div>
+      </div>
+
+      <!-- TABS -->
+      <div class="tabs">
+        <div class="tab active">All users <span class="count">24</span></div>
+        <div class="tab">Active <span class="count">19</span></div>
+        <div class="tab">Invited <span class="count">5</span></div>
+        <div class="tab">Disabled <span class="count">3</span></div>
+      </div>
+
+      <!-- TOOLBAR -->
+      <div class="toolbar">
+        <div class="search">
+          <svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" placeholder="Search by name, email, or role…">
+        </div>
+        <div class="chip active">Role: Admin <span class="x">×</span></div>
+        <div class="chip">+ Filter</div>
+        <div style="margin-left:auto; font-size:12px; color:var(--ink-4);">Showing <strong style="color:var(--ink-2);">3 of 24</strong></div>
+      </div>
+
+      <!-- TABLE -->
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th class="ck"><input type="checkbox"></th>
+              <th>User</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Last login</th>
+              <th class="r">Logins (30d)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><input type="checkbox"></td>
+              <td>
+                <div class="primary">Sandhya Arora</div>
+                <div class="id">sandhya@iktara.io</div>
+              </td>
+              <td><span class="pill pill-info">Admin</span></td>
+              <td><span class="pill pill-ok">Active</span></td>
+              <td>3 min ago</td>
+              <td class="right num">142</td>
+              <td>
+                <div class="row-acts">
+                  <button class="btn btn-ghost btn-sm">Edit</button>
+                  <button class="btn btn-ghost btn-sm">⋯</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"></td>
+              <td>
+                <div class="primary">Rohan Krishnan</div>
+                <div class="id">rohan@iktara.io</div>
+              </td>
+              <td><span class="pill pill-info">Admin</span></td>
+              <td><span class="pill pill-ok">Active</span></td>
+              <td>1 hr ago</td>
+              <td class="right num">98</td>
+              <td><div class="row-acts"><button class="btn btn-ghost btn-sm">Edit</button><button class="btn btn-ghost btn-sm">⋯</button></div></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"></td>
+              <td>
+                <div class="primary">Meera Nair</div>
+                <div class="id">meera@iktara.io</div>
+              </td>
+              <td><span class="pill pill-info">Admin</span></td>
+              <td><span class="pill pill-ok">Active</span></td>
+              <td>Yesterday, 18:42</td>
+              <td class="right num">76</td>
+              <td><div class="row-acts"><button class="btn btn-ghost btn-sm">Edit</button><button class="btn btn-ghost btn-sm">⋯</button></div></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"></td>
+              <td>
+                <div class="primary">Devansh Bhatt</div>
+                <div class="id">devansh@iktara.io</div>
+              </td>
+              <td><span class="pill pill-muted">Operator</span></td>
+              <td><span class="pill pill-ok">Active</span></td>
+              <td>4 hr ago</td>
+              <td class="right num">54</td>
+              <td><div class="row-acts"><button class="btn btn-ghost btn-sm">Edit</button><button class="btn btn-ghost btn-sm">⋯</button></div></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"></td>
+              <td>
+                <div class="primary">Priya Sundaram</div>
+                <div class="id">priya@iktara.io</div>
+              </td>
+              <td><span class="pill pill-muted">Operator</span></td>
+              <td><span class="pill pill-ok">Active</span></td>
+              <td>2 days ago</td>
+              <td class="right num">41</td>
+              <td><div class="row-acts"><button class="btn btn-ghost btn-sm">Edit</button><button class="btn btn-ghost btn-sm">⋯</button></div></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"></td>
+              <td>
+                <div class="primary">Arjun Mehta</div>
+                <div class="id">arjun@iktara.io · invited 3 days ago</div>
+              </td>
+              <td><span class="pill pill-muted">Analyst</span></td>
+              <td><span class="pill pill-info">Pending</span></td>
+              <td>—</td>
+              <td class="right num">0</td>
+              <td><div class="row-acts"><button class="btn btn-ghost btn-sm">Resend</button><button class="btn btn-ghost btn-sm">⋯</button></div></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"></td>
+              <td>
+                <div class="primary">Kavya Reddy</div>
+                <div class="id">kavya@iktara.io</div>
+              </td>
+              <td><span class="pill pill-muted">Analyst</span></td>
+              <td><span class="pill pill-warn">Inactive</span></td>
+              <td>31 days ago</td>
+              <td class="right num">2</td>
+              <td><div class="row-acts"><button class="btn btn-ghost btn-sm">Edit</button><button class="btn btn-ghost btn-sm">⋯</button></div></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"></td>
+              <td>
+                <div class="primary">Ishaan Verma</div>
+                <div class="id">ishaan@iktara.io</div>
+              </td>
+              <td><span class="pill pill-muted">Analyst</span></td>
+              <td><span class="pill pill-err">Disabled</span></td>
+              <td>4 months ago</td>
+              <td class="right num">—</td>
+              <td><div class="row-acts"><button class="btn btn-ghost btn-sm">Edit</button><button class="btn btn-ghost btn-sm">⋯</button></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:var(--s-4); font-size:12px; color:var(--ink-4);">
+        <div>Page 1 of 3</div>
+        <div style="display:flex; gap:var(--s-2);">
+          <button class="btn btn-secondary btn-sm" disabled>← Previous</button>
+          <button class="btn btn-secondary btn-sm">Next →</button>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+<!-- DRAWER (edit user) — visible when toggled -->
+<div class="drawer-backdrop" id="db" onclick="toggleDrawer()"></div>
+<aside class="drawer" id="dr">
+  <div class="drawer-head">
+    <h2>Edit user</h2>
+    <button class="icon-btn" onclick="toggleDrawer()"><svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="drawer-body">
+    <div class="field">
+      <label>Full name</label>
+      <input class="input" value="Sandhya Arora">
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input class="input" value="sandhya@iktara.io" readonly>
+      <div class="hint">Email is the login identifier and cannot be changed.</div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Phone</label>
+        <input class="input" value="+91 98201 12340">
+      </div>
+      <div class="field">
+        <label>Role</label>
+        <select class="select"><option>Admin</option><option>Operator</option><option>Analyst</option></select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Permissions</label>
+      <label class="checkbox" style="display:flex; margin-bottom:6px;"><input type="checkbox" checked> Manage clusters &amp; applications</label>
+      <label class="checkbox" style="display:flex; margin-bottom:6px;"><input type="checkbox" checked> Configure data pipelines</label>
+      <label class="checkbox" style="display:flex; margin-bottom:6px;"><input type="checkbox" checked> Deploy &amp; modify models</label>
+      <label class="checkbox" style="display:flex;"><input type="checkbox"> Manage other users</label>
+    </div>
+  </div>
+  <div class="drawer-foot">
+    <button class="btn btn-ghost" onclick="toggleDrawer()">Cancel</button>
+    <button class="btn btn-primary">Save changes</button>
+  </div>
+</aside>
+
+<script>
+// Wire up "Edit" buttons to drawer
+function toggleDrawer(){
+  document.getElementById('db').classList.toggle('open');
+  document.getElementById('dr').classList.toggle('open');
+}
+document.querySelectorAll('.row-acts .btn').forEach(b=>{
+  if(b.textContent.trim()==='Edit') b.onclick=()=>toggleDrawer();
+});
+// Tab switching
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+  };
+});
+</script>
+</body>
+</html>

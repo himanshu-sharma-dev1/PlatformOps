@@ -1,0 +1,1 @@
+This directory stores per-node Terraform configurations used for provisioning cloud resources.

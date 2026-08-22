@@ -1,0 +1,1539 @@
+{
+  "addPath" : "AlgoConfigSchema row_Schema AlgoRowSchema row_Schema",
+  "AlgoCategory" : {
+    "properties" : {
+      "algo_category" : {
+        "f_display_name": "AlgoCategory",
+        "f_name": "algo_category",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": "always",
+        "f_editable": false,
+        "f_width": 3,
+        "v_default": "",
+        "v_options": ["Supervised",
+          "AutoEncoder",
+          "Supervised-Unbalanced",
+          "TelecomChurn",
+          "Anomaly",
+          "TimeSeries_Forecast",
+          "Telecom_KPI_Prediction",
+          "Rule_Mining",
+          "Pattern_Mining",
+          "Stock_Forecast",
+          "ReinforceLearning",
+          "GenAI_DocModels",
+          "CausalML",
+          "NLP"
+        ],
+        "a_onChange": "selectAlgoCategory(event)",
+        "b_name" : [],
+        "b_rows": []
+      }
+    }
+  },
+
+  "AlgoType" : {
+    "properties" : {
+      "algo_type" : {
+        "f_display_name": "AlgoType",
+        "f_name": "algo_type",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": "always",
+        "f_editable": false,
+        "f_width": 3,
+        "v_default": "",
+        "v_options": [],
+        "a_onChange": "selectAlgoType(event)",
+        "b_name" : [],
+        "b_rows": ["AlgoRowSchema"]
+      }
+    }
+  },
+
+  "LR": {
+    "properties": {
+      "FeatureConfigCol": {
+        "f_display_name": "FeatureConfigCol",
+        "f_name": "fea_conf_col",
+        "f_type": "text",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["LR", "LGM", "NN", "XGBOOST", "XGBOOST_REGRESSION", "LSTM", "Prophet", "DeepAR",
+            "LSTM_Multivariate", "BI_LSTM", "LGM_UB", "NN_UB", "XGBOOST_UB"],
+        "b_rows": []
+      },
+      "Null_Threshold": {
+        "f_display_name": "Null_Threshold",
+        "f_name": "null_threshold",
+        "f_type": "text",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["LR", "LGM", "NN", "XGBOOST", "XGBOOST_REGRESSION", "LGM_UB", "NN_UB", "XGBOOST_UB"],
+        "b_rows": []
+      },
+      "Null_Handling_Policy": {
+        "f_display_name": "Null_Handling_Policy",
+        "f_name": "null_handling_policy",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "v_options": ["Feature-Drop", "Halt_Training", "No-Action"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["LR", "LGM", "NN", "XGBOOST", "XGBOOST_REGRESSION", "LGM_UB", "NN_UB", "XGBOOST_UB"],
+        "b_rows": []
+      },
+      "num_iterations": {
+        "f_display_name": "NumIterations",
+        "f_name": "num_iteration",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 100,
+        "v_min": 10,
+        "v_max": 10000,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "v_range_display": "Allowed range: 10 - 10000",
+        "v_invalid_message": "Invalid entry. Horizon must be between 10 and 10000.",
+        "b_name" : ["LR", "LGM", "NN", "XGBOOST", "XGBOOST_REGRESSION"],
+        "b_rows": []
+      },
+      "LR_Base_Odds": {
+        "f_display_name": "LR_Base_Odds",
+        "f_name": "lr_base_odds",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 50,
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["LR"],
+        "b_rows": []
+      },
+      "LR_Base_Score": {
+        "f_display_name": "LR_Base_Score",
+        "f_name": "lr_base_score",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["LR"],
+        "b_rows": []
+      },
+      "LR_Option_Penalty": {
+        "f_display_name": "LR_Option_Penalty",
+        "f_name": "lr_option_penalty",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "v_options": ["L1", "L2", "No_elasticnet"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["LR"],
+        "b_rows": []
+      },
+      "Training_Cycle": {
+        "f_display_name": "Training_Cycle",
+        "f_name": "training_cycle",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 10000,
+        "v_min": 10,
+        "v_max": 10000,
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : [
+          "LR", "Anomaly_OCS",
+          "Anomaly_LOF", "Anomaly_IF",
+          "Anomaly_PM", "Anomaly_LSTM",
+          "Microsoft LayoutLM-base", "Microsoft LayoutLM3-base"
+        ],
+        "b_rows": []
+      }
+    }
+  },
+
+  "LGM": {
+    "properties": {
+      "device_type": {
+        "f_display_name": "DeviceType",
+        "f_name": "device_type",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "v_options": [
+          "CPU",
+          "GPU",
+          "CUDA"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [
+          "LGM",
+          "XGBOOST",
+          "XGBOOST_REGRESSION",
+          "LGM_UB", "XGBOOST_UB"
+        ],
+        "b_rows": []
+      },
+      "boosting_type": {
+        "f_display_name": "BoostingType",
+        "f_name": "boosting_type",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "v_options": ["dart", "gbdt", "goss"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [
+          "LGM",
+          "LGM_UB",
+          "XGBOOST"
+        ],
+        "b_rows": []
+      },
+      "num_leaves": {
+        "f_display_name": "NumLeaves",
+        "f_name": "num_leaves",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "31",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [
+          "LGM",
+          "XGBOOST",
+          "LGM_UB",
+          "XGBOOST_UB"
+        ],
+        "b_rows": []
+      },
+      "learning_rate": {
+        "f_display_name": "LearningRate",
+        "f_name": "learning_rate",
+        "f_type": "text",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "0.015",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [
+          "LGM",
+          "LR",
+          "XGBOOST",
+          "XGBOOST_REGRESSION",
+          "LGM_UB",
+          "XGBOOST_UB",
+          "LSTM_Multivariate",
+          "LSTM",
+          "XGBOOST_Churn_UB",
+          "AUTO_GLUON_CHURN_UB",
+          "XGBOOST_Churn_PREDICTION"
+        ],
+        "b_rows": []
+      },
+      "eval_metric": {
+        "f_display_name": "EvalMetric",
+        "f_name": "eval_metric",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "100",
+        "v_options": [
+          "LogLoss",
+          "L2",
+          "ndcg"
+        ],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": [
+          "LGM",
+          "XGBOOST",
+          "XGBOOST_REGRESSION"
+        ],
+        "b_rows": []
+      },
+      "Early_Stopping_Rounds": {
+        "f_display_name": "Early_Stopping_Rounds",
+        "f_name": "early_stopping_rounds",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "5",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name": ["LGM", "XGBOOST", "NN", "LGM_UB", "NN_UB",
+         "XGBOOST_UB", "XGBOOST_REGRESSION", "XGBOOST_Churn_UB","AUTO_GLUON_CHURN_UB","XGBOOST_Churn_PREDICTION"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "NN": {
+    "properties": {
+      "optimizer": {
+        "f_display_name": "Optimizer",
+        "f_name": "optimizer",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "v_options": ["Adam", "SGD"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["NN", "NN_UB"],
+        "b_rows": []
+      },
+      "activation_fn": {
+        "f_display_name": "ActivationFn",
+        "f_name": "activation_fn",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "v_options": ["Relu", "Sigmoid", "Tanh"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["NN", "NN_UB"],
+        "b_rows": []
+      },
+      "num_hidden_layers": {
+        "f_display_name": "Num_Hidden_Layers",
+        "f_name": "num_hidden_layers",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 128,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["NN", "NN_UB", "LSTM_Multivariate"],
+        "b_rows": []
+      },
+      "dropout_factor": {
+        "f_display_name": "DropoutFactor",
+        "f_name": "dropout_factor",
+        "f_type": "text",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "0.1",
+        "v_options": ["0.1", "0.2", "0.3"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["NN", "NN_UB", "LSTM_Multivariate"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "XGBOOST_REGRESSION": {
+    "properties": {
+      "gamma": {
+        "f_display_name": "Gamma",
+        "f_name": "gamma",
+        "f_type": "text",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["XGBOOST_REGRESSION"],
+        "b_rows": []
+      },
+      "subsample": {
+        "f_display_name": "Subsample",
+        "f_name": "subsample",
+        "f_type": "text",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["XGBOOST_REGRESSION"],
+        "b_rows": []
+      },
+      "col_sample_by_tree": {
+        "f_display_name": "ColSampleByTree",
+        "f_name": "col_sample_by_tree",
+        "f_type": "text",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["XGBOOST_REGRESSION"],
+        "b_rows": []
+      },
+      "MaxDepth": {
+        "f_display_name": "MaxDepth",
+        "f_name": "max_depth",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 3,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["XGBOOST_REGRESSION", "XGBOOST_UB", "XGBOOST_Churn_UB","XGBOOST_Churn_PREDICTION"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "FP-GROWTH": {
+    "properties": {
+      "Min_Threshold": {
+        "f_display_name": "Min_Threshold",
+        "f_name": "min_threshold",
+        "f_type": "text",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2",
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : [],
+        "b_rows": []
+      }
+    }
+  },
+
+  "PREFIX-SPAN": {
+    "properties": {
+      "Time_Window": {
+        "f_display_name": "Time_Window",
+        "f_name": "time_window",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "5",
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["PREFIX-SPAN", "SPADE", "EpisodeMining"],
+        "b_rows": []
+      },
+      "Min_Support": {
+        "f_display_name": "Min_Support",
+        "f_name": "min_support",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2",
+         "v_min" : 2,
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["PREFIX-SPAN","EpisodeMining"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "EpisodeMining": {
+    "properties": {
+      "Min_Events": {
+        "f_display_name": "Min_Events",
+        "f_name": "min_events",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2",
+        "v_min" : 2,
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : [],
+        "b_rows": []
+      }
+    }
+  },
+
+  "LGM_UB": {
+    "properties": {
+      "N_Estimators": {
+        "f_display_name": "N_Estimators",
+        "f_name": "n_estimators",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 1000,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["LGM_UB", "XGBOOST_UB", "XGBOOST_Churn_UB","XGBOOST_Churn_PREDICTION"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "XGBOOST_Churn_UB": {
+    "properties": {
+      "N_Jobs": {
+        "f_display_name": "N_Jobs",
+        "f_name": "n_jobs",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 8,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["XGBOOST_Churn_UB","AUTO_GLUON_CHURN_UB","XGBOOST_Churn_PREDICTION"],
+        "b_rows": []
+      },
+      "Sub_Sample": {
+        "f_display_name": "Sub_Sample",
+        "f_name": "sub_sample",
+        "f_type": "text",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "0.7",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["XGBOOST_Churn_UB","XGBOOST_Churn_PREDICTION"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "NN_UB": {
+    "properties": {
+      "batch_size": {
+        "f_display_name": "Batch_Size",
+        "f_name": "batch_size",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "32",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : [],
+        "b_rows": []
+      },
+      "epochs": {
+        "f_display_name": "Epochs",
+        "f_name": "epochs",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 50,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["NN_UB", "NN", "LSTM_Multivariate", "BI_LSTM"],
+        "b_rows": []
+      },
+      "optimizer": {
+        "f_display_name": "Optimizer",
+        "f_name": "optimizer",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "v_options": ["Adam", "SGD"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : [],
+        "b_rows": []
+      },
+      "activation_fn":  {
+        "f_display_name": "ActivationFn",
+        "f_name": "activation_fn",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "v_options": ["Relu", "Sigmoid", "Tanh"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : [],
+        "b_rows": []
+      },
+      "early_stopping_rounds": {
+        "f_display_name": "Early_Stopping_Rounds",
+        "f_name": "early_stopping_rounds",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "5",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["LGM", "XGBOOST", "NN", "LGM_UB", "NN_UB", "XGBOOST_UB"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "Prophet": {
+    "properties": {
+      "Frequency": {
+        "f_display_name": "Frequency",
+        "f_name": "freq",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "Hourly",
+        "v_options": ["Daily", "Yearly", "Monthly", "Hourly"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["Prophet", "DeepAR", "LSTM", "LSTM_Multivariate", "BI_LSTM"],
+        "b_rows": []
+      },
+      "num_forecast": {
+        "f_display_name": "NumForecast",
+        "f_name": "num_forecast",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["Prophet", "DeepAR", "LSTM", "PM-ARIMA"],
+        "b_rows": []
+      },
+      "no_of_cores": {
+        "f_display_name": "NoOfCores",
+        "f_name": "no_of_cores",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "1",
+        "v_min" : 1,
+        "v_max" : 32,
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["Prophet", "LSTM"],
+        "b_rows": []
+      },
+      "growth": {
+        "f_display_name": "Growth",
+        "f_name": "growth",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "linear",
+        "v_options": ["linear", "logistic"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : [],
+        "b_rows": []
+      }
+    }
+  },
+
+  "DeepAR": {
+    "properties": {
+      "Scaling": {
+        "f_display_name": "Scaling",
+        "f_name": "scaling",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "True",
+        "v_options": ["True", "False"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : [],
+        "b_rows": []
+      },
+      "num_layer": {
+        "f_display_name": "NumOfLayers",
+        "f_name": "num_layer",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2",
+        "v_min" : 2,
+        "v_max" : 10,
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : [],
+        "b_rows": []
+      },
+      "hidden_size": {
+        "f_display_name": "HiddenSize",
+        "f_name": "hidden_size",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "64",
+        "v_options": ["32", "64", "128", "256", "512", "1024"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : [],
+        "b_rows": []
+      },
+      "drop_out_rate": {
+        "f_display_name": "DropOutRate",
+        "f_name": "drop_out_rate",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "0.1",
+        "v_options": ["0.1", "0.2", "0.3"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["DeepAR"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "LSTM": {
+    "properties": {
+      "Scaler": {
+        "f_display_name": "Scaler",
+        "f_name": "scaler",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "StandardScaler",
+        "v_options": ["MinMaxScaler", "StandardScaler", "RobustScaler"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["LSTM"],
+        "b_rows": []
+      },
+      "SequenceLength": {
+        "f_display_name": "SequenceLength",
+        "f_name": "sequence_length",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "72",
+        "v_options": ["24", "48", "60","72", "96"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["LSTM", "LSTM_Multivariate"],
+        "b_rows": []
+      },
+      "ReturnSequences": {
+        "f_display_name": "ReturnSequence",
+        "f_name": "return_sequences",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "False",
+        "v_options": ["True", "False"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["LSTM"],
+        "b_rows": []
+      },
+      "Units": {
+        "f_display_name": "Units",
+        "f_name": "units",
+        "f_type": "single_select",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "64",
+        "v_options": ["32", "64", "128", "256", "512", "1024"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["LSTM"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "LSTM_Multivariate": {
+    "properties": {
+      "lstm_layers": {
+        "f_display_name": "LSTM_Layers",
+        "f_name": "lstm_layers",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 2,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["LSTM_Multivariate", "BI_LSTM"],
+        "b_rows": []
+      },
+      "Target_Lower_Bound": {
+        "f_display_name": "Target_Lower_Bound",
+        "f_name": "lstm_target_lower_bound",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 0,
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : [],
+        "b_rows": []
+      },
+      "Target_Upper_Bound": {
+        "f_display_name": "Target_Upper_Bound",
+        "f_name": "lstm_target_upper_bound",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "v_options": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : [],
+        "b_rows": []
+      }
+    }
+  },
+
+  "BI_LSTM": {
+    "properties": {
+      "LookBack": {
+        "f_display_name": "LookBack",
+        "f_name": "lookback",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 30,
+        "v_min": 24,
+        "v_max": 36,
+        "v_range_display": "Allowed range: 24 – 36",
+        "v_invalid_message": "Invalid entry. LookBack must be between 24 and 36.",
+        "a_onChange": "window.forms.validateLookBack(event)",
+        "b_name": ["BI_LSTM"],
+        "b_rows": []
+      },
+      "Horizon": {
+        "f_display_name": "Horizon",
+        "f_name": "horizon",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 6,
+        "v_min": 4,
+        "v_max": 8,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "v_range_display": "Allowed range: 4 – 8",
+        "v_invalid_message": "Invalid entry. Horizon must be between 4 and 8.",
+        "b_name" : ["BI_LSTM"],
+        "b_rows": []
+      },
+      "SELL Threshold": {
+        "f_display_name": "SELL_Threshold_Percent",
+        "f_name": "sell_threshold",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "-0.2",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["BI_LSTM"],
+        "b_rows": []
+      },
+      "BUY Threshold": {
+        "f_display_name": "BUY_Threshold_Percent",
+        "f_name": "buy_threshold",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "0.3",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["BI_LSTM"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "ACCESSIBILITY": {
+    "properties": {
+      "GoldenPct1": {
+        "f_display_name": "GoldenPct1",
+        "f_name": "golden_pct1",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 50,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      },
+      "GoldenPct2": {
+        "f_display_name": "GoldenPct2",
+        "f_name": "golden_pct2",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 90,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      },
+      "GoldenPct3": {
+        "f_display_name": "GoldenPct3",
+        "f_name": "golden_pct3",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 99,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      },
+      "GoldenMult1": {
+        "f_display_name": "GoldenMult1",
+        "f_name": "golden_mult1",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2.0",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      },
+      "GoldenMult2": {
+        "f_display_name": "GoldenMult2",
+        "f_name": "golden_mult2",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "3.0",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "RELIABILITY": {
+    "properties": {
+      "GoldenPct1": {
+        "f_display_name": "GoldenPct1",
+        "f_name": "golden_pct1",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 50,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      },
+      "GoldenPct2": {
+        "f_display_name": "GoldenPct2",
+        "f_name": "golden_pct2",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 90,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      },
+      "GoldenPct3": {
+        "f_display_name": "GoldenPct3",
+        "f_name": "golden_pct3",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 99,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      },
+      "GoldenMult1": {
+        "f_display_name": "GoldenMult1",
+        "f_name": "golden_mult1",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2.0",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      },
+      "GoldenMult2": {
+        "f_display_name": "GoldenMult2",
+        "f_name": "golden_mult2",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "3.0",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "RETAINABILITY": {
+    "properties": {
+      "GoldenPct1": {
+        "f_display_name": "GoldenPct1",
+        "f_name": "golden_pct1",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 50,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      },
+      "GoldenPct2": {
+        "f_display_name": "GoldenPct2",
+        "f_name": "golden_pct2",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 90,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      },
+      "GoldenPct3": {
+        "f_display_name": "GoldenPct3",
+        "f_name": "golden_pct3",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 99,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      },
+      "GoldenMult1": {
+        "f_display_name": "GoldenMult1",
+        "f_name": "golden_mult1",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2.0",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      },
+      "GoldenMult2": {
+        "f_display_name": "GoldenMult2",
+        "f_name": "golden_mult2",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "3.0",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "MOBILITY": {
+    "properties": {
+      "GoldenPct1": {
+        "f_display_name": "GoldenPct1",
+        "f_name": "golden_pct1",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 50,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      },
+      "GoldenPct2": {
+        "f_display_name": "GoldenPct2",
+        "f_name": "golden_pct2",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 90,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      },
+      "GoldenPct3": {
+        "f_display_name": "GoldenPct3",
+        "f_name": "golden_pct3",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 99,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      },
+      "GoldenMult1": {
+        "f_display_name": "GoldenMult1",
+        "f_name": "golden_mult1",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "2.0",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      },
+      "GoldenMult2": {
+        "f_display_name": "GoldenMult2",
+        "f_name": "golden_mult2",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "3.0",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RELIABILITY"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "VOICE_INTEGRITY": {
+    "properties": {
+      "TrainingEpochs": {
+        "f_display_name": "TrainingEpochs",
+        "f_name": "epochs",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 20,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["VOICE_INTEGRITY"],
+        "b_rows": []
+      },
+      "QuantileValue": {
+        "f_display_name": "QuantileValue",
+        "f_name": "quantile_val",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "0.5",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["VOICE_INTEGRITY"],
+        "b_rows": []
+      },
+      "BottleNeckDimension": {
+        "f_display_name": "BottleNeckDimension",
+        "f_name": "bottleneck_dim",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 8,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["VOICE_INTEGRITY"],
+        "b_rows": []
+      },
+      "ScoreSharpening": {
+        "f_display_name": "ScoreSharpening",
+        "f_name": "score_sharpening",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 1,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["VOICE_INTEGRITY"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "DATA_INTEGRITY": {
+    "properties": {
+      "TrainingEpochs": {
+        "f_display_name": "TrainingEpochs",
+        "f_name": "epochs",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 30,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["DATA_INTEGRITY"],
+        "b_rows": []
+      },
+      "QuantileValue": {
+        "f_display_name": "QuantileValue",
+        "f_name": "quantile_val",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "0.75",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["DATA_INTEGRITY"],
+        "b_rows": []
+      },
+      "BottleNeckDimension": {
+        "f_display_name": "BottleNeckDimension",
+        "f_name": "bottleneck_dim",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 8,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["DATA_INTEGRITY"],
+        "b_rows": []
+      },
+      "ScoreSharpening": {
+        "f_display_name": "ScoreSharpening",
+        "f_name": "score_sharpening",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 1,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["DATA_INTEGRITY"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "RECHARGE": {
+    "properties": {
+      "TrainingEpochs": {
+        "f_display_name": "TrainingEpochs",
+        "f_name": "epochs",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 30,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RECHARGE"],
+        "b_rows": []
+      },
+      "QuantileValue": {
+        "f_display_name": "QuantileValue",
+        "f_name": "quantile_val",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "0.75",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RECHARGE"],
+        "b_rows": []
+      },
+      "BottleNeckDimension": {
+        "f_display_name": "BottleNeckDimension",
+        "f_name": "bottleneck_dim",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 4,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RECHARGE"],
+        "b_rows": []
+      },
+      "ScoreSharpening": {
+        "f_display_name": "ScoreSharpening",
+        "f_name": "score_sharpening",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 1,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["RECHARGE"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "USAGE_DATA": {
+    "properties": {
+      "TrainingEpochs": {
+        "f_display_name": "TrainingEpochs",
+        "f_name": "epochs",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 30,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["USAGE_DATA"],
+        "b_rows": []
+      },
+      "QuantileValue": {
+        "f_display_name": "QuantileValue",
+        "f_name": "quantile_val",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "0.8",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["USAGE_DATA"],
+        "b_rows": []
+      },
+      "BottleNeckDimension": {
+        "f_display_name": "BottleNeckDimension",
+        "f_name": "bottleneck_dim",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 8,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["USAGE_DATA"],
+        "b_rows": []
+      },
+      "ScoreSharpening": {
+        "f_display_name": "ScoreSharpening",
+        "f_name": "score_sharpening",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 1,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["USAGE_DATA"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "USAGE_VOICE": {
+    "properties": {
+      "TrainingEpochs": {
+        "f_display_name": "TrainingEpochs",
+        "f_name": "epochs",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 15,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["USAGE_VOICE"],
+        "b_rows": []
+      },
+      "QuantileValue": {
+        "f_display_name": "QuantileValue",
+        "f_name": "quantile_val",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "0.75",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["USAGE_VOICE"],
+        "b_rows": []
+      },
+      "BottleNeckDimension": {
+        "f_display_name": "BottleNeckDimension",
+        "f_name": "bottleneck_dim",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 4,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["USAGE_VOICE"],
+        "b_rows": []
+      },
+      "ScoreSharpening": {
+        "f_display_name": "ScoreSharpening",
+        "f_name": "score_sharpening",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 3,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["USAGE_VOICE"],
+        "b_rows": []
+      }
+    }
+  },
+
+  "NETWORK": {
+    "properties": {
+      "TrainingEpochs": {
+        "f_display_name": "TrainingEpochs",
+        "f_name": "epochs",
+        "f_type": "number",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 30,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["NETWORK"],
+        "b_rows": []
+      },
+      "QuantileValue": {
+        "f_display_name": "QuantileValue",
+        "f_name": "quantile_val",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "0.5",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["NETWORK"],
+        "b_rows": []
+      },
+      "BottleNeckDimension": {
+        "f_display_name": "BottleNeckDimension",
+        "f_name": "bottleneck_dim",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 2,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["NETWORK"],
+        "b_rows": []
+      },
+      "ScoreSharpening": {
+        "f_display_name": "ScoreSharpening",
+        "f_name": "score_sharpening",
+        "f_type": "number",
+        "f_required": false,
+        "f_display": false,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": 1,
+        "a_onChange": "window.forms.dFormDefaultFunc(event)",
+        "b_name" : ["NETWORK"],
+        "b_rows": []
+      }
+    }
+  }
+
+}

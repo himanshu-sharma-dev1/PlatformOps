@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+{% include "nav.html" %}
+{% block content %}
+<head>
+    <meta charset="UTF-8">
+    <title>Mlflow</title>
+    {% load static %}
+    <script type="module" src="{% static 'dform/DForm.js' %}"></script>
+    <style>
+    .token-hover{ max-width: 100px; }
+    </style>
+</head>
+<body class="common-body">
+<div class="container-fluid mt-4">
+    <div class="row flex-nowrap">
+        {% include "PlatformIO/Toast.html" %}
+<!--Top-Button Section------------------------------------->
+        <div class="row ik-nav-button">
+            <div class="col-lg-1 text-center">
+                <button type="button" class="btn px-2 m-0 ik-btn" data-bs-toggle="modal"
+                    data-bs-target="#addModal" data-bs-tooltip="tooltip" title="Add Cluster" onclick="addCluster(event)">
+                    <span class="fs-4 bi bi-plus-square-fill text-dark"></span>
+                </button>
+            </div>
+            <div class="col-lg-1"></div>
+        </div>
+        {% include "PlatformIO/PlatformSideBar.html" %}
+<!--Table Section------------------------------------------>
+        <div  class="col-lg-10 ik-right-container">
+            <div class="row mt-2">
+                <div class=" col-lg-12">
+                    <div class="table-responsive w-100 ik-tableScroll">
+                        {% csrf_token %}
+                        <table id="myTable1" class="table table-sm">
+                            <thead class="sticky-top" style="vertical-align:top; top:-1px;">
+                                <tr class="ik-tr1">
+                                    <th style="width: 10%; text-align:left;">Cluster Name</th>
+                                    <th style="width: 10%">Cluster Type</th>
+                                    <th style="width: 15%">Repository Type</th>
+                                    <th style="width: 10%">Image Store Type</th>
+                                    <th style="width: 10%">No.of Nodes</th>
+                                    <th style="width: 10%">No.of Services</th>
+                                    <th style="width: 10%">Action</th>
+                                </tr>
+                            </thead>
+                        </table>
+                        <div class="row">
+                            <div class="col-lg-12">
+                                <table class="table table-sm">
+                                    <tbody>
+                                        {% for index, cluster in cluster_info.items %}
+                                        <tr class="ik-tr1">
+                                            <td style="width: 10%; text-align:left;">
+                                                <form method="post" enctype="multipart/form-data" action="/PlatformIO/ClusterConfig/">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" value="{{ cluster.cluster_id }}" name="cluster_id"
+                                                           style="text-decoration:none; background-color:transparent; border:none; text-align:left; display:inline-block; color:#027bfc;">
+                                                    <input type="submit" value="{{ cluster.cluster_name }}" name="cluster_name"
+                                                           style="text-decoration:none; background-color:transparent; border:none; text-align:left; display:inline-block; color:#027bfc;">
+                                                </form>
+                                            </td>
+                                            <td style="width: 10%"> {{ cluster.cluster_type }} </td>
+                                            <td style="width: 15%"> {{ cluster.repo_type }} </td>
+                                            <td style="width: 10%"> {{ cluster.image_store_type }} </td>
+                                            <td style="width: 10%"> {{ cluster.node_info|length }} </td>
+                                            <td style="width: 10%"> {{ cluster.service_counts }} </td>
+                                            <td style="width: 10%">
+                                                <button type="button" class="fs-6 bi-trash ms-1 ik-actionIcon"
+                                                        data-bs-toggle="modal" data-bs-target="#DeleteModal"
+                                                        data-bs-backdrop="static" data-bs-keyboard="true"
+                                                        data-bs-cluster-name="{{ cluster.cluster_name }}"
+                                                        data-bs-cluster-id="{{ cluster.cluster_id }}">
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                 </div>
+            </div>
+<!--Add Modal Section-------------------------------------->
+            <div class="row">
+                <div class="modal fade" id="addModal" data-bs-backdrop="static" data-bs-keyboard="true" tabindex="-1"
+                                                                 aria-labelledby="addModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header p-0 pt-1 pb-1 ik-modalHeader">
+                            <h6 class="modal-title ik-modalTitle" id="addModalLabel">Add Cluster</h6>
+                        </div>
+                        <div class="modal-body ik-modalBody">
+                            <form method="post" enctype="multipart/form-data" action="">
+                                {% csrf_token %}
+                                <div class="form-group"></div>
+
+                                <div class="modal-footer ik-modalFooter">
+                                    <input type="hidden" name="json_data" id="json_data">
+                                    <button type="button" class="btn ik-close-btn px-2 py-1" data-bs-dismiss="modal">Close</button>
+                                    <button type="submit" value="add_cluster" name="user-action" class="btn ik-add-btn px-2 py-1" onclick="createJson(event)">Add</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+<!--Delete Modal Section----------------------------------->
+            <div class="modal fade" id="DeleteModal" data-bs-backdrop="static" data-bs-keyboard="true" tabindex="-1" role="dialog" aria-labelledby="DeleteModalabel" aria-hidden="true">
+                <div class="modal-dialog modal-xl" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header ik-modalHeader">
+                            <h6 class="modal-title ik-modalTitle" id="DeleteModalabel"> Delete Cluster </h6>
+                        </div>
+                        <form id="delete-template" name="edit-template" method="post" enctype="multipart/form-data" action="">
+                            {% csrf_token %}
+                            <div class="modal-body ik-modalBody py-5">
+                                <div class="container-fluid">
+                                    <div class="form-group">
+                                        <div class="row">
+                                            <div class="col-md-7">
+                                                <div class="ik-txt3 text-danger" id="deleteCluster"></div>
+                                                <input type="hidden" class="form-control ik-formControl" name="cluster_id" id="cluster_id">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer ik-modalFooter">
+                                <button type="button" class="btn ik-close-btn px-2 py-1" data-bs-dismiss="modal">Close</button>
+                                <button type="submit" value="delete_cluster" name="user-action" class="btn ik-add-btn px-2 py-1">Delete Cluster</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+     </div>
+    </div>
+</div>
+<script>
+
+
+let cluster_schema =  {{ cluster_schema | safe }}
+let cluster_info = {{ cluster_info | safe }}
+
+// Create Modal
+function addCluster(event) {
+    const button = event.currentTarget;
+    const modalId = button.getAttribute('data-bs-target');
+    window.forms.dFormCreate(cluster_schema, modalId, null)
+}
+
+
+function selectImage(event){
+    window.forms.dFormMapRows(event, cluster_schema)
+}
+
+// Create JSON
+function createJson(event) {
+    window.forms.dFormCreateJson(event, cluster_schema)
+}
+
+
+let deleteModal = document.getElementById('DeleteModal');
+deleteModal.addEventListener('show.bs.modal', function (event) {
+  let button = event.relatedTarget;
+
+  // Get both cluster name and ID from data attributes
+  const clusterId = button.getAttribute('data-bs-cluster-id');
+  const clusterName = button.getAttribute('data-bs-cluster-name');
+
+  // Update modal title text
+  let modalTitle = deleteModal.querySelector('#deleteCluster');
+  modalTitle.textContent = `Do You Want To Delete Cluster: ${clusterName}`;
+
+  // Set hidden input value (to submit ID only)
+  let modalInput = deleteModal.querySelector("input[name='cluster_id']");
+  modalInput.value = clusterId;
+});
+
+
+</script>
+</body>
+{% endblock %}
+{% include "footer.html" %}
+</html>

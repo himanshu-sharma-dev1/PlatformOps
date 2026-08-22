@@ -1,0 +1,584 @@
+{% extends "loginPortal/base.html" %}
+
+{% block title %}Verify{% endblock %}
+{% block body_class %}mfa-{{ variant }}{% endblock %}
+
+{% block head_extra %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  {% if variant == 'minimal' %}
+    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;1,8..60,400&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+  {% elif variant == 'split' %}
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  {% else %}
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  {% endif %}
+
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; min-height: 100vh; }
+
+    /* Common */
+    .wrap {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .card {
+      width: 100%;
+      max-width: 440px;
+      animation: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* OTP digit boxes */
+    .otp-row {
+      display: flex;
+      gap: 8px;
+      justify-content: space-between;
+      margin: 8px 0;
+    }
+    .otp-row input.real {
+      position: absolute;
+      left: -9999px;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+    }
+    .otp-box {
+      flex: 1;
+      aspect-ratio: 1;
+      max-width: 56px;
+      display: grid;
+      place-items: center;
+      font-size: 24px;
+      font-weight: 500;
+      transition: all 200ms;
+    }
+
+    /* ============ MINIMAL ============ */
+    body.mfa-minimal {
+      background: #F5F1EA;
+      color: #1A1F2B;
+      font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    }
+    .mfa-minimal .eyebrow {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #8A8478;
+      margin: 0 0 24px;
+    }
+    .mfa-minimal .eyebrow::before {
+      content: '';
+      display: inline-block;
+      width: 24px;
+      height: 1px;
+      background: #8A8478;
+      vertical-align: middle;
+      margin-right: 12px;
+    }
+    .mfa-minimal h1 {
+      font-family: 'Source Serif 4', serif;
+      font-size: 40px;
+      line-height: 1.05;
+      font-weight: 400;
+      margin: 0 0 8px;
+      letter-spacing: -0.02em;
+    }
+    .mfa-minimal h1 em { font-style: italic; color: #0F4C5C; }
+    .mfa-minimal .lede {
+      font-family: 'Source Serif 4', serif;
+      font-size: 16px;
+      line-height: 1.5;
+      color: #4A5260;
+      margin: 0 0 32px;
+    }
+    .mfa-minimal .pending-user {
+      font-size: 13px;
+      color: #4A5260;
+      padding: 10px 12px;
+      background: #EDE6D9;
+      border-left: 2px solid #0F4C5C;
+      margin-bottom: 24px;
+    }
+    .mfa-minimal .pending-user code {
+      font-family: ui-monospace, monospace;
+      color: #0F4C5C;
+    }
+    .mfa-minimal .banner {
+      background: #F1DDD8;
+      color: #8B2018;
+      padding: 12px 14px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      border-left: 3px solid #8B2018;
+    }
+    .mfa-minimal label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #4A5260;
+      display: block;
+      margin-bottom: 12px;
+    }
+    .mfa-minimal .otp-box {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid #D6CFC0;
+      color: #1A1F2B;
+      font-family: 'Source Serif 4', serif;
+      font-size: 32px;
+    }
+    .mfa-minimal .otp-box.filled { border-bottom-color: #0F4C5C; }
+    .mfa-minimal .otp-box.focus { border-bottom-color: #0F4C5C; }
+    .mfa-minimal button {
+      margin-top: 20px;
+      padding: 16px 24px;
+      width: 100%;
+      background: #1A1F2B;
+      color: #F5F1EA;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border: none;
+      cursor: pointer;
+      transition: background 200ms;
+    }
+    .mfa-minimal button:hover { background: #0F4C5C; }
+    .mfa-minimal .alt {
+      margin-top: 24px;
+      font-size: 13px;
+      color: #4A5260;
+      text-align: center;
+    }
+    .mfa-minimal .alt a { color: #0F4C5C; text-decoration: none; }
+    .mfa-minimal .alt a:hover { text-decoration: underline; }
+
+    /* ============ SPLIT ============ */
+    body.mfa-split {
+      background: #FAF6EE;
+      color: #0E1726;
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+    body.mfa-split .wrap::before {
+      content: '';
+      position: fixed;
+      top: -200px;
+      right: -200px;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(201,123,63,0.08) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .mfa-split .card { background: #FFFFFF; padding: 40px; border-radius: 16px; box-shadow: 0 12px 48px rgba(0,0,0,0.06); position: relative; }
+    .mfa-split .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: rgba(201,123,63,0.12);
+      color: #C97B3F;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .mfa-split .badge::before {
+      content: '';
+      width: 6px; height: 6px;
+      background: #C97B3F;
+      border-radius: 50%;
+    }
+    .mfa-split h1 {
+      font-family: 'Crimson Pro', serif;
+      font-size: 36px;
+      font-weight: 500;
+      line-height: 1.1;
+      margin: 0 0 8px;
+      letter-spacing: -0.02em;
+    }
+    .mfa-split h1 em { font-style: italic; color: #C97B3F; font-weight: 400; }
+    .mfa-split .lede {
+      font-size: 14px;
+      color: #3F4A5C;
+      margin: 0 0 28px;
+      line-height: 1.6;
+    }
+    .mfa-split .pending-user {
+      padding: 12px 14px;
+      background: #F0E9DC;
+      border: 1px solid #E0D8C5;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #3F4A5C;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .mfa-split .pending-user::before {
+      content: '✓';
+      color: #C97B3F;
+      font-weight: 700;
+    }
+    .mfa-split .pending-user code {
+      font-family: ui-monospace, monospace;
+      color: #0E1726;
+    }
+    .mfa-split .banner {
+      background: #F4DDD8;
+      color: #B83227;
+      padding: 12px 14px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      border-radius: 6px;
+      border-left: 3px solid #B83227;
+    }
+    .mfa-split label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #3F4A5C;
+      display: block;
+      margin-bottom: 12px;
+    }
+    .mfa-split .otp-box {
+      background: #FAF6EE;
+      border: 1px solid #E0D8C5;
+      border-radius: 8px;
+      color: #0E1726;
+      font-family: 'Crimson Pro', serif;
+      transition: border-color 200ms, box-shadow 200ms;
+    }
+    .mfa-split .otp-box.filled { border-color: #C97B3F; background: #FFFFFF; }
+    .mfa-split .otp-box.focus {
+      border-color: #C97B3F;
+      box-shadow: 0 0 0 3px rgba(201,123,63,0.12);
+      background: #FFFFFF;
+    }
+    .mfa-split button {
+      margin-top: 20px;
+      padding: 14px 24px;
+      width: 100%;
+      background: #0E1726;
+      color: #FAF6EE;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 500;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 200ms;
+    }
+    .mfa-split button:hover { background: #C97B3F; }
+    .mfa-split .alt {
+      margin-top: 20px;
+      font-size: 13px;
+      color: #3F4A5C;
+      text-align: center;
+    }
+    .mfa-split .alt a { color: #C97B3F; text-decoration: none; font-weight: 500; }
+    .mfa-split .alt a:hover { text-decoration: underline; }
+
+    /* ============ CONSOLE ============ */
+    body.mfa-console {
+      background: #0A0E14;
+      color: #C5CDD9;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+    }
+    body.mfa-console::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.05) 50%);
+      background-size: 100% 4px;
+      opacity: 0.4;
+      z-index: 1;
+    }
+    body.mfa-console::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(circle at center, transparent 40%, rgba(0,0,0,0.4) 100%);
+      z-index: 1;
+    }
+    body.mfa-console .wrap { position: relative; z-index: 2; }
+    .mfa-console .card {
+      background: #0F1520;
+      border: 1px solid #1A2230;
+      padding: 32px;
+      position: relative;
+      max-width: 480px;
+    }
+    .mfa-console .card::before,
+    .mfa-console .card::after {
+      content: '';
+      position: absolute;
+      width: 16px; height: 16px;
+      border-color: #00FF88;
+      border-style: solid;
+      border-width: 0;
+    }
+    .mfa-console .card::before { top: -1px; left: -1px; border-top-width: 2px; border-left-width: 2px; }
+    .mfa-console .card::after { bottom: -1px; right: -1px; border-bottom-width: 2px; border-right-width: 2px; }
+    .mfa-console .form-eyebrow {
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      color: #4F5867;
+      margin-bottom: 4px;
+    }
+    .mfa-console .form-eyebrow .arrow { color: #00FF88; }
+    .mfa-console h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0 0 6px;
+      color: #E8EDF5;
+    }
+    .mfa-console .lede {
+      font-size: 12px;
+      color: #828B9D;
+      margin: 0 0 24px;
+      line-height: 1.6;
+    }
+    .mfa-console .pending-user {
+      padding: 10px 12px;
+      background: #050810;
+      border: 1px dashed #2A3548;
+      font-size: 11px;
+      color: #828B9D;
+      margin-bottom: 20px;
+    }
+    .mfa-console .pending-user::before { content: '// session.pending → '; color: #00FF88; }
+    .mfa-console .pending-user code { color: #00C8E8; font-family: inherit; }
+    .mfa-console .banner {
+      background: rgba(255,92,92,0.08);
+      border-left: 2px solid #FF5C5C;
+      color: #FF5C5C;
+      padding: 10px 12px;
+      margin-bottom: 20px;
+      font-size: 12px;
+    }
+    .mfa-console .banner::before {
+      content: '[!] AUTH_DENIED · ';
+      font-weight: 700;
+    }
+    .mfa-console label {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: #4F5867;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 12px;
+    }
+    .mfa-console label::before { content: '> '; color: #00FF88; }
+    .mfa-console .otp-box {
+      background: #050810;
+      border: 1px solid #2A3548;
+      color: #E8EDF5;
+      font-family: 'JetBrains Mono', monospace;
+      transition: all 200ms;
+    }
+    .mfa-console .otp-box.filled {
+      border-color: #00FF88;
+      box-shadow: 0 0 8px rgba(0,255,136,0.2);
+    }
+    .mfa-console .otp-box.focus {
+      border-color: #00FF88;
+      box-shadow: 0 0 0 1px #00FF88, 0 0 12px rgba(0,255,136,0.2);
+    }
+    .mfa-console button {
+      margin-top: 20px;
+      padding: 12px 16px;
+      width: 100%;
+      background: #00FF88;
+      color: #050810;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      border: none;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: background 150ms, box-shadow 150ms;
+    }
+    .mfa-console button::before { content: '[ '; }
+    .mfa-console button::after { content: ' ]'; }
+    .mfa-console button:hover {
+      background: #2DD174;
+      box-shadow: 0 0 16px rgba(0,255,136,0.3);
+    }
+    .mfa-console .alt {
+      margin-top: 20px;
+      font-size: 11px;
+      color: #4F5867;
+      text-align: center;
+    }
+    .mfa-console .alt a { color: #00C8E8; text-decoration: none; }
+    .mfa-console .alt a:hover { text-decoration: underline; }
+
+    /* Switcher (variant-aware) */
+    .switcher {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 4px;
+      padding: 4px;
+      font-size: 12px;
+      z-index: 10;
+    }
+    .switcher a {
+      padding: 6px 14px;
+      text-decoration: none;
+      transition: all 150ms;
+    }
+    body.mfa-minimal .switcher {
+      background: #EDE6D9;
+      border: 1px solid #D6CFC0;
+    }
+    body.mfa-minimal .switcher a { color: #4A5260; }
+    body.mfa-minimal .switcher a.active { background: #1A1F2B; color: #F5F1EA; }
+    body.mfa-split .switcher {
+      background: rgba(11,25,41,0.92);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 999px;
+    }
+    body.mfa-split .switcher a { color: rgba(220,229,240,0.65); border-radius: 999px; }
+    body.mfa-split .switcher a.active { background: #C97B3F; color: #FFF; }
+    body.mfa-console .switcher {
+      background: #050810;
+      border: 1px solid #2A3548;
+    }
+    body.mfa-console .switcher a {
+      color: #828B9D;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-size: 11px;
+      border-right: 1px solid #1A2230;
+    }
+    body.mfa-console .switcher a:last-child { border-right: none; }
+    body.mfa-console .switcher a.active { background: #00FF88; color: #050810; font-weight: 700; }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <div class="wrap">
+    <div class="card">
+      {% if variant == 'minimal' %}
+        <p class="eyebrow">Two-Factor Verification</p>
+        <h1>One more <em>step.</em></h1>
+        <p class="lede">Enter the 6-digit code from your authenticator app.</p>
+      {% elif variant == 'split' %}
+        <span class="badge">Step 2 of 2</span>
+        <h1>Verify <em>identity.</em></h1>
+        <p class="lede">Open your authenticator app and enter the current 6-digit code.</p>
+      {% else %}
+        <p class="form-eyebrow"><span class="arrow">›</span> auth.totp · awaiting code</p>
+        <h1>verify_mfa</h1>
+        <p class="lede">Enter the 6-digit TOTP from your authenticator device.</p>
+      {% endif %}
+
+      <div class="pending-user">
+        Signed in as <code>{{ pending_username }}</code>
+      </div>
+
+      {% if error_banner %}
+        <div class="banner" role="alert">{{ error_banner }}</div>
+      {% endif %}
+
+      <form method="post" novalidate id="mfa-form">
+        {% csrf_token %}
+        <label>Authentication code</label>
+
+        <!-- Visible 6-box display synced with hidden real input -->
+        <div class="otp-row" id="otp-row">
+          <div class="otp-box" data-idx="0"></div>
+          <div class="otp-box" data-idx="1"></div>
+          <div class="otp-box" data-idx="2"></div>
+          <div class="otp-box" data-idx="3"></div>
+          <div class="otp-box" data-idx="4"></div>
+          <div class="otp-box" data-idx="5"></div>
+        </div>
+
+        <div style="position:relative;">
+          {{ form.code }}
+        </div>
+        {% if form.code.errors %}
+          <div style="font-size:12px;color:#B83227;margin-top:8px;">{{ form.code.errors.0 }}</div>
+        {% endif %}
+
+        <button type="submit">Verify</button>
+
+        <div class="alt">
+          Lost access? <a href="#">Use a recovery code</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <nav class="switcher" aria-label="Compare variants">
+    {% for v in variant_links %}
+      <a href="{{ v.url }}" {% if v.key == variant %}class="active"{% endif %}>{{ v.label|default:"·" }}</a>
+    {% endfor %}
+  </nav>
+
+  <script>
+    // OTP UX: keep the real input the source of truth, mirror digits
+    // into the visible boxes. Single input + visual decoration is
+    // less buggy than 6 separate fields with focus management.
+    (function () {
+      const form = document.getElementById('mfa-form');
+      const real = form.querySelector('input[name="code"]');
+      const boxes = Array.from(document.querySelectorAll('.otp-box'));
+
+      // Hide real input visually but keep accessible
+      real.style.opacity = '0.001';
+      real.style.position = 'absolute';
+      real.style.left = '-1000px';
+      real.style.width = '1px';
+      real.style.height = '1px';
+      real.tabIndex = 0;
+
+      // Focus real input when any box is clicked
+      boxes.forEach(b => b.addEventListener('click', () => real.focus()));
+      // Also focus on load
+      setTimeout(() => real.focus(), 50);
+
+      function render() {
+        const v = (real.value || '').replace(/\D/g, '').slice(0, 6);
+        if (v !== real.value) real.value = v;
+        boxes.forEach((b, i) => {
+          b.textContent = v[i] || '';
+          b.classList.toggle('filled', i < v.length);
+          b.classList.toggle('focus', i === v.length && document.activeElement === real);
+        });
+      }
+      real.addEventListener('input', render);
+      real.addEventListener('focus', render);
+      real.addEventListener('blur', render);
+      render();
+
+      // Auto-submit when 6 digits entered
+      real.addEventListener('input', () => {
+        if (real.value.length === 6) {
+          // Tiny delay so the box renders the last digit before submit
+          setTimeout(() => form.submit(), 80);
+        }
+      });
+    })();
+  </script>
+{% endblock %}

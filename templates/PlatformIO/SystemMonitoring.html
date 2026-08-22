@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+{% include "nav.html" %}
+{% block content %}
+<head>
+    {% load static %}
+<meta charset="UTF-8">
+<title>YantrAI Observability</title>
+<style>
+    /* Full height adjustments to make iframe flush with boundaries */
+    html, body { margin: 0; padding: 0; height: 100vh; overflow: hidden; background: #fff; }
+    .ik-right-container { height: calc(100vh - 60px); } /* Approximate nav bar offset */
+</style>
+</head>
+<body style="overflow-X:hidden;">
+<div class="container-fluid p-0">
+    <div class="row flex-nowrap m-0">
+        {% include "PlatformIO/PlatformSideBar.html" %}
+        
+        <div class="col-lg-11 ik-right-container px-0 mx-0 pb-0" id="glitchtipParent">
+            <iframe id="service-glitchtip-embed-frame" 
+                    title="YantrAI Observability" 
+                    style="width: 100%; height: 100%; border: 0; background: #fff;" 
+                    referrerpolicy="no-referrer-when-downgrade">
+            </iframe>
+        </div>
+    </div>
+</div>
+
+<script>
+    function resolveGlitchTipBaseUrl(){
+        if(window.location.protocol === 'https:'){
+            return `${window.location.origin}/glitchtip/`
+        }
+        const hostName = window.location.hostname
+        return `http://${hostName}:9008/`
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const frame = document.getElementById('service-glitchtip-embed-frame');
+        if(frame){
+            frame.src = resolveGlitchTipBaseUrl();
+        }
+    });
+</script>
+</body>
+{% endblock %}
+</html>

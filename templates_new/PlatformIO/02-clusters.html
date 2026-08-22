@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="en">
+  {% load static %}
+  {% include "sidebar.html" %}
+<head>
+{% load static %}
+<link rel="stylesheet" type="text/css" href="{% static 'css/cluster.css' %}">
+<meta charset="UTF-8">
+<title>Iktara · Clusters</title>
+</head>
+<body>
+<div class="app">
+
+  <main class="main">
+    {% include "navbar.html" %}
+
+    <div class="content">
+
+      <div class="page-head">
+        <div class="titles">
+          <h1>Compute <em>clusters</em></h1>
+          <p class="sub">Five clusters across three regions. One degraded — Mumbai standby is auto-recovering. No action required.</p>
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary" id="addClusterBtn">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Add cluster
+          </button>
+        </div>
+      </div>
+
+      <div class="meta-strip">
+        <div class="meta"><div class="v" id="clusterCount">{{cluster_info | length}}</div>
+            <div class="l">
+                    Clusters
+            </div>
+        </div>
+        <div class="meta"><div class="v">{{total_nodes}}</div><div class="l">Nodes online</div></div>
+        <div class="meta"><div class="v">{{total_services}}</div><div class="l">Services</div></div>
+        <div class="meta"><div class="v">NA <span class="delta down">NA</span></div><div class="l">Uptime NA</div></div>
+      </div>
+
+      <div class="toolbar">
+        <div class="search">
+          <svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" placeholder="Search clusters…" id="clusterSearch">
+        </div>
+        <div class="chip" id="typeChip">Type: All</div>
+        <div class="chip" id="regionChip">Region: All</div>
+        <div class="chip" id="envChip">+ Filter</div>
+      </div>
+
+      <!-- CARD GRID -->
+      <div class="cards-grid">
+        {% for index, cluster in cluster_info.items %}
+<!--          <a class="card" href="/PlatformIO/ClusterConfig/">-->
+          <a class="card"
+             data-cluster-id="{{ cluster.cluster_id }}"
+             data-cluster-name="{{ cluster.cluster_name }}"
+             data-cluster-type="{{ cluster.cluster_type_varient|default:'Kubernetes' }}"
+             data-cluster-role="{{ cluster.cluster_type|default:'Secondary' }}"
+             data-cluster-region="{{ cluster.region }}"
+             data-cluster-env="{{ cluster.environment|default:'prod' }}"
+             data-cluster-desc="{{ cluster.description|default:'' }}"
+             data-repo-provider="{{ cluster.repo_provider|default:'github' }}"
+             data-repo-url="{{ cluster.repo_url|default:'' }}"
+             data-repo-branch="{{ cluster.repo_branch|default:'main' }}"
+             data-repo-path="{{ cluster.repo_path|default:'' }}"
+             data-repo-auth="{{ cluster.repo_auth|default:'pat' }}"
+             data-img-provider="{{ cluster.image_store_type|default:'ecr' }}"
+             data-img-url="{{ cluster.image_url|default:'' }}"
+             data-img-ns="{{ cluster.image_namespace|default:'' }}"
+             data-img-auth="{{ cluster.image_auth|default:'aws' }}"
+             data-cluster-nodes="{{ cluster.node_info|length }}"
+             data-cluster-services="{{ cluster.service_counts }}"
+             onclick="redirectToClusterConfig('{{ cluster.cluster_id }}')">
+
+              <div class="open-hint">Open<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
+              <div class="head">
+                <div>
+                  <div class="title">{{cluster.cluster_name}}</div>
+                  <div class="sub-id">{{cluster.cluster_type_varient}} · {{cluster.region}}</div>
+                </div>
+                <span class="pill pill-ok">Healthy</span>
+              </div>
+              <div class="desc">{{ cluster.description|default:"NA" }}</div>
+              <div class="source-chips">
+                <span class="src-chip" title="Repository">
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>
+                  <span class="label">repo</span>github
+                </span>
+                <span class="src-chip" title="Image registry">
+                  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                  <span class="label">images</span>{{ cluster.image_store_type|default:"NA" }}
+                </span>
+              </div>
+              <div class="health-bar">
+                <div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div><div class="slot ok"></div>
+              </div>
+              <div class="stats">
+                <div class="stat"><div class="v">{{cluster.node_info|length}}</div><div class="l">Nodes</div></div>
+                <div class="stat"><div class="v">{{cluster.service_counts}}</div><div class="l">Services</div></div>
+                <div class="stat"><div class="v">NA%</div><div class="l">Uptime NA</div></div>
+              </div>
+          </a>
+        {% endfor %}
+
+        <!-- ADD NEW CARD (subtle invitation) -->
+        <div class="card dashed-card" id="addClusterCard">
+          <div style="text-align:center;">
+            <div class="dashed-icon">
+              <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            </div>
+            <div class="dashed-title">Add another cluster</div>
+            <div class="dashed-sub">Connect Kubernetes, standalone, or edge</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- ADD CLUSTER DRAWER ───────────────────────── -->
+<div class="drawer-backdrop" id="drawerBack"></div>
+<aside class="drawer" id="addClusterDrawer">
+  <div class="drawer-head">
+    <h2 id="drawerTitle">Add cluster <span class="edit-badge" id="editBadge" style="display:none;">EDIT</span></h2>
+    <button class="icon-btn" id="closeDrawerBtn"><svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+  </div>
+
+  <div class="stepper">
+    <div class="step active" data-step="1"><span class="n">1</span> Identity</div>
+    <div class="step" data-step="2"><span class="n">2</span> Repository</div>
+    <div class="step" data-step="3"><span class="n">3</span> Image store</div>
+    <div class="step" data-step="4"><span class="n">4</span> Review</div>
+  </div>
+
+  <div class="drawer-body">
+
+    <!-- STEP 1 — IDENTITY -->
+    <div class="step-pane active" data-step-pane="1">
+      <div class="field">
+        <label>Cluster name <span class="req">*</span></label>
+        <input class="input" id="fld-name" placeholder="e.g. prod-mumbai-3">
+        <div class="hint">Lowercase letters, numbers, hyphens. Used in DNS, kubeconfig, and logs.</div>
+      </div>
+
+      <div class="section-head-sm">Cluster type</div>
+      <div class="type-row">
+        <div class="type-card selected" data-type="k8s">
+          <div class="nm">Kubernetes</div>
+          <div class="desc">Managed or self-hosted k8s. Use kubeconfig to connect.</div>
+        </div>
+        <div class="type-card" data-type="standalone">
+          <div class="nm">Standalone</div>
+          <div class="desc">Plain VMs reachable via Ansible inventory. No control plane.</div>
+        </div>
+        <div class="type-card" data-type="edge">
+          <div class="nm">Edge</div>
+          <div class="desc">Single-zone deployment for low-latency workloads.</div>
+        </div>
+      </div>
+
+      <div class="field-row" style="margin-top:var(--s-4);">
+        <div class="field">
+          <label>Region <span class="req">*</span></label>
+          <select class="select" id="fld-region">
+            <option value="ap-south-1 (Mumbai)">ap-south-1 (Mumbai)</option>
+            <option value="ap-south-2 (Hyderabad)">ap-south-2 (Hyderabad)</option>
+            <option value="north-india">north-india</option>
+            <option value="us-east-1 (N. Virginia)">us-east-1 (N. Virginia)</option>
+            <option value="eu-west-1 (Ireland)">eu-west-1 (Ireland)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Environment</label>
+          <select class="select" id="fld-env">
+            <option value="prod">Production</option>
+            <option value="stage">Staging</option>
+            <option value="dev">Development</option>
+            <option value="edge">Edge</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Description (optional)</label>
+        <textarea class="textarea" id="fld-desc" rows="2" placeholder="What runs here? Who owns it?"></textarea>
+      </div>
+    </div>
+
+    <!-- STEP 2 — REPOSITORY -->
+    <div class="step-pane" data-step-pane="2">
+      <p style="font-size:12px; color:var(--ink-3); margin-bottom:var(--s-4); line-height:1.55;">
+        Where infrastructure-as-code (Terraform, Ansible playbooks, Helm charts) for this cluster lives.
+        The platform pulls from here when provisioning nodes or deploying services.
+      </p>
+
+      <div class="section-head-sm">Provider</div>
+      <div class="provider-grid">
+        <div class="provider-card selected" data-repo="github"><div class="ico">GH</div><div class="nm">GitHub</div></div>
+        <div class="provider-card" data-repo="gitlab"><div class="ico">GL</div><div class="nm">GitLab</div></div>
+        <div class="provider-card" data-repo="bitbucket"><div class="ico">BB</div><div class="nm">Bitbucket</div></div>
+        <div class="provider-card" data-repo="git-self"><div class="ico">SH</div><div class="nm">Self-hosted</div></div>
+      </div>
+
+      <div class="field" style="margin-top:var(--s-4);">
+        <label>Repository URL <span class="req">*</span></label>
+        <input class="input mono" id="fld-repo-url" placeholder="https://github.com/your-org/iktara-infra">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Branch</label>
+          <input class="input mono" id="fld-repo-branch" value="main">
+        </div>
+        <div class="field">
+          <label>Path (optional)</label>
+          <input class="input mono" id="fld-repo-path" placeholder="clusters/prod-mumbai-3/">
+          <div class="hint">If multiple clusters share one repo</div>
+        </div>
+      </div>
+
+      <div class="section-head-sm">Authentication</div>
+      <div class="auth-tabs" id="repo-auth-tabs">
+        <div class="auth-tab active" data-auth="pat">Personal access token</div>
+        <div class="auth-tab" data-auth="ssh">SSH key</div>
+        <div class="auth-tab" data-auth="oauth">OAuth app</div>
+        <div class="auth-tab" data-auth="public">Public</div>
+      </div>
+      <div class="auth-pane active" data-auth-pane="pat">
+        <div class="field secret-field" data-secret="repo-pat">
+          <label>Personal access token <span class="req">*</span></label>
+          <div class="secret-stored" style="display:none;">
+            <span class="stored-mask">•••••••••••••• stored in vault</span>
+            <button type="button" class="link-btn replace-secret-btn">Replace</button>
+          </div>
+          <input class="input mono secret-input" type="password" placeholder="ghp_…" autocomplete="off">
+          <div class="hint">Scopes required: <code style="font-family:var(--mono); font-size:11px; background:var(--bg-sunken); padding:1px 5px; border-radius:3px;">repo</code> read. Stored encrypted in vault.</div>
+        </div>
+      </div>
+      <div class="auth-pane" data-auth-pane="ssh">
+        <div class="field secret-field" data-secret="repo-ssh">
+          <label>Private SSH key <span class="req">*</span></label>
+          <div class="secret-stored" style="display:none;">
+            <span class="stored-mask">SSH key stored in vault</span>
+            <button type="button" class="link-btn replace-secret-btn">Replace</button>
+          </div>
+          <textarea class="textarea mono secret-input" rows="4" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+          <div class="hint">Stored encrypted. Public key is auto-derived for repo deploy-key registration.</div>
+        </div>
+      </div>
+      <div class="auth-pane" data-auth-pane="oauth">
+        <div class="field">
+          <p style="font-size:12px; color:var(--ink-3); padding:var(--s-3); background:var(--bg-sunken); border-radius:var(--r-md); line-height:1.55;">
+            Connect via OAuth app. Click <strong>Authorize</strong> below to grant the Iktara GitHub App access to the selected org. Tokens are managed by GitHub and rotated automatically.
+          </p>
+          <button class="btn btn-secondary" type="button" style="margin-top:var(--s-2);">Authorize GitHub App →</button>
+        </div>
+      </div>
+      <div class="auth-pane" data-auth-pane="public">
+        <div class="field">
+          <p style="font-size:12px; color:var(--ink-3); padding:var(--s-3); background:var(--bg-sunken); border-radius:var(--r-md); line-height:1.55;">
+            No authentication required for public repos. Only available for read operations.
+          </p>
+        </div>
+      </div>
+
+      <button class="test-btn" id="test-repo-btn" style="margin-top:var(--s-3);">Test connection</button>
+      <span class="test-result" id="test-repo-result" style="display:none;"></span>
+    </div>
+
+    <!-- STEP 3 — IMAGE STORE -->
+    <div class="step-pane" data-step-pane="3">
+      <p style="font-size:12px; color:var(--ink-3); margin-bottom:var(--s-4); line-height:1.55;">
+        Where container and VM images are stored. Nodes in this cluster will pull from here when services are deployed.
+      </p>
+
+      <div class="section-head-sm">Registry</div>
+      <div class="provider-grid">
+        <div class="provider-card selected" data-img="ecr"><div class="ico">ECR</div><div class="nm">AWS ECR</div></div>
+        <div class="provider-card" data-img="gcr"><div class="ico">GCR</div><div class="nm">Google GCR</div></div>
+        <div class="provider-card" data-img="harbor"><div class="ico">HB</div><div class="nm">Harbor</div></div>
+        <div class="provider-card" data-img="dockerhub"><div class="ico">DH</div><div class="nm">Docker Hub</div></div>
+      </div>
+
+      <div class="field" style="margin-top:var(--s-4);">
+        <label>Registry URL <span class="req">*</span></label>
+        <input class="input mono" id="fld-img-url" placeholder="123456789012.dkr.ecr.ap-south-1.amazonaws.com">
+        <div class="hint">For ECR: full registry hostname. For Harbor: include /v2 path.</div>
+      </div>
+
+      <div class="field">
+        <label>Default namespace (optional)</label>
+        <input class="input mono" id="fld-img-ns" placeholder="iktara/">
+        <div class="hint">Prepended to image names. Useful for multi-tenant Harbor instances.</div>
+      </div>
+
+      <div class="section-head-sm">Authentication</div>
+      <div class="auth-tabs" id="img-auth-tabs">
+        <div class="auth-tab active" data-auth="aws">AWS credentials</div>
+        <div class="auth-tab" data-auth="basic">Username + password</div>
+        <div class="auth-tab" data-auth="anon">Anonymous</div>
+      </div>
+      <div class="auth-pane active" data-auth-pane="aws">
+        <div class="field-row">
+          <div class="field">
+            <label>Access key ID <span class="req">*</span></label>
+            <input class="input mono" placeholder="AKIA…" autocomplete="off" id="fld-aws-akid">
+          </div>
+          <div class="field secret-field" data-secret="img-aws">
+            <label>Secret access key <span class="req">*</span></label>
+            <div class="secret-stored" style="display:none;">
+              <span class="stored-mask">•••••••••••••• stored in vault</span>
+              <button type="button" class="link-btn replace-secret-btn">Replace</button>
+            </div>
+            <input class="input mono secret-input" type="password" autocomplete="off">
+          </div>
+        </div>
+        <div class="field">
+          <label>Assume role ARN (optional)</label>
+          <input class="input mono" placeholder="arn:aws:iam::…:role/ECRPullRole" id="fld-aws-role">
+          <div class="hint">Cross-account access. Leave blank to use the credentials directly.</div>
+        </div>
+      </div>
+      <div class="auth-pane" data-auth-pane="basic">
+        <div class="field-row">
+          <div class="field">
+            <label>Username <span class="req">*</span></label>
+            <input class="input mono" autocomplete="off" id="fld-basic-user">
+          </div>
+          <div class="field secret-field" data-secret="img-basic">
+            <label>Password <span class="req">*</span></label>
+            <div class="secret-stored" style="display:none;">
+              <span class="stored-mask">•••••••••••••• stored in vault</span>
+              <button type="button" class="link-btn replace-secret-btn">Replace</button>
+            </div>
+            <input class="input mono secret-input" type="password" autocomplete="off">
+          </div>
+        </div>
+      </div>
+      <div class="auth-pane" data-auth-pane="anon">
+        <div class="field">
+          <p style="font-size:12px; color:var(--ink-3); padding:var(--s-3); background:var(--bg-sunken); border-radius:var(--r-md); line-height:1.55;">
+            Anonymous pulls only. Limited to public images and subject to provider rate limits (Docker Hub: 100 pulls / 6 hr per IP).
+          </p>
+        </div>
+      </div>
+
+      <button class="test-btn" id="test-img-btn" style="margin-top:var(--s-3);">Test connection</button>
+      <span class="test-result" id="test-img-result" style="display:none;"></span>
+    </div>
+
+    <!-- STEP 4 — REVIEW -->
+    <div class="step-pane" data-step-pane="4">
+      <div class="review-block">
+        <div class="review-label">Identity</div>
+        <div class="review-row"><span class="k">Name</span><span class="v" id="rv-name">—</span></div>
+        <div class="review-row"><span class="k">Type</span><span class="v" id="rv-type">—</span></div>
+        <div class="review-row"><span class="k">Region</span><span class="v" id="rv-region">—</span></div>
+        <div class="review-row"><span class="k">Environment</span><span class="v" id="rv-env">—</span></div>
+      </div>
+      <div class="review-block">
+        <div class="review-label">Repository</div>
+        <div class="review-row"><span class="k">Provider</span><span class="v" id="rv-repo">—</span></div>
+        <div class="review-row"><span class="k">URL</span><span class="v" id="rv-repo-url">—</span></div>
+        <div class="review-row"><span class="k">Branch</span><span class="v" id="rv-repo-branch">—</span></div>
+        <div class="review-row"><span class="k">Authentication</span><span class="v" id="rv-repo-auth">—</span></div>
+      </div>
+      <div class="review-block">
+        <div class="review-label">Image store</div>
+        <div class="review-row"><span class="k">Provider</span><span class="v" id="rv-img">—</span></div>
+        <div class="review-row"><span class="k">Registry URL</span><span class="v" id="rv-img-url">—</span></div>
+        <div class="review-row"><span class="k">Authentication</span><span class="v" id="rv-img-auth">—</span></div>
+      </div>
+
+      <div class="review-explainer">
+        Pressing <strong>Create cluster</strong> registers this cluster in Iktara. Credentials are encrypted
+        in the vault. The cluster starts in <code>Pending</code> state — once you provision its first node
+        (in the cluster detail page), it transitions to <code>Healthy</code>.
+      </div>
+    </div>
+  </div>
+
+  <div class="drawer-foot">
+    <button class="btn btn-ghost" id="cancelBtn">Cancel</button>
+    <button class="btn btn-secondary" id="prevStepBtn" style="display:none;">← Back</button>
+    <button class="btn btn-primary" id="nextStepBtn">Continue →</button>
+    <button class="btn btn-primary" id="createBtn" style="display:none;">
+      <svg class="ic" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      Create cluster
+    </button>
+    <button class="btn btn-primary" id="saveBtn" style="display:none;">
+      <svg class="ic" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      Save changes
+    </button>
+  </div>
+</aside>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  <span id="toastMsg">OK</span>
+</div>
+
+<!-- ACTION MODAL -->
+<div class="action-modal-backdrop" id="clusterActionBack"></div>
+<section class="action-modal" id="clusterActionModal" role="dialog" aria-modal="true" aria-labelledby="clusterActionTitle">
+  <div class="action-modal-head">
+    <div>
+      <div class="action-modal-eyebrow" id="clusterActionEyebrow">Confirm action</div>
+      <h2 id="clusterActionTitle">Delete cluster?</h2>
+    </div>
+    <button class="icon-btn" id="clusterActionClose" type="button" aria-label="Close">
+      <svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <p class="action-modal-message" id="clusterActionMessage"></p>
+  <div class="action-modal-list" id="clusterActionList"></div>
+  <div class="action-modal-foot">
+    <button class="btn btn-secondary" id="clusterActionSecondary" type="button">Cancel</button>
+    <button class="btn btn-primary" id="clusterActionPrimary" type="button">Delete cluster</button>
+  </div>
+</section>
+<script>
+  // redirect to cluster config
+async function redirectToClusterConfig(clusterId) {
+
+    console.log("reach here");
+
+    try {
+
+        const response = await fetch('/PlatformIO/ClusterConfig/', {
+
+            method: 'POST',
+
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+
+            body: JSON.stringify({
+                "user-action": "open-cluster-config",
+                "cluster_id": clusterId
+            })
+        });
+
+        const data = await response.json();
+
+        console.log(data);
+
+        if (data.success) {
+
+            window.location.href = data.redirect_url;
+        }
+
+    } catch (error) {
+
+        console.error(error);
+    }
+}
+(function(){
+  var cluster_request_json = {}
+  async function sendRequest(payload, options = {}) {
+
+      const config = {
+        reloadOnSuccess: true,
+        showAlert: true,
+        ...options,
+      };
+
+      try {
+
+        const response = await fetch(window.location.href, {
+          method: 'POST',
+
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}',
+          },
+
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+
+        console.log(data);
+
+
+        return data;
+
+      } catch (error) {
+
+        console.log(error);
+
+        return {
+          success: false,
+          error,
+        };
+      }
+  }
+
+
+
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+
+  // Defaults
+  const state = {
+    step: 1,
+    type: 'k8s',
+    repoProvider: 'github',
+    repoAuth: 'pat',
+    imgProvider: 'ecr',
+    imgAuth: 'aws',
+    // ── Mode tracking for Add vs Edit ──
+    mode: 'add',          // 'add' | 'edit'
+    editingCardEl: null,  // the card element currently being edited
+    editingClusterId: null,
+  };
+
+  function showToast(msg, kind){
+    const t = $('#toast');
+    $('#toastMsg').textContent = msg;
+    t.classList.remove('ok', 'err');
+    if(kind) t.classList.add(kind);
+    t.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => t.classList.remove('show'), 2400);
+  }
+
+  const modalState = { primary: null, secondary: null };
+
+  function escapeHtml(s){
+    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function openActionModal(options){
+    const cfg = options || {};
+    $('#clusterActionEyebrow').textContent = cfg.eyebrow || 'Confirm action';
+    $('#clusterActionTitle').textContent = cfg.title || 'Confirm action';
+    $('#clusterActionMessage').textContent = cfg.message || '';
+    $('#clusterActionList').innerHTML = (cfg.items || []).map(item => `
+      <div class="action-modal-item">
+        <div class="name">${escapeHtml(item.name || 'Item')}</div>
+        <div class="meta">${escapeHtml(item.meta || '')}</div>
+      </div>
+    `).join('');
+    $('#clusterActionPrimary').textContent = cfg.primaryLabel || 'Continue';
+    $('#clusterActionSecondary').textContent = cfg.secondaryLabel || 'Cancel';
+    modalState.primary = cfg.onPrimary || closeActionModal;
+    modalState.secondary = cfg.onSecondary || closeActionModal;
+    $('#clusterActionBack').classList.add('open');
+    $('#clusterActionModal').classList.add('open');
+  }
+
+  function closeActionModal(){
+    $('#clusterActionBack').classList.remove('open');
+    $('#clusterActionModal').classList.remove('open');
+    modalState.primary = null;
+    modalState.secondary = null;
+  }
+
+  async function deleteCluster(cardEl){
+    if(!cardEl) return;
+    const clusterId = cardEl.dataset.clusterId;
+    const clusterName = cardEl.dataset.clusterName || clusterId || 'cluster';
+    showToast(`Deleting cluster "${clusterName}"...`, 'ok');
+    const response = await sendRequest({
+      'user-action': 'delete_cluster',
+      'cluster_id': clusterId,
+    }, { reloadOnSuccess: false, showAlert: false });
+
+    if(response && response.success){
+      cardEl.remove();
+      const clusterCountEl = document.getElementById('clusterCount');
+      if(clusterCountEl){
+        const currentCount = parseInt(clusterCountEl.textContent, 10) || 0;
+        clusterCountEl.textContent = Math.max(0, currentCount - 1);
+      }
+      showToast(response.message || `Cluster "${clusterName}" deleted`, 'ok');
+      return;
+    }
+
+    const details = (response && response.details) || {};
+    const nodes = details.nodes || [];
+    openActionModal({
+      eyebrow: 'Deletion blocked',
+      title: 'Cluster deletion blocked',
+      message: (response && response.message) || 'This cluster cannot be deleted yet.',
+      items: nodes.length
+        ? nodes.map(node => ({
+            name: node.node_name || node.node_id,
+            meta: `${node.node_id || 'node'} · delete this node first`,
+          }))
+        : [{
+            name: clusterName,
+            meta: details.code === 'PRIMARY_CLUSTER_HAS_SECONDARIES'
+              ? 'Primary cluster must be deleted after secondary clusters'
+              : 'Review cluster dependencies before deleting',
+          }],
+      primaryLabel: 'Open cluster',
+      secondaryLabel: 'Close',
+      onPrimary: () => {
+        closeActionModal();
+        redirectToClusterConfig(clusterId);
+      },
+      onSecondary: closeActionModal,
+    });
+  }
+
+  function openDeleteClusterModal(cardEl){
+    if(!cardEl) return;
+    const clusterName = cardEl.dataset.clusterName || cardEl.dataset.clusterId || 'cluster';
+    openActionModal({
+      eyebrow: 'Confirm deletion',
+      title: 'Delete cluster?',
+      message: `This will delete "${clusterName}" if it has no active nodes. Clusters with mapped nodes or primary/secondary dependencies will be blocked.`,
+      items: [{
+        name: clusterName,
+        meta: `${cardEl.dataset.clusterNodes || '0'} nodes · ${cardEl.dataset.clusterServices || '0'} services`,
+      }],
+      primaryLabel: 'Delete cluster',
+      secondaryLabel: 'Cancel',
+      onPrimary: () => {
+        closeActionModal();
+        deleteCluster(cardEl);
+      },
+      onSecondary: closeActionModal,
+    });
+  }
+  window.openDeleteClusterModal = openDeleteClusterModal;
+
+  $('#clusterActionBack').addEventListener('click', closeActionModal);
+  $('#clusterActionClose').addEventListener('click', closeActionModal);
+  $('#clusterActionPrimary').addEventListener('click', () => (modalState.primary || closeActionModal)());
+  $('#clusterActionSecondary').addEventListener('click', () => (modalState.secondary || closeActionModal)());
+
+  function openDrawer(){
+    state.step = 1;
+    setStep(1);
+    $('#drawerBack').classList.add('open');
+    $('#addClusterDrawer').classList.add('open');
+    setTimeout(() => $('#fld-name').focus(), 250);
+  }
+  function closeDrawer(){
+    $('#drawerBack').classList.remove('open');
+    $('#addClusterDrawer').classList.remove('open');
+  }
+
+  // ── Form state helpers ─────────────────────────────────────────────
+  // Reset every field to its defaults. Called when re-opening the drawer fresh.
+  function resetForm(){
+    $('#fld-name').value = '';
+    $('#fld-name').disabled = false;
+    $('#fld-name').classList.remove('invalid');
+    $('#fld-region').value = $('#fld-region').querySelector('option').value;
+    $('#fld-env').value = 'prod';
+    $('#fld-desc').value = '';
+
+    // Reset all "selected" pickers to their first option
+    selectByDataKey('.type-card', 'data-type', 'k8s');
+    selectByDataKey('[data-repo]', 'data-repo', 'github');
+    selectByDataKey('[data-img]', 'data-img', 'ecr');
+    state.type = 'k8s';
+    state.repoProvider = 'github';
+    state.imgProvider = 'ecr';
+
+    $('#fld-repo-url').value = '';
+    $('#fld-repo-branch').value = 'main';
+    $('#fld-repo-path').value = '';
+    $('#fld-img-url').value = '';
+    $('#fld-img-ns').value = '';
+
+    // Reset auth tab choices
+    activateAuthTab('#repo-auth-tabs', '[data-step-pane="2"]', 'pat');
+    activateAuthTab('#img-auth-tabs', '[data-step-pane="3"]', 'aws');
+    state.repoAuth = 'pat';
+    state.imgAuth = 'aws';
+
+    // Clear all credential inputs
+    $$('.secret-field').forEach(f => {
+      const inp = f.querySelector('.secret-input');
+      if(inp) inp.value = '';
+      const stored = f.querySelector('.secret-stored');
+      if(stored) stored.style.display = 'none';
+      if(inp) inp.style.display = '';
+    });
+
+    // Clear non-secret credential text fields
+    ['#fld-aws-akid', '#fld-aws-role', '#fld-basic-user'].forEach(sel => {
+      const el = $(sel); if(el) el.value = '';
+    });
+
+    // Clear test-connection results
+    ['#test-repo-result', '#test-img-result'].forEach(sel => {
+      const el = $(sel);
+      if(el){ el.style.display = 'none'; el.className = 'test-result'; el.innerHTML = ''; }
+    });
+  }
+
+  // Helper: select a picker card by data-attribute value
+  function selectByDataKey(selectorAll, dataAttr, value){
+    $$(selectorAll).forEach(c => {
+      c.classList.toggle('selected', c.getAttribute(dataAttr) === value);
+    });
+  }
+
+  // Helper: activate an auth tab inside a given step pane
+  function activateAuthTab(tabsContainerSel, paneScope, target){
+    $$(tabsContainerSel + ' .auth-tab').forEach(t =>
+      t.classList.toggle('active', t.dataset.auth === target));
+    $$(paneScope + ' [data-auth-pane]').forEach(p =>
+      p.classList.toggle('active', p.dataset.authPane === target));
+  }
+
+  // Populate the form from a card's data attributes (edit-mode)
+  function populateFormFromCard(card){
+    const d = card.dataset;
+
+    // Identity
+    $('#fld-name').value = d.clusterName || '';
+    $('#fld-name').disabled = true; // immutable — used in DNS, kubeconfig, logs
+    $('#fld-region').value = d.clusterRegion || $('#fld-region').value;
+    $('#fld-env').value = d.clusterEnv || 'prod';
+    $('#fld-desc').value = d.clusterDesc || '';
+    const variantMap = { 'Kubernetes': 'k8s', 'Standalone': 'standalone', 'Edge': 'edge' };
+    const clusterVariant = variantMap[d.clusterType] || d.clusterType || 'k8s';
+    selectByDataKey('.type-card', 'data-type', clusterVariant);
+    state.type = clusterVariant;
+
+    // Repository
+    selectByDataKey('[data-repo]', 'data-repo', d.repoProvider || 'github');
+    state.repoProvider = d.repoProvider || 'github';
+    $('#fld-repo-url').value = d.repoUrl || '';
+    $('#fld-repo-branch').value = d.repoBranch || 'main';
+    $('#fld-repo-path').value = d.repoPath || '';
+    const repoAuth = d.repoAuth || 'pat';
+    activateAuthTab('#repo-auth-tabs', '[data-step-pane="2"]', repoAuth);
+    state.repoAuth = repoAuth;
+
+    // Image store
+    selectByDataKey('[data-img]', 'data-img', d.imgProvider || 'ecr');
+    state.imgProvider = d.imgProvider || 'ecr';
+    $('#fld-img-url').value = d.imgUrl || '';
+    $('#fld-img-ns').value = d.imgNs || '';
+    const imgAuth = d.imgAuth || 'aws';
+    activateAuthTab('#img-auth-tabs', '[data-step-pane="3"]', imgAuth);
+    state.imgAuth = imgAuth;
+
+    // For edit mode, mask all credential fields as "stored in vault"
+    $$('.secret-field').forEach(f => {
+      const stored = f.querySelector('.secret-stored');
+      const inp = f.querySelector('.secret-input');
+      if(stored) stored.style.display = 'flex';
+      if(inp) inp.style.display = 'none';
+    });
+  }
+
+  // Switch drawer chrome between Add vs Edit
+  function applyMode(mode){
+    state.mode = mode;
+    const isEdit = mode === 'edit';
+    $('#drawerTitle').firstChild.textContent = isEdit ? 'Edit cluster ' : 'Add cluster ';
+    $('#editBadge').style.display = isEdit ? 'inline-block' : 'none';
+    // Button labels swap at step 4
+    $('#createBtn').style.display = (!isEdit && state.step === 4) ? '' : 'none';
+    $('#saveBtn').style.display   = ( isEdit && state.step === 4) ? '' : 'none';
+  }
+
+  // Public: open the drawer in Add mode (called from button + dashed card)
+  function openAddDrawer(){
+    state.mode = 'add';
+    state.editingCardEl = null;
+    state.editingClusterId = null;
+    resetForm();
+    applyMode('add');
+    openDrawer();
+  }
+
+  // Public: open the drawer in Edit mode for a given card (exposed globally below)
+  function openEditDrawer(cardEl){
+    if(!cardEl) return;
+    state.mode = 'edit';
+    state.editingCardEl = cardEl;
+    state.editingClusterId = cardEl.dataset.clusterId || null;
+    resetForm();
+    populateFormFromCard(cardEl);
+    applyMode('edit');
+    openDrawer();
+    // In edit mode, don't autofocus the name field (it's disabled). Focus the description instead.
+    setTimeout(() => $('#fld-desc').focus(), 250);
+  }
+
+  // Wire "Replace" buttons inside secret fields
+  $$('.replace-secret-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const wrap = btn.closest('.secret-field');
+      const inp = wrap.querySelector('.secret-input');
+      const stored = wrap.querySelector('.secret-stored');
+      stored.style.display = 'none';
+      inp.style.display = '';
+      inp.value = '';
+      inp.focus();
+    });
+  });
+
+  $('#addClusterBtn').addEventListener('click', openAddDrawer);
+  $('#addClusterCard').addEventListener('click', openAddDrawer);
+  $('#drawerBack').addEventListener('click', closeDrawer);
+  $('#closeDrawerBtn').addEventListener('click', closeDrawer);
+  $('#cancelBtn').addEventListener('click', closeDrawer);
+
+  // Expose for inline onclick on each cluster card's pencil button
+  window.openEditClusterDrawer = openEditDrawer;
+
+  // Stepper
+  function setStep(n){
+    state.step = n;
+    $$('.stepper .step').forEach(s => {
+      const sn = parseInt(s.dataset.step, 10);
+      s.classList.toggle('active', sn === n);
+      s.classList.toggle('done', sn < n);
+    });
+    $$('[data-step-pane]').forEach(p => {
+      p.classList.toggle('active', parseInt(p.dataset.stepPane, 10) === n);
+    });
+    $('#prevStepBtn').style.display = n > 1 ? '' : 'none';
+    $('#nextStepBtn').style.display = n < 4 ? '' : 'none';
+    // At step 4, show either Create or Save depending on mode
+    const isEdit = state.mode === 'edit';
+    $('#createBtn').style.display = (n === 4 && !isEdit) ? '' : 'none';
+    $('#saveBtn').style.display   = (n === 4 &&  isEdit) ? '' : 'none';
+    if(n === 4) populateReview();
+  }
+  $('#nextStepBtn').addEventListener('click', () => {
+    if(state.step === 1 && !validateStep1()) return;
+    setStep(Math.min(4, state.step + 1));
+  });
+  $('#prevStepBtn').addEventListener('click', () => setStep(Math.max(1, state.step - 1)));
+  $$('.stepper .step').forEach(s => {
+    s.addEventListener('click', () => {
+      const target = parseInt(s.dataset.step, 10);
+      // Don't let user skip forward over an invalid step 1
+      if(target > state.step && state.step === 1 && !validateStep1()) return;
+      setStep(target);
+    });
+  });
+
+  // Type picker
+  $$('.type-card').forEach(c => {
+    c.addEventListener('click', () => {
+      $$('.type-card').forEach(x => x.classList.remove('selected'));
+      c.classList.add('selected');
+      state.type = c.dataset.type;
+    });
+  });
+
+  // Repo provider picker
+  $$('[data-repo]').forEach(c => {
+    c.addEventListener('click', () => {
+      $$('[data-repo]').forEach(x => x.classList.remove('selected'));
+      c.classList.add('selected');
+      state.repoProvider = c.dataset.repo;
+      // Smart default URL prefix
+      const placeholders = {
+        github: 'https://github.com/your-org/iktara-infra',
+        gitlab: 'https://gitlab.com/your-org/iktara-infra',
+        bitbucket: 'https://bitbucket.org/your-org/iktara-infra',
+        'git-self': 'https://git.example.com/iktara-infra',
+      };
+      $('#fld-repo-url').placeholder = placeholders[state.repoProvider] || '';
+    });
+  });
+
+  // Image provider picker
+  $$('[data-img]').forEach(c => {
+    c.addEventListener('click', () => {
+      $$('[data-img]').forEach(x => x.classList.remove('selected'));
+      c.classList.add('selected');
+      state.imgProvider = c.dataset.img;
+      const urls = {
+        ecr: '123456789012.dkr.ecr.ap-south-1.amazonaws.com',
+        gcr: 'asia-south1-docker.pkg.dev/your-project/iktara',
+        harbor: 'harbor.example.com/v2',
+        dockerhub: 'docker.io/your-org',
+      };
+      $('#fld-img-url').placeholder = urls[state.imgProvider] || '';
+      // Set sensible default auth: AWS for ECR, GCP for GCR, basic for harbor, anon for dockerhub
+      const defaultAuth = { ecr: 'aws', gcr: 'aws', harbor: 'basic', dockerhub: 'anon' };
+      const target = defaultAuth[state.imgProvider];
+      if(target){
+        $$('#img-auth-tabs .auth-tab').forEach(t => t.classList.toggle('active', t.dataset.auth === target));
+        $$('[data-auth-pane]').forEach(p => {
+          // Only image-section auth panes (parent is step-pane=3)
+          const inImgPane = p.closest('[data-step-pane="3"]');
+          if(inImgPane) p.classList.toggle('active', p.dataset.authPane === target);
+        });
+        state.imgAuth = target;
+      }
+    });
+  });
+
+  // Auth tabs — scoped to which section they're in
+  function wireAuthTabs(tabsContainerSel, paneScope, stateKey){
+    $$(tabsContainerSel + ' .auth-tab').forEach(t => {
+      t.addEventListener('click', () => {
+        $$(tabsContainerSel + ' .auth-tab').forEach(x => x.classList.remove('active'));
+        t.classList.add('active');
+        const target = t.dataset.auth;
+        state[stateKey] = target;
+        $$(paneScope + ' [data-auth-pane]').forEach(p => {
+          p.classList.toggle('active', p.dataset.authPane === target);
+        });
+      });
+    });
+  }
+  wireAuthTabs('#repo-auth-tabs', '[data-step-pane="2"]', 'repoAuth');
+  wireAuthTabs('#img-auth-tabs', '[data-step-pane="3"]', 'imgAuth');
+
+  // Validation
+  function validateStep1(){
+    const name = $('#fld-name').value.trim();
+    if(!name){
+      $('#fld-name').classList.add('invalid');
+      showToast('Cluster name is required', 'err');
+      $('#fld-name').focus();
+      return false;
+    }
+    if(!/^[a-z][a-z0-9-]*$/.test(name)){
+      $('#fld-name').classList.add('invalid');
+      showToast('Use lowercase letters, numbers, and hyphens only', 'err');
+      $('#fld-name').focus();
+      return false;
+    }
+    $('#fld-name').classList.remove('invalid');
+    return true;
+  }
+  $('#fld-name').addEventListener('input', () => $('#fld-name').classList.remove('invalid'));
+
+  // Test-connection buttons (simulated)
+  function fakeTest(buttonId, resultId){
+    const btn = $(buttonId);
+    const res = $(resultId);
+    btn.addEventListener('click', () => {
+      res.style.display = 'inline-flex';
+      res.className = 'test-result testing';
+      res.innerHTML = '<span class="spin"></span> testing…';
+      setTimeout(() => {
+        // 85% success rate
+        if(Math.random() > 0.15){
+          res.className = 'test-result ok';
+          res.innerHTML = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><polyline points="20 6 9 17 4 12"/></svg> connected';
+        } else {
+          res.className = 'test-result err';
+          res.innerHTML = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> auth failed — check credentials';
+        }
+      }, 1100);
+    });
+  }
+  fakeTest('#test-repo-btn', '#test-repo-result');
+  fakeTest('#test-img-btn', '#test-img-result');
+
+  // Populate review pane from form state
+  function populateReview(){
+    const repoName = { github: 'GitHub', gitlab: 'GitLab', bitbucket: 'Bitbucket', 'git-self': 'Self-hosted Git' };
+    const imgName = { ecr: 'AWS ECR', gcr: 'Google GCR', harbor: 'Harbor', dockerhub: 'Docker Hub' };
+    const typeName = { k8s: 'Kubernetes', standalone: 'Standalone', edge: 'Edge' };
+    const repoAuthName = { pat: 'Personal access token', ssh: 'SSH key', oauth: 'OAuth app', public: 'Public (none)' };
+    const imgAuthName = { aws: 'AWS credentials', basic: 'Username + password', anon: 'Anonymous' };
+
+    $('#rv-name').textContent = $('#fld-name').value.trim() || '(unnamed)';
+    $('#rv-type').textContent = typeName[state.type];
+    $('#rv-region').textContent = $('#fld-region').value;
+    $('#rv-env').textContent = $('#fld-env').value;
+
+    $('#rv-repo').textContent = repoName[state.repoProvider];
+    $('#rv-repo-url').textContent = $('#fld-repo-url').value || $('#fld-repo-url').placeholder;
+    $('#rv-repo-branch').textContent = $('#fld-repo-branch').value || 'main';
+    $('#rv-repo-auth').textContent = repoAuthName[state.repoAuth];
+
+    $('#rv-img').textContent = imgName[state.imgProvider];
+    $('#rv-img-url').textContent = $('#fld-img-url').value || $('#fld-img-url').placeholder;
+    $('#rv-img-auth').textContent = imgAuthName[state.imgAuth];
+
+    cluster_request_json = {
+      "cluster_name": ($('#fld-name').value.trim() || '(unnamed)'),
+      "cluster_type": typeName[state.type],
+      "cluster_type_varient": typeName[state.type],
+      "cluster_region": $('#fld-region').value,
+      "cluster_env": $('#fld-env').value,
+      "user-action": state.mode === 'edit' ? "update_cluster" : "add_cluster",
+      "repo_type": repoName[state.repoProvider],
+      "Image_store": imgName[state.imgProvider],
+      "description": $('#fld-desc').value
+    };
+
+    // In edit mode, include the cluster_id so the backend knows which one to update
+    if(state.mode === 'edit' && state.editingClusterId){
+      cluster_request_json["cluster_id"] = state.editingClusterId;
+    }
+
+    // Collect credential fields — only send the ones the user actually edited
+    // (i.e. fields where the user clicked "Replace" and entered a new value).
+    // In add mode, this captures all entered credentials.
+    cluster_request_json["credentials"] = collectCredentials();
+  }
+
+  // Collect any credential fields whose input is currently visible (not masked).
+  // In add mode all inputs are visible. In edit mode, only fields where the user
+  // clicked "Replace" become visible — so we only send fresh secrets, not blanks
+  // for unchanged stored secrets.
+  function collectCredentials(){
+    const creds = {};
+    $$('.secret-field').forEach(f => {
+      const inp = f.querySelector('.secret-input');
+      const stored = f.querySelector('.secret-stored');
+      // Skip if the field is still showing "stored in vault" (user didn't replace)
+      if(stored && stored.style.display !== 'none') return;
+      if(!inp) return;
+      const val = inp.value;
+      if(val) creds[f.dataset.secret] = val;
+    });
+    // Also include non-secret credential text fields (access key ID, basic username)
+    const akid = $('#fld-aws-akid'); if(akid && akid.value) creds.aws_access_key_id = akid.value;
+    const role = $('#fld-aws-role'); if(role && role.value) creds.aws_assume_role = role.value;
+    const user = $('#fld-basic-user'); if(user && user.value) creds.basic_username = user.value;
+    return creds;
+  }
+
+  // Create cluster - prepend a new card to the grid
+  $('#createBtn').addEventListener('click', async  () => {
+    const response = await sendRequest(cluster_request_json);
+    const cluster_id_from_response = response && response.success ? response.cluster_id : "";
+
+    const name = $('#fld-name').value.trim();
+    if(!name){ setStep(1); return; }
+
+    if (response.success) {
+        const grid = $('.cards-grid');
+        const addCard = $('#addClusterCard');
+        const repoLabels = { github: 'github', gitlab: 'gitlab', bitbucket: 'bitbucket', 'git-self': 'self-hosted' };
+        const imgLabels = { ecr: 'ecr', gcr: 'gcr', harbor: 'harbor', dockerhub: 'dockerhub' };
+        const typeLabel = { k8s: 'Kubernetes', standalone: 'Standalone', edge: 'Edge' };
+        const region = $('#fld-region').value;
+        const desc = $('#fld-desc').value.trim() || 'Newly added cluster - provision its first node to bring it online.';
+
+        const card = document.createElement('a');
+        card.className = 'card just-added';
+        card.dataset.clusterId = cluster_id_from_response;
+        card.dataset.clusterName = name;
+        card.dataset.clusterType = typeLabel[state.type] || 'Kubernetes';
+        const existingClusterCount = parseInt((document.getElementById('clusterCount') || {}).textContent, 10) || 0;
+        card.dataset.clusterRole = existingClusterCount === 0 ? 'Primary' : 'Secondary';
+        card.dataset.clusterRegion = region;
+        card.dataset.clusterEnv = $('#fld-env').value;
+        card.dataset.clusterDesc = desc;
+        card.dataset.repoProvider = state.repoProvider;
+        card.dataset.repoUrl = $('#fld-repo-url').value;
+        card.dataset.repoBranch = $('#fld-repo-branch').value || 'main';
+        card.dataset.repoPath = $('#fld-repo-path').value;
+        card.dataset.repoAuth = state.repoAuth;
+        card.dataset.imgProvider = state.imgProvider;
+        card.dataset.imgUrl = $('#fld-img-url').value;
+        card.dataset.imgNs = $('#fld-img-ns').value;
+        card.dataset.imgAuth = state.imgAuth;
+        card.dataset.clusterNodes = '0';
+        card.dataset.clusterServices = '0';
+        card.setAttribute('onclick', `redirectToClusterConfig('${cluster_id_from_response}')`);
+        card.innerHTML = `
+          <div class="card-actions">
+          <button class="edit-icon-btn"
+                  type="button"
+                  title="Edit cluster"
+                  onclick="event.stopPropagation(); event.preventDefault(); openEditClusterDrawer(this.closest('.card'));">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </button>
+          <button class="delete-icon-btn"
+                  type="button"
+                  title="Delete cluster"
+                  onclick="event.stopPropagation(); event.preventDefault(); openDeleteClusterModal(this.closest('.card'));">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m1 0v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6h12z"/>
+            </svg>
+          </button>
+          </div>
+          <div class="open-hint">Open<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
+          <div class="head">
+            <div>
+              <div class="title">${escapeHtml(name)}</div>
+              <div class="sub-id">${typeLabel[state.type]} - ${region}</div>
+            </div>
+            <span class="pill pill-info">Pending</span>
+          </div>
+          <div class="desc">${escapeHtml(desc)}</div>
+          <div class="source-chips">
+            <span class="src-chip">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>
+              <span class="label">repo</span>${repoLabels[state.repoProvider]}
+            </span>
+            <span class="src-chip">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+              <span class="label">images</span>${imgLabels[state.imgProvider]}
+            </span>
+          </div>
+          <div class="health-bar">
+            <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+          </div>
+          <div class="stats">
+            <div class="stat"><div class="v">0</div><div class="l">Nodes</div></div>
+            <div class="stat"><div class="v">0</div><div class="l">Services</div></div>
+            <div class="stat"><div class="v">-</div><div class="l">Uptime 30d</div></div>
+          </div>
+        `;
+        grid.insertBefore(card, addCard);
+
+        closeDrawer();
+
+        const clusterCountEl = document.getElementById('clusterCount');
+
+        if (clusterCountEl) {
+            const currentCount = parseInt(clusterCountEl.textContent) || 0;
+            clusterCountEl.textContent = currentCount + 1;
+        }
+        showToast(
+            `Cluster ${name} created - provision a node to bring it online`,
+            'ok'
+        );
+
+    } else {
+
+        showToast(
+            response.message || 'Failed to create cluster',
+            'err'
+        );
+    }
+  });
+
+  $('#saveBtn').addEventListener('click', async () => {
+    // populateReview() has already filled cluster_request_json with the edited
+    // values + the cluster_id + the credentials object (only fresh secrets).
+    const response = await sendRequest(cluster_request_json);
+    const cardEl = state.editingCardEl;
+    if(!cardEl){ closeDrawer(); return; }
+
+    if(!response.success){
+      showToast(response.message || 'Failed to save changes', 'err');
+      return;
+    }
+
+    const name = $('#fld-name').value.trim();
+    const region = $('#fld-region').value;
+    const desc = $('#fld-desc').value.trim();
+    const repoLabels = { github: 'github', gitlab: 'gitlab', bitbucket: 'bitbucket', 'git-self': 'self-hosted' };
+    const imgLabels = { ecr: 'ecr', gcr: 'gcr', harbor: 'harbor', dockerhub: 'dockerhub' };
+    const typeLabel = { k8s: 'Kubernetes', standalone: 'Standalone', edge: 'Edge' };
+
+    // Update visible card content
+    const titleEl = cardEl.querySelector('.title');
+    const subIdEl = cardEl.querySelector('.sub-id');
+    const descEl  = cardEl.querySelector('.desc');
+    if(titleEl) titleEl.textContent = name;
+    if(subIdEl) subIdEl.textContent = `${typeLabel[state.type] || state.type} - ${region}`;
+    if(descEl)  descEl.textContent = desc || 'NA';
+
+    // Update source-chips (repo + images badges)
+    const chips = cardEl.querySelectorAll('.src-chip');
+    if(chips[0]){
+      const labelSpan = chips[0].querySelector('.label');
+      if(labelSpan){
+        const last = chips[0].lastChild;
+        if(last && last.nodeType === 3) last.nodeValue = repoLabels[state.repoProvider] || state.repoProvider;
+      }
+    }
+    if(chips[1]){
+      const last = chips[1].lastChild;
+      if(last && last.nodeType === 3) last.nodeValue = imgLabels[state.imgProvider] || state.imgProvider;
+    }
+
+    // Update card data-* attrs so subsequent edits read the new state
+    cardEl.dataset.clusterName = name;
+    cardEl.dataset.clusterType = typeLabel[state.type] || state.type;
+    cardEl.dataset.clusterRegion = region;
+    cardEl.dataset.clusterEnv = $('#fld-env').value;
+    cardEl.dataset.clusterDesc = desc;
+    cardEl.dataset.repoProvider = state.repoProvider;
+    cardEl.dataset.repoUrl = $('#fld-repo-url').value;
+    cardEl.dataset.repoBranch = $('#fld-repo-branch').value || 'main';
+    cardEl.dataset.repoPath = $('#fld-repo-path').value;
+    cardEl.dataset.repoAuth = state.repoAuth;
+    cardEl.dataset.imgProvider = state.imgProvider;
+    cardEl.dataset.imgUrl = $('#fld-img-url').value;
+    cardEl.dataset.imgNs = $('#fld-img-ns').value;
+    cardEl.dataset.imgAuth = state.imgAuth;
+
+    // Flash highlight to confirm the save
+    cardEl.classList.remove('just-added','just-edited');
+    void cardEl.offsetWidth; // restart animation
+    cardEl.classList.add('just-edited');
+
+    closeDrawer();
+    showToast(`Cluster "${name}" updated`, 'ok');
+  });
+
+  // Escape closes drawer
+  document.addEventListener('keydown', (e) => {
+    if(e.key !== 'Escape') return;
+    if($('#clusterActionModal').classList.contains('open')) {
+      closeActionModal();
+      return;
+    }
+    if($('#addClusterDrawer').classList.contains('open')) closeDrawer();
+  });
+
+  // --- Search & Filter functionality ---
+  (function() {
+    const searchInput = document.getElementById('clusterSearch');
+    const typeChip = document.getElementById('typeChip');
+    const regionChip = document.getElementById('regionChip');
+    const envChip = document.getElementById('envChip');
+
+    let currentType = 'All';
+    let currentRegion = 'All';
+    let currentEnv = 'All';
+
+    const availableRegions = ['All'];
+    const availableEnvs = ['All'];
+    const availableTypes = ['All', 'Kubernetes', 'Standalone', 'Edge'];
+
+    // Gather regions and environments from existing cards dynamically
+    document.querySelectorAll('.cards-grid .card').forEach(card => {
+      const reg = card.dataset.clusterRegion;
+      if (reg && !availableRegions.includes(reg)) availableRegions.push(reg);
+      const env = card.dataset.clusterEnv;
+      if (env && !availableEnvs.includes(env)) availableEnvs.push(env);
+    });
+
+    function applyFilters() {
+      const q = (searchInput.value || '').toLowerCase().trim();
+      let visibleCount = 0;
+
+      document.querySelectorAll('.cards-grid .card').forEach(card => {
+        // Search text matching (matches name, type, region, env, desc)
+        const name = (card.dataset.clusterName || '').toLowerCase();
+        const type = (card.dataset.clusterType || '').toLowerCase();
+        const region = (card.dataset.clusterRegion || '').toLowerCase();
+        const env = (card.dataset.clusterEnv || '').toLowerCase();
+        const desc = (card.dataset.clusterDesc || '').toLowerCase();
+
+        const textMatch = !q || name.includes(q) || type.includes(q) || region.includes(q) || env.includes(q) || desc.includes(q);
+
+        // Chip filters matching
+        const typeMatch = currentType === 'All' || (card.dataset.clusterType || '').toLowerCase() === currentType.toLowerCase();
+        const regionMatch = currentRegion === 'All' || (card.dataset.clusterRegion || '').toLowerCase() === currentRegion.toLowerCase();
+        const envMatch = currentEnv === 'All' || (card.dataset.clusterEnv || '').toLowerCase() === currentEnv.toLowerCase();
+
+        if (textMatch && typeMatch && regionMatch && envMatch) {
+          card.style.display = '';
+          visibleCount++;
+        } else {
+          card.style.display = 'none';
+        }
+      });
+
+      const clusterCountEl = document.getElementById('clusterCount');
+      if (clusterCountEl) {
+        clusterCountEl.textContent = visibleCount;
+      }
+    }
+
+    if (searchInput) {
+      searchInput.addEventListener('input', applyFilters);
+    }
+
+    if (typeChip) {
+      typeChip.style.cursor = 'pointer';
+      typeChip.addEventListener('click', () => {
+        let idx = availableTypes.indexOf(currentType);
+        idx = (idx + 1) % availableTypes.length;
+        currentType = availableTypes[idx];
+        typeChip.textContent = `Type: ${currentType}`;
+        applyFilters();
+      });
+    }
+
+    if (regionChip) {
+      regionChip.style.cursor = 'pointer';
+      regionChip.addEventListener('click', () => {
+        let idx = availableRegions.indexOf(currentRegion);
+        idx = (idx + 1) % availableRegions.length;
+        currentRegion = availableRegions[idx];
+        regionChip.textContent = `Region: ${currentRegion}`;
+        applyFilters();
+      });
+    }
+
+    if (envChip) {
+      envChip.style.cursor = 'pointer';
+      envChip.addEventListener('click', () => {
+        let idx = availableEnvs.indexOf(currentEnv);
+        idx = (idx + 1) % availableEnvs.length;
+        currentEnv = availableEnvs[idx];
+        envChip.textContent = `Env: ${currentEnv}`;
+        applyFilters();
+      });
+    }
+  })();
+})();
+</script>
+<script src="{% static 'javascript/theme.js' %}"></script>
+</body>
+</html>

@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accept your invitation · YantrAI </title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/ds.css">
+<style>
+/* ─────────────────────────────────────
+   Public acceptance page — minimal chrome
+   ───────────────────────────────────── */
+
+body{
+  background:var(--bg);
+  min-height:100vh;
+  display:flex; flex-direction:column;
+  font-family:var(--body);
+}
+
+/* Top stripe with brand */
+.acc-topbar{
+  padding:var(--s-4) var(--s-6);
+  border-bottom:1px solid var(--line);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.acc-brand{
+  display:flex; align-items:center; gap:10px;
+}
+.acc-brand .logo{
+  width:32px; height:32px; border-radius:8px;
+  background:var(--navy); color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--display); font-size:18px; font-weight:500; font-style:italic;
+}
+.acc-brand .name{font-family:var(--display); font-size:18px; font-weight:500; letter-spacing:-0.005em;}
+.acc-topbar .right{
+  font-size:12px; color:var(--ink-4);
+}
+.acc-topbar .right a{
+  color:var(--ink-3); text-decoration:none;
+  border-bottom:1px solid var(--line-2);
+}
+.acc-topbar .right a:hover{color:var(--ink);}
+
+/* Centered card layout */
+.acc-page{
+  flex:1;
+  display:flex; align-items:center; justify-content:center;
+  padding:var(--s-8) var(--s-4);
+}
+.acc-card{
+  width:100%; max-width:480px;
+  background:var(--bg-card);
+  border:1px solid var(--line);
+  border-radius:var(--r-lg);
+  box-shadow:var(--shadow-2);
+  overflow:hidden;
+}
+
+/* Header inside the card */
+.acc-card-head{
+  padding:var(--s-6) var(--s-6) var(--s-4);
+  text-align:center;
+  border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg, var(--bg-sunken), var(--bg-card));
+}
+.acc-card-head h1{
+  font-family:var(--display); font-size:30px; font-weight:300;
+  letter-spacing:-0.02em; line-height:1.1;
+  margin-bottom:var(--s-2);
+}
+.acc-card-head h1 em{
+  font-style:italic; color:var(--navy); font-weight:400;
+}
+.acc-card-head .sub{
+  font-size:13px; color:var(--ink-3); line-height:1.55;
+  max-width:38ch; margin:0 auto;
+}
+
+/* Inviter context block */
+.inviter-context{
+  display:flex; align-items:center; gap:var(--s-3);
+  padding:var(--s-3) var(--s-4);
+  background:var(--bg-sunken); border:1px solid var(--line);
+  border-radius:var(--r-md);
+  margin:var(--s-5) var(--s-6) 0;
+}
+.inviter-context .avatar-md{
+  width:40px; height:40px; border-radius:50%;
+  background:var(--navy-100); color:var(--navy);
+  display:flex; align-items:center; justify-content:center;
+  font-weight:600; font-size:14px; flex-shrink:0;
+}
+.inviter-context .info{flex:1; min-width:0;}
+.inviter-context .info .nm{font-size:13px; font-weight:500;}
+.inviter-context .info .meta{
+  font-family:var(--mono); font-size:11px; color:var(--ink-4); margin-top:2px;
+}
+.inviter-context .role-chip{
+  font-family:var(--mono); font-size:10px; color:var(--navy);
+  background:var(--navy-100); padding:3px 9px; border-radius:99px;
+  text-transform:uppercase; letter-spacing:0.06em; font-weight:500;
+}
+
+/* Form body */
+.acc-card-body{padding:var(--s-5) var(--s-6);}
+
+.acc-field{margin-bottom:var(--s-4);}
+.acc-field label{
+  display:block; font-size:12px; font-weight:500;
+  color:var(--ink-2); margin-bottom:6px;
+}
+.acc-field .req{color:var(--err); margin-left:2px;}
+.acc-input-wrap{position:relative;}
+.acc-input{
+  font-family:var(--body); font-size:14px;
+  padding:10px 40px 10px 12px; border-radius:var(--r-md);
+  border:1px solid var(--line-2); background:var(--bg);
+  color:var(--ink); outline:none; width:100%;
+  transition:border-color .15s, box-shadow .15s;
+}
+.acc-input.mono{font-family:var(--mono); font-size:13px;}
+.acc-input:focus{
+  border-color:var(--navy);
+  box-shadow:0 0 0 3px var(--navy-100);
+}
+.acc-input.error{border-color:var(--err); box-shadow:0 0 0 3px var(--err-bg);}
+.acc-input.ok{border-color:var(--ok); box-shadow:0 0 0 3px var(--ok-bg);}
+.acc-input[readonly]{
+  background:var(--bg-sunken); color:var(--ink-3); cursor:not-allowed;
+}
+
+.acc-input-wrap .eye{
+  position:absolute; right:8px; top:50%; transform:translateY(-50%);
+  background:none; border:none; padding:6px;
+  color:var(--ink-4); cursor:pointer; border-radius:var(--r-sm);
+  display:flex; align-items:center; justify-content:center;
+}
+.acc-input-wrap .eye:hover{color:var(--ink-2); background:var(--bg-sunken);}
+
+.acc-input-wrap .check-mark{
+  position:absolute; right:10px; top:50%; transform:translateY(-50%);
+  color:var(--ok);
+  opacity:0;
+  transition:opacity .15s;
+}
+.acc-input-wrap.match .check-mark{opacity:1;}
+
+.acc-field .hint{font-size:11px; color:var(--ink-4); margin-top:4px;}
+.acc-field .err-text{font-size:11px; color:var(--err); margin-top:4px; min-height:14px;}
+
+/* Password strength meter */
+.strength-meter{
+  display:flex; gap:4px; margin-top:8px;
+}
+.strength-meter .seg{
+  flex:1; height:4px; background:var(--bg-sunken); border-radius:2px;
+  transition:background .2s;
+}
+.strength-meter[data-strength="1"] .seg:nth-child(1){background:var(--err);}
+.strength-meter[data-strength="2"] .seg:nth-child(-n+2){background:var(--warn);}
+.strength-meter[data-strength="3"] .seg:nth-child(-n+3){background:var(--info);}
+.strength-meter[data-strength="4"] .seg{background:var(--ok);}
+.strength-label{
+  font-size:11px; font-family:var(--mono); margin-top:4px;
+  display:flex; justify-content:space-between;
+}
+.strength-label .v{color:var(--ink-4);}
+.strength-meter[data-strength="1"] + .strength-label .v{color:var(--err);}
+.strength-meter[data-strength="2"] + .strength-label .v{color:var(--warn);}
+.strength-meter[data-strength="3"] + .strength-label .v{color:var(--info);}
+.strength-meter[data-strength="4"] + .strength-label .v{color:var(--ok);}
+
+/* Password rules list — updates as rules are met */
+.pw-rules{
+  margin-top:var(--s-3);
+  font-size:11px;
+  display:grid; grid-template-columns:1fr 1fr; gap:4px 12px;
+}
+.pw-rule{
+  display:flex; align-items:center; gap:6px;
+  color:var(--ink-4);
+}
+.pw-rule .mark{
+  width:14px; height:14px; border-radius:50%;
+  background:var(--bg-sunken);
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+  font-size:8px;
+  color:var(--ink-5);
+}
+.pw-rule.met{color:var(--ok);}
+.pw-rule.met .mark{
+  background:var(--ok-bg); color:var(--ok);
+}
+.pw-rule.met .mark::before{content:'✓'; font-size:9px; font-weight:600;}
+
+/* Terms */
+.acc-terms{
+  display:flex; gap:8px; align-items:flex-start;
+  margin-top:var(--s-5);
+  font-size:12px; color:var(--ink-3); line-height:1.55;
+}
+.acc-terms input{
+  margin-top:2px; accent-color:var(--navy); flex-shrink:0;
+}
+.acc-terms a{color:var(--navy); text-decoration:none; border-bottom:1px solid var(--navy-100);}
+.acc-terms a:hover{border-bottom-color:var(--navy);}
+
+/* Footer with submit */
+.acc-card-foot{
+  padding:var(--s-4) var(--s-6) var(--s-5);
+  border-top:1px solid var(--line);
+  background:var(--bg-sunken);
+}
+.acc-submit{
+  width:100%;
+  padding:11px;
+  background:var(--navy); color:#fff;
+  border:none; border-radius:var(--r-md);
+  font-family:inherit; font-size:14px; font-weight:500;
+  cursor:pointer;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  transition:background .15s, opacity .15s;
+}
+.acc-submit:hover:not(:disabled){background:#001f42;}
+.acc-submit:disabled{opacity:0.5; cursor:not-allowed;}
+.acc-submit.loading .label{opacity:0.6;}
+.acc-submit.loading .spin{display:inline-block; animation:spin 1s linear infinite;}
+.acc-submit .spin{display:none;}
+@keyframes spin{from{transform:rotate(0);} to{transform:rotate(360deg);}}
+
+.acc-foot-meta{
+  text-align:center; margin-top:var(--s-3);
+  font-size:11px; color:var(--ink-4);
+}
+.acc-foot-meta a{color:var(--ink-3);}
+
+/* Page footer with state-switcher (demo only) */
+.page-foot{
+  padding:var(--s-4) var(--s-6);
+  border-top:1px solid var(--line);
+  display:flex; justify-content:space-between; align-items:center;
+  font-size:11px; color:var(--ink-5);
+}
+.state-switcher{display:flex; gap:6px; font-family:var(--mono);}
+.state-switcher a{
+  padding:2px 8px; border-radius:99px;
+  background:var(--bg-sunken); color:var(--ink-3);
+  text-decoration:none;
+}
+.state-switcher a.active{background:var(--navy); color:#fff;}
+.state-switcher a:hover:not(.active){background:var(--line);}
+
+/* Error/expired/used states */
+.acc-state-icon{
+  width:64px; height:64px; border-radius:50%;
+  margin:0 auto var(--s-3);
+  display:flex; align-items:center; justify-content:center;
+}
+.acc-state-icon.warn{background:var(--warn-bg); color:var(--warn);}
+.acc-state-icon.err{background:var(--err-bg); color:var(--err);}
+.acc-state-icon.info{background:var(--info-bg); color:var(--info);}
+.acc-state-icon.ok{background:var(--ok-bg); color:var(--ok);}
+
+.acc-state-pane{
+  padding:var(--s-8) var(--s-6) var(--s-6);
+  text-align:center;
+}
+.acc-state-pane h2{
+  font-family:var(--display); font-size:24px; font-weight:400;
+  letter-spacing:-0.015em; margin-bottom:var(--s-2);
+}
+.acc-state-pane .msg{
+  font-size:13px; color:var(--ink-3); line-height:1.6;
+  max-width:38ch; margin:0 auto var(--s-4);
+}
+.acc-state-pane .meta-row{
+  display:flex; justify-content:space-between; align-items:center;
+  background:var(--bg-sunken); padding:8px 12px; border-radius:var(--r-md);
+  font-family:var(--mono); font-size:11px; color:var(--ink-3);
+  margin:var(--s-3) auto 0; max-width:300px;
+}
+.acc-state-pane .meta-row .k{color:var(--ink-4);}
+.acc-state-pane .actions{
+  display:flex; gap:var(--s-2); justify-content:center;
+  margin-top:var(--s-5);
+}
+.acc-state-pane .actions .btn-secondary{
+  padding:9px 16px; font-size:13px;
+  background:var(--bg-card); color:var(--ink); border:1px solid var(--line-strong);
+  border-radius:var(--r-md); cursor:pointer; font-family:inherit;
+}
+.acc-state-pane .actions .btn-secondary:hover{background:var(--bg-sunken);}
+.acc-state-pane .actions .btn-primary{
+  padding:9px 16px; font-size:13px;
+  background:var(--navy); color:#fff; border:none;
+  border-radius:var(--r-md); cursor:pointer; font-family:inherit;
+}
+
+/* Success animation */
+@keyframes success-pop{
+  0%{transform:scale(0); opacity:0;}
+  100%{transform:scale(1); opacity:1;}
+}
+.acc-state-pane.success .acc-state-icon{
+  animation:success-pop .4s cubic-bezier(.34,1.56,.64,1) both;
+}
+
+/* Toast */
+.toast{
+  position:fixed; bottom:24px; left:50%; transform:translate(-50%, 8px); z-index:90;
+  background:var(--ink); color:#fff; padding:10px 16px;
+  border-radius:var(--r-md); font-size:13px; box-shadow:var(--shadow-3);
+  display:flex; align-items:center; gap:10px;
+  opacity:0; pointer-events:none;
+  transition:opacity .2s, transform .2s;
+}
+.toast.show{opacity:1; transform:translate(-50%, 0); pointer-events:auto;}
+.toast.err{background:var(--err);}
+</style>
+</head>
+<body>
+
+<!-- Top brand bar -->
+<div class="acc-topbar">
+  <div class="acc-brand">
+    <div class="logo">i</div>
+    <div class="name">YantrAI </div>
+  </div>
+  <div class="right">
+    Already have an account? <a href="#">Sign in</a>
+  </div>
+</div>
+
+<!-- Page body -->
+<div class="acc-page">
+  <div class="acc-card" id="card">
+    <!-- Content swaps based on state -->
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <svg class="ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  <span id="toastMsg">OK</span>
+</div>
+
+<script>
+(function(){
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  window.CPLATFORM_URL = "{{ cplatform_url|escapejs }}";
+// Data injected by Django view
+  const invitation = {
+    invitee: {
+      name:  "{{ invite.user_name|default:''|escapejs }}",
+      email: "{{ invite.user_email|default:''|escapejs }}",
+    },
+    inviter: {
+      name:     "{{ invite.invited_by|default:'Administrator'|escapejs }}",
+      email:    "",
+      role:     "System admin",
+      initials: "{{ invite.invited_by|default:'AD'|slice:':2'|upper|escapejs }}",
+    },
+    role:           "{{ invite.user_role|default:''|escapejs }}",
+    permissions:    [],
+    expiresAt:      "{{ invite.created_at|timesince|escapejs }} ago",
+    expiredDaysAgo: 0,
+    revokedBy:      "{{ invite.invited_by|default:''|escapejs }}",
+    revokedAt:      "",
+    acceptedAt:     "",
+  };
+
+  // State injected by Django view
+  const state = "{{ state }}";
+
+  // ─────────────────────────────────────────────────────────────
+  // State renderers
+  // ─────────────────────────────────────────────────────────────
+  function renderValid(){
+    return `
+      <div class="acc-card-head">
+        <h1>Join <em>YantrAI </em></h1>
+        <p class="sub">Set up your account to accept this invitation.</p>
+      </div>
+
+      <div class="inviter-context">
+        <div class="avatar-md">${invitation.inviter.initials}</div>
+        <div class="info">
+          <div class="nm">${invitation.inviter.name} invited you</div>
+          <div class="meta">${invitation.inviter.email} · ${invitation.inviter.role}</div>
+        </div>
+        <span class="role-chip">${invitation.role}</span>
+      </div>
+
+      <div class="acc-card-body">
+        <div class="acc-field">
+          <label>Email <span class="req">*</span></label>
+          <input class="acc-input mono" value="${invitation.invitee.email}" readonly>
+          <div class="hint">Your sign-in identifier — verified through the link you opened.</div>
+        </div>
+
+        <div class="acc-field">
+          <label for="fullName">Full name <span class="req">*</span></label>
+          <input class="acc-input" id="fullName" value="${invitation.invitee.name}">
+        </div>
+
+        <div class="acc-field">
+          <label for="pw">Set a password <span class="req">*</span></label>
+          <div class="acc-input-wrap">
+            <input class="acc-input" id="pw" type="password" placeholder="At least 12 characters">
+            <button class="eye" id="togglePw" type="button" aria-label="Show password">
+              <svg class="ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <div class="strength-meter" data-strength="0">
+            <div class="seg"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div>
+          </div>
+          <div class="strength-label">
+            <span class="v" id="strengthText">Type a password</span>
+            <span style="color:var(--ink-5);" id="strengthLen">0 chars</span>
+          </div>
+          <div class="pw-rules">
+            <div class="pw-rule" data-rule="length"><span class="mark"></span>12+ characters</div>
+            <div class="pw-rule" data-rule="upper"><span class="mark"></span>Uppercase letter</div>
+            <div class="pw-rule" data-rule="lower"><span class="mark"></span>Lowercase letter</div>
+            <div class="pw-rule" data-rule="number"><span class="mark"></span>Number</div>
+            <div class="pw-rule" data-rule="symbol"><span class="mark"></span>Symbol</div>
+            <div class="pw-rule" data-rule="nocommon"><span class="mark"></span>Not too common</div>
+          </div>
+        </div>
+
+        <div class="acc-field">
+          <label for="pw2">Confirm password <span class="req">*</span></label>
+          <div class="acc-input-wrap" id="pw2Wrap">
+            <input class="acc-input" id="pw2" type="password" placeholder="Repeat your password">
+            <svg class="check-mark ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div class="err-text" id="pw2Err"></div>
+        </div>
+
+        <label class="acc-terms">
+          <input type="checkbox" id="agreeTerms">
+          <span>I agree to the <a href="#">Terms of service</a> and <a href="#">Privacy policy</a>. I understand my account activity will be visible to administrators.</span>
+        </label>
+      </div>
+
+      <div class="acc-card-foot">
+        <button class="acc-submit" id="submitBtn" disabled>
+          <svg class="ic spin" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+          <span class="label">Accept invitation &amp; sign in</span>
+        </button>
+        <div class="acc-foot-meta">
+          Expires <strong>${invitation.expiresAt}</strong> · <a href="#">Report a problem</a>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderExpired(){
+    return `
+      <div class="acc-state-pane">
+        <div class="acc-state-icon warn">
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <h2>This invitation has expired</h2>
+        <p class="msg">Invitations are valid for 30 days. This one expired <strong>${invitation.expiredDaysAgo} days ago</strong>. Ask your administrator to send a new invitation.</p>
+
+        <div class="meta-row">
+          <span class="k">Originally sent by</span>
+          <span>${invitation.inviter.name}</span>
+        </div>
+        <div class="meta-row">
+          <span class="k">For</span>
+          <span>${invitation.invitee.email}</span>
+        </div>
+
+        <div class="actions">
+          <a href="mailto:${invitation.inviter.email}?subject=YantrAI  invitation expired" class="btn-primary" style="text-decoration:none;">Email ${invitation.inviter.name.split(' ')[0]}</a>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderUsed(){
+    return `
+      <div class="acc-state-pane">
+        <div class="acc-state-icon info">
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <h2>You're already set up</h2>
+        <p class="msg">This invitation was accepted <strong>${invitation.acceptedAt}</strong>. Use the sign-in page to access your account.</p>
+
+        <div class="meta-row">
+          <span class="k">Account</span>
+          <span>${invitation.invitee.email}</span>
+        </div>
+
+        <div class="actions">
+          <a href="#" class="btn-primary" style="text-decoration:none;">Go to sign in</a>
+          <a href="#" class="btn-secondary" style="text-decoration:none;">Forgot password?</a>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderRevoked(){
+    return `
+      <div class="acc-state-pane">
+        <div class="acc-state-icon err">
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        </div>
+        <h2>This invitation was cancelled</h2>
+        <p class="msg">${invitation.revokedBy} cancelled this invitation ${invitation.revokedAt}. If you believe this is a mistake, contact them directly.</p>
+
+        <div class="meta-row">
+          <span class="k">Cancelled by</span>
+          <span>${invitation.revokedBy}</span>
+        </div>
+
+        <div class="actions">
+          <a href="mailto:${invitation.inviter.email}" class="btn-secondary" style="text-decoration:none;">Contact ${invitation.inviter.name.split(' ')[0]}</a>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderSuccess(){
+    return `
+      <div class="acc-state-pane success">
+        <div class="acc-state-icon ok">
+          <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <h2>Welcome to YantrAI </h2>
+        <p class="msg">Your account has been created successfully. Redirecting you to the login page…</p>
+
+        <div class="meta-row">
+          <span class="k">Email </span>
+          <span>${invitation.invitee.email}</span>
+        </div>
+        <div class="meta-row">
+          <span class="k">Role</span>
+          <span>${invitation.role}</span>
+        </div>
+
+        <div class="actions">
+          <a href="${window.CPLATFORM_URL}/login/" class="btn-primary" style="text-decoration:none;">Go to login →</a>
+        </div>
+      </div>
+    `;
+  }
+
+  function showToast(msg, kind){
+    const t = $('#toast');
+    $('#toastMsg').textContent = msg;
+    t.classList.remove('err');
+    if(kind === 'err') t.classList.add('err');
+    t.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => t.classList.remove('show'), 2400);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Render the right state
+  // ─────────────────────────────────────────────────────────────
+  const renderers = {
+    valid: renderValid,
+    expired: renderExpired,
+    used: renderUsed,
+    revoked: renderRevoked,
+    success: renderSuccess,
+  };
+  const card = $('#card');
+  card.innerHTML = (renderers[state] || renderValid)();
+
+  // ─────────────────────────────────────────────────────────────
+  // Wire up the valid-state form
+  // ─────────────────────────────────────────────────────────────
+  if(state === 'valid'){
+    const pw = $('#pw');
+    const pw2 = $('#pw2');
+    const togglePw = $('#togglePw');
+    const submitBtn = $('#submitBtn');
+    const agree = $('#agreeTerms');
+
+    // Show/hide password
+    togglePw.addEventListener('click', () => {
+      const isHidden = pw.type === 'password';
+      pw.type = isHidden ? 'text' : 'password';
+      togglePw.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+    });
+
+    // Common-password list (tiny demo set — real impl uses a 10k+ list)
+    const commonPasswords = new Set([
+      'password123', 'qwerty123456', 'iloveyou12345', 'admin1234567', '123456789012',
+      'YantrAI 123456', 'welcome12345', 'letmein12345', 'changeme1234',
+    ]);
+
+    function evaluatePassword(value){
+      const rules = {
+        length: value.length >= 12,
+        upper: /[A-Z]/.test(value),
+        lower: /[a-z]/.test(value),
+        number: /[0-9]/.test(value),
+        symbol: /[^A-Za-z0-9]/.test(value),
+        nocommon: value.length > 0 && !commonPasswords.has(value.toLowerCase()),
+      };
+      const met = Object.values(rules).filter(Boolean).length;
+      let strength = 0;
+      if(met >= 6) strength = 4;
+      else if(met >= 5) strength = 3;
+      else if(met >= 3) strength = 2;
+      else if(met >= 1) strength = 1;
+      return { rules, met, strength };
+    }
+
+    function updatePasswordUI(){
+      const value = pw.value;
+      const { rules, strength } = evaluatePassword(value);
+
+      // Strength meter + label
+      $('.strength-meter').dataset.strength = strength;
+      const label = ['Type a password', 'Weak', 'Fair', 'Good', 'Strong'][strength];
+      $('#strengthText').textContent = label;
+      $('#strengthLen').textContent = `${value.length} chars`;
+
+      // Per-rule check marks
+      Object.entries(rules).forEach(([k, met]) => {
+        const el = $(`.pw-rule[data-rule="${k}"]`);
+        if(el) el.classList.toggle('met', met);
+      });
+
+      // Confirm-match
+      updateMatchUI();
+      // Submit button state
+      updateSubmit();
+    }
+
+    function updateMatchUI(){
+      const wrap = $('#pw2Wrap');
+      const err = $('#pw2Err');
+      if(!pw2.value){
+        wrap.classList.remove('match');
+        pw2.classList.remove('ok', 'error');
+        err.textContent = '';
+        return;
+      }
+      if(pw.value === pw2.value){
+        wrap.classList.add('match');
+        pw2.classList.add('ok'); pw2.classList.remove('error');
+        err.textContent = '';
+      } else {
+        wrap.classList.remove('match');
+        pw2.classList.remove('ok'); pw2.classList.add('error');
+        err.textContent = "Passwords don't match";
+      }
+    }
+
+    function updateSubmit(){
+      const { strength } = evaluatePassword(pw.value);
+      const match = pw.value && pw.value === pw2.value;
+      const canSubmit = strength >= 3 && match && agree.checked && $('#fullName').value.trim();
+      submitBtn.disabled = !canSubmit;
+    }
+
+    pw.addEventListener('input', updatePasswordUI);
+    pw2.addEventListener('input', () => { updateMatchUI(); updateSubmit(); });
+    agree.addEventListener('change', updateSubmit);
+    $('#fullName').addEventListener('input', updateSubmit);
+
+    // Submit — POST to Django
+    submitBtn.addEventListener('click', () => {
+      if(submitBtn.disabled) return;
+      submitBtn.classList.add('loading');
+      submitBtn.disabled = true;
+      $('.label', submitBtn).textContent = 'Setting up your account…';
+
+      fetch(window.location.pathname, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-CSRFToken': '{{ csrf_token }}',
+        },
+        body: new URLSearchParams({
+          full_name: $('#fullName').value.trim(),
+          password:  $('#pw').value,
+        }),
+      })
+      .then(r => r.json())
+      .then(data => {
+        if(data.status === 'ok'){
+              card.innerHTML = renderSuccess();
+              setTimeout(() => {
+                window.location.href = window.CPLATFORM_URL + '/login/';
+              }, 3000);
+          } else {
+          showToast(data.msg || 'Something went wrong', 'err');
+          submitBtn.classList.remove('loading');
+          submitBtn.disabled = false;
+          $('.label', submitBtn).textContent = 'Accept invitation & sign in';
+        }
+      })
+      .catch(() => {
+        showToast('Network error, please try again', 'err');
+        submitBtn.classList.remove('loading');
+        submitBtn.disabled = false;
+        $('.label', submitBtn).textContent = 'Accept invitation & sign in';
+      });
+    });
+  }
+})();
+</script>
+</body>
+</html>

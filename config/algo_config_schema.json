@@ -1,0 +1,1979 @@
+{
+  "$id": "/cPlatform/Schemas/algo_config",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Interface Definition between orchestrator and Training Subsystem",
+  "LR_Config": {
+    "title": "LR Algorithm Config",
+    "description": "LR Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "Interpretation",
+      "fea_conf_col",
+      "LR_Base_Odds",
+      "LR_Base_Score",
+      "LR_Score_To_Double",
+      "LR_Option_Penalty",
+      "Training_Cycle",
+      "Null_Threshold",
+      "Null_Handling_Policy"
+    ],
+    "properties": {
+      "Enable": {
+        "description": "A unique identifier for a training model",
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Interpretation": {
+        "description": "A unique identifier for a training model",
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "fea_conf_col": {
+        "type": "string"
+      },
+      "Null_Threshold": {
+        "type": "integer",
+        "default": 50,
+        "minimum": 10,
+        "maximum": 95
+      },
+      "Null_Handling_Policy": {
+        "type": "string",
+        "default": "Feature-Drop",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Feature-Drop",
+            "Halt_Training",
+            "No-Action"
+          ]
+        }
+      },
+      "LR_Base_Odds": {
+        "description": "Odd Ration for Base Score, e.g. 50:1",
+        "type": "integer",
+        "default": 50,
+        "minimum": 20,
+        "maximum": 80
+      },
+      "LR_Base_Score": {
+        "type": "integer",
+        "default": 600,
+        "minimum": 200,
+        "maximum": 1000
+      },
+      "LR_Score_To_Double": {
+        "type": "integer",
+        "default": 20,
+        "minimum": 5,
+        "maximum": 100
+      },
+      "LR_Option_Penalty": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "l2",
+            "l1",
+            "No-elasticnet"
+          ]
+        },
+        "default": "l2"
+      },
+      "num_iterations": {
+        "type": "integer",
+        "default": 100,
+        "minimum": 2,
+        "maximum": 10000
+      },
+      "additionalProperties": "false",
+      "Training_Cycle": {
+        "type": "integer",
+        "default": 10000
+      }
+    }
+  },
+  "LGM_Config": {
+    "title": "LGM Algorithm Config",
+    "description": "LGM Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "Interpretation",
+      "fea_conf_col",
+      "device_type",
+      "Null_Threshold",
+      "Null_Handling_Policy",
+      "boosting_type",
+      "num_leaves",
+      "learning_rate",
+      "num_iterations",
+      "eval_metric",
+      "early_stopping_rounds"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "default": "True",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Interpretation": {
+        "type": "string",
+        "default": "False",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "fea_conf_col": {
+        "type": "string"
+      },
+      "device_type": {
+        "type": "string",
+        "default": "cpu",
+        "items": {
+          "type": "string",
+          "enum": [
+            "CPU",
+            "GPU",
+            "CUDA"
+          ]
+        }
+      },
+      "Null_Threshold": {
+        "type": "integer",
+        "default": 50,
+        "minimum": 10,
+        "maximum": 95
+      },
+      "Null_Handling_Policy": {
+        "type": "string",
+        "default": "Feature-Drop",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Feature-Drop",
+            "Halt_Training",
+            "No-Action"
+          ]
+        }
+      },
+      "boosting_type": {
+        "type": "string",
+        "default": "dart",
+        "items": {
+          "type": "string",
+          "enum": [
+            "dart",
+            "gbdt",
+            "rf"
+          ]
+        }
+      },
+      "num_leaves": {
+        "type": "integer",
+        "default": 31,
+        "minimum": 2,
+        "maximum": 131072
+      },
+      "learning_rate": {
+        "type": "number",
+        "default": 0.1,
+        "minimum": 0.001,
+        "maximum": 0.999
+      },
+      "num_iterations": {
+        "type": "integer",
+        "default": 100,
+        "minimum": 2,
+        "maximum": 10000
+      },
+      "eval_metric": {
+        "type": "string",
+        "default": "logloss",
+        "items": {
+          "type": "string",
+          "enum": [
+            "logloss",
+            "l2",
+            "ndcg"
+          ]
+        }
+      },
+      "early_stopping_rounds": {
+        "type": "integer",
+        "default": 5
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "NN_Config": {
+    "title": "NN Algorithm Config",
+    "description": "NN Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "Interpretation",
+      "fea_conf_col",
+      "Null_Threshold",
+      "Null_Handling_Policy",
+      "optimizer",
+      "activation_fn",
+      "num_hidden_layers",
+      "droupout_factor",
+      "num_iterations"
+    ],
+    "properties": {
+      "Enable": {
+        "description": "A unique identifier for a training model",
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Interpretation": {
+        "description": "A unique identifier for a training model",
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "fea_conf_col": {
+        "type": "string"
+      },
+      "Null_Threshold": {
+        "type": "integer",
+        "default": 50,
+        "minimum": 10,
+        "maximum": 95
+      },
+      "Null_Handling_Policy": {
+        "type": "string",
+        "default": "Feature-Drop",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Feature-Drop",
+            "Halt_Training",
+            "No-Action"
+          ]
+        }
+      },
+      "optimizer": {
+        "type": "string",
+        "default": "Feature-Drop",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Adam",
+            "SGD",
+            "Nadam"
+          ]
+        }
+      },
+      "activation_fn": {
+        "type": "string",
+        "default": "Feature-Drop",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Relu",
+            "Selu",
+            "Sigmoid",
+            "Tanh",
+            "Softmax"
+          ]
+        }
+      },
+      "num_hidden_layers": {
+        "type": "integer",
+        "default": 128,
+        "minimum": 32,
+        "maximum": 2056
+      },
+      "droupout_factor": {
+        "type": "number",
+        "default": 0.5,
+        "minimum": 0.1,
+        "maximum": 0.9
+      },
+      "num_iterations": {
+        "type": "integer",
+        "default": 100,
+        "minimum": 2,
+        "maximum": 10000
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "XGBOOST_Config": {
+    "title": "XGBOOST Algorithm Config",
+    "description": "XGBOOST Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "Interpretation",
+      "fea_conf_col",
+      "device_type",
+      "Null_Threshold",
+      "Null_Handling_Policy",
+      "boosting_type",
+      "num_leaves",
+      "learning_rate",
+      "num_iterations",
+      "eval_metric",
+      "early_stopping_rounds"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "default": "True",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Interpretation": {
+        "type": "string",
+        "default": "False",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "fea_conf_col": {
+        "type": "string"
+      },
+      "device_type": {
+        "type": "string",
+        "default": "cpu",
+        "items": {
+          "type": "string",
+          "enum": [
+            "CPU",
+            "GPU",
+            "CUDA"
+          ]
+        }
+      },
+      "Null_Threshold": {
+        "type": "integer",
+        "default": 50,
+        "minimum": 10,
+        "maximum": 95
+      },
+      "Null_Handling_Policy": {
+        "type": "string",
+        "default": "Feature-Drop",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Feature-Drop",
+            "Halt_Training",
+            "No-Action"
+          ]
+        }
+      },
+      "boosting_type": {
+        "type": "string",
+        "default": "gbtree",
+        "items": {
+          "type": "string",
+          "enum": [
+            "dart",
+            "gbtree",
+            "rf"
+          ]
+        }
+      },
+      "num_leaves": {
+        "type": "integer",
+        "default": 31,
+        "minimum": 2,
+        "maximum": 131072
+      },
+      "learning_rate": {
+        "type": "number",
+        "default": 0.1,
+        "minimum": 0.001,
+        "maximum": 0.999
+      },
+      "num_iterations": {
+        "type": "integer",
+        "default": 100,
+        "minimum": 2,
+        "maximum": 10000
+      },
+      "eval_metric": {
+        "type": "string",
+        "default": "logloss",
+        "items": {
+          "type": "string",
+          "enum": [
+            "logloss",
+            "l2",
+            "ndcg"
+          ]
+        }
+      },
+      "early_stopping_rounds": {
+        "type": "integer",
+        "default": 5
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "XGBOOST_REGRESSION_Config": {
+    "title": "XGBOOST_REGRESSION Algorithm Config",
+    "description": "XGBOOST_REGRESSION Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "Interpretation",
+      "fea_conf_col",
+      "device_type",
+      "Null_Threshold",
+      "Null_Handling_Policy",
+      "n_estimators",
+      "learning_rate",
+      "gamma",
+      "subsample",
+      "colsample_bytree",
+      "max_depth",
+      "eval_metric",
+      "early_stopping_rounds"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "default": "True",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Interpretation": {
+        "type": "string",
+        "default": "False",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "fea_conf_col": {
+        "type": "string"
+      },
+      "device_type": {
+        "type": "string",
+        "default": "cpu",
+        "items": {
+          "type": "string",
+          "enum": [
+            "CPU",
+            "GPU",
+            "CUDA"
+          ]
+        }
+      },
+      "Null_Threshold": {
+        "type": "integer",
+        "default": 50,
+        "minimum": 10,
+        "maximum": 95
+      },
+      "Null_Handling_Policy": {
+        "type": "string",
+        "default": "Feature-Drop",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Feature-Drop",
+            "Halt_Training",
+            "No-Action"
+          ]
+        }
+      },
+      "n_estimators": {
+        "type": "integer",
+        "default": 110,
+        "minimum": 2,
+        "maximum": 131072
+      },
+      "learning_rate": {
+        "type": "number",
+        "default": 0.018,
+        "minimum": 0.001,
+        "maximum": 0.999
+      },
+      "gamma": {
+        "type": "integer",
+        "default": 0,
+        "minimum": 0,
+        "maximum": 131072
+      },
+      "subsample": {
+        "type": "number",
+        "default": 0.8,
+        "minimum": 0.1,
+        "maximum": 100
+      },
+      "colsample_bytree": {
+        "type": "number",
+        "default": 0.5,
+        "minimum": 0.1,
+        "maximum": 100
+      },
+      "max_depth": {
+        "type": "integer",
+        "default": 3
+      },
+      "eval_metric": {
+        "type": "string",
+        "default": "logloss",
+        "items": {
+          "type": "string",
+          "enum": [
+            "logloss",
+            "l2",
+            "ndcg"
+          ]
+        }
+      },
+      "early_stopping_rounds": {
+        "type": "integer",
+        "default": 5
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "LGM_UB_Config": {
+    "title": "LGM_Ub Algorithm Config",
+    "description": "LGM_Ub Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "Interpretation",
+      "fea_conf_col",
+      "device_type",
+      "Null_Threshold",
+      "Null_Handling_Policy",
+      "boosting_type",
+      "num_leaves",
+      "learning_rate",
+      "num_iterations",
+      "eval_metric",
+      "early_stopping_rounds",
+      "Ub_type"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Interpretation": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "fea_conf_col": {
+        "type": "string"
+      },
+      "device_type": {
+        "type": "string",
+        "default": "cpu",
+        "items": {
+          "type": "string",
+          "enum": [
+            "CPU",
+            "GPU",
+            "CUDA"
+          ]
+        }
+      },
+      "Null_Threshold": {
+        "type": "integer",
+        "default": 50,
+        "minimum": 10,
+        "maximum": 95
+      },
+      "Null_Handling_Policy": {
+        "type": "string",
+        "default": "Feature-Drop",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Feature-Drop",
+            "Halt_Training",
+            "No-Action"
+          ]
+        }
+      },
+      "boosting_type": {
+        "type": "string",
+        "default": "dart",
+        "items": {
+          "type": "string",
+          "enum": [
+            "dart",
+            "gbdt",
+            "rf"
+          ]
+        }
+      },
+      "num_leaves": {
+        "type": "integer",
+        "default": 31,
+        "minimum": 2,
+        "maximum": 131072
+      },
+      "learning_rate": {
+        "type": "integer",
+        "default": 0.1,
+        "minimum": 0.001,
+        "maximum": 0.999
+      },
+      "num_iterations": {
+        "type": "integer",
+        "default": 100,
+        "minimum": 2,
+        "maximum": 10000
+      },
+      "eval_metric": {
+        "type": "string",
+        "default": "logloss",
+        "items": {
+          "type": "string",
+          "enum": [
+            "logloss",
+            "l2",
+            "ndcg"
+          ]
+        }
+      },
+      "Ub_type": {
+        "type": "string",
+        "default": "cpu",
+        "items": {
+          "type": "string",
+          "enum": [
+            "RandomUnderSampling",
+            "NearMiss",
+            "ClassWeight"
+          ]
+        }
+      },
+      "early_stopping_rounds": {
+        "type": "integer",
+        "default": 5
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "XGBOOST_UB_Config": {
+    "title": "XGBOOST Algorithm Config",
+    "description": "XGBOOST Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "Interpretation",
+      "fea_conf_col",
+      "device_type",
+      "Null_Threshold",
+      "Null_Handling_Policy",
+      "boosting_type",
+      "num_leaves",
+      "learning_rate",
+      "num_iterations",
+      "eval_metric",
+      "early_stopping_rounds",
+      "Ub_type"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "default": "True",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Interpretation": {
+        "type": "string",
+        "default": "False",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "fea_conf_col": {
+        "type": "string"
+      },
+      "device_type": {
+        "type": "string",
+        "default": "cpu",
+        "items": {
+          "type": "string",
+          "enum": [
+            "CPU",
+            "GPU",
+            "CUDA"
+          ]
+        }
+      },
+      "Null_Threshold": {
+        "type": "integer",
+        "default": 50,
+        "minimum": 10,
+        "maximum": 95
+      },
+      "Null_Handling_Policy": {
+        "type": "string",
+        "default": "Feature-Drop",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Feature-Drop",
+            "Halt_Training",
+            "No-Action"
+          ]
+        }
+      },
+      "boosting_type": {
+        "type": "string",
+        "default": "gbtree",
+        "items": {
+          "type": "string",
+          "enum": [
+            "dart",
+            "gbtree",
+            "rf"
+          ]
+        }
+      },
+      "num_leaves": {
+        "type": "integer",
+        "default": 31,
+        "minimum": 2,
+        "maximum": 131072
+      },
+      "learning_rate": {
+        "type": "number",
+        "default": 0.1,
+        "minimum": 0.001,
+        "maximum": 0.999
+      },
+      "num_iterations": {
+        "type": "integer",
+        "default": 100,
+        "minimum": 2,
+        "maximum": 10000
+      },
+      "eval_metric": {
+        "type": "string",
+        "default": "logloss",
+        "items": {
+          "type": "string",
+          "enum": [
+            "logloss",
+            "l2",
+            "ndcg"
+          ]
+        }
+      },
+      "Ub_type": {
+        "type": "array",
+        "default": "cpu",
+        "items": {
+          "type": "string",
+          "enum": [
+            "RandomUnderSampling",
+            "NearMiss",
+            "ClassWeight"
+          ]
+        }
+      },
+      "early_stopping_rounds": {
+        "type": "integer",
+        "default": 5
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "NN_UB_Config": {
+    "title": "NN Algorithm Config",
+    "description": "NN Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "Interpretation",
+      "fea_conf_col",
+      "Null_Threshold",
+      "Null_Handling_Policy",
+      "optimizer",
+      "activation_fn",
+      "num_hidden_layers",
+      "droupout_factor",
+      "num_iterations",
+      "eval_metric",
+      "early_stopping_rounds",
+      "Ub_type"
+    ],
+    "properties": {
+      "Enable": {
+        "description": "A unique identifier for a training model",
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Interpretation": {
+        "description": "A unique identifier for a training model",
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "fea_conf_col": {
+        "type": "string"
+      },
+      "Null_Threshold": {
+        "type": "integer",
+        "default": 50,
+        "minimum": 10,
+        "maximum": 95
+      },
+      "Null_Handling_Policy": {
+        "type": "string",
+        "default": "Feature-Drop",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Feature-Drop",
+            "Halt_Training",
+            "No-Action"
+          ]
+        }
+      },
+      "optimizer": {
+        "type": "string",
+        "default": "Feature-Drop",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Adam",
+            "SGD",
+            "Nadam"
+          ]
+        }
+      },
+      "activation_fn": {
+        "type": "string",
+        "default": "Feature-Drop",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Relu",
+            "Selu",
+            "Sigmoid",
+            "Tanh",
+            "Softmax"
+          ]
+        }
+      },
+      "num_hidden_layers": {
+        "type": "integer",
+        "default": 128,
+        "minimum": 32,
+        "maximum": 2056
+      },
+      "droupout_factor": {
+        "type": "number",
+        "default": 0.5,
+        "minimum": 0.1,
+        "maximum": 0.9
+      },
+      "num_iterations": {
+        "type": "integer",
+        "default": 100,
+        "minimum": 2,
+        "maximum": 10000
+      },
+      "eval_metric": {
+        "type": "string",
+        "default": "logloss",
+        "items": {
+          "type": "string",
+          "enum": [
+            "logloss",
+            "l2",
+            "ndcg"
+          ]
+        }
+      },
+      "Ub_type": {
+        "type": "string",
+        "default": "cpu",
+        "items": {
+          "type": "string",
+          "enum": [
+            "RandomUnderSampling",
+            "NearMiss",
+            "ClassWeight"
+          ]
+        }
+      },
+      "early_stopping_rounds": {
+        "type": "integer",
+        "default": 5
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "IPAnalytics_Config": {
+    "title": "IP_Analytics Algorithm Config",
+    "description": "IP_Analytics Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "fea_conf_col",
+      "ip_int_weight",
+      "ip_kyc_weight"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "fea_conf_col": {
+        "type": "string"
+      },
+      "ip_int_weight": {
+        "type": "integer",
+        "default": 50,
+        "minimum": 20,
+        "maximum": 80
+      },
+      "ip_kyc_weight": {
+        "type": "integer",
+        "default": 50,
+        "minimum": 20,
+        "maximum": 80
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "EmailAnalytics_Config": {
+    "title": "Email_Analytics Algorithm Config",
+    "description": "Email_Analytics Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "fea_conf_col",
+      "blacklist_weight",
+      "disposable_weight",
+      "valid_format_weight",
+      "free_domain_weight",
+      "email_exists_weight",
+      "name_similarity_weight"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "fea_conf_col": {
+        "type": "string"
+      },
+      "blacklist_weight": {
+        "type": "integer",
+        "default": 30,
+        "minimum": 10,
+        "maximum": 50
+      },
+      "disposable_weight": {
+        "type": "integer",
+        "default": 30,
+        "minimum": 10,
+        "maximum": 50
+      },
+      "valid_format_weight": {
+        "type": "integer",
+        "default": 10,
+        "minimum": 5,
+        "maximum": 20
+      },
+      "free_domain_weight": {
+        "type": "integer",
+        "default": 10,
+        "minimum": 5,
+        "maximum": 20
+      },
+      "email_exists_weight": {
+        "type": "integer",
+        "default": 10,
+        "minimum": 5,
+        "maximum": 20
+      },
+      "name_similarity_weight": {
+        "type": "integer",
+        "default": 10,
+        "minimum": 5,
+        "maximum": 20
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "DigitalFootprints_Config": {
+    "title": "Digital_Footprints Algorithm Config",
+    "description": "Digital_Footprints Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "Weightage"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Weightage": {
+        "type": "integer",
+        "default": 50
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Anomaly_OCS_Config": {
+    "title": "AnomalyDetection_OCS Algorithm Config",
+    "description": "AnomalyDetection_OCS Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "Interpretation",
+      "Training_Cycle",
+      "fea_conf_col"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Interpretation": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Training_Cycle": {
+        "type": "integer",
+        "default": 10000
+      },
+      "fea_conf_col": {
+        "type": "string"
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Anomaly_LOF_Config": {
+    "title": "AnomalyDetection_LO Algorithm Config",
+    "description": "AnomalyDetection_LO Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "Interpretation",
+      "Training_Cycle",
+      "fea_conf_col"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Interpretation": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Training_Cycle": {
+        "type": "integer",
+        "default": 10000
+      },
+      "fea_conf_col": {
+        "type": "string"
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Anomaly_IF_Config": {
+    "title": "AnomalyDetection_IF Algorithm Config",
+    "description": "AnomalyDetection_IF Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "Interpretation",
+      "Training_Cycle",
+      "fea_conf_col"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Interpretation": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Training_Cycle": {
+        "type": "integer",
+        "default": 10000
+      },
+      "fea_conf_col": {
+        "type": "string"
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Anomaly_LSTM_Config": {
+    "title": "AnomalyDetection_LSTM Algorithm Config",
+    "description": "AnomalyDetection_LSTM Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "Interpretation",
+      "Training_Cycle",
+      "fea_conf_col"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Interpretation": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Training_Cycle": {
+        "type": "integer",
+        "default": 10000
+      },
+      "fea_conf_col": {
+        "type": "string"
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Anomaly_PM_Config": {
+    "title": "AnomalyDetection_PM Config",
+    "description": "AnomalyDetection_PM Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "Interpretation",
+      "Training_Cycle",
+      "fea_conf_col",
+      "contamination"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Interpretation": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Training_Cycle": {
+        "type": "integer",
+        "default": 10000
+      },
+      "fea_conf_col": {
+        "type": "string"
+      },
+      "contamination": {
+        "type": "integer",
+        "default": 1,
+        "minimum": 1,
+        "maximum": 99
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "DeepAR_Config": {
+    "title": "DeepAR Algorithm Config",
+    "description": "DeepAR Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+       "Enable",
+        "Freq",
+        "num_forecast"
+
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Freq": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "D",
+            "Y",
+            "M",
+            "H"
+          ]
+        }
+      },
+      "num_forecast": {
+        "type": "integer",
+        "default": 0
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Prophet_Config": {
+    "title": "Prophet Algorithm Config",
+    "description": "Prophet Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "Freq",
+      "num_forecast"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Freq": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "D",
+            "Y",
+            "M",
+            "H"
+          ]
+        }
+      },
+      "num_forecast": {
+        "type": "integer",
+        "default": 0
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "PM-ARIMA_Config": {
+    "title": "ARIMA Algorithm Config",
+    "description": "ARIMA Algorithm Configuration Schema",
+    "type": "object",
+   "required": [
+      "Enable",
+      "Freq",
+      "num_forecast"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Freq": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "H",
+            "D",
+            "Y",
+            "M"
+          ]
+        }
+      },
+      "num_forecast": {
+        "type": "integer",
+        "default": 0
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "LinearDML_Config": {
+    "title": "LinearDML Algorithm Config",
+    "description": "LinearDML Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "NonParamDML_Config": {
+    "title": "NonParamDM Algorithm Config",
+    "description": "NonParamDM Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "CausalForestDML_Config": {
+    "title": "CasualForestDML Algorithm Config",
+    "description": "CasualForestDML Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "MetaLearner_Config": {
+    "title": "MetaLearner Algorithm Config",
+    "description": "MetaLearner Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Google_T5_Config": {
+    "title": "Google_T5 Algorithm Config",
+    "description": "Google_T5 Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Google_Bert_Config": {
+    "title": "Google_Bert Algorithm Config",
+    "description": "Google_Bert Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Meta_Bart_Config": {
+    "title": "Meta_Bart Algorithm Config",
+    "description": "Meta_Bart Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Accelerator": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "CPU",
+            "GPU",
+            "TPU"
+          ]
+        }
+      },
+      "Training_Cycle": {
+        "type": "integer",
+        "default": 10000
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Meta_Segment_Config": {
+    "title": "Meta_Segment Algorithm Config",
+    "description": "Meta_Segment Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Microsoft LayoutLM-base_Config": {
+    "title": "Meta_Segment Algorithm Config",
+    "description": "Meta_Segment Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "Accelerator",
+      "Training_Cycle"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Accelerator": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "CPU",
+            "GPU",
+            "TPU"
+          ]
+        }
+      },
+      "Training_Cycle": {
+        "type": "integer",
+        "default": 10000
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Microsoft LayoutLM3-base_Config": {
+    "title": "Meta_Segment Algorithm Config",
+    "description": "Meta_Segment Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "Accelerator",
+      "Training_Cycle"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Accelerator": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "CPU",
+            "GPU",
+            "TPU"
+          ]
+        }
+      },
+      "Training_Cycle": {
+        "type": "integer",
+        "default": 10000
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Clova-ix Donut-base_Config": {
+    "title": "Meta_Segment Algorithm Config",
+    "description": "Meta_Segment Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "Enable",
+      "Accelerator",
+      "Training_Cycle"
+    ],
+    "properties": {
+      "Enable": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "True",
+            "False"
+          ]
+        }
+      },
+      "Accelerator": {
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "CPU",
+            "GPU",
+            "TPU"
+          ]
+        }
+      },
+      "Training_Cycle": {
+        "type": "integer",
+        "default": "10000"
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "AUTOENCODER_Config": {
+    "title": "LR Algorithm Config",
+    "description": "LR Algorithm Configuration Schema",
+    "type": "object",
+    "required": [
+      "ProfileName",
+      "ScoreSharpening",
+      "BottleNeckDimension",
+      "QunatileValue",
+      "TrainingEpochs"
+    ],
+    "properties": {
+      "ProfileName": {
+        "description": "A unique identifier for a training model",
+        "type": "string",
+        "items": {
+          "type": "string",
+          "enum": [
+            "accessibility",
+            "reliability",
+            "retainability",
+            "mobility",
+            "voice_integrity",
+            "data_integrity",
+            "recharge",
+            "usage_data",
+            "usage_voice",
+            "network"
+          ]
+        }
+      },
+      "ScoreSharpening": {
+        "description": "A value for specific Profile",
+        "type": "integer"
+      },
+      "BottleNeckDimension": {
+        "description": "A value for specific Profile",
+        "type": "integer"
+      },
+      "QuantileValue": {
+        "description": "A value for specific Profile",
+        "type": "integer"
+      },
+      "TrainingEpochs": {
+        "description": "A value for specific Profile",
+        "type": "integer",
+        "default": 10
+      }
+    }
+  },
+  "Config_List": {
+    "title": "List of Algo Categories and Algo Type in each category",
+    "description": "Algo Mapping Configuration",
+    "info": "Algo_Category",
+    "type": "object",
+    "required": [
+      "Supervised",
+      "Self-Supervised",
+      "Supervised-Unbalanced",
+      "Anomaly",
+      "TimeSeries_Forecast",
+      "ReinforceLearning",
+      "GenAI_DocModels",
+      "CausalML",
+      "NLP"
+    ],
+    "properties": {
+      "Algo_Category": {
+        "type": "string",
+        "description": "",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Supervised",
+            "Self-Supervised",
+            "Supervised-Unbalanced",
+            "Anomaly",
+            "TimeSeries_Forecast",
+            "ReinforceLearning",
+            "GenAI_DocModels",
+            "CausalML",
+            "NLP",
+            "CV"
+          ]
+        },
+        "uniqueItems": "true"
+      },
+      "Supervised": {
+        "type": "string",
+        "description": "List of Algorithms for Supervised Category",
+        "items": {
+          "type": "string",
+          "enum": [
+            "LR",
+            "LGM",
+            "NN",
+            "XGBOOST",
+            "XGBOOST_REGRESSION"
+          ]
+        },
+        "uniqueItems": "true"
+      },
+      "Self-Supervised": {
+        "type": "string",
+        "description": "List of Algorithms for Self Supervised Category",
+        "items": {
+          "type": "string",
+          "enum": [
+            "AUTOENCODER"
+          ]
+        },
+        "uniqueItems": "true"
+      },
+      "Supervised-Unbalanced": {
+        "type": "string",
+        "description": "List of Algorithms for Supervised-UBCategory",
+        "items": {
+          "type": "string",
+          "enum": [
+            "LGM_UB",
+            "NN_UB",
+            "XGBOOST_UB"
+          ]
+        },
+        "uniqueItems": "true"
+      },
+      "Anomaly": {
+        "type": "string",
+        "description": "List of Algorithms for Anomaly Category",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Anomaly_OCS",
+            "Anomaly_LOF",
+            "Anomaly_IF",
+            "Anomaly_PM",
+            "Anomaly_LSTM"
+          ]
+        },
+        "uniqueItems": "true"
+      },
+      "FraudAnalytics": {
+        "type": "string",
+        "description": "List of Algorithms for FraudAnalytics Category",
+        "items": {
+          "type": "string",
+          "enum": [
+            "IPAnalytics",
+            "EmailAnalytics",
+            "DigitalFootprints"
+          ]
+        },
+        "uniqueItems": "true"
+      },
+      "TimeSeries_Forecast": {
+        "type": "string",
+        "description": "List of Algorithms for TimeSeries-Forecast Category",
+        "items": {
+          "type": "string",
+          "enum": [
+            "DeepAR",
+            "Prophet",
+            "PM-ARIMA"
+          ]
+        },
+        "uniqueItems": "true"
+      },
+      "ReinforceLearning": {
+        "type": "string",
+        "description": "List of Algorithms for ReinforceLearning Category",
+        "items": {
+          "type": "string",
+          "enum": [
+            "DeepAR"
+          ]
+        },
+        "uniqueItems": "true"
+      },
+      "GenAI_DocModels": {
+        "type": "string",
+        "description": "List of Algorithms for GenAI_DocModels Category",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Microsoft LayoutLM-base",
+            "Microsoft LayoutLM3-base",
+            "Clova-ix Donut-base"
+          ]
+        },
+        "uniqueItems": "true"
+      },
+      "CausalML": {
+        "type": "string",
+        "description": "List of Algorithms for CausalML Category",
+        "items": {
+          "type": "string",
+          "enum": [
+            "LinearDML",
+            "NonParamDML",
+            "CausalForestDML",
+            "MetaLearner"
+          ]
+        },
+        "uniqueItems": "true"
+      },
+      "NLP": {
+        "type": "string",
+        "description": "List of Algorithms for NLP Category",
+        "items": {
+          "type": "string",
+          "enum": [
+            "Google_T5",
+            "Google_Bert",
+            "Meta_Bart"
+          ]
+        },
+        "uniqueItems": "true"
+      },
+      "additionalProperties": "false"
+    }
+  }
+}

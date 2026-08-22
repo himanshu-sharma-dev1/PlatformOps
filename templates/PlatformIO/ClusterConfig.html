@@ -1,0 +1,4217 @@
+<!DOCTYPE html>
+<html lang="en">
+{% include "nav.html" %}
+{% block content %}
+<head>
+{% load static %}
+    <script type="text/javascript" src="{% static 'JS/DragDrop.js' %}"></script>
+    <script type="module" src="{% static 'dform/DForm.js' %}"></script>
+
+    <meta charset="UTF-8">
+     <style>
+        body{
+            overflow-x: hidden;
+        }
+        .ik-add-btn{
+            font-family: var(--ik-font-family);
+            font-size:12px;
+            color:  var(--ik-white)!important;
+            background-color: var(--ik-bg-color);
+            background: #e40000;
+            border-radius: 6px;
+            border: none;
+            box-shadow: 0 6px 0;
+            cursor: pointer;
+            /* transition: all 0.15s ease-in-out; */
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .ik-add-btn:hover {
+            /* transform: translateY(-4px) scale(1.03);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); */
+            transform: translateY(-2px) scale(1.1);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+        .ik-add-btn:disabled {
+            background: #555 !important;
+            box-shadow: none !important;
+            cursor: not-allowed;
+            opacity: 0.6;
+            transform: none !important;
+        }
+        .ik-no-shadow-btn,
+        .ik-no-shadow-btn:hover,
+        .ik-no-shadow-btn:focus {
+            box-shadow: none !important;
+        }
+
+        .ik-txt3 {
+            font-family: var(--ik-font-family);
+            font-size:12px;
+            color:  var(--ik-dark-grey);
+            background-color: #5aa0c2;
+            box-shadow: 0 2px 0 ;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .ik-txt3:hover {
+            transform: translateY(-2px) scale(1);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2)
+        }
+        .ik-tableScroll { height:35vh; }
+        .ik-input-edit {
+            opacity: 0;
+            transition: opacity 0.2s ease, filter 0.2s ease;
+        }
+
+        .ik-input-edit:hover {
+            opacity:1;
+            filter: blur(0);
+        }
+
+        .ik-sub-nodeDrop {
+            font-family: var(--ik-font-family);
+            font-size:12px;
+            color:  var(--ik-white)!important;
+            background-color: var(--ik-bg-color);
+            background: #e40000;
+            text-align: center;
+            border-radius: 6px;
+            align-content: center;
+            justify-content: space-between;
+            height: 35px;
+            width: 100%;
+            box-sizing: border-box;
+            padding: 6px 10px;
+            cursor: pointer;
+            transition: all 0.15s ease-in-out;
+        }
+        .ik-sub-nodeDrop:hover {
+            transform: translateY(-2px) scale(1.1);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2)
+        }
+
+        .ik-sub-dropbox::-webkit-scrollbar-thumb {
+           background-color: #888;
+           height: 2px;
+        }
+
+        .ik-sub-dropbox::-webkit-scrollbar {
+          height: 6px;
+        }
+
+        .ik-sub-dropbox{
+            border-radius: 10px;
+            height: 60vh;
+            padding: 10px 5px;
+            width: 62vw;
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: nowrap;
+            overflow: scroll;
+        }
+
+        .ik-ngf-box{
+            height: 6vh;
+        }
+
+        .ik-tableScroll { height:35vh; }
+        .formGroup { height:50vh; }
+
+        .modal-backdrop { display: none !important; }
+
+        #logTableheading thead th:nth-child(1) { width: 20%; }
+        #logTableheading thead th:nth-child(2) { width: 20%; }
+        #logTableheading thead th:nth-child(3) { width: 60%; }
+        #logTable tbody td:nth-child(1) { width: 20%; }
+        #logTable tbody td:nth-child(2) { width: 20%; }
+        #logTable tbody td:nth-child(3) { width: 60%; }
+
+        .ik-formLabel{ color:#000; margin-bottom:2px;}
+        .ik-formControl{ color:#000; }
+        .col-lg-3{margin-bottom:12px;}
+        .ik-status-badge{
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 12px;
+            letter-spacing: 0.01em;
+        }
+        .ik-status-healthy{
+            background: #8df0a9;
+            color: #044d20;
+            border: 1px solid #19b457;
+        }
+        .ik-status-degraded{
+            background: #ffe7b8;
+            color: #8f4b00;
+            border: 1px solid #f4be66;
+        }
+        .ik-status-stopped{
+            background: #ffd9d6;
+            color: #9f1f1f;
+            border: 1px solid #f2a4a0;
+        }
+        .ik-status-missing{
+            background: #e5e9ef;
+            color: #495766;
+            border: 1px solid #b7c2cf;
+        }
+        .ik-status-external{
+            background: #dcecff;
+            color: #31577d;
+            border: 1px solid #9fc4ef;
+        }
+        .ik-diagnostics-card{
+            border: 1px solid #d8dee6;
+            border-radius: 10px;
+            background: #fafbfc;
+        }
+        .ik-diagnostics-summary{
+            min-height: 112px;
+            white-space: pre-wrap;
+        }
+        .ik-severity-critical{
+            background: #ffd2cf;
+            color: #8f1511;
+            border: 1px solid #ef8d86;
+        }
+        .ik-severity-high{
+            background: #ffe7b8;
+            color: #8f4b00;
+            border: 1px solid #f4be66;
+        }
+        .ik-severity-medium{
+            background: #fff3cd;
+            color: #7a5c00;
+            border: 1px solid #efdb8c;
+        }
+        .ik-severity-low{
+            background: #d8f5e1;
+            color: #0b5e2b;
+            border: 1px solid #86d7a1;
+        }
+        .ik-diagnostics-evidence{
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 220px;
+            overflow-y: auto;
+            background: #f6f8fa;
+            border-radius: 8px;
+            border: 1px solid #d8dee6;
+        }
+        .ik-live-logs-view{
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 58vh;
+            min-height: 320px;
+            overflow-y: auto;
+            background: #111827;
+            color: #e5e7eb;
+            border-radius: 8px;
+            border: 1px solid #2d3748;
+            white-space: pre-wrap;
+        }
+        .ik-diagnostics-issue{
+            border-bottom: 1px solid #e5e9ef;
+        }
+        .ik-diagnostics-issue:last-child{
+            border-bottom: none;
+        }
+
+         @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .animate-slide-in {
+            animation: slideInRight 0.4s ease-out;
+        }
+
+
+    </style>
+    <style>
+        /* Diff Styles */
+        .diff-table { width: 100%; border-collapse: collapse; font-family: 'Courier New', Courier, monospace; font-size: 0.8rem; background: #1e1e1e; color: #d4d4d4; }
+        .diff-table th, .diff-table td { border: 1px solid #333; padding: 4px 8px; vertical-align: top; white-space: pre-wrap; word-break: break-all; }
+        .diff-header { background: #2d2d2d; color: #fff; text-align: left; }
+        .diff-info { background: #0e3a5e; color: #85c5ed; font-style: italic; }
+        .diff-del { background: #4b1818 !important; color: #ffa3a3 !important; }
+        .diff-add { background: #1e3a1e !important; color: #a3ffa3 !important; }
+        .diff-line { min-height: 1.2rem; }
+        .ik-diff-btn { background: #c0392b; color: #fff; border: none; transition: 0.3s; }
+        .ik-diff-btn:hover { background: #e74c3c; color: #fff; }
+        .ik-diff-btn:disabled { background: #555; cursor: not-allowed; opacity: 0.6; }
+        .snapshot-viewer {
+            max-height: 450px;
+            overflow: auto;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #333;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.82rem;
+            line-height: 1.25rem;
+        }
+        .snapshot-line {
+            display: flex;
+            align-items: flex-start;
+            white-space: pre;
+        }
+        .snapshot-toggle {
+            width: 20px;
+            min-width: 20px;
+            border: none;
+            background: transparent;
+            color: #9ca3af;
+            cursor: pointer;
+            padding: 0;
+            margin-right: 2px;
+            font-size: 0.78rem;
+            line-height: 1.2rem;
+        }
+        .snapshot-toggle:disabled {
+            cursor: default;
+            color: #555;
+        }
+        .snapshot-line-number {
+            width: 44px;
+            min-width: 44px;
+            color: #6b7280;
+            text-align: right;
+            padding-right: 8px;
+            user-select: none;
+        }
+        .snapshot-line-content {
+            flex: 1;
+            white-space: pre;
+        }
+    </style>
+</head>
+<body>
+<div class="container-fluid mt-4">
+    <div class="row flex-nowrap">
+<!--Top-Button Section------------------------------------->
+        <div class="row ik-nav-button">
+             <div class="col-lg-1"></div>
+            <div class="col-lg-1 text-center">
+                <form method="get" enctype="multipart/form-data" action="">
+                   <button type="submit" name="user-action" value="apply_config" class="btn px-2 m-0 ik-btn" data-bs-toggle="" data-bs-target="">
+                   <span class="fs-4 bi bi-arrow-left-circle-fill text-dark"></span></button>
+                </form>
+            </div>
+        </div>
+        {% include "PlatformIO/PlatformSideBar.html" %}
+        <div class="col-10 col-lg-10 ik-right-container">
+<!--ik-node-dragBox Section----------------------------------->
+            <div class="row mb-5">
+                <div class="col-lg-2 mx-3 py-1 ik-node-dragBox">
+                    <div class="row">
+                        <div id="text_block_div" class="col-lg-12 h-25 my-1">
+                            <div id="node_block" draggable="true" style="background: #e40000;" ondragstart="dragStart_add(event);" class="ik-txt3 py-1 px-1 text-light text-center w-100 border">Node</div>
+                        </div>
+                        <div id="services" class="col-lg-12 my-2 left-services">
+                            {% for service in service_options.Service_List.required %}
+                                {% if service != "AIOrchestrator" %}
+                                <div id="pod_block_{{service}}" draggable="true" data-bs-whatever="{{service}}" ondragstart="return dragStart_add(event);" class="ik-txt3 py-1 px-1 my-2 text-light w-100 text-center border left-service`">
+                                    {{service}}</div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div  class="col-lg-9 mx-4 px-5" style="border-left:3px dotted grey; height:80vh;">
+                    <div class="row p-1" id="block_container" style="border-radius:10px; max-height:75vh;
+                        border:1px solid #95a5a6; background:#9c9f9f; ">
+                        {% for index, cluster in cluster_info.items %}
+                        <h6 class="modal-title ik-modalTitle ik-h1 mt-2">Cluster : {{cluster.cluster_name}}</h6>
+                        {% endfor %}
+                        <input type="hidden" value="{{cluster_config_id}}" name="cluster_config_id" id="cluster_config_id">
+                        <div id="div1" class="row col-lg-10 mx-2 py-0 ik-sub-dropbox" ondragenter="return dragEnter_add(event);"
+                             ondrop="return dragDrop_add(event);" ondragover="return dragOver_add(event);">
+
+                            {% for cluster_index, cluster in cluster_info.items %}
+                            {% for node_index, node in cluster.node_info.items %}
+                            <div class="row mx-2 mt-1 text-light bg-light ik-node-dropBox" data-main-nodeId="{{node.node_id}}"
+                                 id="node_block_div_row_{{node_index}}"  name="node_{{node_index}}" ondragenter="return dragEnter_add(event);"
+                                 ondrop="return dragDrop_node(event);" ondragover="return dragOver_add(event);"
+                                 style="width:30%; border-radius:2px; height:95%; position:relative;">
+
+                                <div class="col-lg-9 my-1 w-100" onclick="showNodeConfig(event)" style="height: 30px; padding:0px;">
+                                    <button class="btn ik-add-btn w-100 text-light  py-1" type=button data-bs-toggle="modal" data-main-nodeId="{{node.node_id}}"
+                                            data-nodeName="{{node.node_name}}" data-bs-target="#NodeModal" data-bs-backdrop="false"
+                                            data-bs-keyboard="true" data-bs-whatever="{{node_index}}" onclick="showNodeConfig(event)">
+                                         {% if node.node_name != "None" %}
+                                            {{node.node_name}}
+                                        {% else %}
+                                            Node {{node_index}}
+                                        {% endif %}
+                                    </button>
+                                </div>
+
+                                <div class="ik-input-edit col-lg-1"  style="position: absolute; right: 25px; top:-2px">
+                                     <button type="button" onclick="DeleteNode(event)" id="delete_node_{{node_index}}" data-main-nodeId="{{node.node_id}}"
+                                             name="{{node_index}}" class="fs-6 bi-trash ms-1 ik-actionIcon text-dark pt-2"></button>
+                                </div>
+
+                                {% for service_index, service in node.service_info.items %}
+                                <div class="border w-100 ik-sub-nodeDrop p-1 d-flex justify-content-between" id="node_{{node_index}}_pod_{{service_index}}" data-for="{{service.service_type}}" data-nodeId="{{node.node_id}}" data-serviceId="{{service.service_id}}" name="node_{{node_index}}_pod_{{service_index}}" data-bs-toggle="modal" data-bs-target="#PodModal"
+                                    data-bs-backdrop="false" data-serviceName="{{service.service_name}}" data-bs-keyboard="true" data-bs-whatever="{{node_index}}_pod_{{service_index}}" onclick="CreateService(event)">
+                                     {% if service.service_name != "None" %}
+                                        <span>{{service.service_name}}</span>
+                                     {% else %}
+                                        {{service.service_type}}_{{service.service_id}}
+                                     {% endif %}
+                                    <div class="ik-input-edit text-end">
+                                         <button type="button" id="delete_pod_{{service_index}}" name="{{service_index}}" onclick="DeleteService(event)" data-nodeId="{{node.node_id}}" data-serviceId="{{service.service_id}}" class="fs-6 bi-trash ms-1 ik-actionIcon" data-bs-toggle="modal" data-bs-target="#DeleteModal"
+                                            data-bs-backdrop="false" data-bs-keyboard="true" data-bs-whatever="{{node_index}}">
+                                         </button>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endfor %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+<!--Pod Modal Section-------------------------------------->
+            <div class="modal ik-h2" id="PodModal" data-bs-backdrop="false" data-bs-keyboard="true" tabindex="-1" role="dialog" aria-labelledby="PodModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-xl ik-modalDialog">
+                    <div class="modal-content py-2">
+                        <ul class="nav nav-tabs">
+                            <li class="nav-item mx-2">
+                                <a class="nav-link active px-2 text-dark" data-bs-toggle="tab" data-bs-target="#Pod-Modal">Service</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link px-2 text-dark" data-bs-toggle="tab" data-bs-target="#LiveStatusModal" onclick="getLiveStatus()">Live Status</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link px-2 text-dark" data-bs-toggle="tab" data-bs-target="#DiagnosticsModal" onclick="getServiceDiagnostics()">Diagnostics</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link px-2 text-dark" id="live-logs-tab-link" data-bs-toggle="tab" data-bs-target="#LiveLogsModal" onclick="openLiveLogsTab(event)">Live Logs</a>
+                            </li>
+                            <li class="nav-item ">
+                                <a class="nav-link px-2 text-dark" id="event_pod"  data-bs-toggle="tab" data-bs-target="#EventModal" onclick="getEvent()">Event</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link px-2 text-dark" data-bs-toggle="tab" data-bs-target="#ConfigStoreModal" onclick="loadConfigStore()">Config Store</a>
+                            </li>
+                            <li class="nav-item" id="service_glitchtip_tab_item" style="display:none;">
+                                <a class="nav-link px-2 text-dark" id="service_glitchtip_tab" data-bs-toggle="tab" data-bs-target="#ServiceGlitchTipModal" onclick="openServiceGlitchTipTab()">Observability</a>
+                            </li>
+                        </ul>
+                        <div class="tab-content">
+                            <div class="tab-pane fade show active" id="Pod-Modal">
+                                <div class="modal-header ik-modalHeader">
+                                    <h6 class="modal-title ik-modalTitle text-end" id="PodModalLabel">Edit Service</h6>
+                                </div>
+
+                                <div class="modal-body ik-modalBody">
+                                    <form method="post" enctype="multipart/form-data" action="">
+                                        {% csrf_token %}
+
+                                        <div class="form-group formGroup"></div>
+
+                                        <div class="modal-footer ik-modalFooter">
+                                            <input type="hidden" name="json_data" id="json_data">
+                                            <button type="submit" value="add" id="save_pod" name="user-action" data-modalId="PodModal" data-serviceId="" onclick="createServiceJson(event)" class="btn px-3 py-1 ik-add-btn">Save</button>
+                                            <button type="button" id="deploy_pod" name="user-action" data-modalId="PodModal" class="btn px-3 py-1 ik-add-btn" onclick="DeployService(event)" > Deploy</button>
+                                            <button type="button" id="btnRuntimePatchFooter" name="user-action" data-modalId="PodModal" class="btn px-3 py-1 ik-add-btn" onclick="runServiceRuntimePatch()">Patch Observability Runtime</button>
+                                            <button type="button" class="btn px-3 py-1 ik-close-btn" data-bs-dismiss="modal">Close</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="LiveStatusModal">
+                                <div class="modal-header ik-modalHeader" style="border-bottom:1px solid #7B7878;">
+                                    <h6 class="modal-title ik-modalTitle datajam-light">Live Status</h6>
+                                </div>
+                                <div class="modal-body ik-modalBody py-2">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <div id="live-status-badge" class="badge ik-status-badge ik-status-missing px-3 py-2">Unknown</div>
+                                        <button type="button" class="btn px-3 py-1 ik-add-btn" onclick="getLiveStatus(true)">Refresh</button>
+                                    </div>
+                                    <div class="row g-3">
+                                        <div class="col-lg-4">
+                                            <div class="border rounded p-2 h-100 bg-light">
+                                                <div class="fw-bold mb-2">Overall</div>
+                                                <div id="live-status-overall"></div>
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-8">
+                                            <div class="border rounded p-2 h-100 bg-light">
+                                                <div class="fw-bold mb-2">Runtime Dependencies</div>
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm mb-0" id="live-status-containers-table">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Dependency</th>
+                                                                <th>Target</th>
+                                                                <th>Source</th>
+                                                                <th>State</th>
+                                                                <th>Running Since</th>
+                                                                <th>Up For</th>
+                                                                <th>Auto Restarts</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody></tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer ik-modalFooter">
+                                    <button type="button" class="btn px-3 py-1 ik-close-btn" data-bs-dismiss="modal">Close</button>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="DiagnosticsModal">
+                                <div class="modal-header ik-modalHeader" style="border-bottom:1px solid #7B7878;">
+                                    <h6 class="modal-title ik-modalTitle datajam-light">Diagnostics</h6>
+                                </div>
+                                <div class="modal-body ik-modalBody py-2">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div id="diagnostics-severity-badge" class="badge ik-status-badge ik-severity-low px-3 py-2">Low</div>
+                                            <div id="diagnostics-coverage-badge" class="badge bg-light text-dark border px-3 py-2">Container Baseline</div>
+                                            <select id="diagnostics-window" class="form-select form-select-sm" style="width:auto;" onchange="getServiceDiagnostics()">
+                                                <option value="current">Current</option>
+                                                <option value="24h">24h</option>
+                                                <option value="7d">7d</option>
+                                            </select>
+                                            <select id="diagnostics-target" class="form-select form-select-sm" style="min-width:220px;" onchange="getServiceDiagnostics()">
+                                                <option value="main">Main Container</option>
+                                            </select>
+                                        </div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <button type="button" class="btn px-3 py-1 ik-add-btn" id="diagnostics-backfill-btn" onclick="runServiceLogBackfill()">Backfill Logs</button>
+                                            <button type="button" class="btn px-3 py-1 ik-add-btn" onclick="getServiceDiagnostics(true)">Refresh</button>
+                                        </div>
+                                    </div>
+                                    <div class="small text-muted mb-2" id="diagnosticsBackfillStatusText"></div>
+                                    <div class="small text-muted mb-2" id="runtimePatchStatusText"></div>
+                                    <div class="row g-3">
+                                        <div class="col-lg-5">
+                                            <div class="ik-diagnostics-card p-3 h-100">
+                                                <div class="fw-bold mb-2">Summary</div>
+                                                <div id="diagnostics-summary" class="ik-diagnostics-summary text-dark"></div>
+                                                <div id="diagnostics-meta" class="mt-3 small text-muted"></div>
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-7">
+                                            <div class="ik-diagnostics-card p-3 h-100">
+                                                <div class="fw-bold mb-2">Issue Groups</div>
+                                                <div id="diagnostics-issues"></div>
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-6">
+                                            <div class="ik-diagnostics-card p-3 h-100">
+                                                <div class="fw-bold mb-2">Top Evidence</div>
+                                                <div id="diagnostics-evidence" class="ik-diagnostics-evidence p-2"></div>
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-6">
+                                            <div class="ik-diagnostics-card p-3 h-100">
+                                                <div class="fw-bold mb-2">Recent Events</div>
+                                                <div id="diagnostics-events" class="small text-dark"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer ik-modalFooter">
+                                    <button type="button" class="btn px-3 py-1 ik-close-btn" data-bs-dismiss="modal">Close</button>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="LiveLogsModal">
+                                <div class="modal-header ik-modalHeader" style="border-bottom:1px solid #7B7878;">
+                                    <h6 class="modal-title ik-modalTitle datajam-light">Live Logs</h6>
+                                </div>
+                                <div class="modal-body ik-modalBody py-2">
+                                    <div id="live-logs-panel" class="ik-diagnostics-card p-3 mt-0">
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <div>
+                                                <div class="fw-bold">View Logs</div>
+                                                <div id="live-logs-meta" class="small text-muted mt-1"></div>
+                                            </div>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <select id="live-logs-window" class="form-select form-select-sm" style="width:auto;" onchange="handleLiveLogsWindowChange()">
+                                                    <option value="current">Current</option>
+                                                    <option value="24h">24h</option>
+                                                    <option value="7d">7d</option>
+                                                </select>
+                                                <select id="live-logs-source" class="form-select form-select-sm" style="min-width:180px;" onchange="handleLiveLogsSourceChange()">
+                                                    <option value="container_live">Container Live</option>
+                                                    <option value="container_history">Container History</option>
+                                                    <option value="file_live">File Logs</option>
+                                                    <option value="service_history">File History</option>
+                                                </select>
+                                                <div id="live-logs-file-stream-wrap" style="display:none;">
+                                                    <select id="live-logs-file-stream" class="form-select form-select-sm" style="min-width:220px;" onchange="handleLiveLogsFileStreamChange()">
+                                                        <option value="all">All</option>
+                                                    </select>
+                                                </div>
+                                                <button type="button" class="btn px-3 py-1 ik-add-btn" id="live-logs-pause-btn" onclick="toggleLiveLogsPolling()">Pause</button>
+                                                <div id="live-logs-history-nav" class="d-flex align-items-center gap-2" style="display:none;">
+                                                    <button type="button" class="btn px-3 py-1 ik-add-btn" id="live-logs-newer-btn" onclick="pageLiveLogsHistory('newer')">Newer</button>
+                                                    <button type="button" class="btn px-3 py-1 ik-add-btn" id="live-logs-older-btn" onclick="pageLiveLogsHistory('older')">Older</button>
+                                                    <span id="live-logs-history-page" class="small text-muted" style="display:none;"></span>
+                                                </div>
+                                                <button type="button" class="btn px-3 py-1 ik-add-btn" onclick="clearLiveLogsView()">Clear</button>
+                                                <button type="button" class="btn px-3 py-1 ik-add-btn" onclick="fetchLiveLogs(true, 'manual')">Refresh</button>
+                                            </div>
+                                        </div>
+                                        <div class="small text-muted mb-2" id="live-logs-status">Waiting for logs...</div>
+                                        <div class="small text-muted mb-2" id="live-logs-source-help" style="display:none;"></div>
+                                        <div class="small text-muted mb-2" id="live-logs-history-window-meta" style="display:none;"></div>
+                                        <div id="live-logs-view" class="ik-live-logs-view p-3">No live log lines collected yet.</div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer ik-modalFooter">
+                                    <button type="button" class="btn px-3 py-1 ik-close-btn" data-bs-dismiss="modal">Close</button>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="EventModal">
+                                <div class="modal-header ik-modalHeader" style=" border-bottom:1px solid #7B7878;">
+                                    <h6 class="modal-title ik-modalTitle datajam-light" id="logModalLabel1">Service Events</h6>
+                                </div>
+                                <form  method="post" enctype="multipart/form-data" action="">
+                                    {% csrf_token %}
+                                    <div class="modal-body ik-modalBody py-0">
+                                        <table class="table table-sm" id="logTableheading">
+                                            <thead></thead>
+                                        </table>
+                                        <div class="table-responsive ik-tableScroll">
+                                            <table class="table table-sm ik-tableWrap" id="logTable">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Date</th>
+                                                        <th>Time</th>
+                                                        <th>Message</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody></tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer ik-modalFooter">
+                                        <button type="button" class="btn px-3 py-1 ik-close-btn" data-bs-dismiss="modal" onclick="closeEvent(event)">Close</button>
+                                    </div>
+                                </form>
+                            </div>
+<!--Config Store Tab Pane-------------------------------------->
+                            <div class="tab-pane fade" id="ConfigStoreModal">
+                                <div class="modal-header ik-modalHeader" style="border-bottom:1px solid #7B7878;">
+                                    <h6 class="modal-title ik-modalTitle datajam-light">Config Store</h6>
+                                </div>
+                                <div class="modal-body ik-modalBody py-2">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="text-muted" id="configStoreUpdatedAt" style="font-size:0.85rem;"></span>
+                                        <div>
+                                            <select id="configDiffDirection" class="form-select form-select-sm d-inline-block me-2" style="width:auto;" disabled>
+                                                <option value="1v2" selected>Diff: Config 1 vs Config 2</option>
+                                                <option value="2v1">Diff: Config 2 vs Config 1</option>
+                                            </select>
+                                            <button type="button" class="btn btn-sm px-3 ik-diff-btn" id="btnConfigCompare" onclick="runConfigDiff()" disabled>
+                                                <i class="bi bi-columns-gap me-1"></i>Compare
+                                            </button>
+                                            <button type="button" class="btn btn-sm px-3 ik-add-btn ms-2" id="btnConfigMigrate" onclick="runConfigMigrate()" disabled>
+                                                <i class="bi bi-arrow-left-right me-1"></i>Migrate
+                                            </button>
+                                            <button type="button" class="btn btn-sm px-3 ik-add-btn ms-2" id="btnConfigCheckpoint" onclick="runConfigCheckpoint()">
+                                                <i class="bi bi-plus-circle me-1"></i>Checkpoint
+                                            </button>
+                                            <button type="button" class="btn btn-sm px-3 ik-close-btn ms-2" onclick="loadConfigStore()">
+                                                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="table-responsive ik-tableScroll">
+                                        <table class="table table-sm ik-tableWrap" id="configStoreTable">
+                                            <thead>
+                                                <tr>
+                                                    <th><i class="bi bi-check2-square"></i></th>
+                                                    <th>#</th>
+                                                    <th>Version</th>
+                                                    <th>Timestamp</th>
+                                                    <th>Path</th>
+                                                    <th>Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody></tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div class="modal-footer ik-modalFooter">
+                                    <button type="button" class="btn px-3 py-1 ik-close-btn" data-bs-dismiss="modal">Close</button>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="ServiceGlitchTipModal">
+                                <div class="modal-header ik-modalHeader" style="border-bottom:1px solid #7B7878;">
+                                    <h6 class="modal-title ik-modalTitle datajam-light">AI Orchestrator Observability</h6>
+                                </div>
+                                <div class="modal-body ik-modalBody py-2">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <div id="service-glitchtip-meta" class="small text-muted">Observability is available for AIOrchestrator service only.</div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <button type="button" class="btn px-3 py-1 ik-add-btn" id="service-glitchtip-refresh-btn" onclick="refreshServiceGlitchTipIframe()" disabled>Refresh</button>
+                                            <button type="button" class="btn px-3 py-1 ik-add-btn" id="service-glitchtip-open-btn" onclick="openServiceGlitchTipInNewTab()" disabled>Open New Tab</button>
+                                        </div>
+                                    </div>
+                                    <div class="small text-muted mb-2" id="service-glitchtip-status"></div>
+                                    <div style="height:60vh; border:1px solid #dee2e6; border-radius:6px; overflow:hidden; background:#fff;">
+                                        <iframe id="service-glitchtip-embed-frame" title="Service Observability" style="width:111.12%; height:111.12%; border:0; background:#fff; transform:scale(0.9); transform-origin:top left;" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                                    </div>
+                                </div>
+                                <div class="modal-footer ik-modalFooter">
+                                    <button type="button" class="btn px-3 py-1 ik-close-btn" data-bs-dismiss="modal">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+<!--View Snapshot Modal-------------------------------------->
+            <div class="modal fade" id="ViewSnapshotModal" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header ik-modalHeader">
+                            <h6 class="modal-title ik-modalTitle" id="viewSnapshotLabel">Snapshot Content</h6>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span id="snapshotFoldSummary" class="text-muted" style="font-size:0.82rem;">No content</span>
+                                <div class="d-flex gap-2">
+                                    <button type="button" id="btnSnapshotCollapseAll" class="btn btn-sm ik-add-btn px-2 py-1" onclick="collapseAllSnapshotBlocks()" disabled>Collapse All</button>
+                                    <button type="button" id="btnSnapshotExpandAll" class="btn btn-sm ik-close-btn px-2 py-1" onclick="expandAllSnapshotBlocks()" disabled>Expand All</button>
+                                </div>
+                            </div>
+                            <div id="snapshotContentTree" class="snapshot-viewer">Loading...</div>
+                            <pre id="snapshotContentPre" style="display:none;"></pre>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn ik-close-btn" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+<!--Diff Modal-------------------------------------->
+            <div class="modal fade" id="DiffSnapshotModal" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                    <div class="modal-content" style="background: #121212; border: 1px solid #333;">
+                        <div class="modal-header ik-modalHeader">
+                            <h6 class="modal-title ik-modalTitle" id="diffSnapshotLabel">Configuration Comparison</h6>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body p-0">
+                            <div id="diffContentContainer"></div>
+                        </div>
+                        <div class="modal-footer ik-modalFooter">
+                            <button type="button" class="btn ik-close-btn" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+<!--Node Modal Section------------------------------------->
+            <div class="modal fade ik-h2" id="NodeModal" data-bs-backdrop="false" data-bs-keyboard="true" tabindex="-1" role="dialog" aria-labelledby="NodeModalabel" aria-hidden="true">
+                <div class="modal-dialog modal-xl ik-modalDialog">
+
+                    <div class="modal-content py-2">
+                        <ul class="nav nav-tabs">
+                            <li class="nav-item cursor-pointer">
+                                <a class="cursor-pointer nav-link px-2 text-dark" id="node_lunch" data-bs-toggle="tab" data-bs-target="#NodeLaunchModal" onclick="getLaunchInfo(event)">Launch Node</a>
+                            </li>
+                            <li class="nav-item mx-2 cursor-pointer">
+                                <a class="cursor-pointer nav-link active px-2 text-dark" data-bs-toggle="tab" data-bs-target="#Node-Modal">Config Node</a>
+                            </li>
+                            <li class="nav-item cursor-pointer">
+                                <a class="cursor-pointer nav-link px-2 text-dark" id="node_pod"  data-bs-toggle="tab" data-bs-target="#NodeEventModal" onclick="getNodeEvent()">Event</a>
+                            </li>
+                            <li class="nav-item mx-2 cursor-pointer">
+                                <a class="cursor-pointer nav-link active px-2 text-dark" data-bs-toggle="tab" data-bs-target="#Node-Modal">Config Node</a>
+                            </li>
+                            <li class="nav-item cursor-pointer">
+                                <a class="cursor-pointer nav-link px-2 text-dark" id="node_pod"  data-bs-toggle="tab" data-bs-target="#NodeEventModal" onclick="getNodeEvent()">Event</a>
+                            </li>
+                        </ul>
+async function SendRequest(data, options = {}){
+
+    let keys = Object.keys(data)
+    let form_data = new FormData()
+    keys.forEach(key => form_data.append(key, data[key]))
+
+    try{
+        let response =  await fetch('/PlatformIO/ClusterConfig/', {
+            method : 'POST',
+            body : form_data,
+            signal: options.signal
+        })
+
+        if(response.ok){
+            let res = await response.json()
+            return res
+        }
+
+        else console.error("Internal Server Error....")
+
+    }catch(err){
+        if(err && err.name === 'AbortError'){
+            return {__aborted: true}
+        }
+        console.log("Error : ", err)
+    }
+}
+
+// functions to get the model names list here
+function getModelNameList() {
+    let model_name_list = [];
+    model_info_list.forEach(item => {
+      if (item.model_name) {
+        model_name_list.push(item.model_name);
+      }
+    });
+    return model_name_list;
+  }
+
+
+// Function to extract service names
+function getServiceNameList() {
+    let service_name_list = [];
+    serv_infer_list.forEach(item => {
+        if (item.inf_service_name) {
+            service_name_list.push(item.inf_service_name);
+        }
+    });
+    return service_name_list;
+    }
+
+
+const modelNames = getModelNameList();
+const serviceNames = getServiceNameList();
+service_schema['ServiceConfig']['row_Schema'][45]['v_options'] = serviceNames ? serviceNames : []
+service_schema['ServiceConfig']['row_Schema'][46]['v_options'] = modelNames ? modelNames : []
+
+//----------------------------------------------------------------NODE SECTION------------------------------------------------------------
+let nodeId = ''
+let targetNode = null
+let nodeInterval = null
+let nodeViewToken = 0
+let serviceGlitchTipUrl = ''
+let serviceGlitchTipLoaded = false
+
+
+function resolveGlitchTipBaseUrl(){
+    if(window.location.protocol === 'https:'){
+        return `${window.location.origin}/glitchtip/`
+    }
+    const hostName = window.location.hostname
+    return `http://${hostName}:9008/`
+}
+
+
+function setServiceGlitchTipState(){
+    const tabItem = document.getElementById('service_glitchtip_tab_item')
+    const tab = document.getElementById('service_glitchtip_tab')
+    const meta = document.getElementById('service-glitchtip-meta')
+    const status = document.getElementById('service-glitchtip-status')
+    const frame = document.getElementById('service-glitchtip-embed-frame')
+    const refreshBtn = document.getElementById('service-glitchtip-refresh-btn')
+    const openBtn = document.getElementById('service-glitchtip-open-btn')
+    if(!tabItem || !tab || !meta || !status || !frame || !refreshBtn || !openBtn){
+        return
+    }
+
+    const enabled = serviceName === 'AIOrchestrator'
+    serviceGlitchTipLoaded = false
+    serviceGlitchTipUrl = enabled ? resolveGlitchTipBaseUrl() : ''
+
+    tabItem.style.display = enabled ? '' : 'none'
+    tab.classList.toggle('disabled', !enabled)
+    tab.setAttribute('aria-disabled', enabled ? 'false' : 'true')
+    refreshBtn.disabled = !enabled
+    openBtn.disabled = !enabled
+    frame.style.display = enabled ? '' : 'none'
+    frame.src = ''
+
+    if(enabled){
+        meta.textContent = `Service: ${serviceName} | URL: ${serviceGlitchTipUrl}`
+        status.textContent = ''
+    } else {
+        meta.textContent = 'Observability is available for AIOrchestrator service only.'
+        status.textContent = ''
+        const serviceTab = document.querySelector('[data-bs-target="#Pod-Modal"]')
+        if(serviceTab){
+            serviceTab.click()
+        }
+    }
+}
+
+
+function loadServiceGlitchTipIframe(forceReload = false){
+    const status = document.getElementById('service-glitchtip-status')
+    const frame = document.getElementById('service-glitchtip-embed-frame')
+    if(!frame || !serviceGlitchTipUrl){
+        if(status){
+            status.textContent = 'Observability iframe is unavailable for this service.'
+        }
+        return
+    }
+    if(status){
+        status.textContent = 'Loading Iktara Observability...'
+    }
+    frame.onload = function(){
+        const statusEl = document.getElementById('service-glitchtip-status')
+        if(statusEl){
+            statusEl.textContent = 'Iktara Observability loaded.'
+        }
+    }
+    frame.onerror = function(){
+        const statusEl = document.getElementById('service-glitchtip-status')
+        if(statusEl){
+            statusEl.textContent = 'Unable to load Iktara Observability iframe.'
+        }
+    }
+    if(forceReload || !serviceGlitchTipLoaded || frame.src !== serviceGlitchTipUrl){
+        frame.src = serviceGlitchTipUrl
+    }
+    serviceGlitchTipLoaded = true
+}
+
+
+function openServiceGlitchTipTab(){
+    loadServiceGlitchTipIframe(false)
+}
+
+
+function refreshServiceGlitchTipIframe(){
+    loadServiceGlitchTipIframe(true)
+}
+
+
+function openServiceGlitchTipInNewTab(){
+    if(serviceGlitchTipUrl){
+        window.open(serviceGlitchTipUrl, '_blank', 'noopener,noreferrer')
+    }
+}
+
+//ADD Node
+async function AddNode(info, buttons, node_block_count){
+
+    //let bgColor = getComputedStyle(document.documentElement).getPropertyValue('--ik-bg-color').trim();
+
+    let clusterId = document.getElementById('cluster_config_id').value
+    info['cluster_id'] = clusterId
+
+    let res = await SendRequest(info)
+    let [nodeButton, deleteButton] = Array.from(buttons)
+
+    deleteButton.setAttribute("data-main-nodeid", `${res.node_id}`)
+    nodeButton.setAttribute("data-main-nodeid", `${res.node_id}`)
+
+    //nodeButton.style.cssText = `background-color : ${bgColor}`
+    nodeButton.textContent = res.node_id
+    showMessage(res.msg)
+}
+
+
+//Get Node Config
+async function showNodeConfig(event){
+    targetNode = event.target
+    const button = event.target
+    const modalId = button.getAttribute('data-bs-target');
+
+    clearInterval(nodeInterval)
+    resetNodeModalUI()
+
+    nodeId = button.getAttribute('data-main-nodeid')
+    const requestedNodeId = nodeId
+    const currentNodeToken = ++nodeViewToken
+    let data = { "node_id" : nodeId, 'user-action': 'get_node_info' }
+
+    let res = await SendRequest(data)
+    if(currentNodeToken !== nodeViewToken || nodeId !== requestedNodeId){
+        return
+    }
+
+    window.forms.dFormCreate(node_schema, modalId, res, 'edit')
+
+    getNodeEvent(currentNodeToken, requestedNodeId)
+    nodeInterval = setInterval(()=>{
+        getNodeEvent(currentNodeToken, requestedNodeId)
+    }, 5000)
+    showMessage(res.msg)
+
+    let LaunchButton = document.querySelector('#node_lunch')
+    let click = new Event('click')
+    LaunchButton.dispatchEvent(click)
+}
+
+function forceRepaint(el) {
+  el.style.display = 'none';
+  void el.offsetHeight;
+  el.style.display = '';
+}
+
+//Delete Node
+async function DeleteNode(event){
+    const targetDiv = event.target.parentNode.parentNode
+    const parentDiv = targetDiv.parentNode
+
+    let node_id = event.target.getAttribute('data-main-nodeId')
+
+    let info = {
+       "node_id": node_id,
+       "service_id": "",
+       "service_type": "",
+       "user-action" : "delete_node"
+    }
+
+    let res = await SendRequest(info)
+
+    if (res.success === 'True') {
+        parentDiv.removeChild(targetDiv);
+        forceRepaint(parentDiv)
+    }
+    showMessage(res.msg)
+}
+
+
+//Select Node Type
+function SelectNodeType(event){
+    window.forms.dFormMapRows(event, node_schema)
+    let lunchButton = document.querySelector('#lunch')
+
+    if(event.target.value === 'CREATE') lunchButton.classList.remove('d-none')
+    else lunchButton.classList.add('d-none')
+}
+
+
+//Send Node Config
+async function createNodeJson(event){
+    let nodeObj =  await window.forms.dFormCreateJson(event, node_schema);
+    nodeObj['node_id'] = nodeId
+
+    let obj = { 'user-action': 'update_node','node_provision_config': JSON.stringify(nodeObj)}
+    let res = await SendRequest(obj);
+    targetNode.textContent = res.node_name
+
+    // Close the modal
+    closeModal(event)
+    showMessage(res.msg)
+}
+
+
+async function getNodeEvent(expectedToken = nodeViewToken, expectedNodeId = nodeId){
+    if(expectedToken !== nodeViewToken || expectedNodeId !== nodeId){
+        return
+    }
+
+    const tbody = document.getElementById('node-Table').querySelector('tbody');
+    showTableLoading(tbody, 3, 'Loading events...')
+
+    let res = await SendRequest({'node_id' : expectedNodeId, 'user-action' : 'node_event'})
+    if(expectedToken !== nodeViewToken || expectedNodeId !== nodeId){
+        return
+    }
+    if(res && res.msg) showMessage(res.msg)
+
+    tbody.innerHTML = ''
+    const events = (res && Array.isArray(res.node_event_info)) ? res.node_event_info : []
+    if(events.length === 0){
+        tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">No events found</td></tr>`
+        return
+    }
+
+     events.forEach(item => {
+          const row = document.createElement('tr');
+
+          const dateCell = document.createElement('td');
+          dateCell.textContent = item.Event_Date;
+          row.appendChild(dateCell);
+
+          const timeCell = document.createElement('td');
+          timeCell.textContent = item.Event_Time;
+          row.appendChild(timeCell);
+
+          const msgCell = document.createElement('td');
+          msgCell.textContent = item.Event_Msg;
+          row.appendChild(msgCell);
+
+          tbody.appendChild(row);
+    });
+}
+
+// Close Node Event
+function closeNodeEvent(event){
+     setTimeout(() => {
+       clearInterval(nodeInterval);
+       console.log("node service closed______");
+     }, 3000);
+}
+
+
+function SelectAuthType(event){
+    window.forms.dFormMapRows(event, node_schema)
+}
+
+
+
+async function getLaunchInfo(event){
+    const button = event.target
+    const modalId = button.getAttribute('data-bs-target');
+
+    let data = { "node_id" : nodeId, 'user-action': 'get_node_info' }
+    let res = await SendRequest(data)
+
+    if(res.node_launch_status){
+        console.log(node_launch_schema['LaunchNode']['row_Schema'][9])
+         node_launch_schema['LaunchNode']['row_Schema'][9]['v_default'] = 'Launched'
+         window.forms.dFormCreate(node_launch_schema, modalId, res, 'edit')
+         document.querySelector('#launch').disabled = true
+    }
+    else{
+        node_launch_schema['LaunchNode']['row_Schema'][9]['v_default'] = 'Not Launch'
+        window.forms.dFormCreate(node_launch_schema, modalId, res)
+        document.querySelector('#launch').disabled = false
+    }
+
+    let LaunchContainer = document.querySelector(`${event.target.getAttribute('data-bs-target')}`)
+    .querySelector('.node-launch')
+    .querySelector('.LaunchStatus')
+
+    let field = LaunchContainer.querySelector('input')
+    field.disabled = true
+
+    field.value = res.node_launch_status ? 'Launched' : 'Not Launched'
+    field.style.backgroundColor = res.node_launch_status ? 'green' : ''
+
+    field.style.color = res.node_launch_status ? 'white' : ''
+
+}
+
+
+
+//Select Provider
+function SelectProvider(event){
+    window.forms.dFormMapRows(event, node_launch_schema)
+}
+
+
+async function LaunchNode(event){
+    let data =  await window.forms.dFormCreateJson(event, node_launch_schema);
+    data['node_id'] = nodeId
+
+    let obj = { 'user-action': 'launch_node',  'node_provision_config': JSON.stringify(data)}
+    let res = await SendRequest(obj);
+
+    // Close the modal
+    closeModal(event)
+}
+
+
+//----------------------------------------------------------------SERVICE SECTION---------------------------------------
+
+let eventInterval = null
+let targetService = null
+let serviceName = ''
+let serviceID = ''
+let serviceViewToken = 0
+
+
+//ADD Service
+async function AddService(info, node_count, pod_count) {
+
+    let res = await SendRequest(info);
+    let service = document.querySelector(`#node_${node_count}_pod_${pod_count}`);
+
+    if(service.getAttribute('data-for') != 'AIOrchestrator'){
+
+        let deleteButton = document.querySelector(`#delete_pod_${pod_count}`);
+        let serviceNameElement = document.querySelector(`#node_${node_count}_pod_${pod_count} span`);
+
+        if (serviceNameElement){
+            serviceNameElement.textContent = res.service_name;
+            serviceNameElement.style.cssText = 'color : white'
+        }
+        else console.warn("Element with class `.service_name` not found inside the service div.");
+
+        // Set attributes
+        service.setAttribute("data-nodeid", res.node_id);
+        service.setAttribute("data-serviceid", res.service_id);
+
+        deleteButton.setAttribute("data-nodeid", res.node_id);
+        deleteButton.setAttribute("data-serviceid", res.service_id);
+
+        showMessage(res.msg);
+    }
+}
+
+// Create Modal
+async function CreateService(event) {
+    targetService = event.target
+    const button = event.currentTarget;
+    clearInterval(eventInterval)
+    serviceID = button.getAttribute('data-serviceId')
+    serviceName = button.getAttribute('data-for')
+    const requestedServiceID = serviceID
+    const currentServiceToken = ++serviceViewToken
+    resetPodModalUI()
+    setServiceGlitchTipState()
+    setDiagnosticsBackfillButtonState()
+
+    const serviceTabTrigger = document.querySelector('#PodModal [data-bs-target="#Pod-Modal"]')
+    if(serviceTabTrigger){
+        bootstrap.Tab.getOrCreateInstance(serviceTabTrigger).show()
+    }
+
+    let data = { "service_id" : requestedServiceID, 'user-action': 'get_service_info' }
+    let res = await SendRequest(data)
+    if(currentServiceToken !== serviceViewToken || serviceID !== requestedServiceID){
+        return
+    }
+
+    const modalId = button.getAttribute('data-bs-target');
+
+    window.forms.dFormCreate(service_schema, modalId, res.service_info, 'edit')
+    showFields(serviceName, service_schema)
+    refreshRuntimePatchStatus(currentServiceToken, requestedServiceID)
+    getLiveStatus(false, currentServiceToken, requestedServiceID)
+    getServiceDiagnostics(false, currentServiceToken, requestedServiceID)
+    getEvent(currentServiceToken, requestedServiceID)
+
+    eventInterval = setInterval(()=>{
+        getEvent(currentServiceToken, requestedServiceID)
+        console.log("service Start__________")
+    }, 5000)
+
+}
+
+
+async function refreshRuntimePatchStatus(expectedToken = serviceViewToken, expectedServiceId = serviceID){
+    const statusEl = document.getElementById('runtimePatchStatusText')
+    const buttons = [
+        document.getElementById('btnRuntimePatchFooter')
+    ].filter(Boolean)
+    if(!buttons.length){
+        return
+    }
+
+    const serviceType = (serviceName || "").trim().toLowerCase();
+    const EXCLUDED_SERVICE_TYPES = [
+        "infrarabbitmq",
+        "infrapostgresqlcore",
+        "infrarediscore",
+        "infraairflowpostgresql",
+        "infraairflowredis",
+        "infraclickhouse",
+        "infranifi",
+        "inframilvus",
+        "infraetcd",
+        "inframinio",
+        "infranodeexporter",
+        "infraprocessexporter",
+        "infrakafkaexporter",
+        "infradcgmexporter",
+        "infraprometheus",
+        "infraprometheusans",
+        "infraprometheusrag",
+        "airflowinit",
+    ];
+    if (serviceType && EXCLUDED_SERVICE_TYPES.includes(serviceType)) {
+        buttons.forEach((btn) => {
+            btn.disabled = true;
+            btn.style.display = 'none';
+        });
+        if(statusEl){
+            statusEl.style.display = 'none';
+            statusEl.textContent = '';
+        }
+        return;
+    }
+
+    if(!serviceID || expectedToken !== serviceViewToken || expectedServiceId !== serviceID){
+        buttons.forEach((btn) => {
+            btn.disabled = true;
+            btn.style.display = 'none';
+        });
+        if(statusEl){
+            statusEl.textContent = ''
+        }
+        return;
+    }
+
+    buttons.forEach((btn) => {
+        btn.disabled = false;
+        btn.style.display = '';
+    });
+    if(statusEl){
+        statusEl.style.display = '';
+        statusEl.textContent = 'Checking patch status...'
+    }
+
+    const response = await SendRequest({
+        'user-action': 'service_runtime_patch_status',
+        'service_id': expectedServiceId
+    })
+    if(expectedToken !== serviceViewToken || expectedServiceId !== serviceID){
+        return
+    }
+    if(!response || response.success !== true){
+        if(statusEl){
+            statusEl.textContent = response?.error || 'Status unavailable'
+        }
+        return
+    }
+
+    const status = response.status || {}
+    const lastStatus = status.last_status || 'never'
+    const checkedAt = status.last_checked_at || '-'
+    const message = status.last_message || ''
+    const environment = status.last_environment || ''
+    const envText = environment ? ` [env: ${environment}]` : ''
+    const isPatchedSuccess = String(lastStatus).toLowerCase() === 'success'
+    if(statusEl){
+        statusEl.textContent = `Runtime patch: ${lastStatus}${envText} (${checkedAt})${message ? ' - ' + message : ''}`
+    }
+    buttons.forEach((btn) => {
+        btn.disabled = isPatchedSuccess
+    })
+}
+
+
+function setRuntimePatchButtonBusy(isBusy){
+    const buttons = [
+        document.getElementById('btnRuntimePatchFooter')
+    ].filter(Boolean)
+    if(!buttons.length){
+        return
+    }
+    buttons.forEach((btn) => {
+        btn.disabled = isBusy
+        btn.innerHTML = isBusy
+            ? '<span class="spinner-border spinner-border-sm me-1"></span>Patching...'
+            : 'Patch Observability Runtime'
+    })
+}
+
+
+async function runServiceRuntimePatch(){
+    if(!serviceID){
+        return
+    }
+    setRuntimePatchButtonBusy(true)
+    const response = await SendRequest({
+        'user-action': 'service_runtime_patch',
+        'service_id': serviceID
+    })
+    setRuntimePatchButtonBusy(false)
+    if(!response){
+        showMessage('Runtime patch request failed', false)
+        return
+    }
+    showMessage(response.msg || 'Runtime patch request completed', response.success === 'True')
+    refreshRuntimePatchStatus(serviceViewToken, serviceID)
+}
+
+// Create JSON
+async function createServiceJson(event) {
+    event.preventDefault();
+
+    let json_data = {};
+    let fromCon = event.target.closest('.modal');
+
+    // Generate form data
+    let obj = await window.forms.dFormCreateJson(event, service_schema);
+    model_name = obj['model_name']
+    inference_server = obj['inference_server']
+    let model_details = null;
+    let server_details = null;
+    for (const m of model_info_list) {
+      if (m.model_name === model_name) {
+        model_details = m;
+        break;
+      }
+    }
+
+    for (const s of serv_infer_list) {
+      if (s.inf_service_name === inference_server) {
+        server_details = s;
+        break;
+      }
+    }
+
+    if (!('status' in obj)) {
+        obj['service_id'] = serviceID;
+        obj['node_id'] = nodeId;
+        obj['user-action'] = 'update_service';
+        obj['model_info'] = JSON.stringify(model_details);
+        obj['inference_serv_info'] = JSON.stringify(server_details);
+        let res = await SendRequest(obj);
+        showMessage(res.msg);
+
+        if (targetService.tagName === "SPAN") targetService.textContent = res.inf_service_name;
+        else targetService.querySelector('span').textContent = res.inf_service_name;
+
+        closeModal(event);
+        setTimeout(() => {
+            clearInterval(eventInterval);
+            console.log("service closed______");
+        }, 3000);
+    }
+    else{
+        showMessage(obj.mess, false);
+        closeModal(event);
+    }
+}
+
+
+
+//Show Fields
+function showFields(service_name, schema){
+    let row = document.querySelector(`#ServiceConfig`).querySelector('.row')
+    let rowSchema = schema['ServiceConfig']['row_Schema']
+
+    //Hide All Fields
+    let rowCon = Array.from(row.querySelectorAll('div'))
+    rowCon.forEach(con => con.classList.add('d-none'))
+
+    //Show Fields
+    rowSchema.forEach(obj => {
+        if(obj.b_name.includes(service_name)){
+            document.querySelector(`.${obj.f_display_name}`).classList.remove('d-none')
+        }
+    })
+}
+
+//Delete Service
+async function DeleteService(event){
+    const targetDiv = event.target.parentNode.parentNode
+    const parentDiv = targetDiv.parentNode
+
+    let node_id = event.target.getAttribute('data-bs-whatever')
+    let pod_id = event.target.name
+    let node_ID = event.target.getAttribute('data-nodeId')
+    let service_id = event.target.getAttribute('data-serviceId')
+
+    let info = {
+      "node_id": node_ID,
+      "service_id": service_id,
+      "service_type": "",
+      "user-action" : "delete_service"
+    }
+
+    let res = await SendRequest(info)
+    if(res.success == 'True') parentDiv.removeChild(targetDiv)
+    showMessage(res.msg)
+}
+
+
+//Deploy Service
+async function DeployService(event){
+    let res = await SendRequest({'service_id' : serviceID, 'user-action' : 'deploy_service'})
+    showMessage(res.msg)
+
+    // Close the modal
+    closeModal(event)
+}
+
+
+//Get Events
+async function getEvent(expectedToken = serviceViewToken, expectedServiceId = serviceID){
+    if(expectedToken !== serviceViewToken || expectedServiceId !== serviceID){
+        return
+    }
+
+    const tbody = document.getElementById('logTable').querySelector('tbody');
+    showTableLoading(tbody, 3, 'Loading events...')
+
+    let res = await SendRequest({'service_id' : expectedServiceId, 'user-action' : 'service_event'})
+    if(expectedToken !== serviceViewToken || expectedServiceId !== serviceID){
+        return
+    }
+    if(res && res.msg) showMessage(res.msg)
+
+    tbody.innerHTML = ''
+    const events = (res && Array.isArray(res.service_event_info)) ? res.service_event_info : []
+    if(events.length === 0){
+        tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">No events found</td></tr>`
+        return
+    }
+
+     events.forEach(item => {
+          const row = document.createElement('tr');
+
+          const dateCell = document.createElement('td');
+          dateCell.textContent = item.Event_Date;
+          row.appendChild(dateCell);
+
+          const timeCell = document.createElement('td');
+          timeCell.textContent = item.Event_Time;
+          row.appendChild(timeCell);
+
+          const msgCell = document.createElement('td');
+          msgCell.textContent = item.Event_Msg;
+          row.appendChild(msgCell);
+
+          tbody.appendChild(row);
+    });
+}
+
+
+function formatLiveStatusValue(value){
+    if(value === null || value === undefined || value === ''){
+        return 'N/A'
+    }
+    if(typeof value === 'boolean'){
+        return value ? 'Yes' : 'No'
+    }
+    return value
+}
+
+
+function escapeHtml(value){
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+}
+
+
+function formatLiveStatusTimestamp(value){
+    if(!value){
+        return 'N/A'
+    }
+
+    const date = new Date(value)
+    if(Number.isNaN(date.getTime())){
+        return value
+    }
+
+    const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'UTC',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    }).formatToParts(date).reduce((acc, part) => {
+        acc[part.type] = part.value
+        return acc
+    }, {})
+
+    return `${parts.day} ${parts.month} ${parts.year}, ${parts.hour}:${parts.minute} UTC`
+}
+
+
+function formatDiagnosticsTimestamp(value){
+    if(!value){
+        return 'N/A'
+    }
+
+    const date = new Date(value)
+    if(Number.isNaN(date.getTime())){
+        return value
+    }
+
+    const pad = (part) => String(part).padStart(2, '0')
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
+
+function formatUpFor(value){
+    if(!value){
+        return 'Not running'
+    }
+
+    const startedAt = new Date(value)
+    if(Number.isNaN(startedAt.getTime())){
+        return 'Not running'
+    }
+
+    const totalMinutes = Math.max(0, Math.floor((Date.now() - startedAt.getTime()) / 60000))
+    const days = Math.floor(totalMinutes / 1440)
+    const hours = Math.floor((totalMinutes % 1440) / 60)
+    const minutes = totalMinutes % 60
+
+    if(days > 0){
+        return `${days}d ${hours}h`
+    }
+    if(hours > 0){
+        return `${hours}h ${minutes}m`
+    }
+    return `${minutes}m`
+}
+
+
+function formatDependencyTarget(item){
+    if(item.target_host && item.target_port){
+        return `${item.target_host}:${item.target_port}`
+    }
+    if(item.target_host){
+        return item.target_host
+    }
+    return 'N/A'
+}
+
+
+function getLiveStatusClass(statusLabel){
+    const normalized = String(statusLabel || '').toLowerCase()
+    if(normalized === 'healthy' || normalized === 'running'){
+        return 'ik-status-healthy'
+    }
+    if(normalized === 'degraded' || normalized === 'unknown'){
+        return 'ik-status-degraded'
+    }
+    if(normalized === 'missing'){
+        return 'ik-status-missing'
+    }
+    if(normalized === 'stopped' || normalized === 'exited' || normalized === 'dead' || normalized === 'restarting'){
+        return 'ik-status-stopped'
+    }
+    if(normalized === 'managed external' || normalized === 'external'){
+        return 'ik-status-external'
+    }
+    return 'ik-status-missing'
+}
+
+
+function renderStatePill(label){
+    const text = formatLiveStatusValue(label)
+    return `<span class="badge ik-status-badge ${getLiveStatusClass(label)}">${text}</span>`
+}
+
+
+function formatDependencySource(item){
+    if(item.source_type === 'Managed External'){
+        if(item.resolved_node_id){
+            return `Managed External (${item.resolved_node_id})`
+        }
+        return 'Managed External'
+    }
+    return formatLiveStatusValue(item.source_type)
+}
+
+
+function renderLiveStatusRows(targetId, rows){
+    const target = document.getElementById(targetId)
+    target.innerHTML = ''
+
+    rows.forEach(item => {
+        const row = document.createElement('div')
+        row.className = 'd-flex justify-content-between border-bottom py-1'
+        row.innerHTML = `<span class="fw-semibold">${item.label}</span><span class="text-end ms-3">${formatLiveStatusValue(item.value)}</span>`
+        target.appendChild(row)
+    })
+}
+
+
+function renderLiveStatusContainerTable(mainContainer, dependencies){
+    const tbody = document.querySelector('#live-status-containers-table tbody')
+    tbody.innerHTML = ''
+
+    if(!dependencies || dependencies.length === 0){
+        const row = document.createElement('tr')
+        row.innerHTML = `
+            <td colspan="7" class="text-center text-muted">No runtime dependencies detected</td>
+        `
+        tbody.appendChild(row)
+        return
+    }
+
+    ;(dependencies || []).forEach(item => {
+        const trackedDependency = item.source_type === 'Local Container' || item.source_type === 'Managed External'
+        const runningSince = trackedDependency
+            ? formatLiveStatusTimestamp(item.running_since)
+            : 'External'
+        const upFor = trackedDependency
+            ? formatUpFor(item.running_since)
+            : 'External'
+        const restartCount = trackedDependency
+            ? formatLiveStatusValue(item.restart_count)
+            : 'Not tracked'
+
+        const row = document.createElement('tr')
+        row.innerHTML = `
+            <td>${formatLiveStatusValue(item.name)}</td>
+            <td>${formatDependencyTarget(item)}</td>
+            <td>${formatDependencySource(item)}</td>
+            <td>${renderStatePill(item.state)}</td>
+            <td>${runningSince}</td>
+            <td>${upFor}</td>
+            <td>${restartCount}</td>
+        `
+        tbody.appendChild(row)
+    })
+}
+
+
+function setLiveStatusBadge(statusLabel){
+    const badge = document.getElementById('live-status-badge')
+    badge.textContent = statusLabel || 'Unknown'
+    badge.className = `badge ik-status-badge px-3 py-2 ${getLiveStatusClass(statusLabel)}`
+}
+
+
+function getDiagnosticsSeverityClass(severity){
+    const normalized = String(severity || '').toLowerCase()
+    if(normalized === 'critical'){
+        return 'ik-severity-critical'
+    }
+    if(normalized === 'high'){
+        return 'ik-severity-high'
+    }
+    if(normalized === 'medium'){
+        return 'ik-severity-medium'
+    }
+    return 'ik-severity-low'
+}
+
+
+function setDiagnosticsSeverityBadge(severity){
+    const badge = document.getElementById('diagnostics-severity-badge')
+    badge.textContent = severity || 'Low'
+    badge.className = `badge ik-status-badge px-3 py-2 ${getDiagnosticsSeverityClass(severity)}`
+}
+
+
+function renderDiagnosticsIssues(issueGroups){
+    const target = document.getElementById('diagnostics-issues')
+    target.innerHTML = ''
+
+    if(!issueGroups || issueGroups.length === 0){
+        target.innerHTML = '<div class=\"text-muted small\">No significant issue groups detected for the selected window.</div>'
+        return
+    }
+
+    issueGroups.forEach(item => {
+        const wrapper = document.createElement('div')
+        wrapper.className = 'ik-diagnostics-issue py-2'
+        const evidence = (item.evidence || []).slice(0, 2).map(line => `<div class=\"small text-muted mt-1\">${escapeHtml(line)}</div>`).join('')
+        wrapper.innerHTML = `
+            <div class=\"d-flex justify-content-between align-items-center\">
+                <div class=\"fw-semibold\">${escapeHtml(formatLiveStatusValue(item.category))}</div>
+                <span class=\"badge ik-status-badge ${getDiagnosticsSeverityClass(item.severity)}\">${escapeHtml(formatLiveStatusValue(item.severity))}</span>
+            </div>
+            <div class=\"small mt-1\">${escapeHtml(formatLiveStatusValue(item.brief))}</div>
+            <div class=\"small text-muted mt-1\">Count: ${escapeHtml(formatLiveStatusValue(item.count))} | First Seen: ${escapeHtml(formatDiagnosticsTimestamp(item.first_seen))} | Last Seen: ${escapeHtml(formatDiagnosticsTimestamp(item.last_seen))}</div>
+            ${evidence}
+        `
+        target.appendChild(wrapper)
+    })
+}
+
+
+function renderDiagnosticsEvidence(lines){
+    const target = document.getElementById('diagnostics-evidence')
+    target.innerHTML = ''
+
+    if(!lines || lines.length === 0){
+        target.textContent = 'No log evidence collected for the selected window.'
+        return
+    }
+
+    lines.forEach(item => {
+        const row = document.createElement('div')
+        row.className = 'mb-2'
+        const prefix = [item.severity, item.category, item.source].filter(Boolean).join(' | ')
+        row.textContent = `[${formatDiagnosticsTimestamp(item.timestamp)}]${prefix ? ` [${prefix}]` : ''} ${item.message}`
+        target.appendChild(row)
+    })
+}
+
+
+function renderDiagnosticsEvents(events){
+    const target = document.getElementById('diagnostics-events')
+    target.innerHTML = ''
+
+    if(!events || events.length === 0){
+        target.innerHTML = '<div class=\"text-muted\">No service events in the selected window.</div>'
+        return
+    }
+
+    events.slice(0, 10).forEach(item => {
+        const row = document.createElement('div')
+        row.className = 'border-bottom py-1'
+        row.innerHTML = `<div class=\"fw-semibold\">${escapeHtml(formatLiveStatusValue(item.event_trigger || 'Event'))}</div><div>${escapeHtml(formatLiveStatusValue(item.event_msg))}</div><div class=\"text-muted\">${escapeHtml(formatLiveStatusValue(item.event_at))}</div>`
+        target.appendChild(row)
+    })
+}
+
+
+const LIVE_LOGS_DEBUG = Boolean(window.localStorage && window.localStorage.getItem('liveLogsDebug') === '1')
+const LIVE_LOG_SOURCE_CATALOG = [
+    {source_id: 'container_live', label: 'Container Live', polling_mode: 'live', supported_windows: ['current'], supports_file_streams: false},
+    {source_id: 'container_history', label: 'Container History', polling_mode: 'snapshot', supported_windows: ['current', '24h', '7d'], supports_file_streams: false},
+    {source_id: 'file_live', label: 'File Logs', polling_mode: 'live', supported_windows: ['current'], supports_file_streams: true},
+    {source_id: 'service_history', label: 'File History', polling_mode: 'snapshot', supported_windows: ['current', '24h', '7d'], supports_file_streams: false}
+]
+let liveLogsCursor = ''
+let liveLogsPaused = false
+let liveLogsSeen = new Set()
+let liveLogsTargetId = ''
+let liveLogsSourceId = 'container_live'
+let liveLogsFileStreamId = 'all'
+let liveLogsWindowValue = ''
+let liveLogsRequestId = 0
+let liveLogsFetchInFlight = false
+let liveLogsPendingRefresh = false
+let liveLogsAbortController = null
+let liveLogsNextPollTimer = null
+let liveLogsLastKnownSources = []
+let liveLogsLastKnownSourcesWindow = ''
+let liveLogsLastKnownSourcesTarget = ''
+let liveLogsLastRequestedContext = null
+let liveLogsHistoryCursorOlder = ''
+let liveLogsHistoryCursorNewer = ''
+let liveLogsHistoryHasOlder = false
+let liveLogsHistoryHasNewer = false
+let liveLogsHistoryWindowStart = ''
+let liveLogsHistoryWindowEnd = ''
+let liveLogsHistoryPageIndex = 1
+let liveLogsHistoryTotalPages = 0
+let liveLogsHistoryTotalLines = 0
+let liveLogsQueuedRequest = null
+let diagnosticsRequestId = 0
+let diagnosticsBackfillInFlight = false
+
+
+function currentDiagnosticsTarget(){
+    return document.getElementById('diagnostics-target')?.value || 'main'
+}
+
+
+function currentLiveLogsSource(){
+    return document.getElementById('live-logs-source')?.value || liveLogsSourceId || 'container_live'
+}
+
+
+function currentLiveLogsFileStream(){
+    return document.getElementById('live-logs-file-stream')?.value || 'all'
+}
+
+
+function currentLiveLogsWindow(){
+    return document.getElementById('live-logs-window')?.value || liveLogsWindowValue || currentDiagnosticsWindow()
+}
+
+
+function currentDiagnosticsWindow(){
+    return document.getElementById('diagnostics-window')?.value || 'current'
+}
+
+
+function liveLogsPanelIsOpen(){
+    const panel = document.getElementById('live-logs-panel')
+    const tabPane = document.getElementById('LiveLogsModal')
+    return Boolean(
+        panel &&
+        tabPane &&
+        tabPane.classList.contains('show') &&
+        tabPane.classList.contains('active')
+    )
+}
+
+
+function invalidateLiveLogsRequests(){
+    liveLogsRequestId += 1
+}
+
+
+function setLiveLogsStatus(message){
+    const status = document.getElementById('live-logs-status')
+    if(status){
+        status.textContent = message
+    }
+}
+
+
+function setDiagnosticsBackfillStatus(message){
+    const status = document.getElementById('diagnosticsBackfillStatusText')
+    if(status){
+        status.textContent = message || ''
+    }
+}
+
+
+function setDiagnosticsBackfillButtonState(){
+    const button = document.getElementById('diagnostics-backfill-btn')
+    if(!button){
+        return
+    }
+    const hasService = Boolean(serviceID)
+    button.disabled = diagnosticsBackfillInFlight || !hasService
+    if(diagnosticsBackfillInFlight){
+        button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Backfilling...'
+    } else {
+        button.textContent = 'Backfill Logs'
+    }
+}
+
+
+async function runServiceLogBackfill(){
+    if(!serviceID || diagnosticsBackfillInFlight){
+        return
+    }
+
+    const expectedToken = serviceViewToken
+    const expectedServiceId = serviceID
+    diagnosticsBackfillInFlight = true
+    setDiagnosticsBackfillButtonState()
+    setDiagnosticsBackfillStatus('Running file-log backfill...')
+
+    try{
+        const response = await SendRequest({
+            'user-action': 'service_log_backfill',
+            'service_id': expectedServiceId,
+            'diagnostic_target': currentDiagnosticsTarget(),
+        })
+        if(expectedToken !== serviceViewToken || expectedServiceId !== serviceID){
+            return
+        }
+        if(!response){
+            setDiagnosticsBackfillStatus('Backfill failed: no response')
+            showMessage('Backfill request failed', false)
+            return
+        }
+
+        const payload = response.service_log_backfill || {}
+        const pushedEntries = payload.pushed_entries ?? 0
+        const selectedPath = payload.selected_log_path || '-'
+        const checkedAt = payload.checked_at || new Date().toISOString()
+        const ok = response.success === true
+        if(ok){
+            setDiagnosticsBackfillStatus(`Backfill success (${checkedAt}) | pushed_entries=${pushedEntries} | file=${selectedPath}`)
+            showMessage(response.msg || 'Backfill completed', true)
+            await getServiceDiagnostics(false, expectedToken, expectedServiceId)
+            if(liveLogsPanelIsOpen()){
+                fetchLiveLogs(false, 'backfill')
+            }
+        } else {
+            setDiagnosticsBackfillStatus(`Backfill failed (${checkedAt}) | ${payload.error || response.msg || 'Unknown error'}`)
+            showMessage(response.msg || 'Backfill failed', false)
+        }
+    } finally {
+        diagnosticsBackfillInFlight = false
+        setDiagnosticsBackfillButtonState()
+    }
+}
+
+
+function liveLogsSourceSupportsHistory(sourceId){
+    return sourceId === 'container_history' || sourceId === 'service_history'
+}
+
+
+function getLiveLogsSourceEntry(options, sourceId){
+    return (Array.isArray(options) ? options : []).find(item => item.source_id === sourceId) || null
+}
+
+
+function firstEnabledLiveLogsSource(options, predicate = null){
+    const normalizedOptions = Array.isArray(options) ? options : []
+    const filtered = predicate ? normalizedOptions.filter(predicate) : normalizedOptions
+    return filtered.find(item => item.enabled !== false) || null
+}
+
+
+function preferredLiveLogsHistorySource(sourceId){
+    if(sourceId === 'file_live' || sourceId === 'service_history'){
+        return 'service_history'
+    }
+    return 'container_history'
+}
+
+
+function chooseLiveLogsSource(options, preferredSource = '', windowValue = 'current'){
+    const normalizedOptions = Array.isArray(options) ? options : []
+    const preferredEntry = getLiveLogsSourceEntry(normalizedOptions, preferredSource)
+    if(preferredEntry && preferredEntry.enabled !== false){
+        return preferredEntry.source_id
+    }
+
+    if(windowValue !== 'current'){
+        const preferredHistory = getLiveLogsSourceEntry(normalizedOptions, preferredLiveLogsHistorySource(preferredSource))
+        if(preferredHistory && preferredHistory.enabled !== false){
+            return preferredHistory.source_id
+        }
+        const firstEnabledHistory = firstEnabledLiveLogsSource(normalizedOptions, item => liveLogsSourceSupportsHistory(item.source_id))
+        if(firstEnabledHistory){
+            return firstEnabledHistory.source_id
+        }
+    }
+
+    const firstEnabled = firstEnabledLiveLogsSource(normalizedOptions)
+    if(firstEnabled){
+        return firstEnabled.source_id
+    }
+
+    return preferredSource || normalizedOptions[0]?.source_id || 'container_live'
+}
+
+
+function normalizeLiveLogsSourceForWindow(sourceId, windowValue){
+    return sourceId || 'container_live'
+}
+
+
+function resetLiveLogsHistoryState(){
+    liveLogsHistoryCursorOlder = ''
+    liveLogsHistoryCursorNewer = ''
+    liveLogsHistoryHasOlder = false
+    liveLogsHistoryHasNewer = false
+    liveLogsHistoryWindowStart = ''
+    liveLogsHistoryWindowEnd = ''
+    liveLogsHistoryPageIndex = 1
+    liveLogsHistoryTotalPages = 0
+    liveLogsHistoryTotalLines = 0
+}
+
+
+function resetLiveLogsTargetContext(nextTargetId = ''){
+    liveLogsTargetId = nextTargetId || ''
+    liveLogsSourceId = 'container_live'
+    liveLogsFileStreamId = 'all'
+    liveLogsCursor = ''
+    liveLogsSeen = new Set()
+    resetLiveLogsHistoryState()
+}
+
+
+function updateLiveLogsHistoryControls(options = {}){
+    const navWrap = document.getElementById('live-logs-history-nav')
+    const olderBtn = document.getElementById('live-logs-older-btn')
+    const newerBtn = document.getElementById('live-logs-newer-btn')
+    const pageLabel = document.getElementById('live-logs-history-page')
+    const windowMeta = document.getElementById('live-logs-history-window-meta')
+    const sourceId = options.sourceId || currentLiveLogsSource()
+    const showHistory = liveLogsSourceSupportsHistory(sourceId)
+    const hasOlder = Object.prototype.hasOwnProperty.call(options, 'hasOlder')
+        ? Boolean(options.hasOlder)
+        : liveLogsHistoryHasOlder
+    const hasNewer = Object.prototype.hasOwnProperty.call(options, 'hasNewer')
+        ? Boolean(options.hasNewer)
+        : liveLogsHistoryHasNewer
+    const windowStart = Object.prototype.hasOwnProperty.call(options, 'windowStart')
+        ? (options.windowStart || '')
+        : liveLogsHistoryWindowStart
+    const windowEnd = Object.prototype.hasOwnProperty.call(options, 'windowEnd')
+        ? (options.windowEnd || '')
+        : liveLogsHistoryWindowEnd
+    const totalPages = Object.prototype.hasOwnProperty.call(options, 'totalPages')
+        ? Math.max(0, Number(options.totalPages) || 0)
+        : Math.max(0, Number(liveLogsHistoryTotalPages) || 0)
+    const totalLines = Object.prototype.hasOwnProperty.call(options, 'totalLines')
+        ? Math.max(0, Number(options.totalLines) || 0)
+        : Math.max(0, Number(liveLogsHistoryTotalLines) || 0)
+    if(navWrap){
+        navWrap.style.display = showHistory ? '' : 'none'
+    }
+    if(olderBtn){
+        olderBtn.disabled = !showHistory || !hasOlder || liveLogsFetchInFlight
+    }
+    if(newerBtn){
+        newerBtn.disabled = !showHistory || !hasNewer || liveLogsFetchInFlight
+    }
+    if(pageLabel){
+        if(showHistory){
+            pageLabel.style.display = ''
+            const currentPage = totalPages > 0
+                ? Math.min(totalPages, Math.max(1, liveLogsHistoryPageIndex))
+                : 0
+            pageLabel.textContent = `Page ${currentPage} / ${totalPages}`
+        } else {
+            pageLabel.style.display = 'none'
+            pageLabel.textContent = ''
+        }
+    }
+    if(windowMeta){
+        if(showHistory && (windowStart || windowEnd)){
+            windowMeta.style.display = ''
+            const totalMeta = totalPages > 0 ? ` | Total Logs: ${totalLines.toLocaleString()} | Total Pages: ${totalPages}` : ''
+            windowMeta.textContent = `Window: ${formatDiagnosticsTimestamp(windowStart)} to ${formatDiagnosticsTimestamp(windowEnd)}${totalMeta}`
+        } else {
+            windowMeta.style.display = 'none'
+            windowMeta.textContent = ''
+        }
+    }
+}
+
+
+function getSelectedLiveLogsSourceOption(){
+    const select = document.getElementById('live-logs-source')
+    if(!select){
+        return null
+    }
+    return select.options[select.selectedIndex] || null
+}
+
+
+function updateLiveLogsSourceHelp(){
+    const help = document.getElementById('live-logs-source-help')
+    if(!help){
+        return
+    }
+    const option = getSelectedLiveLogsSourceOption()
+    const message = option?.dataset?.disabledReason || ''
+    help.textContent = message
+    help.style.display = message ? '' : 'none'
+}
+
+
+function liveLogsSourceIsLoading(option){
+    return Boolean(option && option.dataset && option.dataset.loading === 'true')
+}
+
+
+function historyStatusMessage(reason, info){
+    if(info.error && info.error !== 'None'){
+        return info.error
+    }
+    if(!Array.isArray(info.lines) || info.lines.length === 0){
+        return 'No logs found in the selected window.'
+    }
+    if(reason === 'history_older'){
+        return 'Showing older logs in the selected window.'
+    }
+    if(reason === 'history_newer'){
+        return 'Showing newer logs in the selected window.'
+    }
+    return 'Showing latest logs in the selected window.'
+}
+
+
+function logLiveLogsTiming(result, details = {}){
+    if(!LIVE_LOGS_DEBUG){
+        return
+    }
+    console.debug('live-logs', {
+        result,
+        ...details
+    })
+}
+
+
+function clearLiveLogsNextPoll(){
+    if(liveLogsNextPollTimer){
+        clearTimeout(liveLogsNextPollTimer)
+        liveLogsNextPollTimer = null
+    }
+}
+
+
+function scheduleNextLiveLogsPoll(){
+    clearLiveLogsNextPoll()
+    if(!liveLogsPanelIsOpen() || liveLogsPaused || !liveLogsSourceUsesPolling(currentLiveLogsSource()) || liveLogsFetchInFlight || liveLogsPendingRefresh){
+        return
+    }
+    setLiveLogsStatus('Waiting for next poll...')
+    liveLogsNextPollTimer = setTimeout(() => {
+        liveLogsNextPollTimer = null
+        fetchLiveLogs(false, 'poll')
+    }, 3000)
+}
+
+
+function abortActiveLiveLogsRequest(statusMessage = ''){
+    if(liveLogsAbortController){
+        liveLogsAbortController.abort()
+        liveLogsAbortController = null
+    }
+    if(statusMessage){
+        setLiveLogsStatus(statusMessage)
+    }
+}
+
+
+function liveLogsSourceUsesPolling(sourceId){
+    return sourceId === 'container_live' || sourceId === 'file_live'
+}
+
+
+function setDiagnosticsCoverageBadge(coverageMode){
+    const badge = document.getElementById('diagnostics-coverage-badge')
+    if(!badge){
+        return
+    }
+
+    const normalized = coverageMode === 'container_plus_app_enrichments'
+        ? 'Container + App Enrichments'
+        : 'Container Baseline'
+    badge.textContent = normalized
+}
+
+
+function setLiveLogsButtonState(enabled){
+    const tabLink = document.getElementById('live-logs-tab-link')
+    if(!tabLink){
+        return
+    }
+
+    tabLink.style.display = enabled ? '' : 'none'
+    if(enabled){
+        tabLink.classList.remove('disabled')
+        tabLink.setAttribute('aria-disabled', 'false')
+    } else {
+        tabLink.classList.add('disabled')
+        tabLink.setAttribute('aria-disabled', 'true')
+    }
+    if(!enabled){
+        closeLiveLogsViewer()
+    }
+}
+
+
+function spinnerMarkup(message = 'Loading...'){
+    return `
+        <div class="d-flex justify-content-center align-items-center py-4 gap-2 text-muted">
+            <div class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>
+            <span>${message}</span>
+        </div>
+    `
+}
+
+
+function showInlineLoading(target, message = 'Loading...'){
+    if(target){
+        target.innerHTML = spinnerMarkup(message)
+    }
+}
+
+
+function showTableLoading(tbody, colspan, message = 'Loading...'){
+    if(tbody){
+        tbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center text-muted">${spinnerMarkup(message)}</td></tr>`
+    }
+}
+
+
+function resetPodModalUI(){
+    const formGroup = document.querySelector('#PodModal .formGroup')
+    showInlineLoading(formGroup, 'Loading service config...')
+
+    const eventBody = document.querySelector('#logTable tbody')
+    showTableLoading(eventBody, 3, 'Loading events...')
+
+    setLiveStatusBadge('Unknown')
+    showInlineLoading(document.getElementById('live-status-overall'), 'Loading live status...')
+    showTableLoading(document.querySelector('#live-status-containers-table tbody'), 7, 'Loading dependencies...')
+
+    const summary = document.getElementById('diagnostics-summary')
+    if(summary){
+        summary.textContent = 'Loading diagnostics...'
+    }
+    const meta = document.getElementById('diagnostics-meta')
+    if(meta){
+        meta.innerHTML = ''
+    }
+    showInlineLoading(document.getElementById('diagnostics-issues'), 'Loading issue groups...')
+    showInlineLoading(document.getElementById('diagnostics-evidence'), 'Loading evidence...')
+    showInlineLoading(document.getElementById('diagnostics-events'), 'Loading recent events...')
+
+    closeLiveLogsViewer()
+
+    const configUpdated = document.getElementById('configStoreUpdatedAt')
+    if(configUpdated){
+        configUpdated.textContent = ''
+    }
+    const configBody = document.querySelector('#configStoreTable tbody')
+    if(configBody){
+        showTableLoading(configBody, 6, 'Open Config Store to load snapshots...')
+    }
+    const compareButton = document.getElementById('btnConfigCompare')
+    if(compareButton){
+        compareButton.disabled = true
+    }
+    const diffDirectionSelect = document.getElementById('configDiffDirection')
+    if(diffDirectionSelect){
+        diffDirectionSelect.value = '1v2'
+        diffDirectionSelect.disabled = true
+    }
+    const runtimePatchStatus = document.getElementById('runtimePatchStatusText')
+    if(runtimePatchStatus){
+        runtimePatchStatus.textContent = ''
+    }
+    diagnosticsBackfillInFlight = false
+    setDiagnosticsBackfillStatus('')
+    setDiagnosticsBackfillButtonState()
+    const runtimePatchButtons = [
+        document.getElementById('btnRuntimePatchFooter')
+    ].filter(Boolean)
+    runtimePatchButtons.forEach((btn) => {
+        btn.disabled = true
+        btn.innerHTML = 'Patch Observability Runtime'
+    })
+
+    serviceGlitchTipUrl = ''
+    serviceGlitchTipLoaded = false
+    const serviceGlitchTipTabItem = document.getElementById('service_glitchtip_tab_item')
+    const serviceGlitchTipTab = document.getElementById('service_glitchtip_tab')
+    const serviceGlitchTipMeta = document.getElementById('service-glitchtip-meta')
+    const serviceGlitchTipStatus = document.getElementById('service-glitchtip-status')
+    const serviceGlitchTipFrame = document.getElementById('service-glitchtip-embed-frame')
+    const serviceGlitchTipRefresh = document.getElementById('service-glitchtip-refresh-btn')
+    const serviceGlitchTipOpen = document.getElementById('service-glitchtip-open-btn')
+    if(serviceGlitchTipTabItem){
+        serviceGlitchTipTabItem.style.display = 'none'
+    }
+    if(serviceGlitchTipTab){
+        serviceGlitchTipTab.classList.add('disabled')
+        serviceGlitchTipTab.setAttribute('aria-disabled', 'true')
+    }
+    if(serviceGlitchTipMeta){
+        serviceGlitchTipMeta.textContent = 'Observability is available for AIOrchestrator service only.'
+    }
+    if(serviceGlitchTipStatus){
+        serviceGlitchTipStatus.textContent = ''
+    }
+    if(serviceGlitchTipFrame){
+        serviceGlitchTipFrame.src = ''
+        serviceGlitchTipFrame.style.display = 'none'
+    }
+    if(serviceGlitchTipRefresh){
+        serviceGlitchTipRefresh.disabled = true
+    }
+    if(serviceGlitchTipOpen){
+        serviceGlitchTipOpen.disabled = true
+    }
+}
+
+
+function resetNodeModalUI(){
+    const nodeInfo = document.querySelector('#NodeModal .node-info')
+    showInlineLoading(nodeInfo, 'Loading node config...')
+
+    const nodeEventBody = document.querySelector('#node-Table tbody')
+    showTableLoading(nodeEventBody, 3, 'Loading events...')
+}
+
+
+function updateLiveLogsMeta(selectedTarget, checkedAt, sourceLabel, fileStreamLabel = ''){
+    const meta = document.getElementById('live-logs-meta')
+    const label = selectedTarget?.label || selectedTarget?.container_name || 'Main Container'
+    const nodeText = `${formatLiveStatusValue(selectedTarget?.node_id || '-')} (${formatLiveStatusValue(selectedTarget?.node_ip || '-')})`
+    const streamMeta = fileStreamLabel ? ` | <span class="fw-semibold">File Stream:</span> ${escapeHtml(fileStreamLabel)}` : ''
+    meta.innerHTML = `<span class="fw-semibold">Container:</span> ${escapeHtml(label)} | <span class="fw-semibold">Node:</span> ${escapeHtml(nodeText)} | <span class="fw-semibold">Source:</span> ${escapeHtml(sourceLabel || 'Container Live')}${streamMeta} | <span class="fw-semibold">Checked At:</span> ${escapeHtml(formatDiagnosticsTimestamp(checkedAt))}`
+}
+
+
+function appendLiveLogLines(lines){
+    const target = document.getElementById('live-logs-view')
+    if(!target){
+        return
+    }
+
+    if(!lines || lines.length === 0){
+        if(!target.textContent.trim()){
+            target.textContent = 'No live log lines collected yet.'
+        }
+        return
+    }
+
+    if(target.textContent === 'No live log lines collected yet.'){
+        target.textContent = ''
+    }
+
+    lines.forEach(item => {
+        const key = `${item.timestamp || ''}|${item.message || ''}`
+        if(liveLogsSeen.has(key)){
+            return
+        }
+        liveLogsSeen.add(key)
+        const row = document.createElement('div')
+        row.className = 'mb-1'
+        row.textContent = `[${formatDiagnosticsTimestamp(item.timestamp)}] ${item.message || ''}`
+        target.appendChild(row)
+    })
+
+    target.scrollTop = target.scrollHeight
+}
+
+
+function clearLiveLogsView(){
+    clearLiveLogsNextPoll()
+    liveLogsCursor = ''
+    liveLogsSeen = new Set()
+    resetLiveLogsHistoryState()
+    liveLogsTargetId = currentDiagnosticsTarget()
+    liveLogsSourceId = currentLiveLogsSource()
+    liveLogsFileStreamId = currentLiveLogsFileStream()
+    liveLogsWindowValue = currentLiveLogsWindow()
+    const target = document.getElementById('live-logs-view')
+    if(target){
+        target.textContent = 'No live log lines collected yet.'
+    }
+    updateLiveLogsHistoryControls()
+}
+
+
+function replaceLiveLogLines(lines){
+    const target = document.getElementById('live-logs-view')
+    if(!target){
+        return
+    }
+
+    target.textContent = ''
+    liveLogsSeen = new Set()
+
+    if(!lines || lines.length === 0){
+        target.textContent = 'No log lines collected for the selected source.'
+        return
+    }
+
+    lines.forEach(item => {
+        const row = document.createElement('div')
+        row.className = 'mb-1'
+        row.textContent = `[${formatDiagnosticsTimestamp(item.timestamp)}] ${item.message || ''}`
+        target.appendChild(row)
+    })
+    target.scrollTop = 0
+}
+
+
+function closeLiveLogsViewer(){
+    stopLiveLogsPolling()
+    invalidateLiveLogsRequests()
+    liveLogsPendingRefresh = false
+    liveLogsQueuedRequest = null
+    liveLogsFetchInFlight = false
+    abortActiveLiveLogsRequest()
+    liveLogsPaused = false
+    resetLiveLogsHistoryState()
+    updateLiveLogsHistoryControls()
+    const button = document.getElementById('live-logs-pause-btn')
+    if(button){
+        button.textContent = 'Pause'
+    }
+    setLiveLogsStatus('Waiting for logs...')
+}
+
+
+function stopLiveLogsPolling(){
+    clearLiveLogsNextPoll()
+}
+
+
+function toggleLiveLogsPolling(){
+    if(!liveLogsSourceUsesPolling(currentLiveLogsSource())){
+        return
+    }
+    liveLogsPaused = !liveLogsPaused
+    const button = document.getElementById('live-logs-pause-btn')
+    if(button){
+        button.textContent = liveLogsPaused ? 'Resume' : 'Pause'
+    }
+    if(liveLogsPaused){
+        stopLiveLogsPolling()
+        setLiveLogsStatus('Polling paused')
+        return
+    }
+    stopLiveLogsPolling()
+    if(liveLogsFetchInFlight){
+        liveLogsPendingRefresh = true
+        setLiveLogsStatus('Refresh queued. Waiting for current request to finish.')
+        return
+    }
+    fetchLiveLogs(false, 'resume')
+}
+
+
+function updateLiveLogsControls(){
+    const button = document.getElementById('live-logs-pause-btn')
+    if(!button){
+        return
+    }
+
+    const selectedOption = getSelectedLiveLogsSourceOption()
+    const sourceEnabled = !selectedOption || liveLogsSourceIsLoading(selectedOption) || selectedOption.dataset.enabled !== 'false'
+    const usesPolling = sourceEnabled && liveLogsSourceUsesPolling(currentLiveLogsSource())
+    button.disabled = !usesPolling
+    if(!usesPolling){
+        button.textContent = 'Pause'
+    } else if(liveLogsPaused){
+        button.textContent = 'Resume'
+    } else {
+        button.textContent = 'Pause'
+    }
+    updateLiveLogsHistoryControls({
+        sourceId: currentLiveLogsSource(),
+        hasOlder: sourceEnabled && Boolean(liveLogsHistoryCursorOlder),
+        hasNewer: sourceEnabled && Boolean(liveLogsHistoryCursorNewer)
+    })
+    updateLiveLogsSourceHelp()
+}
+
+
+function renderLiveLogsSourceOptions(options, preferredSource = ''){
+    const select = document.getElementById('live-logs-source')
+    if(!select){
+        return
+    }
+
+    const currentValue = preferredSource || select.value || liveLogsSourceId || 'container_live'
+    const serverOptions = Array.isArray(options) ? options : []
+    const mergedOptions = LIVE_LOG_SOURCE_CATALOG.map(item => {
+        const serverItem = serverOptions.find(candidate => candidate.source_id === item.source_id)
+        return {
+            ...item,
+            ...(serverItem || {}),
+            enabled: serverItem ? serverItem.enabled !== false : false,
+            disabled_reason: serverItem?.disabled_reason || (serverItem ? '' : 'Loading source availability...')
+        }
+    })
+
+    select.innerHTML = ''
+    mergedOptions.forEach(item => {
+        const option = document.createElement('option')
+        option.value = item.source_id
+        option.textContent = item.label || item.source_id
+        option.dataset.pollingMode = item.polling_mode || 'live'
+        option.dataset.enabled = item.enabled === false ? 'false' : 'true'
+        option.dataset.disabledReason = item.disabled_reason || ''
+        option.dataset.loading = 'false'
+        option.disabled = item.enabled === false
+        select.appendChild(option)
+    })
+
+    const nextValue = chooseLiveLogsSource(mergedOptions, currentValue, currentLiveLogsWindow())
+    select.value = nextValue
+    select.disabled = false
+    updateLiveLogsControls()
+}
+
+
+function renderLiveLogsSourceLoadingState(preferredSource = ''){
+    const select = document.getElementById('live-logs-source')
+    if(!select){
+        return
+    }
+
+    select.innerHTML = ''
+    LIVE_LOG_SOURCE_CATALOG.forEach(item => {
+        const option = document.createElement('option')
+        option.value = item.source_id
+        option.textContent = item.label
+        option.dataset.pollingMode = item.polling_mode || 'live'
+        option.dataset.enabled = 'false'
+        option.dataset.disabledReason = 'Loading source availability...'
+        option.dataset.loading = 'true'
+        option.disabled = false
+        option.selected = (preferredSource || liveLogsSourceId || 'container_live') === item.source_id
+        select.appendChild(option)
+    })
+    select.disabled = false
+    updateLiveLogsControls()
+}
+
+
+function renderLiveLogsFileStreamOptions(options, preferredStream = 'all', sourceId = ''){
+    const wrap = document.getElementById('live-logs-file-stream-wrap')
+    const select = document.getElementById('live-logs-file-stream')
+    if(!wrap || !select){
+        return
+    }
+
+    const selectedSourceOption = getSelectedLiveLogsSourceOption()
+    const sourceEnabled = !selectedSourceOption || liveLogsSourceIsLoading(selectedSourceOption) || selectedSourceOption.dataset.enabled !== 'false'
+
+    if(sourceId !== 'file_live' || !sourceEnabled){
+        wrap.style.display = 'none'
+        select.innerHTML = '<option value="all">All</option>'
+        select.value = 'all'
+        return
+    }
+
+    const normalizedOptions = Array.isArray(options) && options.length
+        ? options
+        : [{id: 'all', label: 'All'}]
+    select.innerHTML = ''
+    normalizedOptions.forEach(item => {
+        const option = document.createElement('option')
+        option.value = item.id
+        option.textContent = item.label || item.id || 'All'
+        select.appendChild(option)
+    })
+
+    const nextValue = normalizedOptions.some(item => item.id === preferredStream)
+        ? preferredStream
+        : normalizedOptions[0].id
+    select.value = nextValue
+    wrap.style.display = ''
+}
+
+
+function pageLiveLogsHistory(direction){
+    if(liveLogsFetchInFlight){
+        return
+    }
+    const cursor = direction === 'older' ? liveLogsHistoryCursorOlder : liveLogsHistoryCursorNewer
+    if(!cursor){
+        return
+    }
+    fetchLiveLogs(false, `history_${direction}`, {
+        historyDirection: direction,
+        historyCursor: cursor
+    })
+}
+
+
+function restartLiveLogsFlow(){
+    stopLiveLogsPolling()
+    updateLiveLogsControls()
+    fetchLiveLogs(false, 'restart')
+}
+
+
+function handleLiveLogsSourceChange(){
+    invalidateLiveLogsRequests()
+    liveLogsPaused = false
+    liveLogsPendingRefresh = false
+    liveLogsQueuedRequest = null
+    abortActiveLiveLogsRequest('Current request canceled due to source/window change.')
+    clearLiveLogsView()
+    renderLiveLogsFileStreamOptions([], 'all', currentLiveLogsSource())
+    updateLiveLogsControls()
+    if(liveLogsPanelIsOpen()){
+        restartLiveLogsFlow()
+    }
+}
+
+
+function handleLiveLogsFileStreamChange(){
+    invalidateLiveLogsRequests()
+    liveLogsPaused = false
+    liveLogsPendingRefresh = false
+    liveLogsQueuedRequest = null
+    abortActiveLiveLogsRequest('Current request canceled due to source/window change.')
+    clearLiveLogsView()
+    if(liveLogsPanelIsOpen()){
+        restartLiveLogsFlow()
+    }
+}
+
+
+function handleLiveLogsWindowChange(){
+    invalidateLiveLogsRequests()
+    liveLogsPaused = false
+    liveLogsPendingRefresh = false
+    liveLogsQueuedRequest = null
+    abortActiveLiveLogsRequest('Current request canceled due to source/window change.')
+    liveLogsWindowValue = currentLiveLogsWindow()
+    const sourceSelect = document.getElementById('live-logs-source')
+    if(sourceSelect && liveLogsWindowValue !== 'current'){
+        const nextSource = preferredLiveLogsHistorySource(sourceSelect.value || liveLogsSourceId || 'container_live')
+        if(sourceSelect.querySelector(`option[value="${nextSource}"]`)){
+            sourceSelect.value = nextSource
+        }
+    }
+    clearLiveLogsView()
+    if(liveLogsPanelIsOpen()){
+        restartLiveLogsFlow()
+    }
+}
+
+
+async function fetchLiveLogs(showToast = false, reason = 'auto', requestOptions = {}){
+    if(!serviceID){
+        return
+    }
+
+    if(liveLogsFetchInFlight){
+        liveLogsPendingRefresh = true
+        liveLogsQueuedRequest = {
+            showToast,
+            reason,
+            requestOptions
+        }
+        setLiveLogsStatus('Refresh queued. Waiting for current request to finish.')
+        logLiveLogsTiming('queued', {
+            reason,
+            source: currentLiveLogsSource(),
+            window: currentLiveLogsWindow(),
+            target: currentDiagnosticsTarget(),
+            file_stream: currentLiveLogsFileStream()
+        })
+        return
+    }
+
+    const targetValue = currentDiagnosticsTarget()
+    const uiSourceValue = currentLiveLogsSource()
+    const fileStreamValue = currentLiveLogsFileStream()
+    const windowValue = currentLiveLogsWindow()
+    const sourceValue = uiSourceValue || 'container_live'
+    if(sourceValue === 'unavailable'){
+        setLiveLogsStatus('No log sources are available for the selected window.')
+        updateLiveLogsHistoryControls()
+        return
+    }
+    const sourceOption = getSelectedLiveLogsSourceOption()
+    if(sourceOption && !liveLogsSourceIsLoading(sourceOption) && sourceOption.dataset.enabled === 'false'){
+        clearLiveLogsView()
+        setLiveLogsStatus(sourceOption.dataset.disabledReason || 'Selected source is not available for the current target/window.')
+        updateLiveLogsSourceHelp()
+        logLiveLogsTiming('disabled', {
+            reason,
+            source: sourceValue,
+            window: windowValue,
+            target: targetValue,
+            file_stream: fileStreamValue
+        })
+        return
+    }
+    const requestId = ++liveLogsRequestId
+    const startedAt = performance.now()
+    if((liveLogsTargetId && liveLogsTargetId !== targetValue) || (liveLogsSourceId && liveLogsSourceId !== sourceValue) || (liveLogsFileStreamId && liveLogsFileStreamId !== fileStreamValue) || (liveLogsWindowValue && liveLogsWindowValue !== windowValue)){
+        clearLiveLogsView()
+    }
+    liveLogsFetchInFlight = true
+    liveLogsLastRequestedContext = {
+        target: targetValue,
+        source: sourceValue,
+        file_stream: fileStreamValue,
+        window: windowValue,
+        reason
+    }
+    liveLogsAbortController = new AbortController()
+    const isHistoryRequest = liveLogsSourceSupportsHistory(sourceValue)
+    if(showToast){
+        setLiveLogsStatus('Refreshing...')
+    } else if(isHistoryRequest && reason !== 'poll'){
+        setLiveLogsStatus('Loading history...')
+    } else {
+        setLiveLogsStatus('Loading logs...')
+    }
+
+    try{
+        let res = await SendRequest({
+            'service_id': serviceID,
+            'diagnostic_target': targetValue,
+            'window': windowValue,
+            'log_source': sourceValue,
+            'file_stream': fileStreamValue,
+            'tail_lines': isHistoryRequest ? '' : 200,
+            'page_size': isHistoryRequest ? 200 : 0,
+            'cursor': isHistoryRequest ? '' : liveLogsCursor,
+            'history_cursor': requestOptions.historyCursor || '',
+            'history_direction': requestOptions.historyDirection || 'latest',
+            'user-action': 'service_live_logs'
+        }, {
+            signal: liveLogsAbortController.signal
+        })
+
+        if(res && res.__aborted){
+            logLiveLogsTiming('abort', {
+                reason,
+                source: sourceValue,
+                window: windowValue,
+                target: targetValue,
+                file_stream: fileStreamValue,
+                duration_ms: Math.round(performance.now() - startedAt)
+            })
+            return
+        }
+
+        if(!res || !res.service_live_logs){
+            if(requestId !== liveLogsRequestId || !liveLogsPanelIsOpen()){
+                return
+            }
+            setLiveLogsStatus('Unable to fetch live logs')
+            logLiveLogsTiming('error', {
+                reason,
+                source: sourceValue,
+                window: windowValue,
+                target: targetValue,
+                file_stream: fileStreamValue,
+                duration_ms: Math.round(performance.now() - startedAt)
+            })
+            if(showToast) showMessage('Unable to fetch live logs', false)
+            return
+        }
+
+        const info = res.service_live_logs
+        if(requestId !== liveLogsRequestId || !liveLogsPanelIsOpen()){
+            return
+        }
+
+        if(
+            currentDiagnosticsTarget() !== targetValue ||
+            currentLiveLogsWindow() !== windowValue ||
+            currentLiveLogsSource() !== sourceValue
+        ){
+            return
+        }
+
+        if(sourceValue === 'file_live' && currentLiveLogsFileStream() !== fileStreamValue){
+            return
+        }
+
+        renderLiveLogsSourceOptions(info.available_log_sources || [], info.log_source || sourceValue)
+        renderLiveLogsFileStreamOptions(info.available_file_streams || [], info.selected_file_stream || fileStreamValue, info.log_source || sourceValue)
+        liveLogsTargetId = info.selected_target?.target_id || targetValue
+        liveLogsSourceId = info.log_source || sourceValue
+        liveLogsFileStreamId = info.selected_file_stream || fileStreamValue
+        liveLogsWindowValue = windowValue
+        liveLogsHistoryCursorOlder = info.history_cursor_older || ''
+        liveLogsHistoryCursorNewer = info.history_cursor_newer || ''
+        liveLogsHistoryHasOlder = Boolean(info.history_has_older)
+        liveLogsHistoryHasNewer = Boolean(info.history_has_newer)
+        liveLogsHistoryWindowStart = info.history_window_start || ''
+        liveLogsHistoryWindowEnd = info.history_window_end || ''
+        liveLogsHistoryTotalPages = Math.max(0, Number(info.history_total_pages) || 0)
+        liveLogsHistoryTotalLines = Math.max(0, Number(info.history_total_lines) || 0)
+        updateLiveLogsMeta(
+            info.selected_target || {},
+            info.checked_at,
+            document.querySelector('#live-logs-source option:checked')?.textContent || 'Container Live',
+            (info.log_source || sourceValue) === 'file_live'
+                ? (document.querySelector('#live-logs-file-stream option:checked')?.textContent || 'All')
+                : ''
+        )
+        if((info.polling_mode || 'live') === 'snapshot'){
+            if(reason === 'history_older'){
+                liveLogsHistoryPageIndex += 1
+            } else if(reason === 'history_newer'){
+                liveLogsHistoryPageIndex = Math.max(1, liveLogsHistoryPageIndex - 1)
+            } else {
+                liveLogsHistoryPageIndex = liveLogsHistoryTotalPages > 0 ? 1 : 0
+            }
+            replaceLiveLogLines(info.lines || [])
+            stopLiveLogsPolling()
+            updateLiveLogsHistoryControls({
+                sourceId: info.log_source || sourceValue,
+                hasOlder: liveLogsHistoryHasOlder,
+                hasNewer: liveLogsHistoryHasNewer,
+                windowStart: liveLogsHistoryWindowStart,
+                windowEnd: liveLogsHistoryWindowEnd,
+                totalPages: liveLogsHistoryTotalPages,
+                totalLines: liveLogsHistoryTotalLines
+            })
+            setLiveLogsStatus(historyStatusMessage(reason, info))
+        } else {
+            resetLiveLogsHistoryState()
+            updateLiveLogsHistoryControls()
+            appendLiveLogLines(info.lines || [])
+            setLiveLogsStatus(info.error && info.error !== 'None' ? info.error : (liveLogsPaused ? 'Polling paused' : 'Waiting for next poll...'))
+        }
+        liveLogsCursor = info.next_cursor || liveLogsCursor
+        logLiveLogsTiming('success', {
+            reason,
+            source: info.log_source || sourceValue,
+            window: windowValue,
+            target: targetValue,
+            file_stream: info.selected_file_stream || fileStreamValue,
+            duration_ms: Math.round(performance.now() - startedAt),
+            line_count: (info.lines || []).length
+        })
+
+        if(showToast){
+            showMessage('Live logs refreshed')
+        }
+    } finally {
+        liveLogsFetchInFlight = false
+        liveLogsAbortController = null
+        if(!liveLogsPanelIsOpen()){
+            return
+        }
+        updateLiveLogsControls()
+        if(liveLogsPendingRefresh){
+            const queuedRequest = liveLogsQueuedRequest || {showToast: false, reason: 'queued', requestOptions: {}}
+            liveLogsPendingRefresh = false
+            liveLogsQueuedRequest = null
+            fetchLiveLogs(Boolean(queuedRequest.showToast), queuedRequest.reason || 'queued', queuedRequest.requestOptions || {})
+            return
+        }
+        if(!liveLogsPaused && liveLogsSourceUsesPolling(currentLiveLogsSource())){
+            scheduleNextLiveLogsPoll()
+        }
+    }
+}
+
+
+function openLiveLogsViewer(){
+    if(!liveLogsWindowValue){
+        liveLogsWindowValue = currentDiagnosticsWindow()
+    }
+    const diagnosticsTargetValue = currentDiagnosticsTarget()
+    const windowSelect = document.getElementById('live-logs-window')
+    if(windowSelect){
+        windowSelect.value = liveLogsWindowValue
+    }
+    clearLiveLogsView()
+    liveLogsPaused = false
+    if(
+        Array.isArray(liveLogsLastKnownSources) &&
+        liveLogsLastKnownSources.length &&
+        liveLogsLastKnownSourcesWindow === liveLogsWindowValue &&
+        liveLogsLastKnownSourcesTarget === diagnosticsTargetValue
+    ){
+        renderLiveLogsSourceOptions(liveLogsLastKnownSources, liveLogsSourceId || currentLiveLogsSource())
+    } else {
+        renderLiveLogsSourceLoadingState(liveLogsSourceId || currentLiveLogsSource())
+        setLiveLogsStatus('Loading available sources...')
+    }
+    restartLiveLogsFlow()
+}
+
+
+function openLiveLogsTab(event){
+    const tabLink = document.getElementById('live-logs-tab-link')
+    if(tabLink && tabLink.classList.contains('disabled')){
+        if(event){
+            event.preventDefault()
+        }
+        return false
+    }
+    openLiveLogsViewer()
+    return true
+}
+
+
+function renderDiagnosticsTargets(availableTargets, selectedTarget){
+    const select = document.getElementById('diagnostics-target')
+    if(!select){
+        return
+    }
+
+    const currentValue = selectedTarget?.target_id || select.value || 'main'
+    const options = Array.isArray(availableTargets) && availableTargets.length
+        ? availableTargets.filter(item => item.inspectable !== false)
+        : [{target_id: 'main', label: 'Main Container', inspectable: true}]
+
+    select.innerHTML = ''
+    options.forEach(item => {
+        const option = document.createElement('option')
+        option.value = item.target_id
+        option.textContent = item.label || item.container_name || item.target_id
+        select.appendChild(option)
+    })
+
+    const nextValue = options.some(item => item.target_id === currentValue)
+        ? currentValue
+        : (selectedTarget?.target_id || 'main')
+    select.value = nextValue
+}
+
+
+async function getServiceDiagnostics(showToast = false, expectedToken = serviceViewToken, expectedServiceId = serviceID){
+    if(!serviceID || expectedToken !== serviceViewToken || expectedServiceId !== serviceID){
+        return
+    }
+    setDiagnosticsBackfillButtonState()
+
+    const windowValue = currentDiagnosticsWindow()
+    const previousTargetValue = document.getElementById('diagnostics-target')?.value || 'main'
+    const previousLiveLogsTargetId = liveLogsTargetId || ''
+    const requestId = ++diagnosticsRequestId
+    let res = await SendRequest({
+        'service_id' : expectedServiceId,
+        'window': windowValue,
+        'diagnostic_target': previousTargetValue,
+        'user-action' : 'service_diagnostics'
+    })
+    if(requestId !== diagnosticsRequestId || expectedToken !== serviceViewToken || expectedServiceId !== serviceID){
+        return
+    }
+    if(!res || !res.service_diagnostics){
+        if(showToast) showMessage('Unable to fetch diagnostics', false)
+        return
+    }
+
+    const info = res.service_diagnostics
+    const selectedTargetId = info.selected_target?.target_id || previousTargetValue || 'main'
+    liveLogsLastKnownSources = Array.isArray(info.live_log_sources) ? info.live_log_sources : []
+    liveLogsLastKnownSourcesWindow = windowValue
+    liveLogsLastKnownSourcesTarget = selectedTargetId
+    renderDiagnosticsTargets(info.available_targets || [], info.selected_target || {target_id: 'main'})
+    setDiagnosticsSeverityBadge(info.overall_severity)
+    setDiagnosticsCoverageBadge(info.raw_log_info?.coverage_mode || 'container_only')
+    setLiveLogsButtonState(Boolean(info.raw_log_info?.live_logs_enabled))
+    document.getElementById('diagnostics-summary').textContent = info.summary || 'No summary available.'
+    document.getElementById('diagnostics-meta').innerHTML = `
+        <div><span class=\"fw-semibold\">Container:</span> ${escapeHtml(formatLiveStatusValue(info.selected_target?.label || info.selected_target?.container_name || 'Main Container'))}</div>
+        <div><span class=\"fw-semibold\">Target Node:</span> ${escapeHtml(formatLiveStatusValue(info.selected_target?.node_id || '-'))} (${escapeHtml(formatLiveStatusValue(info.selected_target?.node_ip || '-'))})</div>
+        <div><span class=\"fw-semibold\">Root Cause:</span> ${escapeHtml(formatLiveStatusValue(info.primary_root_cause))}</div>
+        <div><span class=\"fw-semibold\">Source:</span> ${escapeHtml(formatLiveStatusValue(info.summary_source))}</div>
+        <div><span class=\"fw-semibold\">Coverage:</span> ${escapeHtml(formatLiveStatusValue(info.raw_log_info?.coverage_mode || 'container_only'))}</div>
+        <div><span class=\"fw-semibold\">Log Source:</span> ${escapeHtml(formatLiveStatusValue(info.raw_log_info?.log_source))}</div>
+        <div><span class=\"fw-semibold\">Container History:</span> ${escapeHtml(formatLiveStatusValue(info.raw_log_info?.container_history_enabled))}</div>
+        <div><span class=\"fw-semibold\">File Logs:</span> ${escapeHtml(formatLiveStatusValue(info.raw_log_info?.file_logs_enabled))}</div>
+        <div><span class=\"fw-semibold\">Error Tracking:</span> ${escapeHtml(formatLiveStatusValue(info.raw_log_info?.glitchtip_enabled))}</div>
+        <div><span class=\"fw-semibold\">Service Events:</span> ${escapeHtml(formatLiveStatusValue(info.raw_log_info?.service_events_enabled))}</div>
+        <div><span class=\"fw-semibold\">Checked At:</span> ${escapeHtml(formatDiagnosticsTimestamp(info.checked_at))}</div>
+        <div><span class=\"fw-semibold\">Error:</span> ${escapeHtml(formatLiveStatusValue(info.error))}</div>
+    `
+
+    renderDiagnosticsIssues(info.issue_groups || [])
+    renderDiagnosticsEvidence(info.top_evidence || [])
+    renderDiagnosticsEvents(info.recent_events || [])
+
+    if(previousLiveLogsTargetId && previousLiveLogsTargetId !== selectedTargetId){
+        resetLiveLogsTargetContext(selectedTargetId)
+    }
+
+    if(liveLogsPanelIsOpen() && previousLiveLogsTargetId !== selectedTargetId){
+        invalidateLiveLogsRequests()
+        liveLogsPendingRefresh = false
+        liveLogsQueuedRequest = null
+        abortActiveLiveLogsRequest('Current request canceled due to target change.')
+        clearLiveLogsView()
+        restartLiveLogsFlow()
+    }
+
+    if(showToast){
+        showMessage('Diagnostics refreshed')
+    }
+    setDiagnosticsBackfillButtonState()
+}
+
+
+async function getLiveStatus(showToast = false, expectedToken = serviceViewToken, expectedServiceId = serviceID){
+    if(!serviceID || expectedToken !== serviceViewToken || expectedServiceId !== serviceID){
+        return
+    }
+
+    setLiveStatusBadge('Unknown')
+    showInlineLoading(document.getElementById('live-status-overall'), 'Loading live status...')
+    showTableLoading(document.querySelector('#live-status-containers-table tbody'), 7, 'Loading dependencies...')
+
+    let res = await SendRequest({'service_id' : expectedServiceId, 'user-action' : 'service_live_status'})
+    if(expectedToken !== serviceViewToken || expectedServiceId !== serviceID){
+        return
+    }
+    if(!res || !res.service_live_status){
+        if(showToast) showMessage('Unable to fetch live status', false)
+        return
+    }
+
+    const info = res.service_live_status
+    setLiveStatusBadge(info.overall_status)
+
+    renderLiveStatusRows('live-status-overall', [
+        {label: 'Service ID', value: info.service_id},
+        {label: 'Service Name', value: info.service_name},
+        {label: 'Service Type', value: info.service_type},
+        {label: 'Status', value: info.overall_status},
+        {label: 'Node', value: `${formatLiveStatusValue(info.node_id)} (${formatLiveStatusValue(info.node_ip)})`},
+        {label: 'Container Name', value: info.main_container?.name},
+        {label: 'Service Port', value: info.main_container?.service_port},
+        {label: 'Created At', value: formatLiveStatusTimestamp(info.main_container?.created_at)},
+        {label: 'Running Since', value: formatLiveStatusTimestamp(info.main_container?.running_since)},
+        {label: 'Up For', value: formatUpFor(info.main_container?.running_since)},
+        {label: 'Auto Restarts', value: info.main_container?.restart_count},
+        {label: 'OOM Killed', value: info.main_container?.oom_killed},
+        {label: 'Checked At', value: info.checked_at},
+        {label: 'Error', value: info.error}
+    ])
+
+    renderLiveStatusContainerTable(info.main_container || {}, info.dependencies || [])
+
+    if(showToast){
+        showMessage('Live status refreshed')
+    }
+}
+
+
+// Check Deploy Status
+function changeDeployColor(event){
+    //window.forms.dFormFieldColor(event, service_schema['ServiceConfig']['row_Schema'])
+    let deployButton = document.querySelector('#deploy_pod')
+    let prevField = event.target.parentNode.previousElementSibling.querySelector('select')
+
+     let value = event.target.value
+     if(prevField.value == "MANUAL" || value == "DEPLOYED") {
+        deployButton.disabled = true
+     }
+     else deployButton.disabled = false
+     window.forms.dFormFieldColor(event, service_schema['ServiceConfig']['row_Schema'])
+}
+
+
+//Close Modal
+function closeModal(event){
+    let modalId = event.target.getAttribute('data-modalId');
+    let modalElement = document.getElementById(modalId);
+    if (modalElement) {
+        let modalInstance = bootstrap.Modal.getInstance(modalElement);
+        if (modalInstance) {
+            modalInstance.hide();
+        } else {
+            let newModalInstance = new bootstrap.Modal(modalElement);
+            newModalInstance.hide();
+        }
+    }
+}
+
+function InstallService(event){
+    let deployButton = document.querySelector('#deploy_pod')
+    let nextField = event.target.parentNode.nextElementSibling.querySelector('select')
+
+    let value = event.target.value
+    if(value == "MANUAL" || nextField.value == "DEPLOYED") {
+        deployButton.disabled = true
+    }
+    else deployButton.disabled = false
+}
+
+
+function closeEvent(event){
+    setTimeout(() => {
+       clearInterval(eventInterval);
+       console.log("service closed______");
+    }, 3000);
+}
+
+// ================== Config Store Functions ==================
+function loadConfigStore() {
+    var serviceId = serviceID
+    if (!serviceId) { return; }
+
+    $.ajax({
+        type: 'POST',
+        url: cplatformio_cluster_config_url,
+        data: { 'user-action': 'service_config_store', 'service_id': serviceId, 'csrfmiddlewaretoken': csrf_token },
+        dataType: 'json',
+        success: function(data) {
+            renderConfigStoreSnapshots(data.snapshots || []);
+            var updEl = document.getElementById('configStoreUpdatedAt');
+            if (updEl) updEl.textContent = data.updated_at ? ('Updated: ' + data.updated_at) : '';
+        },
+        error: function() { alert('Failed to load config store'); }
+    });
+}
+
+function renderConfigStoreSnapshots(snapshots) {
+    var tbody = document.querySelector('#configStoreTable tbody');
+    tbody.innerHTML = '';
+    if (!snapshots.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No snapshots found</td></tr>';
+        return;
+    }
+    snapshots.forEach(function(s, i) {
+        var displayDate = s.display_date || s.timestamp;
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+            '<td><input type="checkbox" class="snap-diff-check" onchange="toggleConfigDiffSelection()" data-version="' + (s.version || '') + '" data-timestamp="' + (s.timestamp || '') + '"></td>' +
+            '<td>' + (i + 1) + '</td>' +
+            '<td>' + (s.version || '-') + '</td>' +
+            '<td>' + displayDate + '</td>' +
+            '<td>' + (s.path || '-') + '</td>' +
+            '<td><button class="btn btn-sm ik-add-btn px-2" onclick="viewSnapshotContent(\'' + (s.version || '') + '\',\'' + (s.timestamp || '') + '\')">View</button></td>';
+        tbody.appendChild(tr);
+    });
+    toggleConfigDiffSelection();
+}
+
+function toggleConfigDiffSelection() {
+    var selected = document.querySelectorAll('.snap-diff-check:checked');
+    var canRun = (selected.length === 2);
+    var compareBtn = document.getElementById('btnConfigCompare');
+    var migrateBtn = document.getElementById('btnConfigMigrate');
+    var directionSel = document.getElementById('configDiffDirection');
+    if (compareBtn) compareBtn.disabled = !canRun;
+    if (migrateBtn) migrateBtn.disabled = !canRun;
+    if (directionSel) directionSel.disabled = !canRun;
+}
+
+function runConfigDiff() {
+    var selected = document.querySelectorAll('.snap-diff-check:checked');
+    if (selected.length !== 2) { return; }
+
+    var serviceId = serviceID;
+    var config1 = { version: selected[0].getAttribute('data-version'), timestamp: selected[0].getAttribute('data-timestamp') };
+    var config2 = { version: selected[1].getAttribute('data-version'), timestamp: selected[1].getAttribute('data-timestamp') };
+    var directionSel = document.getElementById('configDiffDirection');
+    var direction = directionSel ? directionSel.value : '1v2';
+    var snap1 = direction === '2v1' ? config2 : config1;
+    var snap2 = direction === '2v1' ? config1 : config2;
+
+    var btn = document.getElementById('btnConfigCompare');
+    var oldHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Diffing...';
+
+    $.ajax({
+        type: 'POST',
+        url: cplatformio_cluster_config_url,
+        data: {
+            'user-action': 'service_config_snapshot_diff',
+            'service_id': serviceId,
+            'snap1_version': snap1.version,
+            'snap1_timestamp': snap1.timestamp,
+            'snap2_version': snap2.version,
+            'snap2_timestamp': snap2.timestamp,
+            'csrfmiddlewaretoken': csrf_token
+        },
+        dataType: 'json',
+        success: function(data) {
+            btn.disabled = false;
+            btn.innerHTML = oldHtml;
+            if (data.success === "True") {
+                document.getElementById('diffContentContainer').innerHTML = data.diff_html;
+                var labelEl = document.getElementById('diffSnapshotLabel');
+                if (labelEl) {
+                    labelEl.textContent = direction === '2v1'
+                        ? 'Configuration Comparison (Config 2 vs Config 1)'
+                        : 'Configuration Comparison (Config 1 vs Config 2)';
+                }
+                var modal = new bootstrap.Modal(document.getElementById('DiffSnapshotModal'));
+                modal.show();
+            } else {
+                alert('Diff failed: ' + data.msg);
+            }
+        },
+        error: function() {
+            btn.disabled = false;
+            btn.innerHTML = oldHtml;
+            alert('Diff request failed');
+        }
+    });
+}
+
+function runConfigMigrate() {
+    var selected = document.querySelectorAll('.snap-diff-check:checked');
+    if (selected.length !== 2) { return; }
+
+    var serviceId = serviceID;
+    var sourceSnapshot = {
+        version: selected[0].getAttribute('data-version'),
+        timestamp: selected[0].getAttribute('data-timestamp')
+    };
+    var targetSnapshot = {
+        version: selected[1].getAttribute('data-version'),
+        timestamp: selected[1].getAttribute('data-timestamp')
+    };
+
+    disableConfigMigrate(true);
+
+    $.ajax({
+        type: 'POST',
+        url: cplatformio_cluster_config_url,
+        data: {
+            'user-action': 'service_config_snapshot_migrate',
+            'service_id': serviceId,
+            'source_version': sourceSnapshot.version,
+            'source_timestamp': sourceSnapshot.timestamp,
+            'target_version': targetSnapshot.version,
+            'target_timestamp': targetSnapshot.timestamp,
+            'csrfmiddlewaretoken': csrf_token
+        },
+        dataType: 'json',
+        success: function(data) {
+            disableConfigMigrate(false);
+            if (data.success === "True") {
+                window.selectedConfigRank1 = data.config_rank_1 || {};
+                window.selectedConfigRank2 = data.config_rank_2 || {};
+                window.selectedConfigSnapshotPair = data.selected_configs || {};
+                window.finalMergedConfig = data.final_merged_config || {};
+                window.currentMigrationArtifact = data.migration_artifact || {};
+                window.currentMigrationArtifactId = (data.migration_artifact || {}).id || '';
+                window.latestMigrationApplyContext = null;
+                window.savedMigrationEditedYaml = '';
+                renderConfigMigratePreview(data, sourceSnapshot, targetSnapshot);
+                return;
+            }
+            alert(data.msg || 'Migration failed');
+        },
+        error: function() {
+            disableConfigMigrate(false);
+            alert('Migration request failed');
+        }
+    });
+}
+
+function formatSnapshotTimestamp(ts) {
+    var raw = String(ts || '');
+    var m = raw.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})\d{2}Z$/);
+    if (!m) { return raw || '-'; }
+    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var year = m[1];
+    var monthIdx = parseInt(m[2], 10) - 1;
+    var day = m[3];
+    var hour = m[4];
+    var minute = m[5];
+    var mon = (monthIdx >= 0 && monthIdx < 12) ? months[monthIdx] : m[2];
+    return day + '-' + mon + '-' + year + ' ' + hour + ':' + minute;
+}
+
+function renderConfigMigratePreview(data, sourceSnapshot, targetSnapshot) {
+    var container = document.getElementById('diffContentContainer');
+    if (!container) { return; }
+
+    var selected1Ts = formatSnapshotTimestamp(sourceSnapshot.timestamp || '-');
+    var selected2Ts = formatSnapshotTimestamp(targetSnapshot.timestamp || '-');
+    var migrationOutput = data.final_merged_config_yaml || JSON.stringify(data.final_merged_config || {}, null, 2);
+    var config1Output = stringifyMigrationConfig(data.config_rank_1 || {});
+    var config2Output = stringifyMigrationConfig(data.config_rank_2 || {});
+
+    container.innerHTML =
+        '<div class="p-3">' +
+            '<h6 class="mb-2 text-light">Migration Result</h6>' +
+            '<div class="text-muted mb-2" style="font-size:0.85rem;">' +
+                'Config 1: ' + (sourceSnapshot.version || '-') + ' / ' + selected1Ts + '<br>' +
+                'Config 2: ' + (targetSnapshot.version || '-') + ' / ' + selected2Ts +
+            '</div>' +
+            '<div class="row g-2">' +
+                '<div class="col-lg-4 col-md-12">' +
+                    '<div class="d-flex justify-content-between align-items-center mb-1">' +
+                        '<div class="text-light"><b>Migration Result</b></div>' +
+                        '<div>' +
+                            '<button id="btnMigrationEdit" type="button" class="btn btn-sm ik-add-btn ik-no-shadow-btn px-2 py-0 me-1" onclick="startMigrationResultEdit()">Edit</button>' +
+                            '<button id="btnMigrationSave" type="button" class="btn btn-sm ik-add-btn ik-no-shadow-btn px-2 py-0 me-1" onclick="saveMigrationResultEdit()" style="display:none;">Save</button>' +
+                            '<button id="btnMigrationCancel" type="button" class="btn btn-sm ik-close-btn px-2 py-0" onclick="cancelMigrationResultEdit()" style="display:none;">Cancel</button>' +
+                        '</div>' +
+                    '</div>' +
+                    '<pre id="migrationOutputPre" style="height:420px;overflow:auto;background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:6px;font-size:0.78rem;"></pre>' +
+                    '<textarea id="migrationOutputEditor" style="display:none;width:100%;height:420px;overflow:auto;background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:6px;font-size:0.78rem;border:1px solid #4a4a4a;"></textarea>' +
+                '</div>' +
+                '<div class="col-lg-4 col-md-12">' +
+                    '<div class="text-light mb-1"><b>Config 2</b></div>' +
+                    '<pre id="config2OutputPre" style="height:420px;overflow:auto;background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:6px;font-size:0.78rem;"></pre>' +
+                '</div>' +
+                '<div class="col-lg-4 col-md-12">' +
+                    '<div class="text-light mb-1"><b>Config 1</b></div>' +
+                    '<pre id="config1OutputPre" style="height:420px;overflow:auto;background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:6px;font-size:0.78rem;"></pre>' +
+                '</div>' +
+            '</div>' +
+            '<div class="mt-3 p-2" style="border:1px solid #303030;border-radius:6px;background:#171717;">' +
+                '<div class="d-flex flex-wrap align-items-end gap-2">' +
+                    '<div>' +
+                        '<label class="form-label text-muted mb-1" style="font-size:0.78rem;">Diff Left</label>' +
+                        '<select id="migrationDiffLeft" class="form-select form-select-sm">' +
+                            '<option value="migration_result" selected>Migration Result</option>' +
+                            '<option value="config_2">Config 2</option>' +
+                            '<option value="config_1">Config 1</option>' +
+                        '</select>' +
+                    '</div>' +
+                    '<div>' +
+                        '<label class="form-label text-muted mb-1" style="font-size:0.78rem;">Diff Right</label>' +
+                        '<select id="migrationDiffRight" class="form-select form-select-sm">' +
+                            '<option value="config_2" selected>Config 2</option>' +
+                            '<option value="migration_result">Migration Result</option>' +
+                            '<option value="config_1">Config 1</option>' +
+                        '</select>' +
+                    '</div>' +
+                    '<button id="btnMigrationDiffSelected" type="button" class="btn btn-sm ik-diff-btn px-3" onclick="runMigrationColumnDiff()">' +
+                        '<i class="bi bi-columns-gap me-1"></i>Diff Selected' +
+                    '</button>' +
+                    '<button type="button" class="btn btn-sm ik-close-btn px-3" onclick="clearMigrationColumnDiff()">Clear Diff</button>' +
+                '</div>' +
+                '<div id="migrationDiffStatus" class="mt-2 text-muted" style="font-size:0.82rem;">Select two columns and click Diff Selected.</div>' +
+                '<div id="migrationInlineDiffContainer" class="mt-2" style="max-height:300px;overflow:auto;"></div>' +
+            '</div>' +
+            '<div class="mt-3 pt-2" style="border-top:1px solid #303030;">' +
+                '<div class="row g-2 align-items-end">' +
+                    '<div class="col-md-3">' +
+                        '<label class="form-label text-muted mb-1" style="font-size:0.8rem;">Apply Mode</label>' +
+                        '<select id="migrationApplyMode" class="form-select form-select-sm">' +
+                            '<option value="reload" selected>Reload (HUP)</option>' +
+                            '<option value="restart">Restart</option>' +
+                        '</select>' +
+                    '</div>' +
+                    '<div class="col-md-9">' +
+                        '<button id="btnApplyMigratedConfig" type="button" class="btn btn-sm ik-add-btn ik-no-shadow-btn px-3 me-2" onclick="runConfigApplyMigration()">' +
+                            '<i class="bi bi-check2-circle me-1"></i>Apply' +
+                        '</button>' +
+                        '<button id="btnRestoreMigratedConfig" type="button" class="btn btn-sm ik-close-btn px-3" onclick="runConfigRestoreMigration()" disabled>' +
+                            '<i class="bi bi-arrow-counterclockwise me-1"></i>Restore' +
+                        '</button>' +
+                    '</div>' +
+                '</div>' +
+                '<div id="migrationApplyResult" class="mt-2 text-muted" style="font-size:0.85rem;"></div>' +
+            '</div>' +
+        '</div>';
+
+    var outputEl = document.getElementById('migrationOutputPre');
+    if (outputEl) outputEl.textContent = migrationOutput;
+    window.currentMigrationBaseYaml = migrationOutput;
+    var config2El = document.getElementById('config2OutputPre');
+    if (config2El) config2El.textContent = config2Output;
+    var config1El = document.getElementById('config1OutputPre');
+    if (config1El) config1El.textContent = config1Output;
+    clearMigrationColumnDiff();
+    var labelEl = document.getElementById('diffSnapshotLabel');
+    if (labelEl) {
+        labelEl.textContent = 'Migration Result';
+    }
+
+    var modal = new bootstrap.Modal(document.getElementById('DiffSnapshotModal'));
+    modal.show();
+}
+
+function getMigrationColumnText(columnKey) {
+    if (columnKey === 'migration_result') {
+        var editorEl = document.getElementById('migrationOutputEditor');
+        if (editorEl && editorEl.style.display !== 'none') {
+            return String(editorEl.value || '');
+        }
+        var preEl = document.getElementById('migrationOutputPre');
+        return preEl ? String(preEl.textContent || '') : '';
+    }
+    if (columnKey === 'config_2') {
+        var config2El = document.getElementById('config2OutputPre');
+        return config2El ? String(config2El.textContent || '') : '';
+    }
+    if (columnKey === 'config_1') {
+        var config1El = document.getElementById('config1OutputPre');
+        return config1El ? String(config1El.textContent || '') : '';
+    }
+    return '';
+}
+
+function getMigrationColumnLabel(columnKey) {
+    if (columnKey === 'migration_result') { return 'Migration Result'; }
+    if (columnKey === 'config_2') { return 'Config 2'; }
+    if (columnKey === 'config_1') { return 'Config 1'; }
+    return 'Unknown';
+}
+
+function buildMigrationDiffRows(leftLines, rightLines) {
+    var n = leftLines.length;
+    var m = rightLines.length;
+    var maxCells = 400000;
+    if ((n * m) > maxCells) {
+        var fallbackRows = [];
+        var maxLen = Math.max(n, m);
+        for (var k = 0; k < maxLen; k++) {
+            var l = (k < n) ? leftLines[k] : null;
+            var r = (k < m) ? rightLines[k] : null;
+            if (l === r) {
+                fallbackRows.push({ kind: 'same', left: l || '', right: r || '' });
+            } else if (l === null) {
+                fallbackRows.push({ kind: 'add', left: '', right: r || '' });
+            } else if (r === null) {
+                fallbackRows.push({ kind: 'del', left: l || '', right: '' });
+            } else {
+                fallbackRows.push({ kind: 'del', left: l || '', right: '' });
+                fallbackRows.push({ kind: 'add', left: '', right: r || '' });
+            }
+        }
+        return fallbackRows;
+    }
+
+    var dp = new Array(n + 1);
+    for (var i = 0; i <= n; i++) {
+        dp[i] = new Array(m + 1).fill(0);
+    }
+    for (var li = n - 1; li >= 0; li--) {
+        for (var rj = m - 1; rj >= 0; rj--) {
+            if (leftLines[li] === rightLines[rj]) {
+                dp[li][rj] = dp[li + 1][rj + 1] + 1;
+            } else {
+                dp[li][rj] = Math.max(dp[li + 1][rj], dp[li][rj + 1]);
+            }
+        }
+    }
+
+    var rows = [];
+    var lIdx = 0;
+    var rIdx = 0;
+    while (lIdx < n && rIdx < m) {
+        if (leftLines[lIdx] === rightLines[rIdx]) {
+            rows.push({ kind: 'same', left: leftLines[lIdx], right: rightLines[rIdx] });
+            lIdx += 1;
+            rIdx += 1;
+        } else if (dp[lIdx + 1][rIdx] >= dp[lIdx][rIdx + 1]) {
+            rows.push({ kind: 'del', left: leftLines[lIdx], right: '' });
+            lIdx += 1;
+        } else {
+            rows.push({ kind: 'add', left: '', right: rightLines[rIdx] });
+            rIdx += 1;
+        }
+    }
+    while (lIdx < n) {
+        rows.push({ kind: 'del', left: leftLines[lIdx], right: '' });
+        lIdx += 1;
+    }
+    while (rIdx < m) {
+        rows.push({ kind: 'add', left: '', right: rightLines[rIdx] });
+        rIdx += 1;
+    }
+    return rows;
+}
+
+function clearMigrationColumnDiff() {
+    var container = document.getElementById('migrationInlineDiffContainer');
+    if (container) {
+        container.innerHTML = '';
+    }
+    var statusEl = document.getElementById('migrationDiffStatus');
+    if (statusEl) {
+        statusEl.textContent = 'Select two columns and click Diff Selected.';
+    }
+}
+
+function runMigrationColumnDiff() {
+    var leftSel = document.getElementById('migrationDiffLeft');
+    var rightSel = document.getElementById('migrationDiffRight');
+    var statusEl = document.getElementById('migrationDiffStatus');
+    var container = document.getElementById('migrationInlineDiffContainer');
+    var btn = document.getElementById('btnMigrationDiffSelected');
+    if (!leftSel || !rightSel || !container) { return; }
+
+    var leftKey = leftSel.value;
+    var rightKey = rightSel.value;
+    if (leftKey === rightKey) {
+        if (statusEl) statusEl.textContent = 'Choose two different columns for diff.';
+        container.innerHTML = '';
+        return;
+    }
+
+    var leftLabel = getMigrationColumnLabel(leftKey);
+    var rightLabel = getMigrationColumnLabel(rightKey);
+    var leftText = getMigrationColumnText(leftKey);
+    var rightText = getMigrationColumnText(rightKey);
+
+    var oldHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Diffing...';
+    }
+
+    setTimeout(function() {
+        var leftLines = String(leftText || '').split('\n');
+        var rightLines = String(rightText || '').split('\n');
+        var rows = buildMigrationDiffRows(leftLines, rightLines);
+        var leftLineNo = 1;
+        var rightLineNo = 1;
+        var body = '';
+
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            var leftNo = '';
+            var rightNo = '';
+            var leftClass = '';
+            var rightClass = '';
+            if (row.kind === 'same') {
+                leftNo = String(leftLineNo++);
+                rightNo = String(rightLineNo++);
+            } else if (row.kind === 'del') {
+                leftNo = String(leftLineNo++);
+                leftClass = ' diff-del';
+            } else if (row.kind === 'add') {
+                rightNo = String(rightLineNo++);
+                rightClass = ' diff-add';
+            }
+
+            body +=
+                '<tr>' +
+                    '<td style="width:56px;color:#9ca3af;">' + leftNo + '</td>' +
+                    '<td class="diff-line' + leftClass + '">' + escapeHtml(row.left || '') + '</td>' +
+                    '<td style="width:56px;color:#9ca3af;">' + rightNo + '</td>' +
+                    '<td class="diff-line' + rightClass + '">' + escapeHtml(row.right || '') + '</td>' +
+                '</tr>';
+        }
+
+        container.innerHTML =
+            '<table class="diff-table">' +
+                '<thead>' +
+                    '<tr><th colspan="2" class="diff-header">' + escapeHtml(leftLabel) + '</th><th colspan="2" class="diff-header">' + escapeHtml(rightLabel) + '</th></tr>' +
+                    '<tr><th class="diff-info">#</th><th class="diff-info">Content</th><th class="diff-info">#</th><th class="diff-info">Content</th></tr>' +
+                '</thead>' +
+                '<tbody>' + body + '</tbody>' +
+            '</table>';
+
+        if (statusEl) {
+            statusEl.textContent = 'Showing diff: ' + leftLabel + ' vs ' + rightLabel;
+        }
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = oldHtml || '<i class="bi bi-columns-gap me-1"></i>Diff Selected';
+        }
+    }, 0);
+}
+
+function stringifyMigrationConfig(value) {
+    function toYaml(node, indent) {
+        var pad = ' '.repeat(indent);
+        if (node === null || node === undefined) {
+            return 'null';
+        }
+        if (Array.isArray(node)) {
+            if (!node.length) { return '[]'; }
+            var arrLines = [];
+            for (var i = 0; i < node.length; i++) {
+                var item = node[i];
+                if (item !== null && typeof item === 'object') {
+                    var nested = toYaml(item, indent + 2).split('\n');
+                    arrLines.push(pad + '- ' + nested[0]);
+                    for (var j = 1; j < nested.length; j++) {
+                        arrLines.push(pad + '  ' + nested[j]);
+                    }
+                } else {
+                    arrLines.push(pad + '- ' + String(item));
+                }
+            }
+            return arrLines.join('\n');
+        }
+        if (typeof node === 'object') {
+            var keys = Object.keys(node);
+            if (!keys.length) { return '{}'; }
+            var objLines = [];
+            for (var k = 0; k < keys.length; k++) {
+                var key = keys[k];
+                var val = node[key];
+                if (val !== null && typeof val === 'object') {
+                    objLines.push(pad + key + ':');
+                    objLines.push(toYaml(val, indent + 2));
+                } else {
+                    objLines.push(pad + key + ': ' + String(val));
+                }
+            }
+            return objLines.join('\n');
+        }
+        return String(node);
+    }
+    return toYaml(value, 0);
+}
+
+function startMigrationResultEdit() {
+    var preEl = document.getElementById('migrationOutputPre');
+    var editorEl = document.getElementById('migrationOutputEditor');
+    var editBtn = document.getElementById('btnMigrationEdit');
+    var saveBtn = document.getElementById('btnMigrationSave');
+    var cancelBtn = document.getElementById('btnMigrationCancel');
+    var resultEl = document.getElementById('migrationApplyResult');
+    if (!preEl || !editorEl) { return; }
+
+    editorEl.value = window.savedMigrationEditedYaml || preEl.textContent || '';
+    preEl.style.display = 'none';
+    editorEl.style.display = 'block';
+    if (editBtn) editBtn.style.display = 'none';
+    if (saveBtn) saveBtn.style.display = 'inline-block';
+    if (cancelBtn) cancelBtn.style.display = 'inline-block';
+    if (resultEl) {
+        resultEl.innerHTML = '<div class="text-muted">Editing Migration Result. Click Save before Apply.</div>';
+    }
+}
+
+function saveMigrationResultEdit() {
+    var preEl = document.getElementById('migrationOutputPre');
+    var editorEl = document.getElementById('migrationOutputEditor');
+    var editBtn = document.getElementById('btnMigrationEdit');
+    var saveBtn = document.getElementById('btnMigrationSave');
+    var cancelBtn = document.getElementById('btnMigrationCancel');
+    var resultEl = document.getElementById('migrationApplyResult');
+    if (!preEl || !editorEl) { return; }
+
+    var edited = String(editorEl.value || '').trim();
+    if (!edited) {
+        if (resultEl) resultEl.innerHTML = '<div class="text-danger">Edited Migration Result cannot be empty.</div>';
+        return;
+    }
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+    }
+    if (resultEl) {
+        resultEl.innerHTML = '<div class="text-muted">Validating YAML syntax...</div>';
+    }
+
+    $.ajax({
+        type: 'POST',
+        url: cplatformio_cluster_config_url,
+        data: {
+            'user-action': 'service_config_snapshot_validate_yaml',
+            'yaml_text': editorEl.value,
+            'csrfmiddlewaretoken': csrf_token
+        },
+        dataType: 'json',
+        success: function(data) {
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = 'Save';
+            }
+            if (data.success !== "True") {
+                if (resultEl) {
+                    resultEl.innerHTML = '<div class="text-danger">' + (data.msg || 'Invalid YAML syntax') + '</div>';
+                }
+                return;
+            }
+
+            window.savedMigrationEditedYaml = editorEl.value;
+            preEl.textContent = window.savedMigrationEditedYaml;
+            preEl.style.display = 'block';
+            editorEl.style.display = 'none';
+            if (editBtn) editBtn.style.display = 'inline-block';
+            if (saveBtn) saveBtn.style.display = 'none';
+            if (cancelBtn) cancelBtn.style.display = 'none';
+            if (resultEl) {
+                resultEl.innerHTML = '<div class="text-success">Edited Migration Result saved. Apply will use this saved content.</div>';
+            }
+        },
+        error: function() {
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = 'Save';
+            }
+            if (resultEl) {
+                resultEl.innerHTML = '<div class="text-danger">YAML validation failed. Please try again.</div>';
+            }
+        }
+    });
+}
+
+function cancelMigrationResultEdit() {
+    var preEl = document.getElementById('migrationOutputPre');
+    var editorEl = document.getElementById('migrationOutputEditor');
+    var editBtn = document.getElementById('btnMigrationEdit');
+    var saveBtn = document.getElementById('btnMigrationSave');
+    var cancelBtn = document.getElementById('btnMigrationCancel');
+    if (!preEl || !editorEl) { return; }
+
+    editorEl.style.display = 'none';
+    preEl.style.display = 'block';
+    if (editBtn) editBtn.style.display = 'inline-block';
+    if (saveBtn) saveBtn.style.display = 'none';
+    if (cancelBtn) cancelBtn.style.display = 'none';
+}
+
+function runConfigApplyMigration() {
+    var serviceId = serviceID;
+    var artifactId = window.currentMigrationArtifactId || '';
+    var applyModeEl = document.getElementById('migrationApplyMode');
+    var applyMode = applyModeEl ? applyModeEl.value : 'reload';
+    var btn = document.getElementById('btnApplyMigratedConfig');
+    var restoreBtn = document.getElementById('btnRestoreMigratedConfig');
+    var resultEl = document.getElementById('migrationApplyResult');
+
+    if (!serviceId) {
+        alert('Service id is missing');
+        return;
+    }
+    if (!artifactId) {
+        alert('Migration artifact id is missing. Run migrate again.');
+        return;
+    }
+    var editorEl = document.getElementById('migrationOutputEditor');
+    if (editorEl && editorEl.style.display !== 'none') {
+        alert('Please save or cancel your edits before applying.');
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Applying...';
+    }
+    if (resultEl) {
+        resultEl.textContent = 'Applying migration to container...';
+    }
+
+    $.ajax({
+        type: 'POST',
+        url: cplatformio_cluster_config_url,
+        data: {
+            'user-action': 'service_config_snapshot_apply',
+            'service_id': serviceId,
+            'migration_artifact_id': artifactId,
+            'apply_mode': applyMode,
+            'edited_migration_yaml': window.savedMigrationEditedYaml || '',
+            'csrfmiddlewaretoken': csrf_token
+        },
+        dataType: 'json',
+        success: function(data) {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Apply';
+            }
+            if (data.success === "True") {
+                var applyResult = data.apply_result || {};
+                window.latestMigrationApplyContext = {
+                    backup_path: applyResult.backup_path || '',
+                    resolved_config_path: applyResult.resolved_config_path || '',
+                    apply_mode: applyResult.apply_mode || applyMode
+                };
+                if (restoreBtn) restoreBtn.disabled = !(window.latestMigrationApplyContext.backup_path && window.latestMigrationApplyContext.resolved_config_path);
+                if (resultEl) {
+                    resultEl.innerHTML =
+                        '<div class="text-success">Apply completed successfully.</div>' +
+                        '<div>Status: ' + (applyResult.status || '-') + '</div>' +
+                        '<div>Mode: ' + (applyResult.apply_mode || applyMode) + '</div>' +
+                        '<div>Resolved Path: ' + (applyResult.resolved_config_path || '-') + '</div>' +
+                        '<div>Backup: ' + (applyResult.backup_path || '-') + '</div>';
+                }
+                return;
+            }
+            if (resultEl) {
+                resultEl.innerHTML = '<div class="text-danger">Apply failed: ' + (data.msg || 'Unknown error') + '</div>';
+            }
+        },
+        error: function() {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Apply';
+            }
+            if (resultEl) {
+                resultEl.innerHTML = '<div class="text-danger">Apply request failed</div>';
+            }
+        }
+    });
+}
+
+function runConfigRestoreMigration() {
+    var serviceId = serviceID;
+    var ctx = window.latestMigrationApplyContext || {};
+    var backupPath = ctx.backup_path || '';
+    var resolvedConfigPath = ctx.resolved_config_path || '';
+    var applyModeEl = document.getElementById('migrationApplyMode');
+    var applyMode = applyModeEl ? applyModeEl.value : (ctx.apply_mode || 'reload');
+    var restoreBtn = document.getElementById('btnRestoreMigratedConfig');
+    var resultEl = document.getElementById('migrationApplyResult');
+
+    if (!serviceId) {
+        alert('Service id is missing');
+        return;
+    }
+    if (!backupPath || !resolvedConfigPath) {
+        alert('Restore context missing. Apply migration once before restore.');
+        return;
+    }
+
+    if (restoreBtn) {
+        restoreBtn.disabled = true;
+        restoreBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Restoring...';
+    }
+    if (resultEl) {
+        resultEl.textContent = 'Restoring from backup...';
+    }
+
+    $.ajax({
+        type: 'POST',
+        url: cplatformio_cluster_config_url,
+        data: {
+            'user-action': 'service_config_snapshot_restore',
+            'service_id': serviceId,
+            'backup_path': backupPath,
+            'resolved_config_path': resolvedConfigPath,
+            'apply_mode': applyMode,
+            'csrfmiddlewaretoken': csrf_token
+        },
+        dataType: 'json',
+        success: function(data) {
+            if (restoreBtn) {
+                restoreBtn.disabled = false;
+                restoreBtn.innerHTML = '<i class="bi bi-arrow-counterclockwise me-1"></i>Restore';
+            }
+            if (data.success === "True") {
+                var restoreResult = data.restore_result || {};
+                if (resultEl) {
+                    resultEl.innerHTML =
+                        '<div class="text-success">Restore completed successfully.</div>' +
+                        '<div>Status: ' + (restoreResult.status || '-') + '</div>' +
+                        '<div>Mode: ' + (restoreResult.apply_mode || applyMode) + '</div>' +
+                        '<div>Resolved Path: ' + (restoreResult.resolved_config_path || resolvedConfigPath) + '</div>' +
+                        '<div>Backup: ' + (restoreResult.backup_path || backupPath) + '</div>';
+                }
+                return;
+            }
+            if (resultEl) {
+                resultEl.innerHTML = '<div class="text-danger">Restore failed: ' + (data.msg || 'Unknown error') + '</div>';
+            }
+        },
+        error: function() {
+            if (restoreBtn) {
+                restoreBtn.disabled = false;
+                restoreBtn.innerHTML = '<i class="bi bi-arrow-counterclockwise me-1"></i>Restore';
+            }
+            if (resultEl) {
+                resultEl.innerHTML = '<div class="text-danger">Restore request failed</div>';
+            }
+        }
+    });
+}
+
+function disableConfigMigrate(state) {
+    var btn = document.getElementById('btnConfigMigrate');
+    if (btn) {
+        btn.disabled = state;
+        btn.innerHTML = state
+            ? '<span class="spinner-border spinner-border-sm me-1"></span>Migrating...'
+            : '<i class="bi bi-arrow-left-right me-1"></i>Migrate';
+    }
+}
+
+var cplatformio_cluster_config_url = '/PlatformIO/ClusterConfig/'
+const csrf_token = "{{ csrf_token }}";
+function runConfigCheckpoint() {
+    var serviceId = serviceID;
+    if (!serviceId) { return; }
+    disableConfigCheckpoint(true);
+
+    $.ajax({
+        type: 'POST',
+        url: cplatformio_cluster_config_url,
+        data: { 'user-action': 'service_config_checkpoint', 'service_id': serviceId, 'csrfmiddlewaretoken': csrf_token },
+        dataType: 'json',
+        success: function(data) {
+            disableConfigCheckpoint(false);
+            alert(data.msg || 'Checkpoint done');
+            loadConfigStore();
+        },
+        error: function() {
+            disableConfigCheckpoint(false);
+            alert('Checkpoint request failed');
+        }
+    });
+}
+
+function disableConfigCheckpoint(state) {
+    var btn = document.getElementById('btnConfigCheckpoint');
+    if (btn) {
+        btn.disabled = state;
+        btn.innerHTML = state
+            ? '<span class="spinner-border spinner-border-sm me-1"></span>Running...'
+            : '<i class="bi bi-plus-circle me-1"></i>Checkpoint';
+    }
+}
+
+window.snapshotFoldState = {
+    lines: [],
+    folds: {},
+    foldStarts: [],
+    collapsed: new Set(),
+    rowEls: [],
+    toggleEls: {},
+};
+
+function _snapshotIndent(line) {
+    var count = 0;
+    for (var i = 0; i < line.length; i++) {
+        var ch = line[i];
+        if (ch === ' ') { count += 1; }
+        else if (ch === '\t') { count += 2; }
+        else { break; }
+    }
+    return count;
+}
+
+function _buildSnapshotFolds(lines) {
+    var folds = {};
+    for (var i = 0; i < lines.length; i++) {
+        var current = String(lines[i] || '');
+        var trimmed = current.trim();
+        if (!trimmed || trimmed.startsWith('#')) {
+            continue;
+        }
+        var looksLikeBlockStart =
+            trimmed.endsWith(':') ||
+            trimmed.endsWith('{') ||
+            trimmed.endsWith('[');
+        if (!looksLikeBlockStart) {
+            continue;
+        }
+
+        var currIndent = _snapshotIndent(current);
+        var firstChild = -1;
+        var end = i;
+
+        for (var j = i + 1; j < lines.length; j++) {
+            var next = String(lines[j] || '');
+            var nextTrimmed = next.trim();
+            if (!nextTrimmed) {
+                if (firstChild !== -1) {
+                    end = j;
+                }
+                continue;
+            }
+            var nextIndent = _snapshotIndent(next);
+            if (nextIndent > currIndent) {
+                if (firstChild === -1) {
+                    firstChild = j;
+                }
+                end = j;
+                continue;
+            }
+            if (firstChild !== -1) {
+                break;
+            }
+            break;
+        }
+
+        if (firstChild !== -1 && end > i) {
+            folds[i] = end;
+        }
+    }
+    return folds;
+}
+
+function _updateSnapshotFoldSummary() {
+    var summaryEl = document.getElementById('snapshotFoldSummary');
+    if (!summaryEl) { return; }
+    var totalBlocks = window.snapshotFoldState.foldStarts.length;
+    var collapsedBlocks = window.snapshotFoldState.collapsed.size;
+    if (!window.snapshotFoldState.lines.length) {
+        summaryEl.textContent = 'No content';
+        return;
+    }
+    if (!totalBlocks) {
+        summaryEl.textContent = 'No collapsible blocks detected';
+        return;
+    }
+    summaryEl.textContent = 'Blocks: ' + totalBlocks + ' | Collapsed: ' + collapsedBlocks;
+}
+
+function _renderSnapshotVisibility() {
+    var state = window.snapshotFoldState;
+    var collapsedStarts = Array.from(state.collapsed);
+    for (var i = 0; i < state.lines.length; i++) {
+        var hidden = false;
+        for (var c = 0; c < collapsedStarts.length; c++) {
+            var start = collapsedStarts[c];
+            var end = state.folds[start];
+            if (i > start && i <= end) {
+                hidden = true;
+                break;
+            }
+        }
+        if (state.rowEls[i]) {
+            state.rowEls[i].style.display = hidden ? 'none' : 'flex';
+        }
+    }
+
+    for (var k = 0; k < state.foldStarts.length; k++) {
+        var lineNo = state.foldStarts[k];
+        var toggleBtn = state.toggleEls[lineNo];
+        if (toggleBtn) {
+            toggleBtn.textContent = state.collapsed.has(lineNo) ? '▸' : '▾';
+        }
+    }
+    _updateSnapshotFoldSummary();
+}
+
+function toggleSnapshotBlock(lineNo) {
+    var state = window.snapshotFoldState;
+    if (!Object.prototype.hasOwnProperty.call(state.folds, lineNo)) {
+        return;
+    }
+    if (state.collapsed.has(lineNo)) {
+        state.collapsed.delete(lineNo);
+    } else {
+        state.collapsed.add(lineNo);
+    }
+    _renderSnapshotVisibility();
+}
+
+function collapseAllSnapshotBlocks() {
+    var state = window.snapshotFoldState;
+    state.collapsed = new Set(state.foldStarts);
+    _renderSnapshotVisibility();
+}
+
+function expandAllSnapshotBlocks() {
+    var state = window.snapshotFoldState;
+    state.collapsed = new Set();
+    _renderSnapshotVisibility();
+}
+
+function renderSnapshotCollapsible(contentText) {
+    var content = String(contentText || '');
+    var lines = content.split('\n');
+    var folds = _buildSnapshotFolds(lines);
+    var foldStarts = Object.keys(folds).map(function(x) { return parseInt(x, 10); }).sort(function(a, b) { return a - b; });
+    var container = document.getElementById('snapshotContentTree');
+    var collapseBtn = document.getElementById('btnSnapshotCollapseAll');
+    var expandBtn = document.getElementById('btnSnapshotExpandAll');
+    if (!container) { return; }
+
+    window.snapshotFoldState = {
+        lines: lines,
+        folds: folds,
+        foldStarts: foldStarts,
+        collapsed: new Set(),
+        rowEls: [],
+        toggleEls: {},
+    };
+
+    container.innerHTML = '';
+    if (!content) {
+        container.textContent = 'No content';
+        if (collapseBtn) collapseBtn.disabled = true;
+        if (expandBtn) expandBtn.disabled = true;
+        _updateSnapshotFoldSummary();
+        return;
+    }
+
+    var fragment = document.createDocumentFragment();
+    for (var i = 0; i < lines.length; i++) {
+        var row = document.createElement('div');
+        row.className = 'snapshot-line';
+
+        var hasFold = Object.prototype.hasOwnProperty.call(folds, i);
+        var toggleBtn = document.createElement('button');
+        toggleBtn.className = 'snapshot-toggle';
+        if (hasFold) {
+            toggleBtn.type = 'button';
+            toggleBtn.textContent = '▾';
+            toggleBtn.setAttribute('onclick', 'toggleSnapshotBlock(' + i + ')');
+            window.snapshotFoldState.toggleEls[i] = toggleBtn;
+        } else {
+            toggleBtn.textContent = ' ';
+            toggleBtn.disabled = true;
+        }
+        row.appendChild(toggleBtn);
+
+        var lineNo = document.createElement('span');
+        lineNo.className = 'snapshot-line-number';
+        lineNo.textContent = String(i + 1);
+        row.appendChild(lineNo);
+
+        var lineContent = document.createElement('span');
+        lineContent.className = 'snapshot-line-content';
+        lineContent.textContent = lines[i];
+        row.appendChild(lineContent);
+
+        window.snapshotFoldState.rowEls[i] = row;
+        fragment.appendChild(row);
+    }
+
+    container.appendChild(fragment);
+    if (collapseBtn) collapseBtn.disabled = !foldStarts.length;
+    if (expandBtn) expandBtn.disabled = !foldStarts.length;
+    _renderSnapshotVisibility();
+}
+
+function viewSnapshotContent(version, timestamp) {
+    var serviceId = serviceID;
+    if (!serviceId) { return; }
+    document.getElementById('snapshotContentPre').textContent = 'Loading...';
+    var treeEl = document.getElementById('snapshotContentTree');
+    if (treeEl) treeEl.textContent = 'Loading...';
+    var collapseBtn = document.getElementById('btnSnapshotCollapseAll');
+    var expandBtn = document.getElementById('btnSnapshotExpandAll');
+    if (collapseBtn) collapseBtn.disabled = true;
+    if (expandBtn) expandBtn.disabled = true;
+    var modal = new bootstrap.Modal(document.getElementById('ViewSnapshotModal'));
+    modal.show();
+
+    $.ajax({
+        type: 'POST',
+        url: cplatformio_cluster_config_url,
+        data: {
+            'user-action': 'service_config_snapshot_view',
+            'service_id': serviceId,
+            'version': version,
+            'timestamp': timestamp,
+            'csrfmiddlewaretoken': csrf_token
+        },
+        dataType: 'json',
+        success: function(data) {
+            var content = data.content || data.msg || 'No content';
+            document.getElementById('snapshotContentPre').textContent = content;
+            renderSnapshotCollapsible(content);
+            document.getElementById('viewSnapshotLabel').textContent = 'Snapshot: ' + version + ' / ' + timestamp;
+        },
+        error: function() {
+            document.getElementById('snapshotContentPre').textContent = 'Error loading snapshot';
+            renderSnapshotCollapsible('Error loading snapshot');
+        }
+    });
+}
+// ================== End Config Store Functions ==================
+
+//-------------------------------------------------------Color Service--------------------------------------------------
+let configBox = document.getElementById('pod_config_box')
+let configNfs = document.getElementById('nfs_config_box')
+let options = {{service_options |default:"{}"| safe}}
+let cluster_info = {{cluster_info |default:"{}"| safe}};
+let serviceColorCode = (options && options['service_color_code']) ? options['service_color_code'] : {};
+
+function applyServiceColor(selector, colorKey) {
+    var color = serviceColorCode[colorKey];
+    if (!color) {
+        return;
+    }
+
+    var element = document.querySelector(selector);
+    if (element) {
+        element.style.background = color;
+    }
+}
+
+function applyServiceColorAll(selector, colorKey) {
+    var color = serviceColorCode[colorKey];
+    if (!color) {
+        return;
+    }
+
+    document.querySelectorAll(selector).forEach(function(con) {
+        con.style.background = color;
+    });
+}
+
+applyServiceColor('[ data-bs-whatever="TrainingServer"]', 'TrainingServer')
+applyServiceColor('[ data-bs-whatever="InferenceServer"]', 'InferenceServer')
+applyServiceColor('[ data-bs-whatever="MCPServer"]', 'MCPServer')
+applyServiceColor('[ data-bs-whatever="RAG"]', 'RAG')
+applyServiceColor('[ data-bs-whatever="Text2SQL"]', 'Text2SQL')
+applyServiceColor('[ data-bs-whatever="Text2CLK"]', 'Text2CLK')
+applyServiceColor('[ data-bs-whatever="ConvCall"]', 'ConvCall')
+applyServiceColor('[ data-bs-whatever="ConvForm"]', 'ConvForm')
+applyServiceColor('[ data-bs-whatever="ASR"]', 'ASR')
+applyServiceColor('[ data-bs-whatever="TTS"]', 'TTS')
+applyServiceColor('[ data-bs-whatever="ANS"]', 'ANS')
+applyServiceColor('[ data-bs-whatever="McpProxy"]', 'McpProxy')
+applyServiceColor('[ data-bs-whatever="ProxyDataJam"]', 'ProxyDataJam')
+applyServiceColor('[ data-bs-whatever="Airflow"]', 'Airflow')
+
+applyServiceColorAll('[ data-for="AIOrchestrator"]', 'Orchestrator')
+applyServiceColorAll('[ data-for="TrainingServer"]', 'TrainingServer')
+applyServiceColorAll('[ data-for="InferenceServer"]', 'InferenceServer')
+applyServiceColorAll('[ data-for="MCPServer"]', 'MCPServer')
+applyServiceColorAll('[ data-for="RAG"]', 'RAG')
+applyServiceColorAll('[ data-for="Text2SQL"]', 'Text2SQL')
+applyServiceColorAll('[ data-for="Text2CLK"]', 'Text2CLK')
+applyServiceColorAll('[ data-for="ConvCall"]', 'ConvCall')
+applyServiceColorAll('[ data-for="ConvForm"]', 'ConvForm')
+applyServiceColorAll('[ data-for="ASR"]', 'ASR')
+applyServiceColorAll('[ data-for="TTS"]', 'TTS')
+applyServiceColorAll('[ data-for="ANS"]', 'ANS')
+applyServiceColorAll('[ data-for="McpProxy"]', 'McpProxy')
+applyServiceColorAll('[ data-for="ProxyDataJam"]', 'ProxyDataJam')
+applyServiceColorAll('[ data-for="Airflow"]', 'Airflow')
+
+// Modal auto close function
+$(document).ready(function () {
+  var modal = $('#PodModal');
+
+  modal.on('click', function (event) {
+    if ($(event.target).hasClass('modal')) {
+      modal.modal('hide');
+          setTimeout(() => {
+            clearInterval(eventInterval);
+            console.log("service closed______");
+          }, 3000);
+      }
+  });
+});
+$(document).ready(function() {
+  var modals = $('#NodeModal');
+
+  modals.on('click', function(event) {
+    if ($(event.target).hasClass('modal')) {
+      modals.modal('hide');
+
+     setTimeout(() => {
+       clearInterval(nodeInterval);
+       console.log("node service closed______");
+     }, 2000);
+    }
+  });
+});
+
+</script>
+</body>
+{% endblock %}
+{% include "footer.html" %}
+</html>

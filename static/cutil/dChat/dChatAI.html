@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ title }}</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it/dist/markdown-it.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it-container/dist/markdown-it-container.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js"
+    integrity="sha384-cVKIPhGWiC2Al4u+LWgxfKTRIcfu0JTxR+EQDz/bgldoEyl4H0zUF0QKbrJ0EcQF"
+    crossorigin="anonymous"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css"
+    integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet" />
+
+  {% load static %}
+  <link rel="shortcut icon" type="image/png" href="{% static logo_path %}" />
+  <link rel="stylesheet" type="text/css" href="{% static 'cChatStyle.css' %}" />
+  <script type="module" src="{% static 'dChat/dChat.js' %}"></script>
+
+  <style>
+    
+    table {
+      display: block;
+      overflow-x: auto;
+      overflow-y: auto;
+      max-height: 300px;
+      max-width: 100%;
+      white-space: nowrap;
+    }
+
+    .loader {
+      font-size: 14px;
+    }
+
+    .loader span {
+      color: #e40000;
+      font-size: 40px;
+      animation: blink 1.5s infinite;
+    }
+
+    .loader span:nth-child(1) {
+      animation-delay: 0s;
+    }
+
+    .loader span:nth-child(2) {
+      animation-delay: 0.3s;
+    }
+
+    .loader span:nth-child(3) {
+      animation-delay: 0.6s;
+    }
+
+    @keyframes blink {
+      0% {
+        opacity: 0;
+      }
+
+      50% {
+        opacity: 1;
+      }
+
+      100% {
+        opacity: 0;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Full Page Flex Layout -->
+      <div class="d-flex px-0" style="height: 100vh; overflow: hidden">
+        <!-- Sidebar -->
+        <div id="sidebar" class="sidebar position-relative" style="max-width: 20%">
+          <i class="bi bi-chat-square-text sidebarToggle mt-1  "></i>
+          <i class="bi bi-layout-sidebar sidebar-toggle mt-1" id="toggleSidebar"></i>
+
+          <div class="sub-element mt-5">
+            <div class="new-chat ">
+              <button class="new-chat-button " onclick='resetChatView()'>
+               <i class="bi bi-pencil-square fs-6"></i>
+               <span class="new-chat-text">New Chat</span>
+              </button>
+            </div>
+            {% comment %}
+            <div class="row my-4">
+              <h6>My Widgets</h6>
+              <button class="widget-btn btn p-0 text-muted col-4" data-bs-toggle="modal"
+                data-bs-target="#scheduleModal">
+                <i class="bi bi-calendar-event me-1"></i><br />
+                Daily KPIs
+              </button>
+              <button class="widget-btn btn p-0 text-muted col-4" data-bs-toggle="modal"
+                data-bs-target="#scheduleModal">
+                <i class="bi bi-calendar4-week me-1"></i><br />
+                Weekly KPI
+              </button>
+              <button class="widget-btn btn p-0 text-muted col-4" data-bs-toggle="modal"
+                data-bs-target="#scheduleModal">
+                <i class="bi bi-folder-check me-1"></i><br />
+                RCA Check
+              </button>
+            </div> {% endcomment %}
+            <div class="row my-2" id="widgets-container" style="min-height:20vh; max-height:20vh; overflow-y:auto;">
+              <h6>My Widgets</h6>
+              {% for widget in widget_info %}
+              <button class="widget-btn btn p-0 text-muted col-4" data-id="{{ widget.id }}"
+                data-widget_name="{{ widget.widget_name }}" data-start="{{ widget.start_date }}"
+                data-time="{{ widget.time }}" data-tz="{{ widget.time_zone }}" data-query="{{ widget.type }}"
+                data-emails="{{ widget.email_list|join:',' }}" data-bs-toggle="modal" data-bs-target="#addModal">
+                {% if widget.type == "Daily" %}
+                <i class="bi bi-calendar-event me-1"></i>
+                {% elif widget.type == "Weekly" %}
+                <i class="bi bi-calendar4-week me-1"></i>
+                {% elif widget.type == "Monthly" %}
+                <i class="bi bi-folder-check me-1"></i>
+                {% else %}
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                {% endif %}
+                <br />
+                {{ widget.name }}
+              </button>
+              {% endfor %}
+            </div>
+
+            <div>
+              <h6>Recent Queries</h6>
+              <ul class="list-unstyled small" id="chatHistoryList" style="overflow-y:auto; overflow-x:hidden;"
+                onclick="history(event)">{% for item in chat_history %}
+                <li>
+                  <a href="" class="text-decoration-none text-muted" title="{{ item.query }}">{{ item.query }}</a>
+                  <p class="d-none queryId">{{item.question_id }}</p>
+                </li>
+                {% empty %}
+                <li>No chat history found.</li>
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat Section -->
+        <div id="chat-main-area" class="flex-grow-1 d-flex flex-column" style="background: #f9f7f7; justify-content: flex-start; width: 80%;">
+          <div class="chat-header d-flex align-items-center justify-content-between">
+            <div class="chat-logo d-flex align-items-center">
+              {% load static %}
+              <img src="{% static logo_path %}" />
+              <span class="ms-2 fw-bold">{{ agent }}</span>
+            </div>
+
+            <div class="user-menu-container" style="position: relative;">
+
+              <button id="userButton" class="btn">
+                <i class="bi bi-person-circle fs-4 text-danger icon-spin"></i>
+              </button>
+
+              <div class="pop-up" id="popupMenu">
+                <ul class="list-unstyled popup mb-0">
+
+                  <li class="px-2 pt-2 pb-3 text-center justify-content-center">
+                    <div>{{user_name}}</div>
+                  </li>
+
+                  <li><i class="bi bi-gear"></i> Setting</li>
+                  <li><i class="bi bi-info-circle"></i> Help</li>
+                  <li><i class="bi bi-box-arrow-right"></i> Logout</li>
+                </ul>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Chat Body -->
+          <div class="chat-body flex-grow-1" style="padding: 20px 100px; max-width: 100%;">
+            <!-- ..................Starter Msg................................ -->
+            <div id="starter-ui">
+              <h2 class="text-center">{{ starter_msg }}
+                <span class="highlight-text">{{starter_msg_brand}}</span>
+              </h2>
+              <div class="suggested-queries-container">
+                {% for query in query_list %}
+                <div class="suggested-query" onclick="startChat(this)">
+                  <strong>{{ query }}</strong>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+            <!-- ................................................. -->
+            <div class="wrapper">
+              <div class="chat-message d-none">
+                <div class="message-actions">
+                  <i class="bi bi-clipboard fs-6" title="Copy" onclick="copyQuery(event)"></i>
+                  <i class="bi bi-info-circle fs-6 widget-btn text-muted" role="button" data-bs-toggle="modal"
+                    data-bs-target="#addModal" title="Add">
+                  </i>
+                </div>
+                <div class="user-query" style="position: relative;"></div>
+                <p style="position: absolute; bottom: -5px; right: 10px;" class="date-time mt-2 mb-2"></p>
+              </div>
+
+              <div class="bot-response-wrapper d-none my-5">
+                <div class="agent-response p-1 response-block" style="position: relative; max-width: 100%;"></div>
+
+
+                <div class="bot-response-actions">
+                  <i class="bi bi-hand-thumbs-up" title="Like" value="positive" onclick="handleFeedback(event)">
+                  </i>
+                  <i class="bi bi-hand-thumbs-down" title="Dislike" value="negative" onclick="handleFeedback(event)">
+                  </i>
+                  <i class="bi bi-clipboard" title="Copy" onclick="copyResponse(event)"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Typing Section -->
+          <div class="chat-input">
+            <div class="input-box position-relative" id="input-box">
+              <input type="text" placeholder="Ask anything…" class="messageInput" id="messageInput" />
+              <input type="file" id="fileInput" style="display: none" multiple />
+
+              <!-- Show selected files here -->
+              <div id="filePreview" class="mt-2 d-flex flex-wrap gap-2"></div>
+
+              <div class="chat-input-icons d-flex align-items-center gap-3 mt-2">
+                <i class="bi bi-plus fs-4" title="Upload file" id="uploadButton"></i>
+                <i class="bi bi-send-fill fs-4" title="Send message" id="sendButton" onclick="getQuery()"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="widgets-container" class="row g-2">
+      {% for widget in widgets %}
+      <button class="widget-btn btn p-0 text-muted col-4" data-id="{{ widget.id }}"
+        data-widget_name="{{ widget.widget_name }}" data-start="{{ widget.start_date }}" data-time="{{ widget.time }}"
+        data-tz="{{ widget.time_zone }}" data-query="{{ widget.periodicity }}"
+        data-emails="{{ widget.email_list|join:',' }}" data-bs-toggle="modal" data-bs-target="#addModal">
+        {% if widget.periodicity == "DAILY" %}
+        <i class="bi bi-calendar-event me-1"></i>
+        {% elif widget.periodicity == "WEEKLY" %}
+        <i class="bi bi-calendar4-week me-1"></i>
+        {% elif widget.periodicity == "MONTHLY" %}
+        <i class="bi bi-folder-check me-1"></i>
+        {% else %}
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        {% endif %}
+        <br>{{ widget.periodicity }} Report
+      </button>
+      {% endfor %}
+    </div>
+
+    <!-- Add Modal -->
+    <div class="modal fade" id="addModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" role="dialog"
+      aria-labelledby="addModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <!-- Dynamic title for Add/Edit -->
+            <div class="modal-title" id="addModalLabel">Add Report</div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <form id="addReportForm" method="post" enctype="multipart/form-data" action="">
+            {% csrf_token %}
+            <div class="modal-body">
+              <div class="form-group">
+                <div class="row">
+                  <input type="hidden" name="question" id="question" />
+                  <div class="col-md-3">
+                    <label for="widget_name" class="form-label">Name</label>
+                    <input type="text" class="form-control mx-0" name="widget_name" id="widget_name" required>
+                  </div>
+                </div>
+                <div class="row mt-1">
+                  <div class="col-md-3">
+                    <label for="start_date" class="form-label">Start Date</label>
+                    <input type="date" class="form-control mx-0" name="start_date" id="start_date" required>
+                  </div>
+                  <div class="col-md-3">
+                    <label for="add_time" class="form-label">Time</label>
+                    <input type="time" class="form-control mx-0" name="time" id="add_time" required>
+                  </div>
+                  <div class="col-md-3">
+                    <label for="time_zone" class="form-label">Time Zone</label>
+                    <select class="form-select" id="time_zone" name="time_zone" required>
+                      <option selected disabled value="">------</option>
+                      <option value="US/Eastern">US/Eastern</option>
+                      <option value="US/Central">US/Central</option>
+                      <option value="US/Pacific">US/Pacific</option>
+                      <option value="Europe/London">Europe/London</option>
+                      <option value="UTC">UTC</option>
+                      <option value="Europe/Belgrade">Europe/Belgrade</option>
+                      <option value="Asia/Kolkata">Asia/Kolkata</option>
+                    </select>
+                  </div>
+                  <div class="col-md-3">
+                    <label for="periodicity" class="form-label">Periodicity</label>
+                    <select class="form-select" id="periodicity" name="periodicity" required>
+                      <option selected disabled value="">------</option>
+                      <option value="DAILY">Daily</option>
+                      <option value="HOURLY">Hourly</option>
+                      <option value="WEEKLY">Weekly</option>
+                      <option value="MONTHLY">Monthly</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="col-md-4 mt-3 form-label">Email</div>
+                <div class="row mb-1" id="addEmailField">
+                  <input type="hidden" name="emails" id="emails">
+                  <div class="d-flex">
+                    <input type="email" name="email" class="form-select border mx-0 px-2 w-50 py-1" required>
+                    <input type="button" value="+" onclick="addRow(event);" class="fs-6 h-100 input"
+                      style="font-weight: bold;">
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <!-- Delete button, hidden for Add, shown for Edit via JS -->
+              <button type="button" id="deleteWidgetBtn" class="btn px-3 py-0 text-light"
+                style="background:#dc3545; display:none;">Delete</button>
+              <button type="submit" class="btn px-3 py-0 text-light" style="background:#dc3545;">Save</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Schedule Modal -->
+    <div class="modal fade" id="scheduleModal" tabindex="-1" aria-labelledby="scheduleModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content p-3" style="border-radius: 8px">
+          <div class="modal-header">
+            <div class="modal-title" id="scheduleModalLabel">Edit Widgets</div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <input type="hidden" name="widget_id" id="widget_id">
+              <div class="row">
+                <div class="col-md-3">
+                  <label for="widget_name_s" class="form-label">Name</label>
+                  <input type="text" class="form-control mx-0" name="widget_name" id="widget_name_s" required>
+                </div>
+              </div>
+              <div class="row mt-1">
+                <div class="col-md-3">
+                  <label for="start_date_s" class="form-label">Start Date</label>
+                  <input type="date" class="form-control mx-0" name="start_date" id="start_date_s" required>
+                </div>
+                <div class="col-md-3">
+                  <label for="time_s" class="form-label">Time</label>
+                  <input type="time" class="form-control mx-0" name="time" id="time_s" required>
+                </div>
+                <div class="col-md-3">
+                  <label for="time_zone_s" class="form-label">Time Zone</label>
+                  <select class="form-select" id="time_zone_s" name="time_zone" required>
+                    <option selected disabled value="">------</option>
+                    <option>Asia</option>
+                    <option>Kolkata</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label for="periodicity_s" class="form-label">Periodicity</label>
+                  <select class="form-select mx-0" id="periodicity_s" name="periodicity" required>
+                    <option selected disabled value="">------</option>
+                    <option>Daily</option>
+                    <option>Weekly</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <div class="mb-3">
+                    <label class="form-label">Status</label>
+                    <select class="form-select">
+                      <option>Enable</option>
+                      <option>Disable</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4 mt-3 form-label">Email</div>
+              <div class="row mb-1" id="addEmailField_s">
+                <input type="hidden" name="emails" id="emails_s">
+                <div class="d-flex">
+                  <input type="email" name="email" id="edit_email" class="border form-select mx-0 px-2 w-50 py-1">
+                  <input type="button" value="+" onclick="addRow(event);" class="fs-6 h-100 input"
+                    style="font-weight: bold;">
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn px-3 py-1 text-light" data-bs-dismiss="modal"
+              style="background:#dc3545;">Delete</button>
+            <button type="submit" class="btn px-3 py-1 text-light" style="background:#dc3545;">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+
+
+  <script>
+    let chat_history = {};
+    const md = window.markdownit();
+
+    function createDate() {
+      let now = new Date();
+      return now.toLocaleString("en-GB").replace(",", "").replace(/\//g, "-");
+    }
+
+
+    function startChat(element) {
+     
+      const queryText = element.innerText;
+      document.getElementById('starter-ui').style.display = 'none';
+      document.querySelector('.wrapper').style.display = 'block';
+      getQuery(queryText);
+    }
+    let service_name = "{{ service_name}}"
+    // Send request
+    async function getQuery(queryText = null) {
+      const inputField = document.querySelector("#messageInput");
+      const query = queryText || inputField.value.trim();
+      if (!query) return;
+
+      const starterUI = document.getElementById('starter-ui');
+      document.getElementById('chat-main-area').style.justifyContent = 'flex-start';
+      
+      if (starterUI && starterUI.style.display !== 'none') {
+        starterUI.style.display = 'none';
+        document.querySelector('.wrapper').style.display = 'block';
+      }
+      
+      let chatBody = document.querySelector(".chat-body");
+      let wrapper = document.querySelector(".wrapper");
+
+      let newWrapper = wrapper.cloneNode(true);
+      chatBody.appendChild(newWrapper);
+
+      newWrapper.style.display = 'block';
+
+      let queryCon = newWrapper.querySelector(".user-query");
+      let paraCon = queryCon.nextElementSibling;
+
+      paraCon.textContent = createDate();
+      paraCon.classList.add("mb-2");
+      const userMessageContainer = queryCon.parentNode;
+      userMessageContainer.classList.remove("d-none");
+
+      setTimeout(() => {
+        userMessageContainer.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }, 0); 
+
+      let resCon = newWrapper.querySelector(".agent-response");
+      queryCon.textContent = query;
+      resCon.innerHTML = "";
+
+      let loader = document.createElement("div");
+      loader.textContent = "Processing";
+      loader.classList.add("loader");
+      for (let i = 0; i < 3; i++) {
+        const dot = document.createElement("span");
+        dot.textContent = ".";
+        loader.appendChild(dot);
+      }
+      newWrapper.appendChild(loader);
+
+      inputField.disabled = true;
+      sendButton.style.pointerEvents = "none";
+      sendButton.style.opacity = "0.5";
+
+      await window.dChat.dChatSendRequest(query, `/${service_name}/ChatAI/GetQueryResponse/`, resCon);
+
+      // Clear the input field only if the query came from there
+      if (!queryText) {
+        inputField.value = "";
+      }
+
+      inputField.disabled = false;
+      sendButton.style.pointerEvents = "auto";
+      sendButton.style.opacity = "1";
+      inputField.focus();
+
+
+    }
+    
+    document.getElementById("widgets-container").addEventListener("click", function (e) {
+      const btn = e.target.closest(".widget-btn");
+      if (!btn) {
+        console.log("No .widget-btn clicked");
+        return;
+      }
+
+      const widgetName = btn.getAttribute("data-widget_name");
+
+      if (!widgetName) {
+        console.error("Widget ID not found");
+        return;
+      }
+
+      fetch(`/${service_name}/GetWidget/?widget_name=${widgetName}`)
+        .then(response => response.json())
+        .then(data => {
+          if (data) {
+            document.querySelector("input[name='widget_id']").value = data.widget_id;
+            document.querySelector("input[name='widget_name']").value = data.widget_name;
+            document.querySelector("input[name='start_date']").value = data.start_date;
+            document.querySelector("input[name='time']").value = data.time;
+            document.querySelector("select[name='time_zone']").value = data.time_zone;
+            document.querySelector("select[name='periodicity']").value = data.periodicity;
+            document.querySelector("input[name='email']").value = data.email_list.join(",");
+
+            const questionField = document.querySelector("input[name='question']");
+            if (questionField) {
+              questionField.value = data.question || "";
+              console.log("Stored question:", data.question);
+            }
+          }
+        })
+        .catch(err => console.error("Error fetching widget:", err));
+    });
+
+   
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        getQuery();
+      }
+    });
+
+    
+    // function copyResponse(event) {
+    //   let resContainer = event.target.closest(".bot-response-wrapper").querySelector(".response-block");
+    //   let text = resContainer.innerText.trim();
+
+      
+    //   navigator.clipboard.writeText(text).then(() => {
+        
+    //     event.target.classList.remove("bi-clipboard");
+    //     event.target.classList.add("bi-check");
+
+        
+    //     setTimeout(() => {
+    //       event.target.classList.remove("bi-check");
+    //       event.target.classList.add("bi-clipboard");
+    //     }, 2000);
+    //   });
+    // }
+
+  function copyResponse(event) {
+  let resContainer = event.target.closest(".bot-response-wrapper").querySelector(".response-block");
+  let text = resContainer.innerText.trim();
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      event.target.classList.remove("bi-clipboard");
+      event.target.classList.add("bi-check");
+      setTimeout(() => {
+        event.target.classList.remove("bi-check");
+        event.target.classList.add("bi-clipboard");
+      }, 2000);
+    }).catch(err => {
+      console.error('Async: Could not copy text: ', err);
+    });
+
+  } else {
+    let textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.top = 0;
+    textArea.style.left = 0;
+    textArea.style.opacity = 0;
+
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+      let successful = document.execCommand('copy');
+      
+      if (successful) {
+        event.target.classList.remove("bi-clipboard");
+        event.target.classList.add("bi-check");
+
+        setTimeout(() => {
+          event.target.classList.remove("bi-check");
+          event.target.classList.add("bi-clipboard");
+        }, 2000);
+      } else {
+        console.error('Fallback: Unable to copy');
+      }
+    } catch (err) {
+      console.error('Fallback: Oops, unable to copy', err);
+    }
+    document.body.removeChild(textArea);
+  }
+}
+
+    // Copy user query
+    // function copyQuery(event) {
+    //   let resContainer = event.target.closest(".chat-message").querySelector(".user-query");
+    //   let text = resContainer.innerText.trim();
+
+    //   navigator.clipboard.writeText(text).then(() => {
+    //     event.target.classList.remove("bi-clipboard");
+    //     event.target.classList.add("bi-check");
+
+    //     setTimeout(() => {
+    //       event.target.classList.remove("bi-check");
+    //       event.target.classList.add("bi-clipboard");
+    //     }, 2000);
+    //   });
+    // }
+
+  function copyQuery(event) {
+  let resContainer = event.target.closest(".chat-message").querySelector(".user-query");
+  let text = resContainer.innerText.trim();
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      event.target.classList.remove("bi-clipboard");
+      event.target.classList.add("bi-check");
+
+      setTimeout(() => {
+        event.target.classList.remove("bi-check");
+        event.target.classList.add("bi-clipboard");
+      }, 2000);
+    }).catch(err => {
+      console.error('Async: Could not copy text: ', err);
+    });
+
+  } else {
+    let textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.top = 0;
+    textArea.style.left = 0;
+    textArea.style.opacity = 0;
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+      let successful = document.execCommand('copy');
+      
+      if (successful) {
+        event.target.classList.remove("bi-clipboard");
+        event.target.classList.add("bi-check");
+
+        setTimeout(() => {
+          event.target.classList.remove("bi-check");
+          event.target.classList.add("bi-clipboard");
+        }, 2000);
+      } else {
+        console.error('Fallback: Unable to copy');
+      }
+    } catch (err) {
+      console.error('Fallback: Oops, unable to copy', err);
+    }
+    document.body.removeChild(textArea);
+  }
+}
+
+
+    // Send feedback
+    function handleFeedback(event) {
+      let feedback = event.target.getAttribute("value");
+      //    let responseId = event.target.closest(".bot-response-wrapper").previousElementSibling.getAttribute("data-question-id");
+      let responseId = event.target.closest(".bot-response-wrapper").querySelector(".agent-response").getAttribute("data-question-id");
+      if (feedback === "positive") {
+        event.target.classList.replace("bi-hand-thumbs-up", "bi-hand-thumbs-up-fill");
+        event.target.nextElementSibling.classList.add("d-none");
+      } else {
+        event.target.classList.replace("bi-hand-thumbs-down", "bi-hand-thumbs-down-fill");
+        event.target.previousElementSibling.classList.add("d-none");
+      }
+
+      fetch(`/${service_name}/Analytics/ChatPage/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ feedback, responseId }),
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+      const button = document.getElementById("userButton");
+      const popup = document.getElementById("popupMenu");
+      const sidebarToggle = document.getElementById("toggleSidebar");
+      const sidebar = document.getElementById("sidebar");
+
+      
+      if (button) {
+        button.addEventListener("click", function (e) {
+          e.stopPropagation();
+          popup.style.display = popup.style.display === "block" ? "none" : "block";
+        });
+      }
+      document.addEventListener("click", () => (popup ? (popup.style.display = "none") : null));
+
+      if (sidebarToggle) {
+      sidebarToggle.addEventListener("click", function () {
+      sidebar.classList.toggle("collapsed");
+      });
+      }
+    });
+
+    function resetChatView() {
+      const starterUI = document.getElementById('starter-ui');
+      const allWrappers = document.querySelectorAll('.wrapper');
+
+      allWrappers.forEach((wrapper, index) => {
+        if (index === 0) {
+          wrapper.style.display = 'none';
+        } else {
+          wrapper.remove();
+        }
+      });
+
+      if (starterUI) {
+        starterUI.style.display = 'flex';
+      }
+    }
+
+    // --- Helper function to wrap ONLY tables ---
+    function wrapOnlyTables(htmlString) {
+    if (htmlString && htmlString.includes("<table")) {
+      let wrappedHtml = htmlString.replace(/<table/g, '<div class="table-container"><table');
+      wrappedHtml = wrappedHtml.replace(/<\/table>/g, '</table></div>');
+      return wrappedHtml;
+    }
+    return htmlString; 
+    }
+    // History load
+    async function history(event) {
+      if (event.target.tagName === "A") {
+        event.preventDefault();
+        let queryId = event.target.nextElementSibling.textContent;
+        let query = event.target.textContent;
+        resetChatView();
+
+        let response = await fetch(`/${service_name}/Analytics/ChatHistory/${queryId}/`);
+        if (response.ok) {
+          let res = await response.json();
+          let chatBodyContainer = document.querySelector(".chat-body");
+          let wrapper = chatBodyContainer.querySelector(".wrapper");
+
+          
+          document.getElementById('starter-ui').style.display = 'none';
+
+          let cloneWrapper = wrapper.cloneNode(true);
+          cloneWrapper.style.display = 'block';
+          chatBodyContainer.appendChild(cloneWrapper);
+
+          cloneWrapper.style.display = 'block';
+
+          cloneWrapper.querySelector(".chat-message").classList.remove("d-none");
+          cloneWrapper.querySelector(".bot-response-wrapper").classList.remove("d-none");
+
+          cloneWrapper.querySelector(".user-query").innerText = query;
+          cloneWrapper.querySelector(".user-query").nextElementSibling.textContent = res["question_time"];
+
+          let responseCon = cloneWrapper.querySelector(".agent-response");
+          responseCon.classList.add("response-block");
+          let renderedHtml = window.md.render(res["response"]);
+          responseCon.innerHTML = wrapOnlyTables(renderedHtml);
+          responseCon.setAttribute("data-question-id", queryId);
+
+          let input = document.createElement("input");
+          input.value = res["response"];
+          input.style.cssText = "opacity: 0; position: absolute; bottom: 0; left: 10%;";
+          responseCon.appendChild(input);
+
+          let icons = Array.from(cloneWrapper.querySelector(".bot-response-actions").querySelectorAll("i")).slice(0, 2);
+          if (res["feedback"] === "positive") {
+            icons[0].classList.remove("d-none");
+            icons[0].classList.replace("bi-hand-thumbs-up", "bi-hand-thumbs-up-fill");
+            icons[1].classList.add("d-none");
+          } else if (res["feedback"] === "negative") {
+            icons[1].classList.remove("d-none");
+            icons[1].classList.replace("bi-hand-thumbs-down", "bi-hand-thumbs-down-fill");
+            icons[0].classList.add("d-none");
+          } else {
+            icons[0].classList.remove("d-none");
+            icons[0].classList.replace("bi-hand-thumbs-up-fill", "bi-hand-thumbs-up");
+            icons[1].classList.remove("d-none");
+            icons[1].classList.replace("bi-hand-thumbs-down-fill", "bi-hand-thumbs-down");
+          }
+        }
+      }
+    }
+
+    // Add/remove rows
+    function addRow(event) {
+      let parentContainer = event.target.parentNode.parentNode;
+      let div = document.createElement("div");
+      div.classList.add("d-flex");
+      div.innerHTML = `
+      <input type="email" class="form-select border mx-0 px-2 w-50 py-1" title="">
+      <input type="button" value="-" onclick="removeRow(event);" class="fs-6 h-100 input" style="font-weight: bold;">
+    `;
+      parentContainer.appendChild(div);
+    }
+
+    function removeRow(event) {
+      let fieldContainer = event.target.parentNode;
+      fieldContainer.parentNode.removeChild(fieldContainer);
+    }
+
+    
+    function collectEmails() {
+      const emailContainer = document.getElementById("addEmailField");
+      const emailInputs = emailContainer.querySelectorAll('input[type="email"]');
+      const emails = [];
+      emailInputs.forEach((input) => {
+        if (input.value.trim()) emails.push(input.value.trim());
+      });
+      document.getElementById("emails").value = JSON.stringify(emails);
+    }
+
+    
+    function getCurrentUserQuery() {
+      
+      const chatMessages = document.querySelectorAll(".user-query");
+      if (chatMessages.length > 0) {
+        const lastMessage = chatMessages[chatMessages.length - 1];
+        return lastMessage.textContent.trim();
+      }
+      const inputField = document.querySelector("#messageInput");
+      if (inputField && inputField.value.trim()) {
+        return inputField.value.trim();
+      }
+
+      return null;
+    }
+
+
+    // Add Json
+    // ---------------- ADD / EDIT WIDGET ----------------
+
+    function addJson(e, widgetName = null) {
+      e.preventDefault();
+      collectEmails();
+
+      const form = document.getElementById("addReportForm");
+      const formData = new FormData(form);
+
+      // Decide action
+      const actionType = widgetName ? "edit" : "add";
+      formData.append("action", actionType);
+      if (widgetName) formData.append("widget_name", widgetName);
+
+      // send the query
+      const currentQuery = getCurrentUserQuery();
+      if (currentQuery) {
+        formData.append("question", currentQuery);
+      }
+      fetch(`/${service_name}/GetWidget/`, {
+        method: "POST",
+        body: formData,
+        headers: {
+          "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value
+        }
+      })
+        .then(data => {
+          // Show toast depending on response
+          data.json?.().then(parsed => {
+            if (parsed?.msg !== undefined && parsed?.res !== undefined) {
+              showToast(parsed.msg, parsed.res ? "success" : "danger");
+            }
+          }).catch(err => {
+            // If parsing fails, ignore toast
+            console.warn("No JSON for toast:", err);
+          });
+          if (data.ok) {
+            const modal = bootstrap.Modal.getInstance(document.getElementById("addModal"));
+            if (modal) modal.hide();
+
+            const container = document.getElementById("widgets-container");
+            const widget = data.widget;
+            if (data.action === "add") {
+              const btn = createWidgetButton(data.id, widget, form);
+              container.appendChild(btn);
+            } else if (data.action === "edit") {
+              const btn = container.querySelector(`[data-id="${data.id}"]`);
+              if (btn) updateWidgetButton(btn, widget, form);
+            }
+
+            resetForm();
+          }
+        })
+        .catch(err => {
+          console.error("AJAX Error:", err);
+          alert("Server error, please try again later.");
+        });
+    }
+
+    // For Showing toast
+    function showToast(message, type = "info") {
+      const toastContainer = document.getElementById("toast-container");
+
+      // Create toast element
+      const toast = document.createElement("div");
+      toast.className = `toast align-items-center text-bg-${type} border-0`;
+      toast.role = "alert";
+      toast.ariaLive = "assertive";
+      toast.ariaAtomic = "true";
+      toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" 
+                data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    `;
+
+      toastContainer.appendChild(toast);
+
+      // Initialize and show toast
+      const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+      bsToast.show();
+
+      // Auto-remove after hidden
+      toast.addEventListener("hidden.bs.toast", () => toast.remove());
+    }
+
+    // ---------------- HELPER FUNCTIONS ----------------
+    function createWidgetButton(id, widget, form) {
+      const btn = document.createElement("button");
+      btn.className = "widget-btn btn p-0 text-muted col-4";
+      btn.setAttribute("data-id", id);
+      btn.setAttribute("data-query", widget.type);
+
+      // Build content safely
+      btn.appendChild(getWidgetContent(widget));
+
+      updateBtnData(btn, form);
+
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        openWidgetForEdit(id, btn);
+      });
+
+      return btn;
+    }
+
+    function getWidgetContent(widget) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "widget-content text-center";
+
+      const icon = document.createElement("i");
+      switch (widget.type) {
+        case "DAILY": icon.className = "bi bi-calendar-event me-1"; break;
+        case "WEEKLY": icon.className = "bi bi-calendar4-week me-1"; break;
+        case "MONTHLY": icon.className = "bi bi-folder-check me-1"; break;
+        default: icon.className = "bi bi-exclamation-triangle me-1";
+      }
+
+      const br = document.createElement("br");
+      const text = document.createTextNode(widget.name);
+
+      wrapper.appendChild(icon);
+      wrapper.appendChild(br);
+      wrapper.appendChild(text);
+
+      return wrapper;
+    }
+
+    function updateWidgetButton(btn, widget, form) {
+      // Remove old content
+      while (btn.firstChild) btn.removeChild(btn.firstChild);
+
+      // Append new safe content
+      btn.appendChild(getWidgetContent(widget));
+
+      updateBtnData(btn, form);
+    }
+
+    function updateBtnData(btn, form) {
+      btn.dataset.widget_name = form.querySelector("[name='widget_name']").value;
+      btn.dataset.start = form.querySelector("[name='start_date']").value;
+      btn.dataset.time = form.querySelector("[name='time']").value;
+      btn.dataset.tz = form.querySelector("[name='time_zone']").value;
+      btn.dataset.query = form.querySelector("[name='periodicity']").value;
+      btn.dataset.emails = form.querySelector("[name='emails']").value;
+    }
+
+    function resetForm() {
+      const form = document.getElementById("addReportForm");
+      form.reset();
+      const deleteBtn = document.getElementById("deleteWidgetBtn");
+      deleteBtn.style.display = "none";
+      document.getElementById("addModalLabel").textContent = "Add Report";
+    }
+
+    // ---------------- OPEN FOR EDIT ----------------
+    function openWidgetForEdit(widgetName, btn) {
+      const form = document.getElementById("addReportForm");
+      const modalEl = document.getElementById("addModal");
+
+      const existingModal = bootstrap.Modal.getInstance(modalEl);
+      if (existingModal) existingModal.dispose();
+
+      // Fill form fields from button data
+      form.querySelector("[name='widget_name']").value = btn.dataset.widget_name || "";
+      form.querySelector("[name='start_date']").value = btn.dataset.start || "";
+      form.querySelector("[name='time']").value = btn.dataset.time || "";
+      form.querySelector("[name='time_zone']").value = btn.dataset.tz || "";
+      form.querySelector("[name='periodicity']").value = btn.dataset.query || "";
+      form.querySelector("[name='emails']").value = btn.dataset.emails || "";
+
+      const deleteBtn = document.getElementById("deleteWidgetBtn");
+      deleteBtn.style.display = "block";
+      deleteBtn.onclick = () => deleteWidget(widgetName, btn);
+
+      form.onsubmit = (e) => addJson(e, widgetName);
+
+      document.getElementById("addModalLabel").textContent = "Edit Report";
+
+      const modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
+
+      modalEl.addEventListener('hidden.bs.modal', function handler() {
+        resetForm();
+        form.onsubmit = (e) => addJson(e);
+        modalEl.removeEventListener('hidden.bs.modal', handler);
+      });
+
+      modal.show();
+    }
+
+    // ---------------- DELETE ----------------
+    function deleteWidget(widgetName, btn) {
+      const formData = new FormData();
+      formData.append("action", "delete");
+      formData.append("widget_name", widgetName);
+
+      fetch(`/${service_name}/GetWidget/`, {
+        method: "POST",
+        body: formData,
+        headers: {
+          "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value
+        }
+      })
+        .then(res => {
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          return res.json();
+        })
+        .then(data => {
+          // Show toast depending on response
+          if (data) {
+            showToast(data.msg, data.res ? "success" : "danger");
+            for (let [key, value] of formData.entries()) {
+              console.log(`${key}: ${value}`);
+            }
+
+            btn.remove();
+            const modal = bootstrap.Modal.getInstance(document.getElementById("addModal"));
+            if (modal) modal.hide();
+          } else {
+            alert("Error deleting widget: " + (data.error || "Something went wrong"));
+          }
+        })
+        .catch(err => {
+          console.error("Delete Error:", err);
+          alert("Failed to delete widget. See console for details.");
+        });
+    }
+
+    // ---------------- INITIALIZE ----------------
+    document.addEventListener("DOMContentLoaded", () => {
+      // Existing widgets
+      document.querySelectorAll(".widget-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          const widgetName = btn.dataset.widget_name;
+          console.log("widgetName ", widgetName);
+          openWidgetForEdit(widgetName, btn);
+        });
+      });
+
+      // Add new widget
+      const addForm = document.getElementById("addReportForm");
+      if (addForm) addForm.onsubmit = (e) => addJson(e);
+    });
+
+  </script>
+</body>
+
+</html>

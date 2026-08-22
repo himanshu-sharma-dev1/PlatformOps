@@ -1,0 +1,107 @@
+# Disposable AgenticNOC control-plane defaults.  The API normalizes requests against
+# the same values in cPlatformIO.src.demo_control_plane.
+contract_version: noc-alarm-stream.v1
+vendor: aviat
+kafka:
+  service_type: InfraKafkaCore
+  mode: single-node
+  controller: KRaft
+  image: bitnami/kafka:3.8.1
+  bootstrap_servers: kafka:9092
+  client_port: 9092
+  controller_port: 9093
+  topics:
+    - name: noc.alarm.raw.v1
+      partitions: 3
+      replication_factor: 1
+      cleanup_policy: delete
+      retention_ms: 86400000
+      value_format: raw-row-json
+      required_headers:
+        - stream_id
+        - cycle_id
+        - row_index
+        - content_type
+        - source
+        - source_file
+    - name: noc.alarm.normalized.v1
+      partitions: 3
+      replication_factor: 1
+      cleanup_policy: delete
+      retention_ms: 86400000
+      value_format: normalized-alarm-json
+    - name: noc.incident.candidate.v1
+      partitions: 3
+      replication_factor: 1
+      cleanup_policy: delete
+      retention_ms: 86400000
+      value_format: candidate-incident-json
+    - name: noc.alarm.dlq.v1
+      partitions: 3
+      replication_factor: 1
+      cleanup_policy: delete
+      retention_ms: 604800000
+      value_format: dead-letter-json
+    - name: noc.alarm.events.v2
+      partitions: 3
+      replication_factor: 1
+      cleanup_policy: delete
+      retention_ms: 86400000
+      value_format: canonical-event-envelope-v2-json
+nifi:
+  vendor: aviat
+  controller: cplatform
+  transport: http
+  flow_version: "1"
+  flow_name: noc-alarm-http-to-agenticnoc-v1
+  legacy_flow_name: noc-alarm-ftp-local-to-kafka
+  listen_port: 9080
+  base_path: aviat
+  agenticnoc_ingest_url: http://180.75.0.7:8000/api/ingestion/v2/alarms/
+  raw_topic: noc.alarm.raw.v1
+  normalized_topic: noc.alarm.normalized.v1
+  candidate_topic: noc.incident.candidate.v1
+  dlq_topic: noc.alarm.dlq.v1
+  outbox: postgresql_transactional
+  publishes_raw_row_json: false
+  publishes_canonical_alarm_json: true
+  control_actions:
+    - start
+    - pause
+    - resume
+    - stop
+    - delete
+simulator:
+  kind: cplatform-replay
+  controller: cplatform
+  stream_id: noc-alarm-stream
+  vendor: aviat
+  url: ""
+  lifecycle:
+    start: /start
+    pause: /pause
+    resume: /resume
+    stop: /stop
+    delete: /delete
+  source_type: local_path
+  events_per_second: 100
+  continuous: true
+  mode: continuous
+  publishes_raw_row_json: true
+  control_actions:
+    - start
+    - pause
+    - resume
+    - stop
+    - delete
+replay:
+  min_events_per_second: 1
+  max_events_per_second: 1000
+  default_events_per_second: 100
+  continuous: true
+  mode: continuous
+  cycle_id_strategy: monotonic
+metrics:
+  kind: prometheus-compatible
+  relation: stream
+  link: /PlatformIO/Monitoring/Performance/

@@ -1,0 +1,122 @@
+{
+    "ConfigCluster": {
+      "group_con": "node-info",
+      "e_type": "staticRow",
+      "e_display": true,
+      "e_name": "static_data",
+      "row_Schema": [
+        {
+          "f_display_name": "NodeName",
+          "f_name": "node_name",
+          "f_type": "text",
+          "f_required": false,
+          "f_display": true,
+          "f_editable": true,
+          "f_width": 3,
+          "v_default": "",
+          "a_onChange": "window.forms.dFormDefaultFunc(event)",
+          "b_name": ["Password", "EncryptionKey"]
+        },
+        {
+          "f_display_name": "IPAddress",
+          "f_name": "node_ip",
+          "f_type": "text",
+          "f_required": false,
+          "f_display": true,
+          "f_editable": true,
+          "f_width": 3,
+          "v_default": "",
+          "a_onChange": "window.forms.dFormDefaultFunc(event)",
+          "b_name": ["Password", "EncryptionKey"]
+        },
+        {
+          "f_display_name": "MonitoringPort",
+          "f_name": "node_monitor_port",
+          "f_type": "number",
+          "f_required": false,
+          "f_display": true,
+          "f_editable": true,
+          "f_width": 3,
+          "v_default": "9010",
+          "a_onChange": "window.forms.dFormDefaultFunc(event)",
+          "b_name": ["Password", "EncryptionKey"]
+        },
+        {
+          "f_display_name": "GpuStatus",
+          "f_name": "gpu_status",
+          "f_type": "single_select",
+          "f_required": false,
+          "f_display": true,
+          "f_editable": true,
+          "f_width": 3,
+          "v_default": "",
+          "v_options" : [ "enabled", "disabled"],
+          "b_name": ["Password", "EncryptionKey"],
+          "a_onChange": "window.forms.dFormDefaultFunc(event)"
+        },
+        {
+          "f_display_name": "AuthType",
+          "f_name": "auth_type",
+          "f_type": "single_select",
+          "f_required": false,
+          "f_display": true,
+          "f_editable": true,
+          "f_width": 3,
+          "v_default": "Password",
+          "v_options" : ["Password", "EncryptionKey"],
+          "b_name": ["Password", "EncryptionKey"],
+          "a_onChange": "SelectAuthType(event)",
+          "b_rows": ["ConfigCluster"]
+        },
+        {
+          "f_display_name": "Username",
+          "f_name": "username",
+          "f_type": "text",
+          "f_required": false,
+          "f_display": true,
+          "f_editable": true,
+          "f_width": 3,
+          "v_default": "",
+          "a_onChange": "window.forms.dFormDefaultFunc(event)",
+          "b_name": ["Password", "EncryptionKey"]
+        },
+        {
+          "f_display_name": "NodeVolume",
+          "f_name": "node_volume",
+          "f_type": "text",
+          "f_required": false,
+          "f_display": true,
+          "f_editable": true,
+          "f_width": 3,
+          "v_default": "",
+          "a_onChange": "window.forms.dFormDefaultFunc(event)",
+          "b_name": ["Password", "EncryptionKey"]
+        },
+        {
+          "f_display_name": "Password",
+          "f_name": "password",
+          "f_type": "password",
+          "f_required": false,
+          "f_display": true,
+          "f_editable": true,
+          "f_width": 3,
+          "v_default": "",
+          "a_onChange": "window.forms.dFormDefaultFunc(event)",
+          "b_name": ["Password"]
+        },
+
+        {
+          "f_display_name": "EncryptionKey",
+          "f_name": "encryption_key",
+          "f_type": "text",
+          "f_required": false,
+          "f_display": false,
+          "f_editable": true,
+          "f_width": 12,
+          "v_default": "",
+          "a_onChange": "window.forms.dFormDefaultFunc(event)",
+          "b_name": ["EncryptionKey"]
+        }
+      ]
+    }
+}

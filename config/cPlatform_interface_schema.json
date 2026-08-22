@@ -1,0 +1,66 @@
+{
+    "report_timeout_handler_api": {
+        "type": "object",
+        "required": [
+            "report_name",
+            "date"
+        ],
+        "properties": {
+            "report_name": {"type": "string"},
+            "date": {"type": "string"}
+        }
+    },
+    "dataflow_timeout_handler_api": {
+        "type": "object",
+        "required": [
+            "dataflow_id"
+        ],
+        "properties": {
+            "dataflow_id": {"type": "string"}
+        }
+    },
+    "model_timeout_handler_api": {
+        "type": "object",
+        "required": [
+            "model_id"
+        ],
+        "properties": {
+            "model_id": {"type": "string"}
+        }
+    },
+    "widget_timer_handler_api": {
+    "type": "object",
+    "required": [
+        "user_id",
+        "start_date",
+        "periodicity",
+        "question",
+        "time",
+        "emails",
+        "time_zone",
+        "widget_name"
+    ],
+    "properties": {
+        "user_id": {"type": "string"},
+        "start_date": {"type": "string"},
+        "periodicity": {"type": "string"},
+        "question": {"type": "string"},
+        "time": {"type": "string" },
+        "emails": {"type": "string" },
+        "time_zone": {"type": "string"},
+        "widget_name": {"type": "string"},
+        "current_time": {"type": "string"}
+        }
+    },
+    "user_authentication_schema": {
+    "type": "object",
+    "required": [
+        "email",
+        "password"
+    ],
+    "properties": {
+        "email": {"type": "string"},
+        "password": {"type": "string"}        }
+    }
+
+}

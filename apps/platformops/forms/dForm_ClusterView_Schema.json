@@ -1,0 +1,73 @@
+{
+    "ClusterViewField": {
+      "group_con": "form-group",
+      "e_type": "staticRow",
+      "e_display": true,
+      "e_name": "static_data",
+      "row_Schema": [
+        {
+          "f_display_name": "ClusterName",
+          "f_name": "cluster_name",
+          "f_type": "text",
+          "f_required": true,
+          "f_display": true,
+          "f_width": 3,
+          "v_default": "",
+          "a_onChange": "window.forms.dFormDefaultFunc(event)",
+          "b_name" : ["Dockerhub", "Local"],
+          "b_rows": []
+        },
+        {
+          "f_display_name": "ClusterType",
+          "f_name": "cluster_type",
+          "f_type": "single_select",
+          "f_required": true,
+          "f_display": true,
+          "f_width": 3,
+          "v_default": "",
+          "v_options": ["Primary", "Secondary"],
+          "a_onChange": "window.forms.dFormDefaultFunc(event)",
+          "b_name" : ["Dockerhub", "Local"],
+          "b_rows": []
+        },
+        {
+          "f_display_name": "RepositoryType",
+          "f_name": "repo_type",
+          "f_type": "single_select",
+          "f_required": true,
+          "f_display": true,
+          "f_width": 3,
+          "v_default": "",
+          "v_options": ["LocalVolume", "NFSVolume", "DistributedFS", "Transport_Sync"],
+          "a_onChange": "window.forms.dFormDefaultFunc(event)",
+          "b_name" : ["Dockerhub", "Local"],
+          "b_rows": []
+        },
+        {
+          "f_display_name": "ImageStore",
+          "f_name": "Image_store",
+          "f_type": "single_select",
+          "f_required": true,
+          "f_display": true,
+          "f_width": 3,
+          "v_default": "",
+          "v_options": ["Dockerhub", "Local"],
+          "a_onChange": "selectImage(event)",
+          "b_name" : ["Dockerhub", "Local"],
+          "b_rows": ["ClusterViewField"]
+        },
+        {
+          "f_display_name": "ImagePath",
+          "f_name": "imagePath",
+          "f_type": "text",
+          "f_required": false,
+          "f_display": false,
+          "f_width": 3,
+          "v_default": "",
+          "a_onChange": "window.forms.dFormDefaultFunc(event)",
+          "b_name" : ["Local"],
+          "b_rows": []
+        }
+      ]
+    }
+}

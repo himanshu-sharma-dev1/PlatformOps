@@ -1,0 +1,65 @@
+{
+    "tools": [
+      {
+        "name": "text2clk_tool_direct",
+        "description": "A Text2ClickHouse endpoint for querying churned subscriber analysis data from ClickHouse.",
+        "server_uri": "http://mcpserver:9000",
+        "output_format": "plain-text",
+        "intent": [],
+        "args": {
+          "user_query": {
+            "type": "str",
+            "title": "User Query",
+            "description": "User query"
+          },
+          "query_type": {
+            "type": "str",
+            "title": "Query Type",
+            "description": "Query type: Direct for UserQuery endpoint. Value must be 'Direct' only."
+          }
+        }
+      },
+      {
+        "name": "text2clk_tool_iterative",
+        "description": "A Text2ClickHouse endpoint for querying churned subscriber analysis data from ClickHouse.",
+        "server_uri": "http://mcpserver:9000",
+        "output_format": "plain-text",
+        "intent": [],
+        "args": {
+          "user_query": {
+            "type": "str",
+            "title": "User Query",
+            "description": "User query"
+          },
+          "query_type": {
+            "type": "str",
+            "title": "Query Type",
+            "description": "Query type: iterative for AnalystQueryStream endpoint. Value must be 'iterative' only."
+          }
+        }
+      },
+    {
+      "name": "get_usermgr_combined_data",
+      "description": "A unified Text2SQL endpoint for fetching information related to customers, projects, devices, users, or any combination of these entities. It dynamically,, identifies the relevant tables and generates SQL queries to extract requested,data such as customer details, project info, device status, user roles, or interlinked records between them. Use this tool for any query where the intent is to retrieve insights or data involving customer, project, device, or user information. for eg, list all my project names customer, device related information.",
+      "method": "POST",
+      "endpoint": "http://mcpserver:9000",
+      "output_format": "plain-text",
+      "access": "external",
+      "args": {
+          "user_id": {
+            "type": "str",
+            "description": "User ID"
+          },
+          "user_query": {
+            "type": "str",
+            "description": "User query"
+          },
+          "require_user_scope": {
+            "type": "str",
+            "description": "Whether to restrict the query to the user's permitted schema.",
+            "default": true
+          }
+      }
+    }
+    ]
+  }

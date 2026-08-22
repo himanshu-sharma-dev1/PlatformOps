@@ -1,0 +1,66 @@
+{
+  "UserConfig": {
+    "group_con": "form-group",
+    "e_type": "staticRow",
+    "e_display": true,
+    "e_name": "static_data",
+    "row_Schema": [
+      {
+        "f_display_name": "UserName",
+        "f_name": "user_name",
+        "f_type": "text",
+        "f_required": true,
+        "f_display": true,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)"
+      },
+      {
+        "f_display_name": "UserEmail",
+        "f_name": "user_email",
+        "f_type": "email",
+        "f_required": true,
+        "f_display": true,
+        "f_editable": false,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)"
+      },
+      {
+        "f_display_name": "Password",
+        "f_name": "password",
+        "f_type": "password",
+        "f_required": true,
+        "f_display": true,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)"
+      },
+      {
+        "f_display_name": "UserRole",
+        "f_name": "user_role",
+        "f_type": "single_select",
+        "f_required": true,
+        "f_display": true,
+        "f_editable": false,
+        "f_width": 3,
+        "v_default": "",
+        "v_options": ["System_Admin", "Operational", "Management"],
+        "a_onChange": "window.forms.dFormDefaultFunc(event)"
+      },
+      {
+        "f_display_name": "UserNumber",
+        "f_name": "user_number",
+        "f_type": "tel",
+        "f_required": false,
+        "f_display": true,
+        "f_editable": true,
+        "f_width": 3,
+        "v_default": "",
+        "a_onChange": "window.forms.dFormDefaultFunc(event)"
+      }
+    ]
+  }
+}

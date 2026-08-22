@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+{% include "sidebar.html" %}
+<head>
+<meta charset="UTF-8">
+<title>PlatformOps · Service Monitoring</title>
+{% load static %}
+<link rel="stylesheet" href="{% static 'css/ServiceMonitoring.css' %}">
+</head>
+<body>
+<div class="app">
+  <main class="main">
+    {% include "navbar.html" %}
+    <div class="content">
+
+      <!-- PAGE HEAD -->
+      <div class="page-head">
+        <div class="titles">
+          <h1>Service <em>monitoring</em></h1>
+          <p class="sub">GlitchTip-powered error tracking and uptime monitoring across every service in your cluster.</p>
+        </div>
+        <div class="page-head-actions">
+          <div id="gtStatusBadge" class="gt-status-badge{% if not gt_configured %} unconfigured{% endif %}">
+            {% if gt_configured %}
+            <span class="dot-pulse"></span>
+            <span class="badge-text">GlitchTip Connected</span>
+            {% else %}
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span>GlitchTip Not Configured</span>
+            {% endif %}
+          </div>
+          <div class="range-group" id="windowGroup">
+            <button class="range-btn active" data-window="24h">24h</button>
+            <button class="range-btn" data-window="7d">7d</button>
+          </div>
+          <button class="refresh-toggle on" id="refreshToggle">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
+            Auto-refresh
+          </button>
+          <button class="btn-sec-sm" id="refreshNowBtn" style="height: 32px; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 0 12px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg-card); color: var(--ink-2); cursor: pointer; outline: none;">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 13px; height: 13px; stroke: var(--ink-2);"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 11-.57-8.38l5.67-5.67"/></svg>
+            Refresh Now
+          </button>
+        </div>
+      </div>
+        <div class="meta-strip">
+        <div class="meta"><div class="v" id="clusterCount">{{stats.cluster_count}}</div>
+            <div class="l">
+                Clusters
+            </div>
+        </div>
+        <div class="meta"><div class="v">{{stats.node_count}}</div><div class="l">Nodes</div></div>
+        <div class="meta"><div class="v">{{stats.live_node_count}}</div><div class="l">Node Online</div></div>
+        <div class="meta"><div class="v">{{stats.gpu_node_count}}</div><div class="l">GPU Nodes</div></div>
+      </div>
+
+      <!-- TWO-COLUMN -->
+      <div class="mon-split">
+
+        <!-- LEFT: tree nav -->
+        <aside class="tree-panel">
+          <div class="tree-head"><h3>Services</h3></div>
+          <div class="tree-search">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input type="text" placeholder="Search services…" id="treeSearch">
+          </div>
+          <div class="tree-list" id="treeList">
+            <div class="tree-skeleton">
+              <div class="sk-line sk-w80"></div>
+              <div class="sk-line sk-w60 sk-indent"></div>
+              <div class="sk-line sk-w70 sk-indent"></div>
+              <div class="sk-line sk-w80"></div>
+              <div class="sk-line sk-w50 sk-indent"></div>
+            </div>
+          </div>
+        </aside>
+
+        <!-- RIGHT: detail -->
+        <section class="detail-panel" id="detailPanel">
+          <div class="empty-state" id="emptyState">
+            <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="8" y="8" width="48" height="48" rx="6"/>
+              <path d="M22 32h20M22 22h20M22 42h12"/>
+            </svg>
+            <h3>Select a service</h3>
+            <p>Choose a cluster, node, and service from the tree to view health and error tracking data.</p>
+          </div>
+        </section>
+
+      </div><!-- /mon-split -->
+    </div>
+  </main>
+</div>
+
+<script>
+    const SESSION_INFO = {{ session_info|safe }};
+    const PAGE_ERROR = {{ error|default:"null"|safe }};
+    const GT_CONFIGURED = {{ gt_configured|yesno:"true,false" }};
+    const GT_BASE_URL = "{{ gt_base_url }}";
+    const GT_EXTERNAL_URL = "{{ gt_external_url }}";
+    const GT_ORG = "{{ gt_org }}";
+</script>
+<script src="{% static 'javascript/ServiceMonitoring.js' %}"></script>
+<script src="{% static 'javascript/theme.js' %}"></script>
+</body>
+</html>

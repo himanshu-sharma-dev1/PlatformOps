@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Iktara — Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Surfaces — warm off-whites, never pure */
+  --bg:           #f7f5f2;
+  --bg-card:      #fdfcfa;
+  --bg-sunken:    #efece7;
+  --bg-overlay:   rgba(247,245,242,0.85);
+
+  /* Brand — navy reserved for emphasis */
+  --navy:         #002c5d;
+  --navy-700:     #00407e;
+  --navy-500:     #4a6fa0;
+  --navy-100:     #e3eaf3;
+  --navy-50:      #f0f4f9;
+
+  /* Ink — text */
+  --ink:          #14181f;
+  --ink-2:        #3a4250;
+  --ink-3:        #6b7585;
+  --ink-4:        #9da6b3;
+  --ink-5:        #c8cdd5;
+
+  /* Lines — hairline borders */
+  --line:         #e6e1d8;
+  --line-2:       #d8d2c5;
+  --line-strong:  #b8b0a0;
+
+  /* Status — semantic */
+  --ok:           #1f7a3a;
+  --ok-bg:        #e8f3ec;
+  --warn:         #a86a00;
+  --warn-bg:      #f7eede;
+  --err:          #a82a1d;
+  --err-bg:       #f7e5e3;
+  --info:         #1d5fa8;
+  --info-bg:      #e3edf7;
+  --muted:        #6b7585;
+  --muted-bg:     #ebe7df;
+
+  /* Accent — sparingly, for highlight moments */
+  --accent:       #c9522b;     /* terracotta, signals "live/active" */
+  --accent-bg:    #f7e8df;
+
+  /* Type scales */
+  --display:      'Fraunces', Georgia, serif;
+  --body:         'Geist', -apple-system, sans-serif;
+  --mono:         'JetBrains Mono', 'SF Mono', Menlo, monospace;
+
+  /* Spacing — 4px base */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
+  --s-12: 48px; --s-16: 64px; --s-20: 80px;
+
+  /* Radius */
+  --r-sm: 4px; --r-md: 6px; --r-lg: 10px; --r-xl: 14px;
+
+  /* Shadows — subtle, layered */
+  --shadow-1: 0 1px 2px rgba(20,24,31,0.04);
+  --shadow-2: 0 1px 3px rgba(20,24,31,0.06), 0 4px 12px rgba(20,24,31,0.04);
+  --shadow-3: 0 2px 8px rgba(20,24,31,0.06), 0 12px 32px rgba(20,24,31,0.08);
+}
+
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{font-family:var(--body); background:var(--bg); color:var(--ink); font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;}
+
+.page{max-width:1240px; margin:0 auto; padding:var(--s-16) var(--s-10) var(--s-20);}
+
+.brand-mark{display:flex; align-items:baseline; gap:var(--s-3); margin-bottom:var(--s-12);}
+.brand-mark .logo{
+  width:36px; height:36px; border-radius:var(--r-md);
+  background:var(--navy); color:var(--bg);
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--display); font-weight:500; font-size:20px;
+  font-style:italic;
+}
+.brand-mark .name{font-family:var(--display); font-size:22px; font-weight:400; letter-spacing:-0.01em;}
+.brand-mark .tag{font-size:11px; color:var(--ink-3); text-transform:uppercase; letter-spacing:0.12em; align-self:center; margin-left:auto;}
+
+h1.page-title{
+  font-family:var(--display);
+  font-weight:300;
+  font-size:64px;
+  line-height:1.02;
+  letter-spacing:-0.025em;
+  margin-bottom:var(--s-4);
+}
+h1.page-title em{font-style:italic; color:var(--navy);}
+
+.lede{
+  font-size:17px; color:var(--ink-2); max-width:62ch; line-height:1.55;
+  margin-bottom:var(--s-16);
+}
+
+h2.section{
+  font-family:var(--display);
+  font-weight:400;
+  font-size:32px;
+  letter-spacing:-0.02em;
+  margin-top:var(--s-16);
+  padding-bottom:var(--s-3);
+  border-bottom:1px solid var(--line);
+  margin-bottom:var(--s-8);
+  display:flex; align-items:baseline; gap:var(--s-4);
+}
+h2.section .num{
+  font-family:var(--mono); font-size:13px; font-weight:400; color:var(--ink-4);
+  letter-spacing:0;
+}
+h3.sub{
+  font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em;
+  color:var(--ink-3); margin-top:var(--s-10); margin-bottom:var(--s-4);
+}
+
+.principles{display:grid; grid-template-columns:repeat(2,1fr); gap:var(--s-6); margin-bottom:var(--s-10);}
+.principle{
+  background:var(--bg-card); border:1px solid var(--line); border-radius:var(--r-lg);
+  padding:var(--s-6);
+}
+.principle .pnum{font-family:var(--mono); font-size:11px; color:var(--accent); letter-spacing:0.1em;}
+.principle h4{font-family:var(--display); font-size:20px; font-weight:500; letter-spacing:-0.01em; margin:var(--s-2) 0 var(--s-3);}
+.principle p{color:var(--ink-2); font-size:13px;}
+
+/* COLOR TOKENS ─────────────────────── */
+.swatch-grid{display:grid; grid-template-columns:repeat(6, 1fr); gap:var(--s-3);}
+.swatch{
+  background:var(--bg-card); border:1px solid var(--line); border-radius:var(--r-md);
+  overflow:hidden;
+}
+.swatch .chip{height:64px;}
+.swatch .meta{padding:var(--s-3) var(--s-3) var(--s-3);}
+.swatch .name{font-family:var(--mono); font-size:11px; color:var(--ink-2);}
+.swatch .hex{font-family:var(--mono); font-size:11px; color:var(--ink-4); margin-top:2px;}
+
+/* TYPE TOKENS ──────────────────────── */
+.type-row{
+  display:grid; grid-template-columns:160px 1fr 100px;
+  border-bottom:1px solid var(--line); padding:var(--s-5) 0; align-items:baseline;
+}
+.type-row:last-child{border-bottom:none;}
+.type-row .label{font-family:var(--mono); font-size:11px; color:var(--ink-3); text-transform:uppercase; letter-spacing:0.08em;}
+.type-row .sample{color:var(--ink);}
+.type-row .specs{font-family:var(--mono); font-size:11px; color:var(--ink-4); text-align:right;}
+
+.t-display-xl{font-family:var(--display); font-size:48px; font-weight:300; letter-spacing:-0.025em; line-height:1.05;}
+.t-display{font-family:var(--display); font-size:28px; font-weight:400; letter-spacing:-0.02em;}
+.t-h1{font-family:var(--body); font-size:24px; font-weight:600; letter-spacing:-0.015em;}
+.t-h2{font-family:var(--body); font-size:18px; font-weight:600; letter-spacing:-0.01em;}
+.t-body{font-family:var(--body); font-size:14px; font-weight:400;}
+.t-body-sm{font-family:var(--body); font-size:13px; font-weight:400; color:var(--ink-2);}
+.t-caption{font-family:var(--body); font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.1em; color:var(--ink-3);}
+.t-mono{font-family:var(--mono); font-size:13px; color:var(--ink-2);}
+
+/* BUTTONS ──────────────────────────── */
+.btn-row{display:flex; gap:var(--s-3); flex-wrap:wrap; align-items:center;}
+.btn{
+  font-family:var(--body); font-size:13px; font-weight:500;
+  padding:8px 14px; border-radius:var(--r-md);
+  border:1px solid transparent; cursor:pointer;
+  display:inline-flex; align-items:center; gap:6px;
+  transition:all .15s ease;
+  line-height:1;
+}
+.btn-primary{background:var(--navy); color:var(--bg);}
+.btn-primary:hover{background:var(--navy-700);}
+.btn-secondary{background:var(--bg-card); color:var(--ink); border-color:var(--line-2);}
+.btn-secondary:hover{background:var(--bg-sunken); border-color:var(--line-strong);}
+.btn-ghost{background:transparent; color:var(--ink-2);}
+.btn-ghost:hover{background:var(--bg-sunken); color:var(--ink);}
+.btn-danger{background:var(--bg-card); color:var(--err); border-color:var(--line-2);}
+.btn-danger:hover{background:var(--err-bg); border-color:var(--err);}
+.btn-sm{font-size:12px; padding:6px 10px;}
+.btn-icon{padding:8px; width:32px; height:32px; justify-content:center;}
+
+/* FORM CONTROLS ────────────────────── */
+.field{display:flex; flex-direction:column; gap:6px; max-width:360px;}
+.field label{font-size:12px; font-weight:500; color:var(--ink-2);}
+.input, .select, .textarea{
+  font-family:var(--body); font-size:13px;
+  padding:9px 12px; border-radius:var(--r-md);
+  border:1px solid var(--line-2); background:var(--bg-card);
+  color:var(--ink); outline:none;
+  transition:border-color .15s, box-shadow .15s;
+}
+.input:focus, .select:focus, .textarea:focus{
+  border-color:var(--navy); box-shadow:0 0 0 3px var(--navy-100);
+}
+.input::placeholder{color:var(--ink-4);}
+
+.checkbox{display:inline-flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;}
+.checkbox input{accent-color:var(--navy);}
+
+/* STATUS PILLS ─────────────────────── */
+.pill-row{display:flex; flex-wrap:wrap; gap:var(--s-2);}
+.pill{
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:11px; font-weight:500;
+  padding:3px 8px; border-radius:99px;
+  letter-spacing:0.01em;
+  font-family:var(--body);
+}
+.pill::before{
+  content:''; width:6px; height:6px; border-radius:50%;
+  background:currentColor; opacity:0.85;
+}
+.pill-ok{background:var(--ok-bg); color:var(--ok);}
+.pill-warn{background:var(--warn-bg); color:var(--warn);}
+.pill-err{background:var(--err-bg); color:var(--err);}
+.pill-info{background:var(--info-bg); color:var(--info);}
+.pill-muted{background:var(--muted-bg); color:var(--muted);}
+.pill-live{background:var(--accent-bg); color:var(--accent);}
+.pill-live::before{animation:pulse 1.6s ease-in-out infinite;}
+@keyframes pulse{50%{opacity:0.3;}}
+
+/* CARDS ────────────────────────────── */
+.card-demo{
+  background:var(--bg-card); border:1px solid var(--line); border-radius:var(--r-lg);
+  padding:var(--s-6); max-width:340px;
+}
+.card-demo .card-head{display:flex; justify-content:space-between; align-items:start; margin-bottom:var(--s-3);}
+.card-demo .card-title{font-family:var(--display); font-size:20px; font-weight:500; letter-spacing:-0.01em;}
+.card-demo .card-sub{font-family:var(--mono); font-size:11px; color:var(--ink-4); margin-top:2px;}
+.card-demo .card-stats{display:grid; grid-template-columns:1fr 1fr 1fr; gap:var(--s-3); margin-top:var(--s-4); padding-top:var(--s-4); border-top:1px solid var(--line);}
+.card-demo .stat .v{font-family:var(--display); font-size:22px; font-weight:400; letter-spacing:-0.01em;}
+.card-demo .stat .l{font-size:10px; text-transform:uppercase; letter-spacing:0.1em; color:var(--ink-4); margin-top:2px;}
+
+/* TABLE ────────────────────────────── */
+.table-demo{
+  background:var(--bg-card); border:1px solid var(--line); border-radius:var(--r-lg);
+  overflow:hidden;
+}
+.table-demo table{width:100%; border-collapse:collapse;}
+.table-demo thead th{
+  text-align:left; padding:var(--s-3) var(--s-4);
+  font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.08em;
+  color:var(--ink-3); background:var(--bg-sunken);
+  border-bottom:1px solid var(--line);
+}
+.table-demo tbody td{
+  padding:var(--s-4); border-bottom:1px solid var(--line); font-size:13px;
+}
+.table-demo tbody tr:last-child td{border-bottom:none;}
+.table-demo tbody tr:hover{background:var(--navy-50);}
+.table-demo .id{font-family:var(--mono); font-size:12px; color:var(--ink-3);}
+.table-demo .primary{font-weight:500;}
+.table-demo .row-action{opacity:0; transition:opacity .15s;}
+.table-demo tbody tr:hover .row-action{opacity:1;}
+
+/* SIDEBAR PREVIEW ──────────────────── */
+.sidebar-preview{
+  background:var(--bg-card); border:1px solid var(--line); border-radius:var(--r-lg);
+  display:flex; overflow:hidden; height:480px;
+}
+.sb-nav{
+  width:220px; background:var(--bg-sunken); border-right:1px solid var(--line);
+  padding:var(--s-5) var(--s-3); display:flex; flex-direction:column; gap:var(--s-1);
+}
+.sb-group{font-size:10px; text-transform:uppercase; letter-spacing:0.12em; color:var(--ink-4); padding:var(--s-3) var(--s-3) var(--s-2);}
+.sb-item{
+  display:flex; align-items:center; gap:10px;
+  padding:7px 10px; border-radius:var(--r-md);
+  font-size:13px; color:var(--ink-2);
+  cursor:pointer; transition:background .15s;
+}
+.sb-item:hover{background:var(--bg-card);}
+.sb-item.active{background:var(--navy); color:var(--bg);}
+.sb-item .ico{width:14px; height:14px; flex-shrink:0; opacity:0.7;}
+.sb-item.active .ico{opacity:1;}
+.sb-content{flex:1; padding:var(--s-6);}
+.sb-content .breadcrumb{font-family:var(--mono); font-size:11px; color:var(--ink-4); margin-bottom:var(--s-3);}
+.sb-content .breadcrumb span{color:var(--ink-2);}
+
+/* DO / DONT ─────────────────────────── */
+.dodont{display:grid; grid-template-columns:1fr 1fr; gap:var(--s-5);}
+.dd-card{border-radius:var(--r-lg); padding:var(--s-5); border:1px solid;}
+.dd-do{border-color:var(--ok); background:#f3f9f4;}
+.dd-dont{border-color:var(--err); background:#faf1ef;}
+.dd-card .label{font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:var(--s-2);}
+.dd-do .label{color:var(--ok);}
+.dd-dont .label{color:var(--err);}
+.dd-card .body{font-size:13px; color:var(--ink-2);}
+.dd-card strong{color:var(--ink); font-weight:600;}
+
+/* SPACING DEMO ─────────────────────── */
+.spacing-row{display:flex; align-items:flex-end; gap:var(--s-3); padding:var(--s-4) 0;}
+.spacing-row .swatch{flex-shrink:0;}
+.sp-block{background:var(--navy-100); border-radius:2px;}
+.sp-meta{font-family:var(--mono); font-size:10px; color:var(--ink-3); margin-top:4px;}
+
+/* footer ─────── */
+.fnote{
+  margin-top:var(--s-16); padding-top:var(--s-8); border-top:1px solid var(--line);
+  font-size:12px; color:var(--ink-4); display:flex; justify-content:space-between;
+}
+.fnote .pages{display:flex; gap:var(--s-4);}
+.fnote a{color:var(--navy); text-decoration:none; border-bottom:1px solid var(--navy-100);}
+.fnote a:hover{border-bottom-color:var(--navy);}
+
+/* Decorative element */
+.rule{height:1px; background:linear-gradient(to right, var(--line) 0%, var(--line) 80%, transparent 100%); margin:var(--s-10) 0;}
+
+/* SVG inline icon */
+.ic{width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- BRAND -->
+  <div class="brand-mark">
+    <div class="logo">i</div>
+    <div class="name">Iktara</div>
+    <div class="tag">Design System · v0.3</div>
+  </div>
+
+  <h1 class="page-title">Design <em>system</em></h1>
+  <p class="lede">A refined, neutral foundation for the Iktara admin platform. Lighter surfaces, navy held in reserve for moments that matter — primary actions, focus, selection, brand. Color earns its place: status is colored, decoration isn't.</p>
+
+  <!-- PRINCIPLES -->
+  <h2 class="section"><span class="num">01</span>Principles</h2>
+  <div class="principles">
+    <div class="principle">
+      <div class="pnum">01 / 04</div>
+      <h4>Surface over decoration</h4>
+      <p>Backgrounds carry the calm. Borders are hairline, never heavy. Shadows are felt, not seen. Whitespace does the layout work that bold lines used to.</p>
+    </div>
+    <div class="principle">
+      <div class="pnum">02 / 04</div>
+      <h4>Navy held in reserve</h4>
+      <p>Brand color is a punctuation mark, not a paragraph. Reserved for primary buttons, selected nav, focus rings, and the logo. Everywhere else, ink and lines do the work.</p>
+    </div>
+    <div class="principle">
+      <div class="pnum">03 / 04</div>
+      <h4>Status is the only loud color</h4>
+      <p>Green, amber, red, and terracotta exist to signal state — never to brighten a page. A pill is a statement: this row is failing, this job is live.</p>
+    </div>
+    <div class="principle">
+      <div class="pnum">04 / 04</div>
+      <h4>Tables are the exception</h4>
+      <p>For lists of rich entities, lead with cards. For lists of records, use refined tables with monospace IDs and pill status. Either way, the row tells a story before you read the columns.</p>
+    </div>
+  </div>
+
+  <!-- COLOR -->
+  <h2 class="section"><span class="num">02</span>Color</h2>
+
+  <h3 class="sub">Surfaces</h3>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="chip" style="background:var(--bg)"></div><div class="meta"><div class="name">--bg</div><div class="hex">#f7f5f2</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--bg-card)"></div><div class="meta"><div class="name">--bg-card</div><div class="hex">#fdfcfa</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--bg-sunken)"></div><div class="meta"><div class="name">--bg-sunken</div><div class="hex">#efece7</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--line)"></div><div class="meta"><div class="name">--line</div><div class="hex">#e6e1d8</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--line-2)"></div><div class="meta"><div class="name">--line-2</div><div class="hex">#d8d2c5</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--line-strong)"></div><div class="meta"><div class="name">--line-strong</div><div class="hex">#b8b0a0</div></div></div>
+  </div>
+
+  <h3 class="sub">Navy — brand accent</h3>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="chip" style="background:var(--navy)"></div><div class="meta"><div class="name">--navy</div><div class="hex">#002c5d</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--navy-700)"></div><div class="meta"><div class="name">--navy-700</div><div class="hex">#00407e</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--navy-500)"></div><div class="meta"><div class="name">--navy-500</div><div class="hex">#4a6fa0</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--navy-100)"></div><div class="meta"><div class="name">--navy-100</div><div class="hex">#e3eaf3</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--navy-50)"></div><div class="meta"><div class="name">--navy-50</div><div class="hex">#f0f4f9</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--accent)"></div><div class="meta"><div class="name">--accent</div><div class="hex">#c9522b</div></div></div>
+  </div>
+
+  <h3 class="sub">Status</h3>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="chip" style="background:var(--ok)"></div><div class="meta"><div class="name">--ok</div><div class="hex">#1f7a3a</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--warn)"></div><div class="meta"><div class="name">--warn</div><div class="hex">#a86a00</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--err)"></div><div class="meta"><div class="name">--err</div><div class="hex">#a82a1d</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--info)"></div><div class="meta"><div class="name">--info</div><div class="hex">#1d5fa8</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--ink)"></div><div class="meta"><div class="name">--ink</div><div class="hex">#14181f</div></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--ink-3)"></div><div class="meta"><div class="name">--ink-3</div><div class="hex">#6b7585</div></div></div>
+  </div>
+
+  <!-- TYPE -->
+  <h2 class="section"><span class="num">03</span>Typography</h2>
+  <p class="t-body-sm" style="margin-bottom:var(--s-6); max-width:60ch;">A pairing of <strong style="color:var(--ink);">Fraunces</strong> (variable serif, display only) and <strong style="color:var(--ink);">Geist</strong> (engineered sans, body & UI), with <strong style="color:var(--ink);">JetBrains&nbsp;Mono</strong> for IDs, code, and technical metadata. Fraunces gives the platform warmth that "data infrastructure" usually lacks — used at large sizes only, never below 20px.</p>
+
+  <div>
+    <div class="type-row">
+      <span class="label">Display XL</span>
+      <span class="sample t-display-xl">Pipelines run on data</span>
+      <span class="specs">Fraunces 48/300</span>
+    </div>
+    <div class="type-row">
+      <span class="label">Display</span>
+      <span class="sample t-display">Cluster overview</span>
+      <span class="specs">Fraunces 28/400</span>
+    </div>
+    <div class="type-row">
+      <span class="label">H1</span>
+      <span class="sample t-h1">Production cluster</span>
+      <span class="specs">Geist 24/600</span>
+    </div>
+    <div class="type-row">
+      <span class="label">H2</span>
+      <span class="sample t-h2">Active dataflows</span>
+      <span class="specs">Geist 18/600</span>
+    </div>
+    <div class="type-row">
+      <span class="label">Body</span>
+      <span class="sample t-body">Ingested 2.3M records across 14 active pipelines in the last hour.</span>
+      <span class="specs">Geist 14/400</span>
+    </div>
+    <div class="type-row">
+      <span class="label">Body small</span>
+      <span class="sample t-body-sm">Secondary description text and helper copy lives at this size.</span>
+      <span class="specs">Geist 13/400</span>
+    </div>
+    <div class="type-row">
+      <span class="label">Caption</span>
+      <span class="sample t-caption">Last synced 3m ago</span>
+      <span class="specs">Geist 11/500</span>
+    </div>
+    <div class="type-row">
+      <span class="label">Mono</span>
+      <span class="sample t-mono">df_8a2c19f4 · created 2026-05-04</span>
+      <span class="specs">JetBrains 13/400</span>
+    </div>
+  </div>
+
+  <!-- SPACING -->
+  <h2 class="section"><span class="num">04</span>Spacing</h2>
+  <p class="t-body-sm" style="margin-bottom:var(--s-4); max-width:60ch;">A 4-pixel base grid. Most spacing lives in three values: <strong style="color:var(--ink)">12</strong> (related elements), <strong style="color:var(--ink)">24</strong> (sections), <strong style="color:var(--ink)">64</strong> (major divisions). Generous whitespace at the page level is non-negotiable.</p>
+  <div class="spacing-row">
+    <div><div class="sp-block" style="width:4px; height:32px;"></div><div class="sp-meta">--s-1 · 4</div></div>
+    <div><div class="sp-block" style="width:8px; height:32px;"></div><div class="sp-meta">--s-2 · 8</div></div>
+    <div><div class="sp-block" style="width:12px; height:32px;"></div><div class="sp-meta">--s-3 · 12</div></div>
+    <div><div class="sp-block" style="width:16px; height:32px;"></div><div class="sp-meta">--s-4 · 16</div></div>
+    <div><div class="sp-block" style="width:24px; height:32px;"></div><div class="sp-meta">--s-6 · 24</div></div>
+    <div><div class="sp-block" style="width:32px; height:32px;"></div><div class="sp-meta">--s-8 · 32</div></div>
+    <div><div class="sp-block" style="width:48px; height:32px;"></div><div class="sp-meta">--s-12 · 48</div></div>
+    <div><div class="sp-block" style="width:64px; height:32px;"></div><div class="sp-meta">--s-16 · 64</div></div>
+  </div>
+
+  <!-- BUTTONS -->
+  <h2 class="section"><span class="num">05</span>Buttons</h2>
+  <h3 class="sub">Hierarchy</h3>
+  <div class="btn-row">
+    <button class="btn btn-primary">
+      <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      Add cluster
+    </button>
+    <button class="btn btn-secondary">Cancel</button>
+    <button class="btn btn-ghost">Skip for now</button>
+    <button class="btn btn-danger">
+      <svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m1 0v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6h12z"/></svg>
+      Delete
+    </button>
+  </div>
+  <h3 class="sub">Sizes</h3>
+  <div class="btn-row">
+    <button class="btn btn-primary">Default</button>
+    <button class="btn btn-primary btn-sm">Small</button>
+    <button class="btn btn-secondary btn-icon"><svg class="ic" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 113 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button>
+  </div>
+
+  <!-- FORM -->
+  <h2 class="section"><span class="num">06</span>Forms</h2>
+  <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:var(--s-6); max-width:760px;">
+    <div class="field">
+      <label>Cluster name</label>
+      <input class="input" type="text" placeholder="e.g. prod-mumbai-1" value="prod-mumbai-1">
+    </div>
+    <div class="field">
+      <label>Cluster type</label>
+      <select class="select"><option>Kubernetes</option><option>Standalone</option><option>Edge</option></select>
+    </div>
+    <div class="field" style="grid-column:1/-1; max-width:none;">
+      <label>Description</label>
+      <textarea class="textarea" rows="3" placeholder="Optional notes about this cluster"></textarea>
+    </div>
+    <div style="grid-column:1/-1; display:flex; gap:var(--s-5); padding-top:var(--s-2);">
+      <label class="checkbox"><input type="checkbox" checked> Enable auto-scaling</label>
+      <label class="checkbox"><input type="checkbox"> Require manual approval for deploys</label>
+    </div>
+  </div>
+
+  <!-- STATUS -->
+  <h2 class="section"><span class="num">07</span>Status pills</h2>
+  <p class="t-body-sm" style="margin-bottom:var(--s-4); max-width:60ch;">Pills carry semantic meaning, not decoration. Each one signals a specific state. Reuse the same pill for the same meaning across pages so the platform develops a vocabulary.</p>
+  <div class="pill-row">
+    <span class="pill pill-ok">Success</span>
+    <span class="pill pill-ok">Enabled</span>
+    <span class="pill pill-ok">Healthy</span>
+    <span class="pill pill-warn">Warning</span>
+    <span class="pill pill-warn">Degraded</span>
+    <span class="pill pill-err">Failed</span>
+    <span class="pill pill-err">Disabled</span>
+    <span class="pill pill-info">Pending</span>
+    <span class="pill pill-info">Queued</span>
+    <span class="pill pill-muted">Idle</span>
+    <span class="pill pill-muted">Draft</span>
+    <span class="pill pill-live">Live · ingesting</span>
+  </div>
+
+  <!-- CARDS / TABLES -->
+  <h2 class="section"><span class="num">08</span>Cards &amp; tables</h2>
+  <h3 class="sub">Entity card — rich, one per cluster</h3>
+  <div class="card-demo">
+    <div class="card-head">
+      <div>
+        <div class="card-title">prod-mumbai-1</div>
+        <div class="card-sub">k8s · cl_3f8a · ap-south-1</div>
+      </div>
+      <span class="pill pill-ok">Healthy</span>
+    </div>
+    <p class="t-body-sm">Primary inference cluster serving ML model traffic for the Mumbai region.</p>
+    <div class="card-stats">
+      <div class="stat"><div class="v">12</div><div class="l">Nodes</div></div>
+      <div class="stat"><div class="v">47</div><div class="l">Services</div></div>
+      <div class="stat"><div class="v">94%</div><div class="l">Uptime 30d</div></div>
+    </div>
+  </div>
+
+  <h3 class="sub">Record table — refined, dense</h3>
+  <div class="table-demo">
+    <table>
+      <thead><tr>
+        <th>Dataflow</th><th>Type</th><th>Last run</th><th>Status</th><th style="text-align:right">Records</th><th></th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td><div class="primary">customer_events_daily</div><div class="id">df_8a2c19f4</div></td>
+          <td>Batch · S3</td>
+          <td>3 min ago</td>
+          <td><span class="pill pill-ok">Success</span></td>
+          <td style="text-align:right; font-family:var(--mono);">1,284,003</td>
+          <td><button class="btn btn-ghost btn-sm row-action">View</button></td>
+        </tr>
+        <tr>
+          <td><div class="primary">order_stream_realtime</div><div class="id">df_1b9e4c20</div></td>
+          <td>Stream · Kafka</td>
+          <td>now</td>
+          <td><span class="pill pill-live">Live</span></td>
+          <td style="text-align:right; font-family:var(--mono);">847</td>
+          <td><button class="btn btn-ghost btn-sm row-action">View</button></td>
+        </tr>
+        <tr>
+          <td><div class="primary">model_metrics_export</div><div class="id">df_5e7f31a8</div></td>
+          <td>Batch · HDFS</td>
+          <td>2 hr ago</td>
+          <td><span class="pill pill-err">Failed</span></td>
+          <td style="text-align:right; font-family:var(--mono);">—</td>
+          <td><button class="btn btn-ghost btn-sm row-action">View</button></td>
+        </tr>
+        <tr>
+          <td><div class="primary">user_session_warehouse</div><div class="id">df_2a0c91d4</div></td>
+          <td>Batch · Postgres</td>
+          <td>—</td>
+          <td><span class="pill pill-muted">Draft</span></td>
+          <td style="text-align:right; font-family:var(--mono);">—</td>
+          <td><button class="btn btn-ghost btn-sm row-action">View</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SIDEBAR -->
+  <h2 class="section"><span class="num">09</span>Sidebar — grouped IA</h2>
+  <p class="t-body-sm" style="margin-bottom:var(--s-4); max-width:60ch;">Nine flat items become four conceptual groups. Active item is solid navy — the strongest possible signal. Width is generous: full labels, no hover-to-discover.</p>
+  <div class="sidebar-preview">
+    <div class="sb-nav">
+      <div class="sb-group">Identity</div>
+      <div class="sb-item">
+        <svg class="ic ico" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        Users
+      </div>
+
+      <div class="sb-group" style="margin-top:var(--s-3);">Infrastructure</div>
+      <div class="sb-item active">
+        <svg class="ic ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-11h-6M7 12H1"/></svg>
+        Clusters
+      </div>
+      <div class="sb-item">
+        <svg class="ic ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Applications
+      </div>
+
+      <div class="sb-group" style="margin-top:var(--s-3);">Data</div>
+      <div class="sb-item">
+        <svg class="ic ico" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+        Batch I/O
+      </div>
+      <div class="sb-item">
+        <svg class="ic ico" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        Stream I/O
+      </div>
+      <div class="sb-item">
+        <svg class="ic ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+        Logs
+      </div>
+
+      <div class="sb-group" style="margin-top:var(--s-3);">Models</div>
+      <div class="sb-item">
+        <svg class="ic ico" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        Train
+      </div>
+      <div class="sb-item">
+        <svg class="ic ico" viewBox="0 0 24 24"><path d="M3 3v18h18M7 12l4-4 4 4 6-6"/></svg>
+        Infer
+      </div>
+      <div class="sb-item">
+        <svg class="ic ico" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+        Compare
+      </div>
+
+      <div class="sb-group" style="margin-top:var(--s-3);">Observability</div>
+      <div class="sb-item">
+        <svg class="ic ico" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        Monitoring
+      </div>
+    </div>
+    <div class="sb-content">
+      <div class="breadcrumb">Iktara &nbsp;/&nbsp; <span>Infrastructure</span> &nbsp;/&nbsp; <span>Clusters</span></div>
+      <div class="t-display" style="margin-bottom:var(--s-3);">Clusters</div>
+      <p class="t-body-sm">Manage compute clusters across regions. Five active, one degraded.</p>
+      <div style="margin-top:var(--s-5); padding:var(--s-5); background:var(--bg); border-radius:var(--r-md); border:1px dashed var(--line-2); color:var(--ink-4); font-size:12px;">— page content preview —</div>
+    </div>
+  </div>
+
+  <!-- DO / DONT -->
+  <h2 class="section"><span class="num">10</span>Do &amp; don't</h2>
+  <div class="dodont">
+    <div class="dd-card dd-do">
+      <div class="label">Do</div>
+      <div class="body"><strong>Inline drawers for editing.</strong> Slide in from the right, keep the list visible behind. Context survives the edit.</div>
+    </div>
+    <div class="dd-card dd-dont">
+      <div class="label">Don't</div>
+      <div class="body"><strong>Full-screen modal for two fields.</strong> The current pattern dims the whole page to ask a yes/no question.</div>
+    </div>
+    <div class="dd-card dd-do">
+      <div class="label">Do</div>
+      <div class="body"><strong>Show empty states.</strong> A list with zero items is an invitation, not a bug. Render a guide, not a blank table header.</div>
+    </div>
+    <div class="dd-card dd-dont">
+      <div class="label">Don't</div>
+      <div class="body"><strong>Render a header row with no body.</strong> The user sees columns and assumes the page is broken.</div>
+    </div>
+    <div class="dd-card dd-do">
+      <div class="label">Do</div>
+      <div class="body"><strong>Search and filter visible by default.</strong> Above the table, not buried in a modal. Filter chips show what's currently applied.</div>
+    </div>
+    <div class="dd-card dd-dont">
+      <div class="label">Don't</div>
+      <div class="body"><strong>Hide filters behind a button</strong> on a list page. Users shouldn't have to open a dialog to narrow a list of ten things.</div>
+    </div>
+    <div class="dd-card dd-do">
+      <div class="label">Do</div>
+      <div class="body"><strong>Status as a pill, in its own column.</strong> Scanning a list of 50 jobs takes two seconds if status is a colored chip — twenty if it's text.</div>
+    </div>
+    <div class="dd-card dd-dont">
+      <div class="label">Don't</div>
+      <div class="body"><strong>"Success" / "Failed" as plain text</strong> mixed into a name column. Status is structural, not narrative.</div>
+    </div>
+  </div>
+
+  <div class="fnote">
+    <div>Iktara · Design System · v0.3 · 2026</div>
+    <div class="pages">
+      <a href="01-users.html">→ Users (CRUD list)</a>
+      <a href="02-clusters.html">→ Clusters (rich entities)</a>
+      <a href="03-batch-ingress.html">→ Batch I/O (pipeline)</a>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

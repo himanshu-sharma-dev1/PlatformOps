@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Insight Report</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f7f7f7;
+    }
+    .email-container {
+      max-width: 700px;
+      margin: auto;
+      background: #ffffff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .email-header {
+      background-color: #e60000;
+      color: #ffffff;
+      padding: 12px 20px;
+    }
+    .email-header h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+    .email-meta {
+      padding: 10px 20px;
+      background: #f1f1f1;
+      border-bottom: 1px solid #ddd;
+      font-size: 14px;
+    }
+    .email-body {
+      padding: 20px;
+      font-size: 15px;
+      color: #333;
+    }
+    .email-body h3 {
+      margin-top: 20px;
+    }
+    .email-footer {
+      background: #f9f9f9;
+      border-top: 1px solid #ddd;
+      padding: 15px 20px;
+      font-size: 13px;
+      color: #666;
+      text-align: center;
+    }
+    /* Markdown tables */
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 15px 0;
+    }
+    table, th, td {
+      border: 1px solid #ccc;
+    }
+    th, td {
+      padding: 8px 12px;
+      text-align: left;
+    }
+    th {
+      background: #f4f4f4;
+    }
+    pre, code {
+      background: #f4f4f4;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="email-container">
+
+    <!-- Header -->
+    <div class="email-header">
+      <h2>Insight Report</h2>
+    </div>
+
+    <!-- Meta Information -->
+    <div class="email-meta">
+      <p><strong>Date:</strong> {{ user_history.response_time }}</p>
+      <p><strong>Question ID:</strong> {{ user_history.question_id }}</p>
+    </div>
+
+    <!-- Body -->
+    <div class="email-body">
+      <h3>Question: {{ user_history.question }}</h3>
+
+      <h3>Response:</h3>
+      <div>
+        {{ user_history.response_html|safe }}
+      </div>
+
+      {% if user_history.download_link %}
+      <p>
+        <a href="{{ user_history.download_link }}"
+           style="color:#e60000; text-decoration:none; font-weight:bold;">
+           ???? Download Report
+        </a>
+      </p>
+      {% endif %}
+    </div>
+
+    <!-- Footer -->
+    <div class="email-footer">
+      <p>Best regards,<br>Iktara Network Agent</p>
+    </div>
+
+  </div>
+</body>
+</html>

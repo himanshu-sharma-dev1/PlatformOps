@@ -1,0 +1,558 @@
+{
+  "$id": "IktaraSchema01",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Schema for Service Config",
+  "AIOrchestrator_Config": {
+    "title": "Iktara AIOrchestrator Config",
+    "description": "Iktara AIOrchestrator Config Schema",
+    "type": "object",
+    "required": [
+      "service_name",
+      "service_ip",
+      "service_port",
+      "max_cpu",
+      "max_gpu"
+    ],
+    "properties": {
+      "service_name": {
+        "type": "string"
+      },
+      "service_ip": {
+        "type": "string"
+      },
+      "service_port": {
+        "type": "number",
+        "default": 8989
+      },
+      "max_cpu": {
+        "type": "number",
+        "default": 4
+      },
+      "max_gpu": {
+        "type": "number",
+        "default": 0
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "TrainingServer_Config": {
+    "title": "Iktara Training Server Config",
+    "description": "Iktara Training Server Config Schema",
+    "type": "object",
+    "required": [
+      "service_name",
+      "service_port",
+      "max_cpu",
+      "max_gpu",
+      "version",
+      "status"
+    ],
+    "properties": {
+      "service_name": {
+        "type": "string",
+        "default": "TrainingServer"
+      },
+      "service_port": {
+        "type": "number",
+        "default": 8989
+      },
+      "max_cpu": {
+        "type": "number",
+        "default": 4
+      },
+      "max_gpu": {
+        "type": "number",
+        "default": 0
+      },
+      "version": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": [],
+          "default": "1.0.0"
+        }
+      },
+      "status": {
+        "type": "string",
+        "default": "Not Deployed",
+        "disabled": "true"
+      }
+    },
+    "additionalProperties": "false"
+  },
+  "MCPServer_Config": {
+    "title": "Iktara MCP Server Config",
+    "description": "Iktara MCP Server Config Schema",
+    "type": "object",
+    "required": [
+      "service_name",
+      "service_port",
+      "max_cpu",
+      "max_gpu",
+      "version",
+      "status"
+    ],
+    "properties": {
+      "service_name": {
+        "type": "string",
+        "default": "TrainingServer"
+      },
+      "service_port": {
+        "type": "number",
+        "default": 8989
+      },
+      "max_cpu": {
+        "type": "number",
+        "default": 4
+      },
+      "max_gpu": {
+        "type": "number",
+        "default": 0
+      },
+      "version": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": [],
+          "default": "1.0.0"
+        }
+      },
+      "status": {
+        "type": "string",
+        "default": "Not Deployed",
+        "disabled": "true"
+      }
+    },
+    "additionalProperties": "false"
+  },
+  "InferenceServer_Config": {
+    "title": "Iktara Inference Server Config",
+    "description": "Iktara Inference Server Config Schema",
+    "type": "object",
+    "required": [
+      "service_name",
+      "service_ip",
+      "service_port",
+      "max_cpu",
+      "max_gpu"
+    ],
+    "properties": {
+      "service_name": {
+        "type": "string"
+      },
+      "service_ip": {
+        "type": "string"
+      },
+      "service_port": {
+        "type": "number",
+        "default": 8989
+      },
+      "max_cpu": {
+        "type": "number",
+        "default": 4
+      },
+      "max_gpu": {
+        "type": "number",
+        "default": 0
+      }
+    },
+    "additionalProperties": "false"
+  },
+  "RAG_Config": {
+    "title": "Iktara Mlflow Server Config",
+    "description": "Iktara Mlflow Server Config Schema",
+    "type": "object",
+    "required": [
+      "service_name",
+      "service_ip",
+      "service_port"
+    ],
+    "properties": {
+      "service_name": {
+        "type": "string"
+      },
+      "service_ip": {
+        "type": "string"
+      },
+      "service_port": {
+        "type": "number",
+        "default": 5000
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Text2SQL_Config": {
+    "title": "Iktara CustomerTraining Server Config",
+    "description": "Iktara CustomerTraining Server Config Schema",
+    "type": "object",
+    "required": [
+      "service_name",
+      "service_ip",
+      "service_port"
+    ],
+    "properties": {
+      "service_name": {
+        "type": "string"
+      },
+      "service_ip": {
+        "type": "string"
+      },
+      "service_port": {
+        "type": "number",
+        "default": 6000
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Text2CLK_Config": {
+    "title": "Iktara Text2clk Server Config",
+    "description": "Iktara Text2clk Server Config Schema",
+    "type": "object",
+    "required": [
+      "service_name",
+      "service_ip",
+      "service_port"
+    ],
+    "properties": {
+      "service_name": {
+        "type": "string"
+      },
+      "service_ip": {
+        "type": "string"
+      },
+      "service_port": {
+        "type": "number",
+        "default": 6000
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "ASR_Config": {
+    "title": "Iktara CustomerInference Server Config",
+    "description": "Iktara CustomerInference Server Config Schema",
+    "type": "object",
+    "required": [
+      "service_name",
+      "service_ip",
+      "service_port"
+    ],
+    "properties": {
+      "service_name": {
+        "type": "string"
+      },
+      "service_ip": {
+        "type": "string"
+      },
+      "service_port": {
+        "type": "number",
+        "default": 6000
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "ANS_Config": {
+    "title": "Iktara Mlflow Server Config",
+    "description": "Iktara Mlflow Server Config Schema",
+    "type": "object",
+    "required": [
+      "service_name",
+      "service_port",
+      "MAX_RETRIES",
+      "TIME_DELAY",
+      "NUM_THREADS"
+    ],
+    "properties": {
+      "service_name": {
+        "type": "string",
+        "default": "ANS"
+      },
+      "service_port": {
+        "type": "number",
+        "default": 5000
+      },
+      "MAX_RETRIES": {
+        "type": "number",
+        "default": 5
+      },
+      "TIME_DELAY": {
+        "type": "number",
+        "default": 5
+      },
+      "NUM_THREADS": {
+        "type": "number",
+        "default": 4
+      },
+      "MAIL_USERNAME": {
+        "type": "string"
+      },
+      "MAIL_PASSWORD": {
+        "type": "string"
+      },
+      "MAIL_HOST": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": "false"
+  },
+  "TTS_Config": {
+    "title": "TTS Config",
+    "description": "TTS Config Schema",
+    "type": "object",
+    "required": [
+      "service_name",
+      "service_ip",
+      "service_port"
+    ],
+    "properties": {
+      "service_name": {
+        "type": "string"
+      },
+      "service_ip": {
+        "type": "string"
+      },
+      "service_port": {
+        "type": "number",
+        "default": 5000
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "ConvCall_Config": {
+    "title": "ConvCall Config",
+    "description": "ConvCall Config Schema",
+    "type": "object",
+    "required": [
+      "service_name",
+      "service_ip",
+      "service_port"
+    ],
+    "properties": {
+      "service_name": {
+        "type": "string"
+      },
+      "service_ip": {
+        "type": "string"
+      },
+      "service_port": {
+        "type": "number",
+        "default": 5000
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "McpProxy": {
+    "title": "Iktara McpProxy Server Config",
+    "description": "Iktara McpProxy Server Config Schema",
+    "type": "object",
+    "required": [
+      "service_name",
+      "service_ip",
+      "service_port"
+    ],
+    "properties": {
+      "service_name": {
+        "type": "string"
+      },
+      "service_ip": {
+        "type": "string"
+      },
+      "service_port": {
+        "type": "number",
+        "default": 5000
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "ProxyDataJam": {
+    "title": "Iktara ProxyDataJam Server Config",
+    "description": "Iktara ProxyDataJam Server Config Schema",
+    "type": "object",
+    "required": [
+      "service_name",
+      "service_ip",
+      "service_port"
+    ],
+    "properties": {
+      "service_name": {
+        "type": "string"
+      },
+      "service_ip": {
+        "type": "string"
+      },
+      "service_port": {
+        "type": "number",
+        "default": 5000
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "optionCopilot": {
+    "title": "optionCopilot Server Config",
+    "description": "option Copilot Server Config Schema",
+    "type": "object",
+    "required": [
+      "service_name",
+      "service_ip",
+      "service_port"
+    ],
+    "properties": {
+      "service_name": {
+        "type": "string"
+      },
+      "service_ip": {
+        "type": "string"
+      },
+      "service_port": {
+        "type": "number",
+        "default": 5000
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Airflow": {
+    "title": "optionCopilot Server Config",
+    "description": "option Copilot Server Config Schema",
+    "type": "object",
+    "required": [
+      "service_name",
+      "service_ip",
+      "service_port"
+    ],
+    "properties": {
+      "service_name": {
+        "type": "string"
+      },
+      "service_ip": {
+        "type": "string"
+      },
+      "service_port": {
+        "type": "number",
+        "default": 5000
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "NFS_Config": {
+    "title": "Iktara NFS Config",
+    "description": "Iktara NFS Config Schema",
+    "type": "object",
+    "required": [
+      "Local",
+      "NFS",
+      "DFS"
+    ],
+    "properties": {
+      "Local": {
+        "type": "string"
+      },
+      "NFS": {
+        "type": "string"
+      },
+      "DFS": {
+        "type": "string"
+      },
+      "additionalProperties": "false"
+    }
+  },
+  "Service_List": {
+    "title": "List of Services",
+    "description": "Service Configuration",
+    "type": "object",
+    "required": [
+      "AIOrchestrator",
+      "TrainingServer",
+      "InferenceServer",
+      "MCPServer",
+      "RAG",
+      "Text2SQL",
+      "Text2CLK",
+      "ASR",
+      "TTS",
+      "ConvCall",
+      "ConvForm",
+      "ANS",
+      "McpProxy",
+      "ProxyDataJam",
+      "optionCopilot",
+      "Airflow",
+      "AirtelChurn",
+      "AgenticNOC"
+    ]
+  },
+  "service_color_code": {
+    "title": "List of Services color code",
+    "description": "Service color Configuration",
+    "type": "object",
+    "required": [
+      "AIOrchestrator",
+      "TrainingServer",
+      "InferenceServer",
+      "MCPServer",
+      "RAG",
+      "Text2SQL",
+      "Text2CLK",
+      "ASR",
+      "TTS",
+      "ConvCall",
+      "ConvForm",
+      "ANS",
+      "McpProxy",
+      "ProxyDataJam",
+      "optionCopilot",
+      "AirtelChurn"
+    ],
+    "Orchestrator": "#5499c7",
+    "TrainingServer": "#5499c7",
+    "InferenceServer": "#5499c7",
+    "MCPServer": "#5499c7",
+    "RAG": "#5499c7",
+    "Text2SQL": "#5499c7",
+    "Text2CLK": "#5499c7",
+    "ConvCall": "#5499c7",
+    "ConvForm": "#5499c7",
+    "ASR": "#5499c7",
+    "TTS": "#5499c7",
+    "ANS": "#5499c7",
+    "McpProxy": "#5499c7",
+    "ProxyDataJam": "#5499c7",
+    "optionCopilot": "#5499c7",
+    "AirtelChurn": "#5499c7"
+  },
+   "AirtelChurn": {
+    "title": "Airtel Churn Service Config",
+    "description": "Airtel Churn Service Config Schema",
+    "type": "object",
+    "required": [
+      "service_name",
+      "service_port",
+      "service_install",
+      "service_version",
+      "service_debug"
+    ],
+    "properties": {
+      "service_name": {
+        "type": "string",
+        "default": ""
+      },
+      "service_port": {
+        "type": "number",
+        "default": 9085
+      },
+      "service_install": {
+        "type": "string",
+        "enum": ["MANUAL", "ANSIBLE"],
+        "default": "ANSIBLE"
+      },
+      "service_version": {
+        "type": "string",
+        "default": "1.0.0"
+      },
+      "service_debug": {
+        "type": "string",
+        "enum": ["DISABLE", "INFO", "DEBUG"],
+        "default": "DISABLE"
+      }
+    },
+    "additionalProperties": "false"
+  }
+}

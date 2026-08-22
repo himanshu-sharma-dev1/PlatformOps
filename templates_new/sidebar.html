@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+{% load static %}
+<title>PlatformOps</title>
+<link rel="stylesheet" type="text/css" href="{% static 'css/ds.css' %}">
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="shortcut icon" type="image/png" href="{% static 'yantrFavicon.png' %}"/>
+<style>
+.sb-user{
+position:relative;
+}
+
+.sb-foot{
+cursor:pointer;
+
+display:flex;
+
+align-items:center;
+
+gap:10px;
+}
+
+.user-popup{
+position:absolute;
+
+left:20px;
+
+bottom:100px;
+
+min-width:140px;
+
+background-color:var(--bg-card);
+
+border:1px solid var(--line);
+
+border-radius:var(--r-md);
+
+box-shadow:var(--shadow-2);
+
+display:none;
+
+z-index:10000;
+
+height:34px;
+
+}
+
+.user-popup.show{
+display:block;
+}
+
+.popup-link{
+display:block;
+
+padding:5px 12px;
+
+border-radius:var(--r-sm);
+
+text-decoration:none;
+
+color:var(--ink);
+
+transition:
+background-color 0.12s ease,
+color 0.12s ease;
+}
+
+.popup-link:hover{
+background-color:var(--navy);
+
+color:var(--white);
+}
+
+/* Toggle button */
+.sb-toggle {
+    cursor: pointer;
+    padding: 10px 1px;
+    border-radius: var(--r-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sb-toggle:hover {
+    background-color: var(--bg-sunken);
+}
+
+.sidebar.collapsed {
+    width: 65px;
+}
+
+.sidebar.collapsed .sb-group {
+    display: none;
+}
+
+.sidebar.collapsed .sb-item {
+    display: flex;
+    justify-content:center;
+    align-items: center;
+}
+
+.sidebar.collapsed .logo { margin: 1px 6px;}
+
+.sidebar.collapsed .text-decoration-none {
+    display:grid;
+    justify-content: center;
+    height:7.8vh;
+}
+
+.sidebar.collapsed .name {
+    display:none;
+}
+
+.sidebar.collapsed .version-dark {
+    display:none;
+}
+
+.sidebar.collapsed .sb-item svg {
+    margin: 0;
+}
+
+.sidebar.collapsed .who {
+    display: none;
+}
+
+.sidebar.collapsed .sb-foot {
+    justify-content: center;
+}
+
+.sidebar.collapsed .avatar {
+    margin: 0;
+}
+
+.app.collapsed {
+    margin-left: 60px;
+}
+
+.sidebar.collapsed .sb-text {
+    display: none;
+}
+
+.sidebar.collapsed .theme-toggle {
+    display: none;
+}
+
+.sidebar{
+    position:relative;
+}
+
+/* Toggle button */
+.sb-toggle{
+    position:absolute;
+    right:5px;
+    width:32px;
+    height:32px;
+    display:flex;
+    color:var(--ink);
+    align-items:center;
+    justify-content:center;
+    border:none;
+    background:transparent;
+    cursor:pointer;
+    transition:all .2s ease;
+}
+
+/* Collapsed sidebar */
+.sidebar.collapsed{
+    width:64px;
+}
+
+.sidebar.collapsed .name{
+    display:none;
+}
+
+/* Hide toggle when collapsed */
+.sidebar.collapsed .sb-toggle{
+    opacity:0;
+    pointer-events:none;
+}
+
+/* Show on hover (ChatGPT style) */
+.sidebar.collapsed:hover .sb-toggle{
+    opacity:1;
+    pointer-events:auto;
+}
+
+.sidebar.collapsed .sb-toggle{
+    position:absolute;
+    right:12px; /* outside sidebar */
+    top:12px;
+
+    opacity:0;
+    transform:translateX(-8px);
+}
+
+.sidebar.collapsed:hover .sb-toggle{
+    opacity:1;
+    transform:translateX(0);
+}
+
+.sidebar.collapsed .logo{
+    opacity:1;
+    transition:opacity .2s ease;
+}
+
+.sidebar.collapsed .sb-toggle{
+    opacity:0;
+    visibility:hidden;
+    pointer-events:none;
+    transition:opacity .2s ease;
+}
+
+/* Hover collapsed sidebar */
+.sidebar.collapsed:hover .logo{
+    opacity:0;
+}
+
+.sidebar.collapsed:hover .sb-toggle{
+    opacity:1;
+    visibility:visible;
+    pointer-events:auto;
+}
+
+.sidebar.collapsed .logo{
+    transform:scale(1);
+    transition:all .2s ease;
+}
+
+.sidebar.collapsed:hover .logo{
+    opacity:0;
+    transform:scale(.8);
+}
+
+.sidebar.collapsed .sb-toggle{
+    opacity:0;
+    transform:scale(.8);
+}
+
+.sidebar.collapsed:hover .sb-toggle{
+    opacity:1;
+    transform:scale(1);
+}
+
+#global-tooltip {
+  position: fixed;
+  padding: 6px 12px;
+  margin:1px 10px;
+  background: #333;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 999999;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  display: none;
+}
+
+.version-dark {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    margin:1px 5px;
+    padding: 6px 18px 6px 14px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    color: var(--ink-2);
+    position:absolute;
+    bottom:2px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    transition: all 0.3s ease;
+}
+
+.version-dark:hover {
+    border-color: #667eea;
+    box-shadow: 0 4px 24px rgba(102, 126, 234, 0.15);
+    transform: translateX(4px);
+}
+
+.dark-icon {
+    color: var(--ink-2);
+    font-size: 16px;
+    opacity: 0.7;
+}
+
+.dark-version {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.dark-label {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--ink-2);
+    letter-spacing: 0.3px;
+}
+
+.dark-number {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ink-2);
+    letter-spacing: 0.5px;
+}
+
+.dark-number span {
+    color: #667eea;
+}
+
+.dark-status {
+    font-size: 7px;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    background: linear-gradient(135deg, #059669, #10b981);
+    color: #fff;
+    border-radius: 50px;
+    letter-spacing: 0.5px;
+    margin-left: 4px;
+}
+
+.sidebar-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+}
+
+.brand{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex:1;
+    min-width:0;
+}
+
+</style>
+</head>
+<body>
+  <!-- SIDEBAR ─────────────────────────── -->
+  <aside class="sidebar">
+     <div class="sidebar-header">
+
+        <div class="brand">
+            <div class="logo sb-item">P</div>
+            <div class="name">Platform<em>Ops</em></div>
+        </div>
+
+        <button class="sb-toggle" id="sidebar-toggle">
+            <svg class="ic" viewBox="0 0 24 24">
+                <path d="M3 6h18M3 12h18M3 18h18"/>
+            </svg>
+        </button>
+        <button class="theme-toggle" type="button" aria-label="Toggle theme">
+              <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+              </svg>
+              <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+        </button>
+    </div>
+
+    <div class="sb-group"><span>Identity</span></div>
+    <a onclick="window.location.href='/PlatformIO/Users/'" class="text-decoration-none" data-url="/PlatformIO/Users/">
+      <div class="sb-item">
+        <span class="icon-trigger" data-tooltip="Users">
+          <svg class="ic ico" viewBox="0 0 24 24">
+            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+          </svg>
+        </span>
+        <span class="sb-text">Users</span>
+      </div>
+    </a>
+
+    <div class="sb-group">Infrastructure</div>
+      <a onclick="window.location.href='/PlatformIO/ClusterView/'" data-url="/PlatformIO/ClusterView/" data-match="/PlatformIO/ClusterView/,/PlatformIO/ClusterConfig/" class="text-decoration-none"><div class="sb-item"> <span class="icon-trigger" data-tooltip="Cluster View"><svg class="ic ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-11h-6M7 12H1"/></svg></span><span class="sb-text">Clusters</span></div></a>
+      <a onclick="window.location.href='/PlatformIO/ConfigManager/'" data-url="/PlatformIO/ConfigManager/" class="text-decoration-none"><div class="sb-item"> <span class="icon-trigger" data-tooltip="Config Manager"><svg class="ic ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51"/></svg></span><span class="sb-text">Config Manager</span></div></a>
+
+    <div class="sb-group">Observability</div>
+    <a onclick="window.location.href='/PlatformIO/SystemMonitoring/'" data-url="/PlatformIO/SystemMonitoring/" class="text-decoration-none">
+        <div class="sb-item">
+            <span class="icon-trigger" data-tooltip="Performance">
+                <svg class="ic ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 12h4l3-8 4 16 3-8h4"/>
+                </svg>
+            </span>
+            <span class="sb-text"> Performance</span>
+        </div>
+    </a>
+    <a onclick="window.location.href='/PlatformIO/Monitoring/'" data-url="/PlatformIO/Monitoring/" class="text-decoration-none">
+        <div class="sb-item">
+            <span class="icon-trigger" data-tooltip="Monitoring">
+                <svg class="ic ico" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            </span>
+            <span class="sb-text"> Monitoring</span>
+        </div>
+    </a>
+    <a onclick="window.location.href='/PlatformIO/Diagnostics/'" data-url="/PlatformIO/Diagnostics/" class="text-decoration-none">
+        <div class="sb-item">
+            <span class="icon-trigger" data-tooltip="Diagnostics">
+                <svg class="ic ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="8" y="2" width="8" height="4" rx="1" />
+                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                    <polyline points="10 11 12 13 17 8" />
+                </svg>
+            </span>
+            <span class="sb-text">Diagnostics</span>
+        </div>
+    </a>
+    {% if user.is_authenticated %}
+      <div class="sb-foot" id="user-toggle">
+        {% if user.is_authenticated %}
+            <div class="avatar">
+            {{ user.username|first|upper }}
+        </div>
+            <div class="who" id="sidebar">
+                <span id="username-display">{{ user.username }}</span>
+                <div class="role">
+                    System User
+                </div>
+            </div>
+        {% else %}
+            <p>You are not logged in.</p>
+        {% endif %}
+      </div>
+
+   <span class="version-dark">
+    <span class="dark-icon">◆</span>
+    <span class="dark-version">
+        <span class="dark-label">Version</span>
+        <span class="dark-number">3.0.2</span>
+    </span>
+    <span class="dark-status">Latest</span>
+</span>
+      <div class="user-popup" id="user-popup">
+        <a href="/" class="popup-link">
+            Logout
+        </a>
+      </div>
+    {% else %}
+      <a class="nav-item nav-link text-#e9ecef" href="{% url 'login'%}">Login</a>
+    {% endif %}
+  </aside>
+<script>
+    (function(){
+      try{
+        var t = localStorage.getItem('iktara-theme');
+        if(t !== 'light' && t !== 'dark'){
+          t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-theme', t);
+      } catch(e){
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    })();
+</script>
+<script>
+const userToggle = document.getElementById('user-toggle');
+const userPopup = document.getElementById('user-popup');
+let bodyPopup = null;
+
+function showPopupAboveAll() {
+    if (!bodyPopup) {
+        bodyPopup = userPopup.cloneNode(true);
+        bodyPopup.id = 'user-popup-body';
+        document.body.appendChild(bodyPopup);
+    }
+
+    const rect = userToggle.getBoundingClientRect();
+
+    bodyPopup.style.position = 'fixed';
+    bodyPopup.style.left = rect.left + 'px';
+    bodyPopup.style.zIndex = '999999';
+    bodyPopup.style.display = 'block';
+    bodyPopup.classList.add('show');
+}
+
+function hidePopup() {
+    if (bodyPopup) {
+        bodyPopup.style.display = 'none';
+        bodyPopup.classList.remove('show');
+    }
+}
+
+// Create the single tooltip element
+const tooltip = document.createElement('div');
+tooltip.id = 'global-tooltip';
+document.body.appendChild(tooltip);
+
+function showTooltipRight(element, text) {
+  const rect = element.getBoundingClientRect();
+
+  // Set text
+  tooltip.textContent = text;
+
+  // Temporarily show to measure dimensions
+  tooltip.style.display = 'block';
+  tooltip.style.opacity = '0';
+
+  // Measure tooltip size
+  const tooltipWidth = tooltip.offsetWidth;
+  const tooltipHeight = tooltip.offsetHeight;
+
+  // --- Position to the RIGHT of the icon ---
+  let left = rect.right + 8; // 8px gap
+  let top = rect.top + (rect.height / 2) - (tooltipHeight / 2);
+
+  // --- Safety: Prevent going off-screen to the right ---
+  if (left + tooltipWidth > window.innerWidth - 10) {
+    // If too far right, flip it to the LEFT side of the icon
+    left = rect.left - tooltipWidth - 8;
+  }
+
+  // --- Safety: Prevent going off-screen vertically ---
+  if (top < 10) top = 10;
+  if (top + tooltipHeight > window.innerHeight - 10) {
+    top = window.innerHeight - tooltipHeight - 10;
+  }
+
+  // Apply positions
+  tooltip.style.left = left + 'px';
+  tooltip.style.top = top + 'px';
+
+  // Fade in
+  setTimeout(() => { tooltip.style.opacity = '1'; }, 10);
+}
+
+function hideTooltip() {
+  tooltip.style.opacity = '0';
+  setTimeout(() => { tooltip.style.display = 'none'; }, 200);
+}
+
+// Attach to all icons (same as before)
+document.querySelectorAll('.icon-trigger').forEach(trigger => {
+  const tooltipText = trigger.dataset.tooltip;
+  if (!tooltipText) return;
+
+  trigger.addEventListener('mouseenter', () => {
+
+    const sidebar = document.querySelector('.sidebar');
+
+    // Show tooltip ONLY when sidebar is collapsed
+    if (!sidebar || !sidebar.classList.contains('collapsed')) {
+      return;
+    }
+
+    showTooltipRight(trigger, tooltipText);
+  });
+
+  trigger.addEventListener('mouseleave', hideTooltip);
+});
+
+
+
+userToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+
+    if (bodyPopup && bodyPopup.style.display === 'block') {
+        hidePopup();
+    } else {
+        showPopupAboveAll();
+    }
+});
+
+// Hide when clicking anywhere else
+document.addEventListener('click', (e) => {
+    if (
+        bodyPopup &&
+        bodyPopup.style.display === 'block' &&
+        !bodyPopup.contains(e.target) &&
+        !userToggle.contains(e.target)
+    ) {
+        hidePopup();
+    }
+});
+
+document.addEventListener('click', () => {
+    hidePopup();
+});
+
+userToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showPopupAboveAll();
+});
+
+userPopup.addEventListener('click', (e) => {
+    e.stopPropagation();
+});
+
+</script>
+<script>
+    const currentPath = window.location.pathname;
+    document.querySelectorAll('.sb-item').forEach(item => {
+        const link = item.closest('a');
+        if (!link) return;
+        const routes = (
+            link.dataset.match || link.dataset.url || ''
+        )
+            .split(',')
+            .map(route => route.trim())
+            .filter(Boolean);
+
+        const active = routes.some(route =>
+            currentPath.startsWith(route)
+        );
+        item.classList.toggle('active', active);
+    });
+</script>
+<script>
+    const userId = "{{ form.username }}";
+
+    console.log(userId, "-=-=-=-=-userId");
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const toggle = document.getElementById('sidebar-toggle');
+    const sidebar = document.querySelector('.sidebar');
+    const app = document.querySelector('.app');
+
+    if (toggle && sidebar) {
+        toggle.addEventListener('click', function() {
+            sidebar.classList.toggle('collapsed');
+            if (app) {
+                app.classList.toggle('collapsed');
+            }
+
+            // Save state to localStorage
+            const isCollapsed = sidebar.classList.contains('collapsed');
+            localStorage.setItem('sidebarCollapsed', isCollapsed);
+        });
+
+        // Restore saved state
+        const savedState = localStorage.getItem('sidebarCollapsed');
+        if (savedState === 'true') {
+            sidebar.classList.add('collapsed');
+            if (app) {
+                app.classList.add('collapsed');
+            }
+        }
+    }
+});
+
+</script>
+</body>
+</html>
