@@ -82,7 +82,9 @@ def redact_json_string(value: str | None) -> str:
     try:
         parsed = json.loads(raw)
     except (TypeError, json.JSONDecodeError):
-        return "***" if _PEM_MARKER.search(raw) else raw
+        # Even malformed event payloads are free-form text and must receive the
+        # same credential-shaped scrub as successful JSON serialization.
+        return redact_text(raw)
     return json.dumps(redact_secrets(parsed), separators=(",", ":"))
 
 

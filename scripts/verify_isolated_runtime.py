@@ -23,8 +23,6 @@ COMPOSE_PATH = ROOT / "ops/compose/docker-compose.isolated.yml"
 DOCKERFILE_PATH = ROOT / "ops/docker/web-api/Dockerfile"
 DOCKERIGNORE_PATH = ROOT / ".dockerignore"
 E2E_PATH = ROOT / "scripts/run_e2e_tests.py"
-CLUSTER_SMOKE_PATH = ROOT / "scripts/cluster_api_smoke.py"
-LIVE_API_SMOKE_PATH = ROOT / "scripts/test_live_api.py"
 FRONTEND_CLIENT_PATH = ROOT / "apps/web/src/api/client.ts"
 ISOLATED_CONFIG_DIR = ROOT / "ops/compose/isolated"
 
@@ -226,20 +224,6 @@ def verify_e2e_guard() -> None:
 
 
 def verify_smoke_guards() -> None:
-    for path, label in (
-        (CLUSTER_SMOKE_PATH, "cluster API smoke"),
-        (LIVE_API_SMOKE_PATH, "live API smoke"),
-    ):
-        text = path.read_text(encoding="utf-8")
-        if "http://127.0.0.1:9020" not in text and "http://localhost:9020" not in text:
-            fail(f"{label} must default to the isolated port 9020")
-        if "LIVE_PLATFORMOPS_PORT = 9002" not in text or "port == LIVE_PLATFORMOPS_PORT" not in text:
-            fail(f"{label} must reject the live PlatformOps port 9002")
-        if "Authorization" not in text and path == CLUSTER_SMOKE_PATH:
-            fail(f"{label} must send bearer authentication for protected requests")
-        if "Bearer {token}" not in text and path == LIVE_API_SMOKE_PATH:
-            fail(f"{label} must send bearer authentication for protected requests")
-
     frontend_sources = (
         (FRONTEND_CLIENT_PATH, "Frontend API client"),
     )

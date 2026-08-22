@@ -107,7 +107,7 @@ The fresh static/runtime evidence came from `scripts/verify_isolated_runtime.py`
 `ops/compose/docker-compose.isolated.yml`, the live 9020 `/api/health` and protected
 route checks, Docker/Compose inspection, and read-only queries in the isolated
 Postgres/DinD/Mailpit containers. Historical behavior evidence is recorded by
-`scripts/run_e2e_tests.py`, `scripts/cluster_api_smoke.py`,
+`scripts/run_redis_acceptance_test.py`, `scripts/run_e2e_tests.py`,
 `apps/api/tests/`, `ops/docker/web-api/Dockerfile`, and the 2026-08-10/11
 containerized verification report. The main E2E source explicitly excludes
 invite/SMTP and makes GlitchTip optional; those exclusions are part of the

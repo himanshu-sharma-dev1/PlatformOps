@@ -157,13 +157,15 @@ def _ansible_base_command(node: Node, playbook: str) -> str:
     if not is_local:
         from .remote import RemoteAuthError, strict_ansible_options
 
-        if getattr(node, "host_key_fingerprint", None) or getattr(node, "ssh_host_key_fingerprint", None):
-            try:
-                strict_args = strict_ansible_options(node)
-            except RemoteAuthError as exc:
-                raise ValueError(str(exc)) from exc
-        else:
-            strict_args = " --ssh-common-args='-o StrictHostKeyChecking=accept-new'"
+        # Remote lifecycle/discovery is target-bound only when the operator has
+        # pinned the host key and supplied its known-hosts reference.  Never
+        # fall back to accept-new (or any insecure host-key mode): an
+        # unpinned/unsupported provider must fail explicitly before queuing a
+        # job that could mutate an unintended target.
+        try:
+            strict_args = strict_ansible_options(node)
+        except RemoteAuthError as exc:
+            raise ValueError(str(exc)) from exc
     connection = " -c local" if is_local else ""
     return f"ansible-playbook -i {inventory}{connection}{user_arg}{key_arg}{strict_args} {ansible_dir / 'playbooks' / playbook}"
 
