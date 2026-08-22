@@ -78,14 +78,21 @@ COPY ops/compose /app/ops/compose
 # The frontend is served by FastAPI from this image at /app/dist.
 COPY --from=web-builder /web/dist /app/dist
 
-# Install the Ansible collection used by local/remote orchestration paths for
-# both the image build user and the unprivileged application user.
-RUN ansible-galaxy collection install community.docker \
+# Install the exact collection versions used by the shipped playbooks.  Keep
+# this in a system collection path so the unprivileged runtime user resolves
+# the same dependencies as the image-build syntax check.
+COPY ops/ansible/requirements.yml /tmp/ansible-requirements.yml
+RUN mkdir -p /usr/share/ansible/collections \
+    && ansible-galaxy collection install \
+       -p /usr/share/ansible/collections \
+       -r /tmp/ansible-requirements.yml \
+    && for playbook in /app/ops/ansible/playbooks/*.yml; do \
+         ansible-playbook --syntax-check "$playbook" -i localhost, -c local; \
+       done \
     && mkdir -p /app/data /home/appuser/.ansible \
     && chown -R appuser:appgroup /app /home/appuser/.ansible
 
 USER appuser
-RUN ansible-galaxy collection install community.docker
 
 ENV PORT=8000 \
     HOST=0.0.0.0 \

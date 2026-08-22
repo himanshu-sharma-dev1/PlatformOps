@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter
 from sqlalchemy import func
 
@@ -500,14 +502,30 @@ def probe_node_connection_endpoint(
     """
 
     node = _get_node(db, node_id)
-    result = probe_node_connection(
-        node,
-        ephemeral_key=payload.ssh_private_key,
-        ephemeral_password=payload.ssh_password,
-    )
     from ..security import redact_text
 
-    result["detail"] = redact_text(str(result.get("detail") or ""))[:200]
+    secret_values = tuple(
+        value for value in (payload.ssh_private_key, payload.ssh_password) if value
+    )
+    try:
+        result = probe_node_connection(
+            node,
+            ephemeral_key=payload.ssh_private_key,
+            ephemeral_password=payload.ssh_password,
+        )
+    except Exception as exc:
+        # Transport/adapter exceptions are terminal target failures, not API
+        # 500s.  Never echo the exception's request-scoped credential text.
+        result = {
+            "ssh_ok": False,
+            "docker_ok": False,
+            "connection_mode": "ssh",
+            "probed_at": datetime.utcnow().isoformat() + "Z",
+            "detail": str(exc) or "remote probe failed",
+        }
+    result["ssh_ok"] = bool(result.get("ssh_ok"))
+    result["docker_ok"] = bool(result.get("docker_ok"))
+    result["detail"] = redact_text(str(result.get("detail") or ""), secrets=secret_values)[:200]
     return result
 
 

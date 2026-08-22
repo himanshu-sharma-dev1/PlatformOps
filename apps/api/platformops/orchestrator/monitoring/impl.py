@@ -1956,6 +1956,36 @@ def patch_service_runtime_observability(db: Session, service_id: int) -> dict[st
             "stderr": "",
         }
 
+    # The patch helper executes Docker commands in-process.  It is valid only
+    # for a node whose Docker engine is explicitly the control-plane engine;
+    # silently running it here for an SSH-selected node would patch the wrong
+    # container.  Remote runtime patching must be provided by a target-bound
+    # deployment job and is reported as unavailable until that adapter exists.
+    try:
+        from ..service.impl import _node_uses_local_docker
+
+        target_node = getattr(service, "node", None)
+        if target_node is None and getattr(service, "node_id", None):
+            target_node = db.get(Node, service.node_id)
+        if target_node is None or not _node_uses_local_docker(target_node):
+            return {
+                "success": False,
+                "availability": "unavailable",
+                "source": "runtime_patch",
+                "error": "Remote runtime patch requires a target-bound deployment adapter; no local fallback was attempted.",
+                "stdout": "",
+                "stderr": "",
+            }
+    except Exception as exc:
+        return {
+            "success": False,
+            "availability": "error",
+            "source": "runtime_patch",
+            "error": redact_text(str(exc), secrets=(str(settings.glitchtip_token or ""),))[:400],
+            "stdout": "",
+            "stderr": "",
+        }
+
     # The PlatformOps GlitchTip credential is an API bearer token, not a DSN
     # key. Resolve the public project key before patching a target runtime so
     # the command never places a bearer secret in a service's DSN.

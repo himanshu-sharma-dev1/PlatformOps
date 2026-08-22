@@ -353,6 +353,39 @@ def test_atomic_runtime_config_stage_is_readable_by_non_root_service(
     assert member.mode & 0o044, "staged config must be readable by the Redis service user"
 
 
+def test_restore_snapshot_success_writes_exact_bytes_and_records_terminal_event(
+    db: Session, redis_service: ServiceInstance, monkeypatch: pytest.MonkeyPatch
+):
+    from platformops.orchestrator import config
+
+    original = "maxmemory 2mb\nappendonly no\n"
+    target_content = "# restored\nmaxmemory 4mb\nappendonly no\n"
+    target = ConfigSnapshot(
+        service_id=redis_service.id,
+        version=1,
+        name="restore-target",
+        source="manual",
+        content=target_content,
+    )
+    db.add(target)
+    db.commit()
+    state = {redis_service.container_name: original}
+    _stateful_runtime(monkeypatch, state)
+    job = config.restore_config_snapshot(db, redis_service, target, requested_by="alice")
+    assert job.status == "success"
+    assert state[redis_service.container_name] == target_content
+    snapshots = list(db.scalars(select(ConfigSnapshot).order_by(ConfigSnapshot.version)).all())
+    assert [item.source for item in snapshots] == ["manual", "pre-apply", "post-apply"]
+    events = list(
+        db.scalars(
+            select(OperationalEvent)
+            .where(OperationalEvent.category == "config", OperationalEvent.service_id == redis_service.id)
+            .order_by(OperationalEvent.id)
+        )
+    )
+    assert any(json.loads(event.metadata_json).get("snapshot_version") == 1 for event in events)
+
+
 def test_workspace_checkpoint_source_capabilities_and_snapshot_pages(
     db: Session, redis_service: ServiceInstance, monkeypatch: pytest.MonkeyPatch
 ):

@@ -188,6 +188,12 @@ def _migrate_schema() -> None:
             pass
 
 
+# Backward-compatible private name used by a few local maintenance scripts.
+# The implementation is now dialect-neutral and applies to PostgreSQL too.
+def _migrate_sqlite_schema() -> None:
+    _migrate_schema()
+
+
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:

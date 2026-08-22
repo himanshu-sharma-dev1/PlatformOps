@@ -175,13 +175,19 @@ def _probe_node_ssh_docker(
             result["detail"] = (proc.stderr or proc.stdout or "ssh failed").strip()[:300]
     except FileNotFoundError:
         result["ssh_ok"] = False
+        result["docker_ok"] = False
         result["detail"] = "ssh client not available on control plane"
+    except TimeoutError:
+        result["ssh_ok"] = False
+        result["docker_ok"] = False
+        result["detail"] = "remote probe timeout"
     except RemoteAuthError as exc:
         result["ssh_ok"] = False
         result["docker_ok"] = False
         result["detail"] = str(exc)
     except Exception as exc:
         result["ssh_ok"] = False
+        result["docker_ok"] = False
         result["detail"] = str(exc)[:200]
     return result
 
@@ -194,11 +200,20 @@ def probe_node_connection(
 ) -> dict[str, Any]:
     """Probe a node with request-scoped auth, returning no credential material."""
 
-    return _probe_node_ssh_docker(
+    result = _probe_node_ssh_docker(
         node,
         ephemeral_key=ephemeral_key,
         ephemeral_password=ephemeral_password,
     )
+    from ..security import redact_text
+
+    result["detail"] = redact_text(
+        str(result.get("detail") or ""),
+        secrets=tuple(value for value in (ephemeral_key, ephemeral_password) if value),
+    )[:300]
+    result["ssh_ok"] = bool(result.get("ssh_ok"))
+    result["docker_ok"] = bool(result.get("docker_ok"))
+    return result
 
 
 def cleanup_node_inventory(

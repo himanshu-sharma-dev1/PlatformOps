@@ -28,6 +28,10 @@ _SECRET_KEY_PARTS = (
 )
 _AUTH_MODE_KEYS = {"auth", "repo_auth", "registry_auth", "auth_mode", "auth_type"}
 _PEM_MARKER = re.compile(r"-----BEGIN(?: [A-Z0-9]+)? PRIVATE KEY-----")
+_CREDENTIAL_TEXT = re.compile(
+    r"(?i)\b(password|passwd|token|secret|private[_ -]?key|credential|authorization|bearer|api[_ -]?key)\b"
+    r"\s*([:=])\s*([^\s,;]+)"
+)
 
 
 def is_secret_key(key: object) -> bool:
@@ -79,4 +83,5 @@ def redact_text(value: str | None, *, secrets: tuple[str, ...] = ()) -> str:
     for secret in secrets:
         if secret:
             output = output.replace(secret, "***")
+    output = _CREDENTIAL_TEXT.sub(r"\1\2[REDACTED]", output)
     return "***" if _PEM_MARKER.search(output) else output

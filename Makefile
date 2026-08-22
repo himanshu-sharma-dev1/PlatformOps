@@ -35,11 +35,6 @@ help:
 api:
 	$(UVICORN) platformops.main:app --app-dir apps/api --reload
 
-# Seeding is intentionally a separate, explicitly requested target.  No
-# verification/check target invokes it and no isolated target drops a DB.
-seed:
-	$(PYTHON) scripts/seed_demo.py
-
 web:
 	cd apps/web && npm run dev
 
