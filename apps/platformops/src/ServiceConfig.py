@@ -31,6 +31,7 @@ from cPlatformIO.src.serviceEvent import service_event_add_request
 from cPlatformIO.src.PlatformSetting import PlatformSettings
 from CommonUtils.logs import LogMgr
 from CommonUtils.timer.TimerMgr import cutil_timer_interval_start, cutil_timer_stop
+from django.conf import settings
 from django.db.models import Q
 from django_celery_beat.models import PeriodicTask
 
@@ -223,18 +224,10 @@ INFRASTRUCTURE_SERVICE_CATALOG = {
         "category": "monitor",
         "catalog_visible": False,
     },
-    "InfraPlatformOpsTest": {
-        "display_name": "PlatformOps Test Service",
-        "source_service": "PlatformOpsTest",
-        "source_role": "PlatformOpsTest",
-        "container_slug": "platformops-test-service",
-        "category": "service",
-    },
 }
 
 INFRASTRUCTURE_CONFIG_PATHS = {
     "PlatformOpsTest": "/etc/test_service.conf",
-    "InfraPlatformOpsTest": "/etc/test_service.conf",
     "Text2CLK": "/iktara/text2clk/text2clk/config/text2clkConfig.yaml",
     "MCPServer": "/iktara/mcpServer/mcpServer/config/toolRegistry.yaml",
     "Postgres": "/var/lib/postgresql/data/postgresql.conf",
@@ -1193,6 +1186,15 @@ def service_network_state(service_name):
 # Determine the IP and port of a service based on deployment type and network state.
 def service_get_route(service_instance):
     from cPlatformIO.src.PlatformSetting import PlatformSettings
+
+    runtime = (service_instance.service_config or {}).get("runtime", {}) if isinstance(service_instance.service_config, dict) else {}
+    container_name = runtime.get("container_name")
+    internal_port = runtime.get("internal_port")
+    network_name = runtime.get("network_name")
+
+    if container_name and internal_port and network_name == "platformops_network":
+        return True, container_name, internal_port
+
     if PlatformSettings.deployment_type.upper() == 'LOCAL':
         return True, '127.0.0.1', service_instance.service_port
 
@@ -2482,8 +2484,12 @@ def service_edit_request(request_info):
                     ser_ins.service_port = int(str(raw_port).strip())
                 except ValueError:
                     pass
-            ser_ins.service_debug = request_info.get('service_debug')
-            ser_ins.service_config = request_info
+            ser_ins.service_debug = request_info.get('service_debug') or ser_ins.service_debug or 'DISABLE'
+            if not ser_ins.service_install:
+                ser_ins.service_install = request_info.get('service_install') or 'ANSIBLE'
+            merged_config = dict(ser_ins.service_config or {}) if isinstance(ser_ins.service_config, dict) else {}
+            merged_config.update(request_info)
+            ser_ins.service_config = merged_config
             ser_ins.save()
 
             # Forwarding service config to a non-orchestrator service
@@ -2714,57 +2720,62 @@ def get_service_instance_from_app_name(app_name, service_type):
 
 
 def _resolve_config_store_snapshots(service_instance, max_items=200):
+    from cPlatformIO.src import PlatformPath
     node_instance = service_instance.Node
     if not node_instance:
         return []
 
     node_ip = _normalize_node_ip(getattr(node_instance, "node_ip", getattr(node_instance, "ip_address", "")))
     node_volume = getattr(node_instance, "node_volume", "")
-    if not node_ip or not node_volume:
+    if not node_ip:
         return []
 
-    node_volume_clean = node_volume.lstrip("/")
-    base_dir = Path("/iktara/cPlatform/cPlatform/logs/config_snapshots") / node_ip / node_volume_clean / "config"
+    node_volume_clean = PlatformPath.clean_volume_for_path(node_volume)
     service_name = service_instance.service_type or service_instance.service_name or service_instance.service_id
-
-    if not base_dir.exists() or not base_dir.is_dir():
-        return []
-
     label_map = _load_config_snapshot_labels(service_instance.service_id)
     snapshot_items = []
-    service_dir = base_dir / str(service_name)
-    if not service_dir.exists():
-        return []
+    seen_keys = set()
 
-    for version_dir in service_dir.iterdir():
-        if not version_dir.is_dir():
-            continue
-        for ts_dir in version_dir.iterdir():
-            if not ts_dir.is_dir():
-                continue
-            config_file = ts_dir / "config.yaml"
-            if not config_file.exists():
-                continue
+    # Search canonical path and any legacy volume folders under logs/config_snapshots/node_ip/
+    search_dirs = []
+    canonical_dir = PlatformPath.get_local_snapshot_root() / node_ip / node_volume_clean / "config" / str(service_name)
+    if canonical_dir.exists():
+        search_dirs.append(canonical_dir)
 
-            remote_path = f"{node_volume.rstrip('/')}/config/{service_name}/{version_dir.name}/{ts_dir.name}/config.yaml"
+    ip_dir = PlatformPath.get_local_snapshot_root() / node_ip
+    if ip_dir.exists() and ip_dir.is_dir():
+        for potential_file in ip_dir.rglob("config.yaml"):
+            parts = potential_file.parts
+            if str(service_name) in parts:
+                try:
+                    s_idx = parts.index(str(service_name))
+                    if len(parts) > s_idx + 2:
+                        ver_name = parts[s_idx + 1]
+                        ts_name = parts[s_idx + 2]
+                        s_key = _config_snapshot_key(ver_name, ts_name)
+                        if s_key in seen_keys:
+                            continue
+                        seen_keys.add(s_key)
 
-            try:
-                dt = datetime.strptime(ts_dir.name, "%Y%m%dT%H%M%SZ")
-                display_date = dt.strftime("%d-%b-%Y %H:%M")
-            except Exception:
-                display_date = ts_dir.name
+                        remote_path = f"{node_volume.rstrip('/')}/config/{service_name}/{ver_name}/{ts_name}/config.yaml"
+                        try:
+                            dt = datetime.strptime(ts_name, "%Y%m%dT%H%M%SZ")
+                            display_date = dt.strftime("%d-%b-%Y %H:%M")
+                        except Exception:
+                            display_date = ts_name
 
-            snapshot_key = _config_snapshot_key(version_dir.name, ts_dir.name)
-            snapshot_items.append({
-                "service": service_name,
-                "version": version_dir.name,
-                "timestamp": ts_dir.name,
-                "snapshot_key": snapshot_key,
-                "display_date": display_date,
-                "path": remote_path,
-                "mtime": config_file.stat().st_mtime,
-                "custom_name": str(label_map.get(snapshot_key, "") or "").strip(),
-            })
+                        snapshot_items.append({
+                            "service": service_name,
+                            "version": ver_name,
+                            "timestamp": ts_name,
+                            "snapshot_key": s_key,
+                            "display_date": display_date,
+                            "path": remote_path,
+                            "mtime": potential_file.stat().st_mtime,
+                            "custom_name": str(label_map.get(s_key, "") or "").strip(),
+                        })
+                except Exception:
+                    continue
 
     _apply_config_snapshot_display_names(snapshot_items)
     snapshot_items.sort(key=lambda item: item.get("mtime", 0), reverse=True)
@@ -2772,7 +2783,8 @@ def _resolve_config_store_snapshots(service_instance, max_items=200):
 
 
 def _config_snapshot_labels_root():
-    return Path("/iktara/cPlatform/cPlatform/logs/config_snapshot_labels")
+    from cPlatformIO.src import PlatformPath
+    return PlatformPath.get_snapshot_labels_root()
 
 
 def _config_snapshot_labels_path(service_id):
@@ -2796,16 +2808,21 @@ def _load_config_snapshot_labels(service_id):
 
 
 def _save_config_snapshot_labels(service_id, labels):
-    labels_path = _config_snapshot_labels_path(service_id)
-    labels_path.parent.mkdir(parents=True, exist_ok=True)
-    labels_path.write_text(
-        json.dumps({
-            "service_id": service_id,
-            "updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
-            "labels": labels,
-        }, indent=2, sort_keys=True),
-        encoding="utf-8",
-    )
+    try:
+        labels_path = _config_snapshot_labels_path(service_id)
+        labels_path.parent.mkdir(parents=True, exist_ok=True)
+        labels_path.write_text(
+            json.dumps({
+                "service_id": service_id,
+                "labels": labels,
+                "updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+            }, indent=2),
+            encoding="utf-8"
+        )
+        return True
+    except Exception as e:
+        app_logger.error(f"Failed to save snapshot labels for {service_id}: {e}")
+        return False
 
 
 def _normalize_snapshot_label(label):
@@ -2847,23 +2864,17 @@ def service_rename_config_snapshot(service_id, version, timestamp, new_name):
     target_key = _config_snapshot_key(version, timestamp)
     target_snapshot = next((item for item in snapshots if item.get("snapshot_key") == target_key), None)
     if target_snapshot is None:
-        return False, "Snapshot not found", {}
-
-    label_l = label.lower()
-    for snapshot in snapshots:
-        if snapshot.get("snapshot_key") == target_key:
-            continue
-        existing_name = str(snapshot.get("display_name") or snapshot.get("default_name") or "").strip()
-        if existing_name.lower() == label_l:
-            return False, f"Snapshot name '{label}' already exists for this service", {}
+        return False, f"Snapshot for version '{version}' and timestamp '{timestamp}' was not found", {}
 
     labels = _load_config_snapshot_labels(service_id)
-    default_name = str(target_snapshot.get("default_name", "") or "").strip()
-    if label == default_name:
+    if label == target_snapshot.get("default_name"):
         labels.pop(target_key, None)
     else:
         labels[target_key] = label
-    _save_config_snapshot_labels(service_id, labels)
+
+    saved = _save_config_snapshot_labels(service_id, labels)
+    if not saved:
+        return False, "Failed to persist snapshot label", {}
 
     refreshed = _resolve_config_store_snapshots(service_instance)
     renamed_snapshot = next((item for item in refreshed if item.get("snapshot_key") == target_key), {})
@@ -2892,6 +2903,7 @@ def service_get_config_store(service_id):
 
 
 def service_get_snapshot_content(service_id, version, timestamp):
+    from cPlatformIO.src import PlatformPath
     if not Service.objects.filter(service_id=service_id).exists():
         return False, "Service not found", ""
 
@@ -2901,16 +2913,16 @@ def service_get_snapshot_content(service_id, version, timestamp):
         return False, "Node not found", ""
 
     node_ip = _normalize_node_ip(getattr(node_instance, "node_ip", getattr(node_instance, "ip_address", "")))
-    node_volume = getattr(node_instance, "node_volume", "").lstrip("/")
+    node_volume = getattr(node_instance, "node_volume", "")
     service_name = service_instance.service_type or service_instance.service_name or service_instance.service_id
 
-    local_path = Path("/iktara/cPlatform/cPlatform/logs/config_snapshots") / node_ip / node_volume / "config" / service_name / version / timestamp / "config.yaml"
+    local_path = PlatformPath.find_existing_snapshot_file(node_ip, node_volume, service_name, version, timestamp)
 
     if not local_path.exists():
         return False, f"Snapshot file not found at {local_path}", ""
 
     try:
-        with open(local_path, 'r') as f:
+        with open(local_path, 'r', encoding='utf-8') as f:
             content = f.read()
         return True, "Success", content
     except Exception as e:
@@ -3125,7 +3137,7 @@ def _snapshot_content_to_dict(service_id, snapshot_info, label):
 
 
 def _migration_artifacts_root():
-    return Path("/iktara/cPlatform/cPlatform/logs/config_migration_artifacts")
+    return Path(settings.BASE_DIR) / "logs/config_migration_artifacts"
 
 
 def _migration_artifact_paths(service_id, artifact_id):

@@ -1969,13 +1969,19 @@ services:
       NVIDIA Container Toolkit Installed: 'No'
     Docker_Info:
       PlatformOpsTest:
-        Image_Name: platformops/test-service
+        Image_Name: platformops/test-service:1.0.0
         Image_Ver: 1.0.0
-        Int_IP_Addr: 180.75.0.30
+        Image_Tag_Includes_Version: true
+        Pull_Image: false
+        Image_Ver_List:
+          - 1.0.0
+        Role: PlatformOpsTest
+        Int_IP_Addr: ""
         Int_Port: 6379
         Network_Name: platformops_network
+        Network_Subnet: ""
         Default_Expose_Service: true
-        Default_Host_Port: 9030
+        Default_Host_Port: 9031
         Volumes:
         - /{{ service_volume }}/platformops/testServiceLogs:/var/log/test-service
         - /{{ service_volume }}/platformops/testServiceConfig/test_service.conf:/etc/test_service.conf

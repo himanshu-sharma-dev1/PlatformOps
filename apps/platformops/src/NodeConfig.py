@@ -354,23 +354,44 @@ def node_edit_request(request_info):
     if not _validate_ip_address(ip_address):
         return False, "Invalid Node IP Address", ""
 
-    # Validate authentication parameters
-    if username == '' or (auth_type == "Password" and pwd == '') or (
-            auth_type == "EncryptionKey" and not encryption_key_str):
-        return False, "Invalid Authentication Parameters", ""
-
     node_ins = Node.objects.filter(node_id=node_id).first()
     if not node_ins:
         return False, "Node not found", ""
+
+    # Preserve existing credentials if not provided in update request
+    if auth_type == "Password":
+        if not pwd and node_ins.password:
+            pwd = node_ins.password
+    elif auth_type == "EncryptionKey":
+        if not encryption_key_str and node_ins.encryption_key_text:
+            encryption_key_str = node_ins.encryption_key_text
+        elif not encryption_key_str and node_ins.encryption_key_name:
+            pem_dir = os.path.join(settings.BASE_DIR, 'temp_pem')
+            pem_file = os.path.join(pem_dir, f"{node_id}.pem")
+            if os.path.exists(pem_file):
+                try:
+                    with open(pem_file, 'r', encoding='utf-8') as f:
+                        encryption_key_str = f.read()
+                except Exception:
+                    pass
+
+    # Validate authentication parameters
+    if username == '' or (auth_type == "Password" and not pwd) or (
+            auth_type == "EncryptionKey" and not encryption_key_str):
+        return False, "Invalid Authentication Parameters", ""
+
     # Update node fields
     node_ins.node_name = node_name
     node_ins.node_ip = ip_address
     node_ins.auth_type = auth_type
     node_ins.username = username
     node_ins.password = pwd
-    node_ins.node_volume = config.get('node_volume')
-    node_ins.node_monitor_port = config.get('node_monitor_port')
-    node_ins.gpu_status = gpu_status
+    node_ins.node_volume = config.get('node_volume') or node_ins.node_volume or "/home/ubuntu/PlatformOps_Backup"
+    node_ins.node_monitor_port = config.get('node_monitor_port') or node_ins.node_monitor_port
+    node_ins.gpu_status = gpu_status or node_ins.gpu_status
+    merged_provision = dict(node_ins.node_provision_config or {}) if isinstance(node_ins.node_provision_config, dict) else {}
+    merged_provision.update(config)
+    node_ins.node_provision_config = merged_provision
 
     encryption_key_path = ""
 
@@ -469,8 +490,8 @@ def node_get_monitoring_stats():
     stats_info = {"cluster_count": ClusterConfig.cluster_get_all_cluster_count(), "node_count": Node.objects.count(),
                   "gpu_node_count": Node.objects.exclude(gpu_status__in=["None", "disabled"]).count(),
                   "live_node_count": Node.objects.filter(service__service_type="InfraPrometheus").distinct().count(),
-                  "infra_service_count": ServiceConfig.service_get_infra_service_count,
+                  "infra_service_count": ServiceConfig.service_get_infra_service_count(),
                   "config_snapshot_count": sum(
-                      1 for _ in Path("/iktara/cPlatform/cPlatform/logs/config_snapshots").rglob("config.yaml")
+                      1 for _ in (Path(settings.BASE_DIR) / "logs/config_snapshots").rglob("config.yaml") if (Path(settings.BASE_DIR) / "logs/config_snapshots").exists()
                   ),                  }
     return stats_info

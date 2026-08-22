@@ -1797,12 +1797,11 @@ def cPlatformIO_config_manager_view(request):
             snapshot_count = len(snapshots)
             active_checkpoint = snapshots[0] if snapshots else None
             last_sync = active_checkpoint.get("display_date", "Never") if active_checkpoint else "Never"
-            last_modified = active_checkpoint.get("timestamp", "Never") if active_checkpoint else "Never"
-
-            node_volume = getattr(service_instance.Node, "node_volume", "vol1").lstrip("/")
+            from cPlatformIO.src import PlatformPath
+            node_volume = PlatformPath.get_node_volume(service_instance)
             service_name = runtime_target.get("config_service_name") or service_instance.service_type or service_instance.service_name or service_instance.service_id
-            config_path = config_capabilities.get("config_path") or f"/iktara/data/volume/{node_volume}/config/{service_name}/config.yaml"
-            file_label = f"{runtime_target.get('container_name') or service_name}/config.yaml"
+            config_path = config_capabilities.get("config_path") or PlatformPath.get_service_config_path(service_instance.service_type)
+            file_label = f"{runtime_target.get('container_name') or service_name}/{os.path.basename(config_path)}"
 
             # This comparison is workspace/editor content against the active checkpoint.
             # A separate live-container read is required before calling this true runtime drift.

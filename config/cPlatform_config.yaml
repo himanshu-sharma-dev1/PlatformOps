@@ -67,7 +67,7 @@ CPLATFORM_CONFIG:
     repo_role: Primary
     repo_sync: LOCAL
   service:
-    cplatform_url: http://iktaratech.com
+    cplatform_url: http://localhost:9020
     deploy_status: null
     gpu_flag: Disable
     mcp_url: null

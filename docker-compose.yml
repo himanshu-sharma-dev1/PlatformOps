@@ -191,7 +191,8 @@ services:
       EMAIL_PORT: 1025
     volumes:
       - .:/app
-      - /home/ubuntu/Backup_Platform:/home/ubuntu/Backup_Platform
+      - ${PLATFORMOPS_NODE_VOLUME:-/home/ubuntu/PlatformOps_Backup}:${PLATFORMOPS_NODE_VOLUME:-/home/ubuntu/PlatformOps_Backup}
+      - /home/ubuntu/Backup_Platform:/home/ubuntu/Backup_Platform:ro
     depends_on:
       postgres:
         condition: service_healthy

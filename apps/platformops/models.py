@@ -2,6 +2,10 @@ import uuid
 from django.db import models
 
 REPOSITORY_TYPE = [
+    ('GitHub', 'GitHub'),
+    ('GitLab', 'GitLab'),
+    ('Bitbucket', 'Bitbucket'),
+    ('Local', 'Local'),
     ('LocalVolume', 'LocalVolume'),
     ('NFSVolume', 'NFSVolume'),
     ('DistributedFS', 'DistributedFS'),
@@ -18,9 +22,14 @@ CLUSTER_REGION_TYPE = [
 
 CLUSTER_ENVIRONMENT_TYPE = [
     ('Production', 'Production'),
+    ('prod', 'Production'),
     ('Staging', 'Staging'),
+    ('staging', 'Staging'),
     ('Development', 'Development'),
-    ('Edge', 'Edge')
+    ('dev', 'Development'),
+    ('Edge', 'Edge'),
+    ('UAT', 'UAT'),
+    ('uat', 'UAT'),
 ]
 
 CLUSTER_TYPE = [
@@ -31,6 +40,8 @@ CLUSTER_TYPE = [
 CLUSTER_TYPE_VARIENT = [
     ('Kubernetes', 'Kubernetes'),
     ('Standalone', 'Standalone'),
+    ('Docker', 'Docker'),
+    ('Docker Standalone', 'Docker Standalone'),
     ('Edge', 'Edge')
 ]
 
@@ -44,6 +55,7 @@ SERVICE_TYPE = [
     ('TrainingServer', 'TrainingServer'),
     ('InferenceServer', 'InferenceServer'),
     ('MCPServer', 'MCPServer'),
+    ('PlatformOpsTest', 'PlatformOpsTest'),
     ('redis', 'redis'),
     ('postgres', 'postgres'),
     ('rabbitmq', 'rabbitmq'),
@@ -82,6 +94,8 @@ DEPLOY_OPTIONS = [
 ]
 
 ROLE = [
+    ('Management', 'Management'),
+    ('Admin', 'Admin'),
     ('System_Admin', 'System_Admin'),
     ('Operational', 'Operational'),
     ('Developer', 'Developer'),

@@ -357,7 +357,10 @@ def service_user_invite(name, user_email, phone, role, permissions, invited_by):
     )
 
     # Build the link
-    invite_link = f"{PlatformSettings.cplatform_url}/invite/accept/{invite.token}/"
+    base_url = str(getattr(PlatformSettings, "cplatform_url", "") or "").rstrip("/")
+    if not base_url or "iktaratech.com" in base_url:
+        base_url = "http://localhost:9020"
+    invite_link = f"{base_url}/invite/accept/{invite.token}/"
 
 
     # Send email
@@ -427,7 +430,10 @@ def service_user_resend_invite_bulk(emails, invited_by):
         user.created_date = date.today()
         user.save()
         # Build link and send email
-        invite_link = f"{PlatformSettings.cplatform_url}/invite/accept/{invite.token}/"
+        base_url = str(getattr(PlatformSettings, "cplatform_url", "") or "").rstrip("/")
+        if not base_url or "iktaratech.com" in base_url:
+            base_url = "http://localhost:9020"
+        invite_link = f"{base_url}/invite/accept/{invite.token}/"
         mail_body = get_template('PlatformIO/email_invite.html').render({
             "invite_link": invite_link,
             "user_name":   user.user_name,

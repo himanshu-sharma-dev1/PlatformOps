@@ -29,10 +29,12 @@ def _normalize_cluster_variant(raw_variant):
         'k8s': 'Kubernetes',
         'kubernetes': 'Kubernetes',
         'standalone': 'Standalone',
+        'docker': 'Docker Standalone',
+        'docker standalone': 'Docker Standalone',
         'edge': 'Edge',
     }
     normalized = str(raw_variant or '').strip().lower()
-    return variant_map.get(normalized, raw_variant if raw_variant in ['Kubernetes', 'Standalone', 'Edge'] else 'Kubernetes')
+    return variant_map.get(normalized, raw_variant if raw_variant in ['Kubernetes', 'Standalone', 'Docker', 'Docker Standalone', 'Edge'] else 'Standalone')
 
 
 def _normalize_cluster_role(raw_role):
@@ -131,14 +133,17 @@ def cluster_update_request(request_info):
         return False, "Cluster does not exist", ""
 
     cluster_instance = Cluster.objects.get(cluster_id=cluster_id)
-    cluster_variant = _normalize_cluster_variant(request_info.get('cluster_type_varient', request_info.get('cluster_type')))
-    image_store_type = _normalize_image_store(request_info.get('Image_store'))
-    image_store_path = request_info.get('imagePath') if image_store_type == 'Local' else None
+    raw_variant = request_info.get('cluster_type_varient') or request_info.get('cluster_type')
+    cluster_variant = _normalize_cluster_variant(raw_variant) if raw_variant else cluster_instance.cluster_type_varient
+    
+    raw_image_store = request_info.get('Image_store') or request_info.get('image_store_type')
+    image_store_type = _normalize_image_store(raw_image_store) if raw_image_store else cluster_instance.image_store_type
+    image_store_path = request_info.get('imagePath') or request_info.get('image_store_path') if image_store_type == 'Local' else cluster_instance.image_store_path
 
-    cluster_instance.region = request_info.get('cluster_region', cluster_instance.region)
-    cluster_instance.environment = request_info.get('cluster_env', cluster_instance.environment)
+    cluster_instance.region = request_info.get('cluster_region') or request_info.get('region') or cluster_instance.region
+    cluster_instance.environment = request_info.get('cluster_env') or request_info.get('environment') or cluster_instance.environment
     cluster_instance.description = request_info.get('description', cluster_instance.description)
-    cluster_instance.repo_type = request_info.get('repo_type', cluster_instance.repo_type)
+    cluster_instance.repo_type = request_info.get('repo_type') or cluster_instance.repo_type
     cluster_instance.image_store_type = image_store_type
     cluster_instance.image_store_path = image_store_path
     cluster_instance.cluster_type_varient = cluster_variant

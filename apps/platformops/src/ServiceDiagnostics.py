@@ -664,8 +664,10 @@ def _resolve_contract_value(raw_value, service_instance):
     if not value:
         return ""
 
-    service_volume = str(_as_dict(getattr(service_instance, "service_config", {})).get("service_volume") or "/home/ubuntu/Backup_Platform")
-    machine_volume = str(_as_dict(getattr(service_instance, "service_config", {})).get("machine_volume") or "/home/ubuntu/Backup_Platform")
+    node_vol = getattr(getattr(service_instance, "Node", None), "node_volume", "")
+    svc_vol = getattr(service_instance, "service_volume", "")
+    service_volume = str(svc_vol or node_vol or _as_dict(getattr(service_instance, "service_config", {})).get("service_volume") or "/home/ubuntu/PlatformOps_Backup")
+    machine_volume = str(node_vol or svc_vol or _as_dict(getattr(service_instance, "service_config", {})).get("machine_volume") or "/home/ubuntu/PlatformOps_Backup")
     replacements = {
         "{{ service_volume }}": service_volume.rstrip("/"),
         "{{ machine_volume }}": machine_volume.rstrip("/"),
@@ -711,7 +713,7 @@ def _candidate_path_aliases(path_value, service_instance=None):
 
     repo_root = _repo_root()
 
-    if normalized.startswith("/home/ubuntu/Backup_Platform/iktara/"):
+    if normalized.startswith("/home/ubuntu/PlatformOps_Backup/iktara/") or normalized.startswith("/home/ubuntu/Backup_Platform/iktara/"):
         suffix = normalized.split("/iktara/", 1)[1]
         aliases.append(str(repo_root / suffix))
         if suffix == "cPlatform/logs":
@@ -732,7 +734,7 @@ def _candidate_path_aliases(path_value, service_instance=None):
                 fallback_normalized = fallback_normalized[1:]
             if fallback_normalized != fallback_dir:
                 aliases.append(fallback_normalized)
-            if fallback_normalized.startswith("/home/ubuntu/Backup_Platform/iktara/"):
+            if fallback_normalized.startswith("/home/ubuntu/PlatformOps_Backup/iktara/") or fallback_normalized.startswith("/home/ubuntu/Backup_Platform/iktara/"):
                 fallback_suffix = fallback_normalized.split("/iktara/", 1)[1]
                 aliases.append(str(repo_root / fallback_suffix))
 
@@ -1594,14 +1596,15 @@ def get_global_diagnostics_metrics():
         # Get actual log storage size on the primary node
         actual_size_display = None
         try:
-            from cPlatformIO.models import Node
+            from django.conf import settings
             primary_node = Node.objects.filter(node_id="NODE1001").first()
             node_ip = primary_node.node_ip if primary_node else "216.48.189.217"
             node_id = primary_node.node_id if primary_node else "NODE1001"
-            pem_path = f"/iktara/cPlatform/cPlatform/temp_pem/{node_id}.pem"
+            node_vol = getattr(primary_node, "node_volume", "/home/ubuntu/PlatformOps_Backup")
+            pem_path = str(Path(settings.BASE_DIR) / f"temp_pem/{node_id}.pem")
             
             if os.path.exists(pem_path):
-                find_cmd = 'find /home/ubuntu/Backup_Platform/iktara/ -type f \\( -ipath "*/logs/*" -o -ipath "*/observability/loki/*" \\) -exec du -b {} + 2>/dev/null | awk \'{sum+=$1} END {print sum}\''
+                find_cmd = f'find {node_vol} /home/ubuntu/Backup_Platform -type f \\( -ipath "*/logs/*" -o -ipath "*/observability/loki/*" \\) -exec du -b {{}} + 2>/dev/null | awk \'{{sum+=$1}} END {{print sum}}\''
                 command = [
                     "ssh",
                     "-i", pem_path,

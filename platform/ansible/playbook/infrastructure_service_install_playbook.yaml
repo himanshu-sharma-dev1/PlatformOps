@@ -15,8 +15,16 @@
     infra_image: >-
       {{
         infra_contract.Image_Name
-        if infra_contract.Image_Tag_Includes_Version | default(false)
-        else infra_contract.Image_Name ~ '-' ~ (infra_contract.Image_Ver | default('1.0.0'))
+        if (infra_contract.Image_Tag_Includes_Version | default(false) or (':' in (infra_contract.Image_Name | default('')) and not (infra_contract.Image_Name | default('')).endswith(':') and not (infra_contract.Image_Name | default('')).startswith('iktaraai/services:')))
+        else (
+          (infra_contract.Image_Name | default('')) ~ '-' ~ (infra_contract.Image_Ver | default('1.0.0'))
+          if (infra_contract.Image_Name | default('')).startswith('iktaraai/services:')
+          else (
+            (infra_contract.Image_Name | default('')) ~ ':' ~ (infra_contract.Image_Ver | default('1.0.0'))
+            if ':' not in (infra_contract.Image_Name | default(''))
+            else infra_contract.Image_Name
+          )
+        )
       }}
     bind_path_ownership:
       rabbitmqLogs:
