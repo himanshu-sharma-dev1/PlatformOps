@@ -117,6 +117,9 @@ services:
       PLATFORMOPS_LLM_MODEL: ${PLATFORMOPS_LLM_MODEL:-mistral-medium-2508}
     volumes:
       - platformops_data:/app/data
+      - ../../apps/api:/app/apps/api
+      - ../../catalog:/app/catalog
+      - ../../ops/ansible:/app/ops/ansible
     depends_on:
       postgres:
         condition: service_healthy

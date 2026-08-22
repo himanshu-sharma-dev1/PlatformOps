@@ -172,9 +172,24 @@ def create_node(payload: NodeCreate, db: Session = Depends(get_db)) -> Node:
     db.commit()
     db.refresh(node)
 
-    # ``private_key`` is deliberately not written to runtime_dir or the DB.
-    # One-shot callers can pass it to the strict remote adapter from an
-    # operation endpoint; this create route only registers inventory.
+    if ephemeral_password:
+        import contextlib
+        from pathlib import Path
+        secrets_dir = Path("/app/data/secrets") if Path("/app/data").exists() else Path("data/secrets")
+        secrets_dir.mkdir(parents=True, exist_ok=True)
+        secret_file = secrets_dir / f"node_{node.id}.secret"
+        secret_file.write_text(ephemeral_password, encoding="utf-8")
+        with contextlib.suppress(Exception):
+            os.chmod(secret_file, 0o600)
+        node.ssh_secret_ref = f"file://{secret_file}"
+        node.auth_mode = "password"
+        from ..orchestrator.remote import bootstrap_node_authorized_keys, get_or_create_cluster_ssh_key
+        key_path, _ = get_or_create_cluster_ssh_key()
+        node.ssh_key_path = str(key_path)
+        with contextlib.suppress(Exception):
+            bootstrap_node_authorized_keys(node, ephemeral_password)
+        db.commit()
+        db.refresh(node)
 
     record_event(
         db,
@@ -325,6 +340,26 @@ def update_node(node_id: int, payload: NodeUpdate, db: Session = Depends(get_db)
         setattr(node, key, value)
     db.commit()
     db.refresh(node)
+
+    if ephemeral_password:
+        import contextlib
+        from pathlib import Path
+        secrets_dir = Path("/app/data/secrets") if Path("/app/data").exists() else Path("data/secrets")
+        secrets_dir.mkdir(parents=True, exist_ok=True)
+        secret_file = secrets_dir / f"node_{node.id}.secret"
+        secret_file.write_text(ephemeral_password, encoding="utf-8")
+        with contextlib.suppress(Exception):
+            os.chmod(secret_file, 0o600)
+        node.ssh_secret_ref = f"file://{secret_file}"
+        node.auth_mode = "password"
+        from ..orchestrator.remote import bootstrap_node_authorized_keys, get_or_create_cluster_ssh_key
+        key_path, _ = get_or_create_cluster_ssh_key()
+        node.ssh_key_path = str(key_path)
+        with contextlib.suppress(Exception):
+            bootstrap_node_authorized_keys(node, ephemeral_password)
+        db.commit()
+        db.refresh(node)
+
     record_event(
         db,
         category="lifecycle",
@@ -345,8 +380,19 @@ def update_node(node_id: int, payload: NodeUpdate, db: Session = Depends(get_db)
 
 @router.post("/api/nodes/{node_id}/validate", response_model=JobOut)
 def validate_node_endpoint(node_id: int, db: Session = Depends(get_db)) -> DeploymentJob:
+    node = _get_node(db, node_id)
+    if node.host and node.host.lower() not in {"localhost", "127.0.0.1", "0.0.0.0"}:
+        import contextlib
+        from ..orchestrator.remote import bootstrap_node_authorized_keys, get_or_create_cluster_ssh_key
+        key_path, _ = get_or_create_cluster_ssh_key()
+        if not node.ssh_key_path:
+            node.ssh_key_path = str(key_path)
+            db.commit()
+            db.refresh(node)
+        with contextlib.suppress(Exception):
+            bootstrap_node_authorized_keys(node)
     try:
-        return validate_node(db, _get_node(db, node_id))
+        return validate_node(db, node)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

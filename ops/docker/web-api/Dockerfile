@@ -42,6 +42,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     docker.io \
     openssh-client=1:10.0p1-7+deb13u4 \
+    sshpass \
     && rm -rf /var/lib/apt/lists/*
 
 # Remote Ansible targets require the client binary in the control-plane image.
