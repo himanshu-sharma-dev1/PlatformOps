@@ -2,37 +2,12 @@
 
 Record only durable decisions, discarded approaches, and reusable lessons.
 
-## Decisions and Lessons
+## Durable Decisions and Lessons
 
-- **2026-08-13 — Initial context:** The repository's acceptance scope was the
-  selected-page MVP, with Cluster → Node → Service as the primary integration
-  path.
-- **2026-08-13 — Isolation boundary:** Runtime verification uses the private
-  `platformops-isolated` Compose/DinD environment; the legacy cPlatform stack,
-  network, database, volumes, and host Docker socket remain out of scope.
-- **2026-08-13 — Truthful operations:** Missing collectors or external runtime
-  access must be represented as empty/unavailable/degraded state rather than
-  simulated success.
-- **2026-08-21 — Evidence taxonomy:** “Implemented” is not equivalent to
-  runtime-tested. Durable status uses Mapped, Implemented, Contract-tested,
-  Runtime-proven, and bounded Parity-complete labels.
-- **2026-08-21 — Authoritative source:**
-  `docs/selected-page-functional-parity.md` and the seven page plans supersede
-  older page analyses for current-state claims; historical evidence remains
-  labeled as such.
-- **2026-08-21 — Port migration:** The current isolated API port is `9020`,
-  Mailpit is `9010`, and live cPlatform port `9002` stays blocked.
-- **2026-08-22 — One-service acceptance:** Two independent phase-0–8 runs used
-  the same canonical `redis-core` identity across all operational pages. A
-  green harness banner is insufficient without direct side effects,
-  terminal-state, failure/recovery, and residue assertions.
-- **2026-08-22 — SSH boundary:** A disposable private SSH target proved remote
-  behavior and no local fallback. The supplied external `216.48.189.195`
-  credential was rejected and is not an acceptance target.
-- **2026-08-22 — Safety disclosure:** Protected cPlatform membership and
-  runtime identity comparisons were equal, but a pre-existing `SERV1006`
-  restart loop changed its restart-count endpoint/MAC during observation. This
-  external volatility must not be rewritten as blanket immutability.
-- **2026-08-22 — Closure:** The bounded seven-page deployment is complete; the
-  remaining legacy action rows stay at their evidence state until a future
-  fresh isolated run proves them.
+- **2026-08-22 — Django Direct Consolidation**: Pivoted directly to the native Django architecture rather than maintaining partial reimplementations. This achieved full functional parity across all 6 core pages (`Users`, `Clusters`, `ConfigManager`, `Performance`, `Monitoring`, `Diagnostics`) while pruning 39 dead view functions and 14 obsolete ML/dataflow models.
+- **2026-08-22 — Zero Monorepo Dependency**: Inlined `CommonUtils` and removed `MCPClient` and `CutilJS` dependencies. Built a dedicated standalone Docker image (`platformops/web:1.0.0`) based on `python:3.11-slim-bookworm` with Terraform 1.8.5 and OpenSSH client.
+- **2026-08-22 — Unified Image Standard (`platformops/*:1.0.0`)**: Standardized all 14 stack containers under the `platformops/*:1.0.0` namespace to prevent image drift and ensure consistent referencing across environments.
+- **2026-08-22 — Operational Isolation Boundary**: PlatformOps operates strictly on `platformops_network` with non-colliding host ports (`9020`, `9090`, `9100`, `9256`, `8025`, `1025`, `8008`). All 17 cPlatform containers continue running undisturbed on their separate network.
+- **2026-08-22 — Infrastructure Preservation Guardrail**: Never run automated bootstrap scripts that wipe or overwrite user-configured nodes, clusters, or services in the database. `NODE1001` and user credentials are permanent production assets.
+- **2026-08-22 — Host Volume Standard**: Bound `/home/ubuntu/Backup_Platform` into `platformops_web` to serve as the unified root for node and service volumes, deployment playbooks, and configuration snapshots.
+- **2026-08-22 — Resilient Config Handlers**: Implemented safe configuration reloading in `PlatformSettings.update_config()` and bounded external service config push calls with a 5-second timeout to prevent blocking or worker exit code 255.

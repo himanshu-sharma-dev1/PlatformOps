@@ -1,43 +1,50 @@
 # Latest Session Work
 
-## Deployment
+## Deployment State
 
-- Deployment ID: `platformops_django_standalone_20260822`
+- Deployment ID: `platformops_parity_hardening_20260822`
 - State: **complete**
-- Scope: Standalone Django control plane pivot across the 6 core pages (`Users`, `Clusters`, `ConfigManager`, `Performance`, `Monitoring`, `Diagnostics`), fully isolated on `platformops_network` with dedicated PostgreSQL, Redis, RabbitMQ, Loki, Alloy, and GlitchTip support services.
+- Scope: Standalone packaging, telemetry stack integration, unified image tagging (`platformops/*:1.0.0`), host volume mapping (`/home/ubuntu/Backup_Platform`), custom test service registration (`PlatformOpsTest`), and end-to-end verification.
 
-## Outcome
+## Accomplished Deliverables
 
-- **100% Operational Core Pages**: All 6 core pages verified returning `HTTP 200 OK` on host port **`9020`** with authenticated superuser sessions (`admin` / `admin`).
-- **Complete Bloat Removal**: Successfully removed all legacy model training/inference, batch/stream dataflow pipelines, and customer proxy apps from code, routes, views, models, and UI templates.
-- **Decommissioned Old Containers**: Stopped and removed all previous `platformops-obs-*`, `platformops-isolated-*`, and `node-39-redis-core` containers and networks.
-- **Isolated Telemetry Stack**: Integrated self-contained Loki, Alloy, and GlitchTip Web/Worker/Postgres/Valkey services directly on `platformops_network` with direct API connectivity.
-- **Zero cPlatform Collision**: Verified complete network, port, and volume isolation; all original containers on `cplatform_iktara_cPlatform` continue running undisturbed.
-
-## Material Changes
-
-1. **Django Configuration & Routing**:
-   - Configured `config/settings.py` with dynamic module search paths, pruned `INSTALLED_APPS`, and set `LOGIN_REDIRECT_URL = '/PlatformIO/ClusterView/'`.
-   - Cleaned `config/urls.py` and `apps/platformops/urls.py` down strictly to the 6 core functional areas and auth handlers.
-   - Configured `config/local.env` and `config/projectConfig.yaml` for internal container host resolution and `PlatformOps` branding.
-2. **Vendored Core Packages & Symlinks**:
-   - Symlinked and integrated `CommonUtils`, `mcp_client`, and `cutil` libraries into `packages/` and `static/`.
-   - Copied dynamic form schemas into `apps/platformops/forms/`.
-   - Made legacy imports (`ReportMgmt`, `TerraformMgmt`) safe and optional.
-3. **UI Rebranding**:
-   - Updated `templates_new/sidebar.html`, `templates_new/navbar.html`, and design tokens to `PlatformOps` branding.
-   - Pruned sidebar navigation strictly to the 6 core pages.
-4. **Docker Compose Stack (`/root/PlatformOps/docker-compose.yml`)**:
-   - Defined isolated `platformops_network` and services: `postgres`, `redis`, `rabbitmq`, `loki`, `alloy`, `glitchtip_postgres`, `glitchtip_valkey`, `glitchtip_web`, `glitchtip_worker`, and `web` (mapped to `9020:8000`).
+1. **Standalone Production Packaging**:
+   - Built dedicated `Dockerfile` using `python:3.11-slim-bookworm` with Terraform 1.8.5, OpenSSH client, and PostgreSQL client.
+   - Built production `entrypoint.sh` automating PostgreSQL readiness checks, database migrations, default admin check, static collection, and Gunicorn execution.
+2. **Unified Image Standard (`platformops/*:1.0.0`)**:
+   - Standardized all 14 stack containers to the `platformops/*:1.0.0` namespace (`web`, `db`, `redis`, `rabbitmq`, `mailpit`, `prometheus`, `node-exporter`, `process-exporter`, `loki`, `alloy`, `glitchtip_*`).
+   - Cleaned up 5 unused third-party images (`prom/node-exporter`, `prom/prometheus`, `rabbitmq:3.13`, `redis:7.*`).
+3. **Telemetry & Observability Stack**:
+   - Prometheus running on host port `9090` scraping `platformops_node_exporter:9100` and `platformops_process_exporter:9256` (Health: UP).
+   - Mailpit running on ports `8025` (UI) and `1025` (SMTP).
+   - GlitchTip error tracking & APM running on host port `8008` (HTTP 200).
+   - Loki (3100) and Alloy capturing log streams on `platformops_network`.
+4. **Node Volume & Service Catalog Integration**:
+   - Mounted `/home/ubuntu/Backup_Platform` for node and service volume operations.
+   - Registered `PlatformOpsTest` in [`config/service_install.yaml`](file:///root/PlatformOps/config/service_install.yaml), [`apps/platformops/forms/dFormService.json`](file:///root/PlatformOps/apps/platformops/forms/dFormService.json), and [`apps/platformops/src/ServiceConfig.py`](file:///root/PlatformOps/apps/platformops/src/ServiceConfig.py).
+5. **Infrastructure Preservation & Resilient Config Handlers**:
+   - Removed destructive bootstrap scripts to protect user-configured `NODE1001` credentials and active services.
+   - Fixed `PlatformSettings.update_config()` and added a 5-second timeout on service config push requests.
 
 ## Verification Evidence
 
-- `http://localhost:9020/` -> `HTTP 200 OK` (Login Portal)
-- `POST http://localhost:9020/` -> `HTTP 200 OK` (Authenticated redirect to `/PlatformIO/ClusterView/`)
-- `http://localhost:9020/PlatformIO/Users/` -> `HTTP 200 OK` (42,951 bytes)
-- `http://localhost:9020/PlatformIO/ClusterView/` -> `HTTP 200 OK` (73,930 bytes)
-- `http://localhost:9020/PlatformIO/ClusterConfig/` -> `HTTP 200 OK` (722,218 bytes)
-- `http://localhost:9020/PlatformIO/ConfigManager/` -> `HTTP 200 OK` (102,415 bytes)
-- `http://localhost:9020/PlatformIO/SystemMonitoring/` -> `HTTP 200 OK` (22,372 bytes)
-- `http://localhost:9020/PlatformIO/Monitoring/` -> `HTTP 200 OK` (23,495 bytes)
-- `http://localhost:9020/PlatformIO/Diagnostics/` -> `HTTP 200 OK` (181,597 bytes)
+```text
+1. Django Unit & Contract Tests:
+   Ran 12 tests in 1.550s -> OK
+
+2. Live Acceptance Suite (Port 9020):
+   [1/6] Superuser Authentication & Session... (HTTP 200)
+   [2/6] Users & RBAC (Invitation, SMTP Delivery, Profile)... (HTTP 200)
+   [3/6] Clusters, Nodes & Services Topology... (HTTP 200)
+   [4/6] Config Manager (Load, Checkpoints, Diff)... (HTTP 200)
+   [5/6] Performance Telemetry (Prometheus & System Tree)... (HTTP 200)
+   [6/6] Monitoring (GlitchTip) & Diagnostics (Loki/Logs)... (HTTP 200)
+
+3. Prometheus Scrape Targets:
+   - platformops_node_exporter:9100     -> Health: UP
+   - platformops_process_exporter:9256  -> Health: UP
+   - localhost:9090 (prometheus)        -> Health: UP
+
+4. Infrastructure Container Discovery:
+   - discover_infrastructure_request('NODE1001') -> 17 runtimes kept
+```

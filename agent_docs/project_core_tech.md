@@ -1,60 +1,53 @@
-# Project Core Technologies
+# Project Core Technologies & Guardrails
 
 ## Languages and Runtimes
 
-- Python 3.12 is the documented backend runtime; the API is packaged with
-  Uvicorn and the frontend uses Node/npm during development and builds.
-- The frontend is TypeScript/TSX and the repository includes a small example
-  service under `apps/example-service/`.
+- **Backend Runtime**: Python 3.11 (`python:3.11-slim-bookworm`), Django 4.2+, Gunicorn 21.2.0 (3 sync workers).
+- **System Tools**: Terraform 1.8.5, OpenSSH client, `sshpass`, PostgreSQL client (`libpq-dev`), `procps`.
+- **Frontend / Templating**: Server-rendered Jinja2/Django HTML templates (`templates_new/`), Vanilla JavaScript, and inlined `cutil` libraries (`static/cutil/`).
 
-## Frameworks and Libraries
+## Core Frameworks and Inlined Libraries
 
-- Backend: FastAPI `0.115.6`, Uvicorn `0.34.0`, Pydantic `2.10.4`,
-  `pydantic-settings` `2.7.1`, SQLAlchemy `2.0.36`, PyYAML `6.0.2`,
-  `python-multipart`, and `httpx`.
-- Operations: `ansible-core` `2.16.3` and Docker SDK for Python `7.1.0`, with
-  Ansible collections and Docker tooling supplied in the production image.
-- Frontend: React `18.3.1`, React DOM `18.3.1`, TypeScript `5.5.4`, and Vite
-  `5.4.0` with the Vite React plugin.
+- **Web Framework**: Django 4.2+ (`apps/platformops`), Django Celery Beat, Django Prometheus.
+- **Inlined Utilities (`apps/platformops/lib/CommonUtils`)**:
+  - `AppLogging`: Structured file and console logging.
+  - `EmailMgr`: SMTP mail delivery interface for Mailpit.
+  - `TimerMgr`: Interval and recurring task orchestration.
+  - `RepoMgmt`: Local repository volume management.
+  - `StatsMgr`: Prometheus metrics aggregation.
+  - `ServiceConfig` & `serviceInstall`: Dynamic service definitions, DForm generation, and Ansible playbook deployment.
+- **Dynamic Forms**: `apps/platformops/forms/` (`dFormService.json`, `dForm_Node_Schema.json`, `dFormServiceConfig.json`).
 
-## Build, Test, and Development Tools
+## Container Infrastructure (`docker-compose.yml`)
 
-- Make targets cover FastAPI development, Vite development, Python
-  compilation, pytest-based tests, the combined production image, isolated
-  static verification, and isolated Compose lifecycle.
-- `cd apps/web && npm run build` runs TypeScript compilation and the Vite
-  production build. `make check` combines compilation, backend tests, and the
-  isolated static verifier.
-- `ops/docker/web-api/Dockerfile` builds the frontend and packages it with the
-  API; `ops/ansible/` contains deployment, validation, config, logging, and
-  observability playbooks.
+All containers use the unified **`platformops/*:1.0.0`** image standard:
+- `platformops/web:1.0.0`: Custom standalone application image built from [`Dockerfile`](file:///root/PlatformOps/Dockerfile).
+- `platformops/postgres:1.0.0`: PostgreSQL 17 primary database.
+- `platformops/redis:1.0.0`: Redis cache and session broker.
+- `platformops/rabbitmq:1.0.0`: RabbitMQ message broker.
+- `platformops/mailpit:1.0.0`: Mailpit SMTP (1025) and Web UI (8025).
+- `platformops/prometheus:1.0.0`: Prometheus telemetry server (9090).
+- `platformops/node-exporter:1.0.0`: Node hardware metrics collector (9100).
+- `platformops/process-exporter:1.0.0`: Process metrics collector (9256).
+- `platformops/loki:1.0.0`: Loki log aggregation (3100).
+- `platformops/alloy:1.0.0`: Alloy log collector (12345).
+- `platformops/glitchtip:1.0.0`: GlitchTip APM & error tracking (8008).
+- `platformops/glitchtip-postgres:1.0.0` & `platformops/glitchtip-valkey:1.0.0`: Backing storage for GlitchTip.
 
-## External Services and Infrastructure
+## Critical Guardrails & Operating Methods
 
-- The isolated Compose stack provides PostgreSQL, Redis, RabbitMQ, Prometheus,
-  Loki, and a private `docker:27.5.1-dind` engine. Mailpit and GlitchTip
-  (`6.1.9` in the completed checkpoint) are disposable support profiles.
-- Docker operations in the isolated stack use the private engine over
-  `tcp://docker-engine:2375`; the stack does not mount the host Docker socket.
-- Terraform AWS templates and a Helm chart exist for packaging/deployment
-  scenarios but are outside the seven-page acceptance gate.
-
-## Important Technical Constraints
-
-- Use `ops/compose/docker-compose.isolated.yml` and project name
-  `platformops-isolated` for safe runtime verification. Host port `9020` is
-  the PlatformOps endpoint; optional Mailpit is `9010`. The legacy compatibility
-  stack uses `9002` and must not be used for isolated acceptance.
-- The bootstrap administrator defaults to `admin`/`admin` only for development;
-  deployment environments must set the documented
-  `PLATFORMOPS_BOOTSTRAP_ADMIN_*` settings.
-- Prometheus/process metrics and Loki history are valid only when their
-  collectors expose fresh, target-scoped evidence. Optional integrations must
-  remain distinguishable as unavailable, empty, degraded, or healthy.
-- The positive SSH branch used a disposable private target and proved no local
-  fallback. The supplied credential for external `216.48.189.195` was
-  rejected; cloud/provider launch and exhaustive catalog parity remain
-  unverified.
-- Current authoritative evidence is recorded in
-  `/tmp/platformops-redis-acceptance/` for the two 2026-08-22 run IDs and is
-  redacted; credentials, raw keys, and tokens are never durable project data.
+1. **Never Overwrite Real User Infrastructure**:
+   - `NODE1001` and user clusters in the database contain real host credentials and production mappings. Never run destructive reset scripts against active database volumes.
+2. **Standard Volume Mount**:
+   - `/home/ubuntu/Backup_Platform` is mounted for all service configs, logs, and deployment artifacts.
+3. **Strict Port Allocation**:
+   - PlatformOps ingress: Port `9020`.
+   - Mailpit: `8025` / `1025`.
+   - Prometheus: `9090`.
+   - Node Exporter: `9100`.
+   - Process Exporter: `9256`.
+   - GlitchTip: `8008`.
+   - No binding or conflict with cPlatform ports (`80`, `443`, `9002`, `9008`, `9012-9019`).
+4. **Safe Configuration Updates**:
+   - `PlatformSettings.update_config()` reloads runtime settings safely.
+   - Outgoing service config pushes use a 5s timeout to guarantee worker responsiveness.
