@@ -757,11 +757,16 @@ def get_service_metrics(db: Session, service_id: int, window: str = "1h") -> dic
     metric_window = _normalize_metric_window(window)
     service_key = service.service_key
     container = service.container_name or service_key
+    node = getattr(service, "node", None)
+    if node is None and getattr(service, "node_id", None):
+        node = db.get(Node, service.node_id)
+    instance_match = _prometheus_instance_match(node)
+    escaped_container = _promql_label_value(container)
     # cAdvisor metrics are scoped to the selected container.  Do not fall
     # back to a service-key regex: another instance could otherwise leak into
     # this target's page.
-    cpu_q = f'sum(rate(container_cpu_usage_seconds_total{{name="{container}"}}[5m])) * 100'
-    mem_q = f'sum(container_memory_usage_bytes{{name="{container}"}}) / 1024 / 1024'
+    cpu_q = f'sum(rate(container_cpu_usage_seconds_total{{name="{escaped_container}",{instance_match}}}[5m])) * 100'
+    mem_q = f'sum(container_memory_usage_bytes{{name="{escaped_container}",{instance_match}}}) / 1024 / 1024'
     instant = {"cpu_percent": _prom_observe(cpu_q), "memory_mb": _prom_observe(mem_q)}
     ranges = {"cpu_series": _prom_observe(cpu_q, range_window=metric_window)}
     observations = list(instant.values()) + list(ranges.values())
@@ -843,7 +848,10 @@ def get_service_metrics(db: Session, service_id: int, window: str = "1h") -> dic
         result["queue_depth_series"] = queue_series.get("series", [])
         observations.extend(broker_obs + [queue_series])
 
-    contract = json.loads(service.config_json or "{}")
+    try:
+        contract = json.loads(service.config_json or "{}")
+    except (TypeError, ValueError):
+        contract = {}
     custom_defs = contract.get("custom_metrics") or contract.get("performance_charts") or []
     for item in custom_defs if isinstance(custom_defs, list) else []:
         if not isinstance(item, dict):
