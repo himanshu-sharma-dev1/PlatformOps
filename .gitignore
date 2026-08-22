@@ -9,9 +9,14 @@ env/
 venv/
 ENV/
 
+# Environment Variables & Secrets
+*.env
+!*.env.example
+config/*.env
+!config/*.env.example
+
 # Django
 *.log
-local.env
 db.sqlite3
 db.sqlite3-journal
 media/

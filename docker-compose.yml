@@ -135,6 +135,7 @@ services:
       PYTHONPATH: /app:/app/apps:/app/packages
       DJANGO_SETTINGS_MODULE: config.settings
       DJANGO_ENV_FILE: /app/config/local.env
+      DIAGNOSTICS_ENV_FILE: /app/config/diagnostics.env
     volumes:
       - .:/app
     depends_on:
