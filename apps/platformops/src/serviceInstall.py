@@ -166,14 +166,14 @@ def _resolve_contract_value(raw_value, service_volume, machine_volume, service_n
 
 
 def _load_service_install_contracts():
-    config_path = Path(__file__).resolve().parent.parents[1] / "config/service_install.yaml"
+    config_path = Path(__file__).resolve().parents[3] / "config/service_install.yaml"
     with config_path.open() as fh:
         yaml_content = yaml.load(fh, Loader=yaml.FullLoader)
     return (yaml_content or {}).get("services", {})
 
 
 def _load_glitchtip_runtime_map():
-    map_path = Path(__file__).resolve().parent.parent.parent.parent / "platform/observability/glitchtip_runtime_map.yaml"
+    map_path = Path(__file__).resolve().parent.parent.parent.parent / "config/observability/glitchtip_runtime_map.yaml"
     if not map_path.exists():
         return {}, {"environment": "validation", "traces_sample_rate": "0.0"}
 
@@ -233,7 +233,7 @@ def _resolve_service_glitchtip_enabled(ser_ins):
         return _parse_env_bool(service_cfg.get("GLITCHTIP_ENABLED"), True)
 
     pt_dir = Path(__file__).resolve().parent.parent.parent.parent
-    config_path = Path(__file__).resolve().parent.parents[1] / "config/cPlatform_config.yaml"
+    config_path = Path(__file__).resolve().parents[3] / "config/cPlatform_config.yaml"
     try:
         with config_path.open() as fh:
             platform_cfg = yaml.load(fh, Loader=yaml.FullLoader) or {}
@@ -1399,11 +1399,11 @@ def sInstall_run_service_runtime_patch(
 def sInstall_deploy_service(ser_ins, node_id, username, service_version):
     app_logger.debug(f" sInstall_deploy_service ser_ins, node_id, username= {ser_ins, node_id, username}")
 
-    config_path = Path(__file__).resolve().parent.parents[1] / 'config/service_install.yaml'
+    config_path = Path(__file__).resolve().parents[3] / 'config/service_install.yaml'
     with open(config_path, 'r') as fh:
         service_config_dict = yaml.load(fh, Loader=yaml.FullLoader)
 
-    config_path = Path(__file__).resolve().parent.parents[1] / 'config/cPlatform_config.yaml'
+    config_path = Path(__file__).resolve().parents[3] / 'config/cPlatform_config.yaml'
     with open(config_path, 'r') as fh:
         platform_config_dict = yaml.load(fh, Loader=yaml.FullLoader)
 

@@ -4,7 +4,7 @@ from pathlib import Path
 
 def get_infra_service_group_mapping():
     # Load the configuration file
-    config_path = os.path.join(Path(__file__).resolve().parent.parent.parent, 'config')
+    config_path = str(Path(__file__).resolve().parents[3] / 'config')
     with open(os.path.join(config_path, 'cPlatform_config.yaml'), 'r') as fh:
         cplatform_config = yaml.load(fh, Loader=yaml.FullLoader)
 

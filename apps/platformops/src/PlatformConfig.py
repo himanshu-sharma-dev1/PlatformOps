@@ -25,7 +25,7 @@ def _safe_int(val, default=0):
 
 
 def _read_cplatform_config():
-    config_path = os.path.join(Path(__file__).resolve().parent.parent.parent, 'config')
+    config_path = str(Path(__file__).resolve().parents[3] / 'config')
     with open(config_path + '/cPlatform_config.yaml') as fh:
         cplatform_config = yaml.load(fh, Loader=yaml.FullLoader)
     return cplatform_config
@@ -33,7 +33,7 @@ def _read_cplatform_config():
 
 def _save_cplatform_config(cplatform_config):
     app_logger.debug(f'_update_cplatform_config:{cplatform_config}')
-    config_path = os.path.join(Path(__file__).resolve().parent.parent.parent, 'config')
+    config_path = str(Path(__file__).resolve().parents[3] / 'config')
     with open(config_path + '/cPlatform_config.yaml', 'w') as fh:
         yaml.dump(cplatform_config, fh, default_flow_style=False)
     return

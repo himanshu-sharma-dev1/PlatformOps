@@ -396,7 +396,7 @@ def _equivalent_infrastructure_service_types(service_type):
 
 
 def _load_service_install_services():
-    config_path = Path(__file__).resolve().parent.parents[1] / 'config/service_install.yaml'
+    config_path = Path(__file__).resolve().parents[3] / 'config/service_install.yaml'
     with open(config_path, 'r') as fh:
         service_config_dict = yaml.load(fh, Loader=yaml.FullLoader) or {}
     return service_config_dict.get("services", {}) or {}
@@ -1185,7 +1185,7 @@ def service_get_route(service_instance):
     if PlatformSettings.deployment_type.upper() == 'LOCAL':
         return True, '127.0.0.1', service_instance.service_port
 
-    config_root = Path(__file__).resolve().parents[2] / 'config'
+    config_root = Path(__file__).resolve().parents[3] / 'config'
 
     config_data = _read_yaml_file(str(config_root / 'cPlatform_config.yaml'))
     deployment_type = config_data.get('CPLATFORM_CONFIG', {}).get('deployment_type', '').upper()
@@ -1953,7 +1953,7 @@ def service_check_dependency_preflight(ser_ins):
 
 def _check_service_requirement(ser_ins, machine_info):
     # Load requirement dictionary
-    config_path = Path(__file__).resolve().parent.parents[1] / 'config/service_install.yaml'
+    config_path = Path(__file__).resolve().parents[3] / 'config/service_install.yaml'
     with open(config_path, 'r') as fh:
         requirement_dict = yaml.load(fh, Loader=yaml.FullLoader)
 
@@ -2179,7 +2179,7 @@ def service_get_live_status(service_id):
 
 
 def service_get_config_schema():
-    file_path = os.path.join(Path(__file__).resolve().parent.parent.parent, 'config')
+    file_path = str(Path(__file__).resolve().parents[3] / 'config')
     f = open(file_path + '/service_config_schema.json')
     config_schema = json.load(f)
     # app_logger.debug(f"service_get_config_schema, config_schema:{config_schema}")

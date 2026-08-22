@@ -224,7 +224,7 @@ def user_login_count_increment(user_mail):
 
 
 def user_license_validated(user_name):
-    config_path = os.path.join(Path(__file__).resolve().parent.parent.parent, 'config')
+    config_path = str(Path(__file__).resolve().parents[3] / 'config')
     ret = cutil_validate_license(config_path)
     user = User.objects.filter(username=user_name).first()
     if user.is_staff:

@@ -312,7 +312,7 @@ def node_delete_request(node_id):
     sys_time = cutil_timer_get_app_curr_time()
     current_date = sys_time.strftime("%Y-%m-%d")
     current_time = sys_time.strftime("%H:%M:%S")
-    config_path = os.path.join(Path(__file__).resolve().parent.parent.parent, 'config')
+    config_path = str(Path(__file__).resolve().parents[3] / 'config')
     tf_dir = Path(f"{config_path}/terraform/{node_id}")
     if tf_dir.exists():
         cutil_timer_crontab_start(timer_name, timer_arg, 'cPlatformIO.src.TerraformMgmt.destroy_instance',

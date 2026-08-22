@@ -637,7 +637,7 @@ def _load_service_install_config():
     if SERVICE_INSTALL_CONFIG_CACHE is not None:
         return SERVICE_INSTALL_CONFIG_CACHE
 
-    config_path = Path(__file__).resolve().parent.parents[1] / "config/service_install.yaml"
+    config_path = Path(__file__).resolve().parents[3] / "config/service_install.yaml"
     yaml_content = ServiceConfig._read_yaml_file(str(config_path))
     SERVICE_INSTALL_CONFIG_CACHE = _nested_dict(yaml_content, "services")
     return SERVICE_INSTALL_CONFIG_CACHE

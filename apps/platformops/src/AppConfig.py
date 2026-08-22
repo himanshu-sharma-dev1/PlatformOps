@@ -235,7 +235,7 @@ def app_delete_request(request):
 def app_get_config_options():
     app_logger.debug(f"app_get_config_options..")
 
-    file_path = os.path.join(Path(__file__).resolve().parent.parent.parent, 'config')
+    file_path = str(Path(__file__).resolve().parents[3] / 'config')
     yaml_data = _read_yaml_file(f"{file_path}/cPlatform_config.yaml")
 
     serv_options = {'serv_keys': yaml_data.get('SERVICE_KEYS', {})}
@@ -271,7 +271,7 @@ def app_get_config_info():
 #         return False, None, None
 #     print("serv_type:", serv_type)
 #     serv_name_list = ServiceConfig.service_get_ins_type(serv_type, app_name)
-    # config_root = Path(__file__).resolve().parent.parent.parent / 'config'
+    # config_root = Path(__file__).resolve().parents[3] / 'config'
     # config_data = _read_yaml_file(str(config_root / 'cPlatform_config.yaml'))
     # dep_type = config_data.get('CPLATFORM_CONFIG', {}).get('deployment_type', '')
 
@@ -331,7 +331,7 @@ def app_route_service(app_name, user_key, serv_type):
         user_key = "Default"
     serv_name_list = ServiceConfig.service_get_ins_type(serv_type, app_name)
     print("serv_name_list:", serv_name_list)
-    config_root = Path(__file__).resolve().parent.parent.parent / 'config'
+    config_root = Path(__file__).resolve().parents[3] / 'config'
     config_data = _read_yaml_file(str(config_root / 'cPlatform_config.yaml'))
     dep_type = config_data.get('CPLATFORM_CONFIG', {}).get('deployment_type', '')
 
