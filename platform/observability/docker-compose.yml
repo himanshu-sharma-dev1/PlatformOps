@@ -78,7 +78,7 @@ services:
     volumes:
       - ./patch_glitchtip_schema.py:/tmp/patch_glitchtip_schema.py:ro
       - ./glitchtip_runtime_map.yaml:/tmp/glitchtip_runtime_map.yaml:ro
-      - ../../cPlatform/static/Iktara:/tmp/iktara-assets:ro
+      - ../../PlatformOps/static/Iktara:/tmp/iktara-assets:ro
     command: sh -lc "python /tmp/patch_glitchtip_schema.py && ./bin/start.sh"
     restart: unless-stopped
 
@@ -98,6 +98,6 @@ services:
     volumes:
       - ./patch_glitchtip_schema.py:/tmp/patch_glitchtip_schema.py:ro
       - ./glitchtip_runtime_map.yaml:/tmp/glitchtip_runtime_map.yaml:ro
-      - ../../cPlatform/static/Iktara:/tmp/iktara-assets:ro
+      - ../../PlatformOps/static/Iktara:/tmp/iktara-assets:ro
     command: sh -lc "python /tmp/patch_glitchtip_schema.py && ./bin/start.sh"
     restart: unless-stopped

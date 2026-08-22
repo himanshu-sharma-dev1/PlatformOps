@@ -2,7 +2,7 @@
   hosts: all
   become: true
   vars:
-    docker_network_name: cplatform_iktara_cPlatform
+    docker_network_name: platformops_network
 
   tasks:
     - name: Get Docker network details

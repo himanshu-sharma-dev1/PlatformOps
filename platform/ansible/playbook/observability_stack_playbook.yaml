@@ -1,4 +1,4 @@
-- name: Deploy cPlatform observability stack
+- name: Deploy PlatformOps observability stack
   hosts: all
   become: yes
   vars:
@@ -9,7 +9,7 @@
     observability_environment: "{{ observability_environment | default('validation') }}"
     observability_node_id: "{{ observability_node_id | default(node_id | default('NODE1002')) }}"
     observability_node_ip: "{{ observability_node_ip | default(ansible_host | default(inventory_hostname)) }}"
-    observability_network_name: cplatform_iktara_cPlatform
+    observability_network_name: platformops_network
     observability_network_subnet: 180.75.0.0/24
     observability_network_gateway: 180.75.0.1
     glitchtip_image: "{{ glitchtip_image | default('iktaraai/services:glitchtip-iktara-6.1.9') }}"

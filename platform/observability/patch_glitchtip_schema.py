@@ -1453,14 +1453,14 @@ def seed_database():
     # 3. Associate admin with organization as owner
     OrganizationUser.objects.get_or_create(organization=org, user=admin_user, defaults={"role": 3})
 
-    # Create cPlatform integration token
+    # Create PlatformOps integration token
     from apps.api_tokens.models import APIToken
     token_str = "gt_whEhIEhw5qaoRPxS_bFIM279WeTZQD7zwsP0uyMOrXU8NeWC"
     api_token, token_created = APIToken.objects.get_or_create(
         token=token_str,
         defaults={
             "user": admin_user,
-            "label": "cPlatform Integration Token",
+            "label": "PlatformOps Integration Token",
         }
     )
     if token_created or not api_token.scopes:

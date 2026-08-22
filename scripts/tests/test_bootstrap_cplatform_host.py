@@ -113,10 +113,10 @@ class BootstrapHostTests(unittest.TestCase):
     @mock.patch('scripts.bootstrap_cplatform_host.inspect_network')
     def test_validate_network_accepts_matching_compose_network(self, inspect_network):
         inspect_network.return_value = {
-            'Labels': {'com.docker.compose.network': 'cplatform_iktara_cPlatform'},
+            'Labels': {'com.docker.compose.network': 'platformops_network'},
             'IPAM': {'Config': [{'Subnet': '180.75.0.0/24', 'Gateway': '180.75.0.1'}]},
         }
-        validate_network('cplatform_iktara_cPlatform', '180.75.0.0/24', '180.75.0.1')
+        validate_network('platformops_network', '180.75.0.0/24', '180.75.0.1')
 
     @mock.patch('scripts.bootstrap_cplatform_host.inspect_network')
     def test_validate_network_accepts_matching_unmanaged_network(self, inspect_network):
@@ -124,7 +124,7 @@ class BootstrapHostTests(unittest.TestCase):
             'Labels': {},
             'IPAM': {'Config': [{'Subnet': '180.75.0.0/24', 'Gateway': '180.75.0.1'}]},
         }
-        validate_network('cplatform_iktara_cPlatform', '180.75.0.0/24', '180.75.0.1')
+        validate_network('platformops_network', '180.75.0.0/24', '180.75.0.1')
 
     @mock.patch('scripts.bootstrap_cplatform_host.inspect_network')
     def test_validate_network_rejects_mismatched_network_shape(self, inspect_network):
@@ -133,7 +133,7 @@ class BootstrapHostTests(unittest.TestCase):
             'IPAM': {'Config': [{'Subnet': '172.19.0.0/24', 'Gateway': '172.19.0.1'}]},
         }
         with self.assertRaises(ObservabilityError):
-            validate_network('cplatform_iktara_cPlatform', '180.75.0.0/24', '180.75.0.1')
+            validate_network('platformops_network', '180.75.0.0/24', '180.75.0.1')
 
     @mock.patch('scripts.bootstrap_cplatform_host.subprocess.run')
     @mock.patch('scripts.bootstrap_cplatform_host.inspect_network')
@@ -141,7 +141,7 @@ class BootstrapHostTests(unittest.TestCase):
         inspect_network.return_value = None
         subprocess_run.return_value = mock.Mock(returncode=0, stdout='created', stderr='')
 
-        ensure_network('cplatform_iktara_cPlatform', '180.75.0.0/24', '180.75.0.1')
+        ensure_network('platformops_network', '180.75.0.0/24', '180.75.0.1')
 
         subprocess_run.assert_called_once_with(
             [
@@ -154,7 +154,7 @@ class BootstrapHostTests(unittest.TestCase):
                 '180.75.0.0/24',
                 '--gateway',
                 '180.75.0.1',
-                'cplatform_iktara_cPlatform',
+                'platformops_network',
             ],
             capture_output=True,
             text=True,
@@ -168,7 +168,7 @@ class BootstrapHostTests(unittest.TestCase):
             'IPAM': {'Config': [{'Subnet': '180.75.0.0/24', 'Gateway': '180.75.0.1'}]},
         }
 
-        ensure_network('cplatform_iktara_cPlatform', '180.75.0.0/24', '180.75.0.1')
+        ensure_network('platformops_network', '180.75.0.0/24', '180.75.0.1')
 
         subprocess_run.assert_not_called()
 

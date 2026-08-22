@@ -3,7 +3,7 @@ set -eu
 
 PROPS=/opt/nifi/nifi-current/conf/nifi.properties
 
-# The local MVP intentionally runs NiFi over plain HTTP on the cPlatform
+# The local MVP intentionally runs NiFi over plain HTTP on the PlatformOps
 # service port.  Keep these overrides at container start so a stock NiFi
 # archive and the committed image behave the same way after a rebuild.
 sed -i -E \

@@ -4,7 +4,7 @@
   become: true
   gather_facts: false
   tasks:
-    - name: Ensure local fetch directory exists on cPlatform runtime
+    - name: Ensure local fetch directory exists on PlatformOps runtime
       ansible.builtin.file:
         path: "{{ local_fetch_dir }}"
         state: directory
@@ -25,7 +25,7 @@
         msg: >-
           'Fetched to': '{{ fetched_archive.dest }}'
 
-    - name: Ensure fetched archive is readable by cPlatform runtime
+    - name: Ensure fetched archive is readable by PlatformOps runtime
       ansible.builtin.file:
         path: "{{ fetched_archive.dest }}"
         mode: "0644"

@@ -52,7 +52,7 @@ def main():
     args = parser.parse_args()
 
     repo_root = Path(args.repo_root).resolve()
-    service_install_path = Path(args.service_install or repo_root / "cPlatform/config/service_install.yaml").resolve()
+    service_install_path = Path(args.service_install or repo_root / "PlatformOps/config/service_install.yaml").resolve()
     diagnostics_env_path = Path(args.diagnostics_env).resolve()
     machine_volume = args.machine_volume or args.service_volume
 

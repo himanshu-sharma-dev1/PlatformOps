@@ -2,7 +2,7 @@
 set -e
 
 # Target directory (defaults to the container path, falls back to a relative path)
-TARGET_DIR="${1:-/iktara/cPlatform/platform/ansible}"
+TARGET_DIR="${1:-/app/platform/ansible}"
 if [ ! -d "$TARGET_DIR" ]; then
     TARGET_DIR="$(dirname "$0")/../ansible"
 fi

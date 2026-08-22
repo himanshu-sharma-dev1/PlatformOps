@@ -173,9 +173,9 @@ EOF
       ;;
     cplatform|aiorchestrator)
       cat <<EOF
-/iktara/cPlatform/cPlatform/config/cPlatform_config.yaml
-/cPlatform/config/cPlatform_config.yaml
-/cPlatform/config/service_install.yaml
+/app/config/PlatformOps_config.yaml
+/PlatformOps/config/PlatformOps_config.yaml
+/PlatformOps/config/service_install.yaml
 EOF
       ;;
     proxyans)
@@ -192,8 +192,8 @@ EOF
       ;;
     mcpgateway)
       cat <<EOF
-/iktara/mcpGateway/mcpGateway/cPlatform/Subsytems/mcpGateway/config/toolRegistry.yaml
-/iktara/mcpGateway/mcpGateway/himanshunew/cPlatform/Subsytems/mcpGateway/config/toolRegistry.yaml
+/iktara/mcpGateway/mcpGateway/PlatformOps/Subsytems/mcpGateway/config/toolRegistry.yaml
+/iktara/mcpGateway/mcpGateway/himanshunew/PlatformOps/Subsytems/mcpGateway/config/toolRegistry.yaml
 EOF
       ;;
     airtelchurn)
@@ -418,7 +418,7 @@ fi
 
 if [[ -z "$RESOLVED_CONFIG_PATH" ]]; then
   # Fallback to searching the container for any likely config file
-  FALLBACK_PATH=$(docker exec "$CONTAINER_NAME" find /iktara /fintrady /cPlatform /app -type f \( -iname "*config*.yaml" -o -iname "*config*.yml" \) 2>/dev/null | grep -v "test" | head -n 1 || true)
+  FALLBACK_PATH=$(docker exec "$CONTAINER_NAME" find /iktara /fintrady /PlatformOps /app -type f \( -iname "*config*.yaml" -o -iname "*config*.yml" \) 2>/dev/null | grep -v "test" | head -n 1 || true)
   if [[ -n "$FALLBACK_PATH" ]]; then
     RESOLVED_CONFIG_PATH="$FALLBACK_PATH"
   else

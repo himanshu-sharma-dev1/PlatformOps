@@ -4,7 +4,7 @@
   become: true
   gather_facts: false
   vars:
-    default_local_fetch_dir: "/iktara/cPlatform/cPlatform/logs/config_snapshots"
+    default_local_fetch_dir: "/app/logs/config_snapshots"
   tasks:
     - name: Copy snapshot script to target host
       ansible.builtin.copy:
@@ -45,7 +45,7 @@
         msg: "Could not parse snapshot_path from script output: {{ snapshot_output.stdout }}"
       when: remote_snapshot_path | length == 0
 
-    - name: Ensure local fetch directory exists on cPlatform container
+    - name: Ensure local fetch directory exists on PlatformOps container
       ansible.builtin.file:
         path: "{{ local_fetch_dir | default(default_local_fetch_dir) }}"
         state: directory
@@ -54,7 +54,7 @@
       become: false
       run_once: true
 
-    - name: Fetch snapshot file from node to cPlatform container
+    - name: Fetch snapshot file from node to PlatformOps container
       ansible.builtin.fetch:
         src: "{{ remote_snapshot_path }}"
         dest: "{{ (local_fetch_dir | default(default_local_fetch_dir)) + '/' }}"
@@ -66,7 +66,7 @@
         msg: >
           'Fetched to': '{{ fetched_snapshot.dest }}'
 
-    - name: Ensure fetched snapshot is readable by cPlatform runtime
+    - name: Ensure fetched snapshot is readable by PlatformOps runtime
       ansible.builtin.file:
         path: "{{ fetched_snapshot.dest }}"
         mode: "0644"

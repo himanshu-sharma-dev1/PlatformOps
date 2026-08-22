@@ -12,12 +12,12 @@ Description:
     - platform/observability/glitchtip.env
     - platform/observability/glitchtip_runtime_map.yaml
     - platform/observability/config.alloy
-    - platform/docker/cPlatform/diagnostics.validation.env
-    - platform/docker/cPlatform/deployment.env
-    - platform/docker/cPlatform/deployment.validation.env
+    - platform/docker/PlatformOps/diagnostics.validation.env
+    - platform/docker/PlatformOps/deployment.env
+    - platform/docker/PlatformOps/deployment.validation.env
     - platform/docker/optionCopilot/deployment.env
     - platform/docker/airtelChurn/deployment.env
-    - cPlatform/ProxyChurn/views.py
+    - PlatformOps/ProxyChurn/views.py
 
 Options:
   --env <env-file>            Env file with values (default: scripts/observability_endpoints.env if present)
@@ -89,8 +89,8 @@ GLITCHTIP_PORT="${CLI_GLITCHTIP_PORT:-${CPLATFORM_GLITCHTIP_PORT:-9008}}"
 LOKI_INGEST_PORT="${CLI_LOKI_INGEST_PORT:-${CPLATFORM_LOKI_INGEST_PORT:-9011}}"
 
 if [[ -z "$PRIMARY_IP" ]]; then
-  if [[ -f "${REPO_ROOT}/platform/docker/cPlatform/diagnostics.validation.env" ]]; then
-    PRIMARY_IP="$(grep -E '^CPLATFORM_PRIMARY_NODE_IP=' "${REPO_ROOT}/platform/docker/cPlatform/diagnostics.validation.env" | head -n1 | cut -d'=' -f2-)"
+  if [[ -f "${REPO_ROOT}/platform/docker/PlatformOps/diagnostics.validation.env" ]]; then
+    PRIMARY_IP="$(grep -E '^CPLATFORM_PRIMARY_NODE_IP=' "${REPO_ROOT}/platform/docker/PlatformOps/diagnostics.validation.env" | head -n1 | cut -d'=' -f2-)"
   fi
 fi
 
@@ -114,14 +114,14 @@ files = [
     "platform/observability/glitchtip.env",
     "platform/observability/glitchtip_runtime_map.yaml",
     "platform/observability/config.alloy",
-    "platform/docker/cPlatform/diagnostics.validation.env",
-    "platform/docker/cPlatform/deployment.env",
-    "platform/docker/cPlatform/deployment.validation.env",
+    "platform/docker/PlatformOps/diagnostics.validation.env",
+    "platform/docker/PlatformOps/deployment.env",
+    "platform/docker/PlatformOps/deployment.validation.env",
     "platform/docker/optionCopilot/deployment.env",
     "platform/docker/airtelChurn/deployment.env",
-    "cPlatform/ProxyChurn/views.py",
-    "cPlatform/config/cPlatform_config.yaml",
-    "cPlatform/cPlatformIO/src/ServiceDiagnostics.py",
+    "PlatformOps/ProxyChurn/views.py",
+    "PlatformOps/config/PlatformOps_config.yaml",
+    "PlatformOps/PlatformOpsIO/src/ServiceDiagnostics.py",
     "newUITmp/mockups/11-monitoring.html",
 ]
 
@@ -199,7 +199,7 @@ def rewrite(path: Path, text: str) -> str:
     if rel.endswith("airtelChurn/deployment.env"):
         out = re.sub(r'^airflow_host=.*$', f'airflow_host={primary_ip}', out, flags=re.M)
 
-    if rel.endswith("cPlatform_config.yaml"):
+    if rel.endswith("PlatformOps_config.yaml"):
         out = re.sub(r'(prometheus_server_ip:\s*)[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}', rf'\g<1>{primary_ip}', out)
         out = re.sub(r'(master_host:\s*)[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}', rf'\g<1>{primary_ip}', out)
         out = re.sub(r'(service_ip:\s*)[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}', rf'\g<1>{primary_ip}', out)

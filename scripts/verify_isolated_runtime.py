@@ -2,7 +2,7 @@
 """Static safety checks for the isolated PlatformOps runtime.
 
 This verifier only reads YAML/text.  It does not call Docker, start services,
-create networks, remove volumes, or contact the live cPlatform stack.
+create networks, remove volumes, or contact the live PlatformOps stack.
 """
 
 from __future__ import annotations

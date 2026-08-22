@@ -14,10 +14,10 @@ Usage:
     [--publish-root <host_publish_root>]
 
 Default behavior:
-  - Copies snapshot script + playbook into cPlatform container.
+  - Copies snapshot script + playbook into PlatformOps container.
   - Runs playbook against dynamicInventory<NODE_ID>.yaml.
   - Fetches snapshot from remote node into:
-      /home/ubuntu/Backup_Platform/iktara/cPlatform/logs/config_snapshots
+      /home/ubuntu/Backup_Platform/app/logs/config_snapshots
   - Auto-syncs fetched snapshot tree into:
       /home/ubuntu/Backup_Platform/config
 EOF
@@ -37,7 +37,7 @@ TARGET_CONTAINER=""
 SERVICE_NAME=""
 NODE_VOLUME="/home/ubuntu/Backup_Platform"
 CONFIG_PATH=""
-CPLATFORM_CONTAINER="iktara_cPlatform"
+CPLATFORM_CONTAINER="platformops_web"
 PUBLISH_ROOT="/home/ubuntu/Backup_Platform/config"
 
 while [[ $# -gt 0 ]]; do
@@ -89,22 +89,22 @@ require_cmd rsync
 require_cmd find
 require_cmd mkdir
 
-SCRIPT_SRC_HOST="/home/ubuntu/himanshunew/cPlatform/platform/ansible/service_config_snapshot.sh"
-PLAYBOOK_SRC_HOST="/home/ubuntu/himanshunew/cPlatform/platform/ansible/playbook/service_config_snapshot_playbook.yml"
+SCRIPT_SRC_HOST="/home/ubuntu/himanshunew/PlatformOps/platform/ansible/service_config_snapshot.sh"
+PLAYBOOK_SRC_HOST="/home/ubuntu/himanshunew/PlatformOps/platform/ansible/playbook/service_config_snapshot_playbook.yml"
 
 [[ -f "$SCRIPT_SRC_HOST" ]] || die "missing script: $SCRIPT_SRC_HOST"
 [[ -f "$PLAYBOOK_SRC_HOST" ]] || die "missing playbook: $PLAYBOOK_SRC_HOST"
 
-docker inspect "$CPLATFORM_CONTAINER" >/dev/null 2>&1 || die "cPlatform container not found: $CPLATFORM_CONTAINER"
+docker inspect "$CPLATFORM_CONTAINER" >/dev/null 2>&1 || die "PlatformOps container not found: $CPLATFORM_CONTAINER"
 
 echo "[1/4] Copy snapshot artifacts into ${CPLATFORM_CONTAINER}"
-docker cp "$SCRIPT_SRC_HOST" "${CPLATFORM_CONTAINER}:/iktara/cPlatform/platform/ansible/service_config_snapshot.sh"
-docker cp "$PLAYBOOK_SRC_HOST" "${CPLATFORM_CONTAINER}:/iktara/cPlatform/platform/ansible/playbook/service_config_snapshot_playbook.yml"
-docker exec "$CPLATFORM_CONTAINER" bash -lc "chmod +x /iktara/cPlatform/platform/ansible/service_config_snapshot.sh"
+docker cp "$SCRIPT_SRC_HOST" "${CPLATFORM_CONTAINER}:/app/platform/ansible/service_config_snapshot.sh"
+docker cp "$PLAYBOOK_SRC_HOST" "${CPLATFORM_CONTAINER}:/app/platform/ansible/playbook/service_config_snapshot_playbook.yml"
+docker exec "$CPLATFORM_CONTAINER" bash -lc "chmod +x /app/platform/ansible/service_config_snapshot.sh"
 
 echo "[2/4] Run ansible snapshot playbook"
 EXTRA_VARS=(
-  "-e" "script_src=/iktara/cPlatform/platform/ansible/service_config_snapshot.sh"
+  "-e" "script_src=/app/platform/ansible/service_config_snapshot.sh"
   "-e" "container_name=${TARGET_CONTAINER}"
   "-e" "node_volume=${NODE_VOLUME}"
 )
@@ -117,12 +117,12 @@ fi
 
 docker exec "$CPLATFORM_CONTAINER" bash -lc \
   "ansible-playbook \
-    -i /iktara/cPlatform/platform/ansible/inventory/dynamicInventory${NODE_ID}.yaml \
-    /iktara/cPlatform/platform/ansible/playbook/service_config_snapshot_playbook.yml \
+    -i /app/platform/ansible/inventory/dynamicInventory${NODE_ID}.yaml \
+    /app/platform/ansible/playbook/service_config_snapshot_playbook.yml \
     ${EXTRA_VARS[*]}"
 
 echo "[3/4] Auto-sync fetched snapshot tree into ${PUBLISH_ROOT}"
-FETCH_BASE="/home/ubuntu/Backup_Platform/iktara/cPlatform/logs/config_snapshots"
+FETCH_BASE="/home/ubuntu/Backup_Platform/app/logs/config_snapshots"
 mkdir -p "$PUBLISH_ROOT"
 while IFS= read -r src_dir; do
   rsync -a "${src_dir}/" "${PUBLISH_ROOT}/"

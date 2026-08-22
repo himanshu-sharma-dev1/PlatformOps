@@ -95,7 +95,7 @@ def load_manifest(path: Path) -> dict[str, Any]:
 def load_http_manifest(path: Path = DEFAULT_HTTP_MANIFEST) -> dict[str, Any]:
     """Load and validate the additive HTTP ingress manifest.
 
-    The raw local/FTP flow remains the default cPlatform stream.  Keeping the
+    The raw local/FTP flow remains the default PlatformOps stream.  Keeping the
     HTTP checks here lets one bootstrap command validate/import both flows,
     while the dedicated HTTP validator remains usable by deployment checks.
     """

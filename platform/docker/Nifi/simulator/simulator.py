@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Container-friendly, row-at-a-time CSV replay source for the HTTP NiFi flow.
 
-The service intentionally has no cPlatform or AgenticNOC dependency.  It
+The service intentionally has no PlatformOps or AgenticNOC dependency.  It
 reads the same two-preamble Aviat CSV shape as the supplied row-rate script,
 POSTs one header+data row per request, and exposes lifecycle controls for a
 container orchestrator or a test harness.
@@ -306,7 +306,7 @@ class Simulator:
             return self.status()
 
     def delete(self) -> dict:
-        """Stop replay and expose the cPlatform delete terminal state."""
+        """Stop replay and expose the PlatformOps delete terminal state."""
 
         with self._condition:
             self._stop.set()

@@ -2,7 +2,7 @@
 
 read -p "Enter AI Platform Tag: " SERVICE_TAG
 
-SERVICE_NAME="cPlatform"
+SERVICE_NAME="PlatformOps"
 CHEF_ENV="./chef.env"
 COOKBOOKS_DIR="./cookbooks"
 SERVICE_COOKBOOK_DIR="$COOKBOOKS_DIR/${SERVICE_NAME}_docker"

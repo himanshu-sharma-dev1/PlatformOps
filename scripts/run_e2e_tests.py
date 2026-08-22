@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
 BASE_URL = os.environ.get("PLATFORMOPS_E2E_BASE", "http://localhost:9020").rstrip("/")
-# 9002 is the current live cPlatform-coupled PlatformOps stack.  Never allow
+# 9002 is the current live PlatformOps-coupled PlatformOps stack.  Never allow
 # this destructive lifecycle suite to run against it, even when a caller has
 # supplied an explicit base URL.
 LIVE_PLATFORMOPS_PORT = 9002
@@ -27,7 +27,7 @@ def validate_e2e_target() -> None:
     Local isolated Compose runs use localhost:9020.  A non-default target is
     still supported for CI/remote environments only with an explicit opt-in;
     port 9002 remains rejected unconditionally because it is the known live
-    cPlatform stack.
+    PlatformOps stack.
     """
     parsed = urlparse(BASE_URL)
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
@@ -43,7 +43,7 @@ def validate_e2e_target() -> None:
 
     if port == LIVE_PLATFORMOPS_PORT:
         raise SystemExit(
-            "Refusing to run E2E against port 9002 (the live cPlatform stack). "
+            "Refusing to run E2E against port 9002 (the live PlatformOps stack). "
             "Use the isolated target at http://localhost:9020."
         )
 

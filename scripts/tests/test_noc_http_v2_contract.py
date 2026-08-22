@@ -3,9 +3,9 @@ import sys
 import unittest
 
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "cPlatform"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "PlatformOps"))
 
-from cPlatformIO.src.demo_control_plane import (  # noqa: E402
+from PlatformOpsIO.src.demo_control_plane import (  # noqa: E402
     NORMALIZED_ALARM_TOPIC,
     RAW_ALARM_TOPIC,
     build_stream_contract,

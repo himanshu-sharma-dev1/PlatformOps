@@ -5,7 +5,7 @@ This is an acceptance fixture, not a smoke test. A phase is green only when
 the API result, a terminal side effect, and an independent runtime probe all
 agree. Evidence is written below ``/tmp`` by default and is redacted before
 it is persisted. The harness talks to the disposable DinD daemon through the
-isolated Compose project; it never uses the host Docker socket or cPlatform.
+isolated Compose project; it never uses the host Docker socket or PlatformOps.
 
 Authoritative fixture: ``docs/redis-seven-page-acceptance-fixture.md``.
 """
@@ -509,7 +509,7 @@ def run_phase_0_preflight() -> None:
     with _evidence().phase("phase-0-preflight"):
         _require(_port(BASE_URL) == ISOLATED_PORT, f"PlatformOps target must use isolated port {ISOLATED_PORT}")
         _require(_port(MAILPIT_URL) == MAILPIT_PORT, f"Mailpit target must use isolated port {MAILPIT_PORT}")
-        _require(_port(BASE_URL) != LIVE_PORT, "port 9002 is the cPlatform stack and is forbidden")
+        _require(_port(BASE_URL) != LIVE_PORT, "port 9002 is the PlatformOps stack and is forbidden")
         _require(isinstance(request("GET", "/api/health"), dict), "health response must be JSON")
         _require(isinstance(request("GET", f"{MAILPIT_URL}/api/v1/info"), dict), "Mailpit readiness response must be JSON")
         verify = subprocess.run([sys.executable, str(ROOT / "scripts/verify_isolated_runtime.py")], cwd=ROOT, capture_output=True, text=True, timeout=60, check=False)
@@ -519,12 +519,12 @@ def run_phase_0_preflight() -> None:
         _require(compose.returncode == 0, f"isolated Compose config failed: {compose.stderr[-600:]}")
         # DinD itself exposes an in-container Unix socket for its own daemon;
         # only a host-socket mount is forbidden.  The static verifier already
-        # rejects that mount, while this runtime check rejects cPlatform/9002.
-        _require("/var/run/docker.sock:" not in compose.stdout and not any(value in compose.stdout for value in ("9002:", "cplatform_iktara", "cPlatform")), "isolated Compose contains forbidden host socket mount/port/network reference")
+        # rejects that mount, while this runtime check rejects PlatformOps/9002.
+        _require("/var/run/docker.sock:" not in compose.stdout and not any(value in compose.stdout for value in ("9002:", "cplatform_iktara", "PlatformOps")), "isolated Compose contains forbidden host socket mount/port/network reference")
         runtime = _runtime()
         baseline = runtime.snapshot()
         baseline_text = json.dumps(baseline, default=str).lower()
-        _require("cplatform_iktara" not in baseline_text and "cplatform" not in baseline_text, "private DinD baseline contains a cPlatform resource")
+        _require("cplatform_iktara" not in baseline_text and "cplatform" not in baseline_text, "private DinD baseline contains a PlatformOps resource")
         _evidence().action("preflight", git_sha=GIT_SHA, compose_sha256=hashlib.sha256(compose.stdout.encode()).hexdigest(), baseline_resources=baseline, owned_resources=runtime.owned_names())
         _json_write(EVIDENCE_DIR / "preflight.json", {"git_sha": GIT_SHA, "dirty": bool(subprocess.run(["git", "status", "--porcelain"], cwd=ROOT, capture_output=True, text=True, check=False).stdout.strip()), "compose_sha256": hashlib.sha256(compose.stdout.encode()).hexdigest(), "baseline": baseline})
 

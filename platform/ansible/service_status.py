@@ -397,7 +397,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--container-name", default="")
     parser.add_argument("--main-port", default="")
-    parser.add_argument("--network-name", default="cplatform_iktara_cPlatform")
+    parser.add_argument("--network-name", default="platformops_network")
     parser.add_argument("--dependencies-b64", default="")
     parser.add_argument("--dependency-role", default="")
     parser.add_argument("--target-port", default="")

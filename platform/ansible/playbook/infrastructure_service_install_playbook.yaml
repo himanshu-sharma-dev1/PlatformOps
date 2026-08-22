@@ -3,7 +3,7 @@
   become: yes
 
   vars:
-    docker_network_name: "{{ network_name | default(infra_contract.Network_Name | default('cplatform_iktara_cPlatform')) }}"
+    docker_network_name: "{{ network_name | default(infra_contract.Network_Name | default('platformops_network')) }}"
     docker_network_subnet: "{{ network_subnet | default(infra_contract.Network_Subnet | default('180.75.0.0/24')) }}"
     default_log_driver: json-file
     expose_service: "{{ expose_service }}"

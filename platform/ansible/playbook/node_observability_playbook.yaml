@@ -1,5 +1,5 @@
 ---
-- name: Deploy node Alloy for cPlatform diagnostics
+- name: Deploy node Alloy for PlatformOps diagnostics
   hosts: all
   gather_facts: false
   become: yes

@@ -128,7 +128,7 @@ def collect_contract_sources(
     *,
     host_mount_prefix: str = "/host-volume",
 ) -> list[dict[str, object]]:
-    config_path = repo_root / "cPlatform/config/service_install.yaml"
+    config_path = repo_root / "PlatformOps/config/service_install.yaml"
     with config_path.open() as handle:
         contracts = (yaml.safe_load(handle) or {}).get("services", {}) or {}
 
@@ -140,8 +140,8 @@ def collect_contract_sources(
 
     cplatform_source = {
         "id": "cplatform_logs",
-        "glob": f"{host_mount_prefix}/iktara/cPlatform/logs/*.log*",
-        "service_name": "cPlatform",
+        "glob": f"{host_mount_prefix}/app/logs/*.log*",
+        "service_name": "PlatformOps",
         "service_type": "AIOrchestrator",
         "environment": environment,
         "tail_from_end": default_tail_from_end,
@@ -347,10 +347,10 @@ def validate_required_source_paths(repo_root: Path) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Prepare generated runtime assets for cPlatform compose bootstrap.")
+    parser = argparse.ArgumentParser(description="Prepare generated runtime assets for PlatformOps compose bootstrap.")
     parser.add_argument("--output", default="", help="Where to write the generated Alloy config.")
     parser.add_argument("--emit-config", action="store_true", help="Print rendered Alloy config to stdout.")
-    parser.add_argument("--repo-root", default="", help="Repo root containing cPlatform/config/service_install.yaml.")
+    parser.add_argument("--repo-root", default="", help="Repo root containing PlatformOps/config/service_install.yaml.")
     parser.add_argument("--machine-volume", default="", help="Host machine volume root override.")
     parser.add_argument("--node-id", default="", help="Node id label override.")
     parser.add_argument("--node-ip", default="", help="Node ip label override.")

@@ -2,10 +2,10 @@
   hosts: all
   become: yes
   vars_files:
-    - ../../../cPlatform/config/service_install.yaml
+    - ../../../PlatformOps/config/service_install.yaml
 
   vars:
-    docker_network_name: "cplatform_iktara_cPlatform"
+    docker_network_name: "platformops_network"
     docker_network_subnet: "180.75.0.0/24"
     default_log_driver: json-file
     default_log_options:

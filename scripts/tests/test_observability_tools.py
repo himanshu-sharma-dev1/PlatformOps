@@ -109,7 +109,7 @@ class PrepareRuntimeTests(unittest.TestCase):
     def test_collect_contract_sources_resolves_contract_paths(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             repo_root = Path(tmpdir)
-            config_dir = repo_root / "cPlatform" / "config"
+            config_dir = repo_root / "PlatformOps" / "config"
             config_dir.mkdir(parents=True, exist_ok=True)
             (config_dir / "service_install.yaml").write_text(
                 """
@@ -138,13 +138,13 @@ services:
             )
 
         globs = {entry["id"]: entry["glob"] for entry in sources}
-        self.assertEqual(globs["cplatform_logs"], "/host-volume/iktara/cPlatform/logs/*.log*")
+        self.assertEqual(globs["cplatform_logs"], "/host-volume/app/logs/*.log*")
         self.assertIn("/host-volume/iktara/demo/logs/*.log*", globs.values())
 
     def test_collect_contract_sources_rejects_unmounted_log_path(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             repo_root = Path(tmpdir)
-            config_dir = repo_root / "cPlatform" / "config"
+            config_dir = repo_root / "PlatformOps" / "config"
             config_dir.mkdir(parents=True, exist_ok=True)
             (config_dir / "service_install.yaml").write_text(
                 """
@@ -267,17 +267,17 @@ class ServiceDiagnosticsHistoryGateTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         repo_root = Path(__file__).resolve().parents[2]
-        django_root = repo_root / "cPlatform"
+        django_root = repo_root / "PlatformOps"
         if str(django_root) not in sys.path:
             sys.path.insert(0, str(django_root))
-        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "cPlatform.settings")
+        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "PlatformOps.settings")
         try:
             import django
         except ModuleNotFoundError:
             raise unittest.SkipTest("django is not available in this test environment")
 
         django.setup()
-        from cPlatformIO.src import ServiceDiagnostics
+        from PlatformOpsIO.src import ServiceDiagnostics
 
         cls.ServiceDiagnostics = ServiceDiagnostics
 

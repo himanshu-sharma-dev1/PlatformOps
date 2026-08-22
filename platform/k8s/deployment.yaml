@@ -35,9 +35,9 @@ spec:
                 key: password
         volumeMounts:                   # Add this section to mount the volume
         - name: shared-data-volume-project-data      # The name should match the volume name below
-          mountPath: /cPlatform/ProjectData                  # Add this section to mount the volume
+          mountPath: /PlatformOps/ProjectData                  # Add this section to mount the volume
         - name: shared-data-volume-model-store      # The name should match the volume name below
-          mountPath: /cPlatform/ModelStore  # Mount path inside the container
+          mountPath: /PlatformOps/ModelStore  # Mount path inside the container
       volumes:
       - name: shared-data-volume-project-data
         hostPath:

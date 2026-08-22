@@ -15,7 +15,7 @@
       - "node-{{ airflow_node_fragment }}-airflow-init"
 
   vars_files:
-    - ../../../cPlatform/config/service_install.yaml
+    - ../../../PlatformOps/config/service_install.yaml
 
   tasks:
     - name: Set selected service config

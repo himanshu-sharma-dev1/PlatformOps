@@ -6,21 +6,21 @@ import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SERVICE_CONFIG = REPO_ROOT / "cPlatform/cPlatformIO/src/ServiceConfig.py"
-SERVICE_INSTALL = REPO_ROOT / "cPlatform/config/service_install.yaml"
-PLATFORM_CONFIG = REPO_ROOT / "cPlatform/config/cPlatform_config.yaml"
+SERVICE_CONFIG = REPO_ROOT / "PlatformOps/PlatformOpsIO/src/ServiceConfig.py"
+SERVICE_INSTALL = REPO_ROOT / "PlatformOps/config/service_install.yaml"
+PLATFORM_CONFIG = REPO_ROOT / "PlatformOps/config/PlatformOps_config.yaml"
 NOC_PROMETHEUS = REPO_ROOT / "platform/docker/prometheus/noc_prometheus.yml"
 INFRA_PLAYBOOK = REPO_ROOT / "platform/ansible/playbook/infrastructure_service_install_playbook.yaml"
 SERVICE_INSTALL_PLAYBOOK = REPO_ROOT / "platform/ansible/playbook/service_install_playbook.yaml"
 SERVICE_DELETE_PLAYBOOK = REPO_ROOT / "platform/ansible/playbook/service_delete_primary.yaml"
 SERVICE_STATUS_SCRIPT = REPO_ROOT / "platform/ansible/service_status.py"
-CONFIG_MANAGER_TEMPLATE = REPO_ROOT / "cPlatform/templates_new/PlatformIO/08-config-manager.html"
-CLUSTER_DETAIL_TEMPLATE = REPO_ROOT / "cPlatform/templates_new/PlatformIO/04-cluster-detail.html"
-CLUSTER_LIST_TEMPLATE = REPO_ROOT / "cPlatform/templates_new/PlatformIO/02-clusters.html"
-CONFIG_MANAGER_CSS = REPO_ROOT / "cPlatform/static/css/configManager.css"
-NAVBAR_TEMPLATE = REPO_ROOT / "cPlatform/templates_new/navbar.html"
-CLUSTER_DETAIL_JS = REPO_ROOT / "cPlatform/static/javascript/clusterDetail.js"
-VIEWS_FILE = REPO_ROOT / "cPlatform/cPlatformIO/views.py"
+CONFIG_MANAGER_TEMPLATE = REPO_ROOT / "PlatformOps/templates_new/PlatformIO/08-config-manager.html"
+CLUSTER_DETAIL_TEMPLATE = REPO_ROOT / "PlatformOps/templates_new/PlatformIO/04-cluster-detail.html"
+CLUSTER_LIST_TEMPLATE = REPO_ROOT / "PlatformOps/templates_new/PlatformIO/02-clusters.html"
+CONFIG_MANAGER_CSS = REPO_ROOT / "PlatformOps/static/css/configManager.css"
+NAVBAR_TEMPLATE = REPO_ROOT / "PlatformOps/templates_new/navbar.html"
+CLUSTER_DETAIL_JS = REPO_ROOT / "PlatformOps/static/javascript/clusterDetail.js"
+VIEWS_FILE = REPO_ROOT / "PlatformOps/PlatformOpsIO/views.py"
 ROOT_READ_PLAYBOOKS = [
     REPO_ROOT / "platform/ansible/playbook/service_file_logs_playbook.yml",
     REPO_ROOT / "platform/ansible/playbook/service_file_archive_playbook.yml",
@@ -223,7 +223,7 @@ class InfrastructureServiceCatalogTests(unittest.TestCase):
         self.assertTrue(contract.get("Pull_Image"))
         self.assertEqual(contract.get("Int_IP_Addr"), "180.75.0.63")
         self.assertEqual(contract.get("Int_Port"), 9308)
-        self.assertEqual(contract.get("Network_Name"), "cplatform_iktara_cPlatform")
+        self.assertEqual(contract.get("Network_Name"), "platformops_network")
         self.assertEqual(contract.get("Default_Host_Port"), 9014)
         self.assertEqual(contract.get("Environment", {}).get("KAFKA_SERVER"), "180.75.0.31:9092")
 

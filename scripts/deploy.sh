@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-REPO_DIR="${REPO_DIR:-/root/cPlatform}"
+REPO_DIR="${REPO_DIR:-/root/PlatformOps}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-master}"
-CONTAINER_NAME="${CONTAINER_NAME:-iktara_cPlatform}"
+CONTAINER_NAME="${CONTAINER_NAME:-platformops_web}"
 LOCK_FILE="${LOCK_FILE:-/tmp/cplatform-deploy.lock}"
 STATE_DIR="${STATE_DIR:-/tmp/cplatform-deploy-state}"
 DESIRED_REF_FILE="${DESIRED_REF_FILE:-${STATE_DIR}/desired_ref}"
 DESIRED_BRANCH_FILE="${DESIRED_BRANCH_FILE:-${STATE_DIR}/desired_branch}"
 DRY_RUN="${DRY_RUN:-0}"
 AUTO_STASH="${AUTO_STASH:-1}"
-STASH_EXCLUDE_1="${STASH_EXCLUDE_1:-:(exclude)cPlatform/Models}"
-STASH_EXCLUDE_2="${STASH_EXCLUDE_2:-:(exclude)cPlatform/Models/**}"
-STASH_EXCLUDE_3="${STASH_EXCLUDE_3:-:(exclude)cPlatform/config/cPlatform_config.yaml}"
-STASH_EXCLUDE_4="${STASH_EXCLUDE_4:-:(exclude)cPlatform/logs}"
-STASH_EXCLUDE_5="${STASH_EXCLUDE_5:-:(exclude)cPlatform/logs/**}"
+STASH_EXCLUDE_1="${STASH_EXCLUDE_1:-:(exclude)PlatformOps/Models}"
+STASH_EXCLUDE_2="${STASH_EXCLUDE_2:-:(exclude)PlatformOps/Models/**}"
+STASH_EXCLUDE_3="${STASH_EXCLUDE_3:-:(exclude)PlatformOps/config/PlatformOps_config.yaml}"
+STASH_EXCLUDE_4="${STASH_EXCLUDE_4:-:(exclude)PlatformOps/logs}"
+STASH_EXCLUDE_5="${STASH_EXCLUDE_5:-:(exclude)PlatformOps/logs/**}"
 APP_BASE_URL="${APP_BASE_URL:-http://127.0.0.1}"
 WAIT_INTERVAL_SECONDS="${WAIT_INTERVAL_SECONDS:-2}"
 WAIT_MAX_SECONDS="${WAIT_MAX_SECONDS:-900}"
 DEPLOY_DEBOUNCE_SECONDS="${DEPLOY_DEBOUNCE_SECONDS:-60}"
-PRESERVE_CONFIG_PATH="${PRESERVE_CONFIG_PATH:-cPlatform/config/cPlatform_config.yaml}"
+PRESERVE_CONFIG_PATH="${PRESERVE_CONFIG_PATH:-PlatformOps/config/PlatformOps_config.yaml}"
 
 PRESERVED_FILES=(
   "${PRESERVE_CONFIG_PATH}"
@@ -203,20 +203,20 @@ wait_for_http_path() {
 
 collectstatic_if_needed() {
   log "Running collectstatic in ${CONTAINER_NAME}"
-  container_exec "cd /iktara/cPlatform/cPlatform && python manage.py collectstatic --noinput >/tmp/collectstatic.log 2>&1"
+  container_exec "cd /app && python manage.py collectstatic --noinput >/tmp/collectstatic.log 2>&1"
 }
 
 reload_gunicorn() {
   log "Reloading Gunicorn"
   container_exec '
     set -eu
-    cd /iktara/cPlatform/cPlatform
+    cd /app
 
     gunicorn_master_pid="$(
       ps -eo pid=,ppid=,args= | awk '"'"'
         $3 == "/usr/local/bin/python" &&
         $4 == "/usr/local/bin/gunicorn" &&
-        $0 ~ /cPlatform\.wsgi:application/ {
+        $0 ~ /PlatformOps\.wsgi:application/ {
           print $1
           exit
         }
@@ -229,7 +229,7 @@ reload_gunicorn() {
     fi
 
     echo "Gunicorn master process not found; starting a fresh Gunicorn instance" >&2
-    nohup /usr/local/bin/gunicorn cPlatform.wsgi:application \
+    nohup /usr/local/bin/gunicorn PlatformOps.wsgi:application \
       --bind 0.0.0.0:8000 \
       --workers 2 \
       --threads 4 \
@@ -251,18 +251,18 @@ restart_celery() {
   log "Restarting Celery beat and worker"
   container_exec '
     set -eu
-    cd /iktara/cPlatform/cPlatform
+    cd /app
 
     beat_pids="$(
       ps -eo pid=,args= | awk '"'"'
-        $0 ~ /^ *[0-9]+ +\/usr\/local\/bin\/python \/usr\/local\/bin\/celery -A cPlatform beat -l INFO --scheduler django_celery_beat\.schedulers:DatabaseScheduler$/ {
+        $0 ~ /^ *[0-9]+ +\/usr\/local\/bin\/python \/usr\/local\/bin\/celery -A PlatformOps beat -l INFO --scheduler django_celery_beat\.schedulers:DatabaseScheduler$/ {
           print $1
         }
       '"'"'
     )"
     worker_pids="$(
       ps -eo pid=,args= | awk '"'"'
-        $0 ~ /^ *[0-9]+ +\/usr\/local\/bin\/python \/usr\/local\/bin\/celery -A cPlatform worker --purge --loglevel=info --pool=solo -Q cPlatform_dataflow$/ {
+        $0 ~ /^ *[0-9]+ +\/usr\/local\/bin\/python \/usr\/local\/bin\/celery -A PlatformOps worker --purge --loglevel=info --pool=solo -Q PlatformOps_dataflow$/ {
           print $1
         }
       '"'"'
@@ -277,8 +277,8 @@ restart_celery() {
 
     sleep 2
 
-    nohup celery -A cPlatform beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler >/tmp/cplatform-celery-beat.log 2>&1 &
-    nohup celery -A cPlatform worker --purge --loglevel=info --pool=solo -Q cPlatform_dataflow >/tmp/cplatform-celery-worker.log 2>&1 &
+    nohup celery -A PlatformOps beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler >/tmp/cplatform-celery-beat.log 2>&1 &
+    nohup celery -A PlatformOps worker --purge --loglevel=info --pool=solo -Q PlatformOps_dataflow >/tmp/cplatform-celery-worker.log 2>&1 &
   '
 }
 
@@ -301,18 +301,18 @@ apply_runtime_updates() {
   while IFS= read -r changed_file; do
     [[ -n "${changed_file}" ]] || continue
     case "${changed_file}" in
-      cPlatform/static/*|cPlatform/templates/*|cPlatform/templates_new/*)
+      PlatformOps/static/*|PlatformOps/templates/*|PlatformOps/templates_new/*)
         needs_collectstatic=1
         needs_gunicorn_reload=1
         ;;
-      cPlatform/cPlatformIO/*|cPlatform/Proxy/*|cPlatform/cPlatform/*|cPlatform/manage.py)
+      PlatformOps/PlatformOpsIO/*|PlatformOps/Proxy/*|PlatformOps/PlatformOps/*|PlatformOps/manage.py)
         needs_gunicorn_reload=1
         needs_celery_restart=1
         ;;
-      platform/nginx/nginx.conf|cPlatform/docker-compose.yaml)
+      platform/nginx/nginx.conf|PlatformOps/docker-compose.yaml)
         needs_nginx_reload=1
         ;;
-      cPlatform/entrypoint_script.sh|cPlatform/Dockerfile|cPlatform/requirements*.txt|cPlatform/requirements-cplatform.txt|cPlatform/CommonUtils-*.whl)
+      PlatformOps/entrypoint_script.sh|PlatformOps/Dockerfile|PlatformOps/requirements*.txt|PlatformOps/requirements-cplatform.txt|PlatformOps/CommonUtils-*.whl)
         rebuild_required=1
         ;;
     esac

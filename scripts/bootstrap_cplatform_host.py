@@ -30,7 +30,7 @@ DEFAULT_PORTS = {
     "rabbitmq_ui": 15674,
     "rabbitmq_mqtt": 8885,
 }
-DEFAULT_NETWORK_NAME = "cplatform_iktara_cPlatform"
+DEFAULT_NETWORK_NAME = "platformops_network"
 DEFAULT_NETWORK_SUBNET = "180.75.0.0/24"
 DEFAULT_NETWORK_GATEWAY = "180.75.0.1"
 STATIC_IPS = [
@@ -149,7 +149,7 @@ def patch_remote_loki_ingest_url(
 def ensure_directories(machine_volume: Path, loki_uid: int, loki_gid: int) -> list[str]:
     created = []
     paths = [
-        machine_volume / "iktara/cPlatform/logs",
+        machine_volume / "iktara/PlatformOps/logs",
         machine_volume / "iktara/Repository",
         machine_volume / "iktara/observability/loki",
         machine_volume / "iktara/observability/alloy",
@@ -431,14 +431,14 @@ def wait_for_stack_health(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Prepare a cPlatform control-plane host for compose bootstrap.")
+    parser = argparse.ArgumentParser(description="Prepare a PlatformOps control-plane host for compose bootstrap.")
     parser.add_argument("--repo-root", default=str(Path(__file__).resolve().parents[1]))
     parser.add_argument("--machine-volume", default="/home/ubuntu/Backup_Platform")
-    parser.add_argument("--compose-file", default="cPlatform/docker-compose.yaml")
-    parser.add_argument("--django-env", default="platform/docker/cPlatform/deployment.validation.env")
-    parser.add_argument("--django-env-example", default="platform/docker/cPlatform/deployment.validation.env.example")
-    parser.add_argument("--diagnostics-env", default="platform/docker/cPlatform/diagnostics.validation.env")
-    parser.add_argument("--diagnostics-env-example", default="platform/docker/cPlatform/diagnostics.validation.env.example")
+    parser.add_argument("--compose-file", default="PlatformOps/docker-compose.yaml")
+    parser.add_argument("--django-env", default="platform/docker/PlatformOps/deployment.validation.env")
+    parser.add_argument("--django-env-example", default="platform/docker/PlatformOps/deployment.validation.env.example")
+    parser.add_argument("--diagnostics-env", default="platform/docker/PlatformOps/diagnostics.validation.env")
+    parser.add_argument("--diagnostics-env-example", default="platform/docker/PlatformOps/diagnostics.validation.env.example")
     parser.add_argument("--glitchtip-env", default="platform/observability/glitchtip.env")
     parser.add_argument("--glitchtip-env-example", default="platform/observability/glitchtip.env.example")
     parser.add_argument("--network-name", default=DEFAULT_NETWORK_NAME)
