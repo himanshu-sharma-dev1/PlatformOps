@@ -48,6 +48,31 @@
         - not remove
         - item.split(':')[0] | basename | regex_search('\\.') is not none
 
+    - name: Prepare Redis data and log paths in the Docker engine namespace
+      community.docker.docker_container:
+        name: "{{ container_name }}-permissions"
+        image: "{{ image }}"
+        state: started
+        entrypoint: ["/bin/sh", "-c"]
+        command:
+          - >-
+            set -eu;
+            uid=$(id -u redis 2>/dev/null || echo 999);
+            gid=$(id -g redis 2>/dev/null || echo 1000);
+            mkdir -p /data /var/log/redis;
+            touch /var/log/redis/redis.log;
+            chown -R "${uid}:${gid}" /data /var/log/redis;
+            chmod 0755 /data /var/log/redis;
+            chmod 0644 /var/log/redis/redis.log
+        user: "0:0"
+        volumes: "{{ contract.volumes | default([]) }}"
+        detach: false
+        cleanup: true
+        output_logs: true
+      when:
+        - not remove
+        - service_key | default('') == 'redis-core'
+
     - name: Remove service container
       community.docker.docker_container:
         name: "{{ container_name }}"
@@ -66,6 +91,18 @@
         volumes: "{{ contract.volumes | default([]) }}"
         env: "{{ contract.environment | default({}) }}"
         command: "{{ contract.command | default(omit) }}"
+        healthcheck: >-
+          {{
+            {
+              'test': ['CMD-SHELL', contract.healthcheck.command],
+              'interval': contract.healthcheck.interval | default('2s'),
+              'timeout': contract.healthcheck.timeout | default('3s'),
+              'retries': contract.healthcheck.retries | default(5),
+              'start_period': contract.healthcheck.start_period | default('0s')
+            }
+            if contract.healthcheck is defined and contract.healthcheck.command is defined
+            else omit
+          }}
       when: not remove
 
     - name: Show deployed service

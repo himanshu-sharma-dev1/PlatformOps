@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import requests
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -33,10 +36,247 @@ from ...models import (
     ServiceInstance,
     SloReport,
 )
+from ...settings import settings
 from ..common import (
     RUNNING_STATUSES,
     record_event,
 )
+from ..docker_runtime import exec_container, inspect_container
+
+_OBS_FRESHNESS_SECONDS = 90
+
+
+def _obs_time(value: Any) -> datetime | None:
+    if value in (None, ""):
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            return datetime.fromtimestamp(float(value), tz=UTC)
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(UTC)
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def _obs_signal(
+    state: str,
+    source: str,
+    checked_at: str,
+    *,
+    evidence_at: str | None = None,
+    error: str | None = None,
+    detail: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    evidence = _obs_time(evidence_at)
+    age = max(0.0, (datetime.now(UTC) - evidence).total_seconds()) if evidence else None
+    return {
+        "state": state,
+        "source": source,
+        "checked_at": checked_at,
+        "evidence_at": evidence.isoformat() if evidence else None,
+        "age_seconds": round(age, 3) if age is not None else None,
+        "fresh": bool(age is not None and age <= _OBS_FRESHNESS_SECONDS),
+        "error": str(error)[:400] if error else None,
+        "detail": detail or {},
+    }
+
+
+def _obs_get_json(url: str, *, params: dict[str, Any] | None = None) -> tuple[Any | None, str | None]:
+    try:
+        response = requests.get(url, params=params, timeout=5)
+        if response.status_code != 200:
+            return None, f"HTTP {response.status_code}"
+        return response.json(), None
+    except Exception as exc:
+        return None, str(exc)[:400]
+
+
+def _obs_label_literal(value: Any) -> str:
+    return str(value).replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _obs_exact_marker(line: Any, marker: str) -> bool:
+    """Match one marker token without accepting a longer run-id prefix."""
+
+    return bool(re.search(rf"(?<![A-Za-z0-9_-]){re.escape(marker)}(?![A-Za-z0-9_-])", str(line)))
+
+
+def observability_status_report(
+    db: Session,
+    *,
+    service_id: int,
+    marker: str = "",
+) -> dict[str, Any]:
+    """Correlate one Redis target with direct runtime, metric, and log probes."""
+
+    checked = datetime.now(UTC).isoformat()
+    service = db.get(ServiceInstance, service_id)
+    if service is None:
+        raise ValueError("Service not found")
+    if str(service.service_key or "").lower() not in {"redis", "redis-core", "airflow-redis"}:
+        raise ValueError("Observability readiness currently requires a Redis service target")
+    node = db.get(Node, service.node_id)
+    if node is None:
+        raise ValueError("Service node not found")
+    cluster = db.get(Cluster, node.cluster_id)
+    target = {
+        "cluster_id": cluster.id if cluster else node.cluster_id,
+        "cluster_name": cluster.name if cluster else "",
+        "node_id": node.id,
+        "node_name": node.name,
+        "service_id": service.id,
+        "service_external_id": service.external_id,
+        "service_name": service.name,
+        "service_key": service.service_key,
+        "container_name": service.container_name,
+    }
+
+    try:
+        node_facts = json.loads(node.facts_json or "{}") if getattr(node, "facts_json", None) else {}
+    except (TypeError, ValueError):
+        node_facts = {}
+    connection_mode = str(node_facts.get("connection_mode") or "").lower()
+    is_local = connection_mode == "local" or (not connection_mode and str(node.host or "").lower() in {"", "localhost", "127.0.0.1", "0.0.0.0"})
+    if is_local:
+        attrs, inspect_error = inspect_container(service.container_name)
+    else:
+        attrs, inspect_error = None, "Remote direct runtime probe is not configured; local Docker fallback is forbidden"
+    if inspect_error:
+        service_signal = _obs_signal("error", "docker_inspect+redis_ping", checked, error=inspect_error)
+    else:
+        runtime_state = (attrs or {}).get("State") or {}
+        running = bool(runtime_state.get("Running"))
+        health = str(((runtime_state.get("Health") or {}).get("Status")) or "none")
+        ping_ok, ping_output, ping_error = exec_container(service.container_name, ["redis-cli", "--raw", "PING"])
+        pong = ping_ok and ping_output.strip() == "PONG"
+        state = "available" if running and pong and health not in {"unhealthy"} else "unavailable"
+        service_signal = _obs_signal(
+            state,
+            "docker_inspect+redis_ping",
+            checked,
+            evidence_at=checked,
+            error=ping_error or (None if pong else "Redis did not return PONG"),
+            detail={"running": running, "container_status": runtime_state.get("Status"), "health": health, "pong": pong},
+        )
+
+    prometheus_base = os.getenv(
+        "PLATFORMOPS_OBSERVABILITY_PROMETHEUS_URL", "http://observability-prometheus:9090"
+    ).rstrip("/")
+    targets, targets_error = _obs_get_json(f"{prometheus_base}/api/v1/targets", params={"state": "active"})
+    expected_labels = {"service_id": str(service.id), "container_name": service.container_name}
+    matching_targets: list[dict[str, Any]] = []
+    if isinstance(targets, dict) and targets.get("status") == "success":
+        for item in ((targets.get("data") or {}).get("activeTargets") or []):
+            labels = item.get("labels") or {}
+            if all(str(labels.get(key) or "") == value for key, value in expected_labels.items()):
+                matching_targets.append(item)
+    selector = f'service_id="{service.id}",container_name="{_obs_label_literal(service.container_name)}"'
+    sample, sample_error = _obs_get_json(
+        f"{prometheus_base}/api/v1/query", params={"query": f"redis_up{{{selector}}}"}
+    )
+    samples = ((sample or {}).get("data") or {}).get("result") or [] if isinstance(sample, dict) else []
+    sample_value = None
+    sample_at = None
+    sample_timestamp_error = None
+    if samples and samples[0].get("value"):
+        try:
+            sample_at = datetime.fromtimestamp(float(samples[0]["value"][0]), tz=UTC).isoformat()
+        except (TypeError, ValueError, OSError, OverflowError) as exc:
+            sample_timestamp_error = f"Invalid Prometheus sample timestamp: {exc}"
+        try:
+            sample_value = float(samples[0]["value"][1])
+        except (TypeError, ValueError):
+            sample_value = None
+    healthy_target = next((item for item in matching_targets if item.get("health") == "up"), None)
+    last_scrape = str((healthy_target or matching_targets[0]).get("lastScrape") or "") if matching_targets else None
+    prom_error = targets_error or sample_error or sample_timestamp_error
+    if sample_timestamp_error:
+        prom_state = "error"
+    elif targets_error or sample_error:
+        prom_state = "unavailable"
+    elif not matching_targets:
+        prom_state, prom_error = "unavailable", "Exact Redis exporter target is absent"
+    elif healthy_target is None:
+        prom_state, prom_error = "unavailable", str(matching_targets[0].get("lastError") or "Target is down")
+    elif sample_value != 1.0:
+        prom_state, prom_error = "degraded", "Fresh redis_up=1 sample is absent"
+    else:
+        sample_age = (datetime.now(UTC) - (_obs_time(sample_at) or datetime.min.replace(tzinfo=UTC))).total_seconds()
+        prom_state = "available" if sample_age <= _OBS_FRESHNESS_SECONDS else "degraded"
+        if prom_state == "degraded":
+            prom_error = "Latest Redis sample is stale"
+    prometheus_signal = _obs_signal(
+        prom_state,
+        "prometheus:/api/v1/targets+redis_up",
+        checked,
+        evidence_at=sample_at,
+        error=prom_error,
+        detail={"target_count": len(matching_targets), "target_health": (healthy_target or {}).get("health"), "last_scrape": last_scrape, "sample_value": sample_value, "labels": expected_labels},
+    )
+
+    marker = marker.strip()
+    loki_base = os.getenv(
+        "PLATFORMOPS_OBSERVABILITY_LOKI_URL", "http://observability-loki:3100"
+    ).rstrip("/")
+    if not marker:
+        loki_signal = _obs_signal("not_configured", "loki:exact_marker", checked, error="A run marker is required for ingestion correlation")
+    else:
+        query = f'{{container_name="{_obs_label_literal(service.container_name)}"}} |= {json.dumps(marker)}'
+        loki, loki_error = _obs_get_json(
+            f"{loki_base}/loki/api/v1/query_range",
+            params={"query": query, "limit": 20, "direction": "backward"},
+        )
+        streams = ((loki or {}).get("data") or {}).get("result") or [] if isinstance(loki, dict) else []
+        values = [value for stream in streams for value in (stream.get("values") or [])]
+        exact_values = [value for value in values if len(value) >= 2 and _obs_exact_marker(value[1], marker)]
+        marker_at = datetime.fromtimestamp(int(exact_values[0][0]) / 1_000_000_000, tz=UTC).isoformat() if exact_values else None
+        if loki_error:
+            loki_state = "unavailable"
+        elif not exact_values:
+            loki_state, loki_error = "unavailable", "Exact run marker is absent"
+        else:
+            marker_age = (datetime.now(UTC) - (_obs_time(marker_at) or datetime.min.replace(tzinfo=UTC))).total_seconds()
+            loki_state = "available" if marker_age <= _OBS_FRESHNESS_SECONDS else "degraded"
+            if loki_state == "degraded":
+                loki_error = "Exact run marker is stale"
+        loki_signal = _obs_signal(loki_state, "loki:exact_marker", checked, evidence_at=marker_at, error=loki_error, detail={"marker": marker, "matches": len(exact_values), "container_name": service.container_name})
+
+    alloy_base = os.getenv("PLATFORMOPS_ALLOY_BASE_URL", "http://observability-alloy:12345").rstrip("/")
+    try:
+        alloy_response = requests.get(f"{alloy_base}/-/ready", timeout=5)
+        alloy_error = None if alloy_response.status_code == 200 else f"HTTP {alloy_response.status_code}"
+    except Exception as exc:
+        alloy_error = str(exc)[:400]
+    if alloy_error:
+        alloy_state = "degraded"
+    elif loki_signal["state"] == "available":
+        alloy_state = "available"
+    else:
+        alloy_state = "degraded"
+        alloy_error = "Collector is ready but exact marker ingestion is not fresh"
+    alloy_signal = _obs_signal(alloy_state, "alloy:/-/ready+loki_marker", checked, evidence_at=loki_signal.get("evidence_at"), error=alloy_error, detail={"base_url": alloy_base})
+
+    glitchtip_base = settings.glitchtip_base_url.rstrip("/")
+    if not settings.glitchtip_token:
+        glitchtip_signal = _obs_signal("not_configured", "glitchtip:configuration", checked, error="GlitchTip token is not configured", detail={"base_url": glitchtip_base, "org": settings.glitchtip_org_slug})
+    else:
+        try:
+            gt = requests.get(f"{glitchtip_base}/api/0/organizations/{settings.glitchtip_org_slug}/projects/", headers={"Authorization": f"Bearer {settings.glitchtip_token}"}, timeout=5)
+            gt_error = None if gt.status_code == 200 else f"HTTP {gt.status_code}"
+        except Exception as exc:
+            gt_error = str(exc)[:400]
+        glitchtip_signal = _obs_signal("available" if not gt_error else "error", "glitchtip:projects", checked, evidence_at=checked if not gt_error else None, error=gt_error, detail={"base_url": glitchtip_base, "org": settings.glitchtip_org_slug})
+
+    signals = {"service": service_signal, "prometheus": prometheus_signal, "loki": loki_signal, "alloy": alloy_signal, "glitchtip": glitchtip_signal}
+    required_states = [signals[key]["state"] for key in ("service", "prometheus", "loki", "alloy")]
+    if all(state == "available" for state in required_states):
+        overall = "available"
+    elif any(state == "error" for state in required_states):
+        overall = "error"
+    elif all(state in {"unavailable", "not_configured"} for state in required_states):
+        overall = "unavailable"
+    else:
+        overall = "degraded"
+    return {"generated_at": checked, "overall_state": overall, "freshness_seconds": _OBS_FRESHNESS_SECONDS, "target": target, "signals": signals}
 
 
 def capability_coverage_report(db: Session) -> dict[str, Any]:
@@ -780,44 +1020,26 @@ def observability_pipeline_report(db: Session) -> dict[str, Any]:
     report_nodes: list[dict[str, Any]] = []
     for node in nodes:
         services = list(db.scalars(select(ServiceInstance).where(ServiceInstance.node_id == node.id)).all())
-        by_key = {service.service_key: service for service in services}
-        required_keys = ["alloy-core", "loki-core", "prometheus-core", "node-exporter"]
-        optional_keys = ["dcgm-exporter"]
-        component_status: dict[str, str] = {}
+        redis_service = next((service for service in services if service.service_key == "redis-core"), None)
         issues: list[str] = []
-        for key in required_keys + optional_keys:
-            service = by_key.get(key)
-            if service is None:
-                component_status[key] = "missing"
-            elif service.status in RUNNING_STATUSES:
-                component_status[key] = "running"
-            else:
-                component_status[key] = service.status
-        for key in required_keys:
-            if component_status[key] != "running":
-                issues.append(f"{key} is {component_status[key]}")
-
-        diagnostics_events = list(
-            db.scalars(
-                select(OperationalEvent)
-                .where(
-                    OperationalEvent.node_id == node.id,
-                    OperationalEvent.category.in_(("diagnostics", "monitoring")),
-                )
-                .order_by(OperationalEvent.created_at.desc())
-                .limit(1)
-            ).all()
-        )
-        last_signal_at = diagnostics_events[0].created_at.isoformat() if diagnostics_events else None
-        ingestion_state = "healthy" if not issues else "degraded"
-        if all(component_status[key] == "missing" for key in required_keys):
-            ingestion_state = "not-initialized"
+        if redis_service is None:
+            component_status = {key: "not_configured" for key in ("service", "prometheus", "loki", "alloy", "glitchtip")}
+            ingestion_state = "unavailable"
+            last_signal_at = None
+            issues.append("Canonical redis-core target is not configured")
+        else:
+            direct = observability_status_report(db, service_id=redis_service.id)
+            component_status = {key: signal["state"] for key, signal in direct["signals"].items()}
+            ingestion_state = direct["overall_state"]
+            evidence = [signal.get("evidence_at") for signal in direct["signals"].values() if signal.get("evidence_at")]
+            last_signal_at = max(evidence) if evidence else None
+            issues.extend(str(signal["error"]) for signal in direct["signals"].values() if signal.get("error"))
         report_nodes.append(
             {
                 "node_id": node.id,
                 "node_name": node.name,
                 "node_status": node.status,
-                "pipeline_ready": len(issues) == 0,
+                "pipeline_ready": ingestion_state == "available",
                 "ingestion_state": ingestion_state,
                 "last_signal_at": last_signal_at,
                 "components": component_status,

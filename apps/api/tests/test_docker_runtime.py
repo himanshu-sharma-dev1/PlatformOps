@@ -17,7 +17,16 @@ if str(API_ROOT) not in sys.path:
 
 
 class _FakeContainer:
-    attrs = {"Id": "abc", "State": {"Running": True}}
+    attrs = {"Id": "abc", "State": {"Running": True, "Status": "running"}}
+
+    def reload(self):
+        return None
+
+    def put_archive(self, _path, _payload):
+        return True
+
+    def restart(self, **_kwargs):
+        return None
 
     def logs(self, **_kwargs):
         return b"2026-08-10T00:00:00Z redis ready\n"
@@ -116,3 +125,10 @@ def test_local_sdk_discovery_shape(fake_docker):
             "labels": {"com.example": "mvp"},
         }
     ]
+
+
+def test_local_sdk_atomic_write_and_restart(fake_docker):
+    from platformops.orchestrator.docker_runtime import restart_container, write_container_file
+
+    assert write_container_file("redis", "/usr/local/etc/redis/redis.conf", "maxmemory 1mb\n") == (True, "")
+    assert restart_container("redis") == (True, "")

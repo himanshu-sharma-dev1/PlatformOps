@@ -379,9 +379,16 @@ export function DiagnosticsView() {
                     )}
                   </div>
                   {diagnosticsLive && (
-                    <small style={{ color: "var(--ink-4)" }}>
-                      Loaded {diagnosticsLive.lines.length} lines · source {diagLogSource}
-                    </small>
+                    <>
+                      <small style={{ color: "var(--ink-4)" }}>
+                        Loaded {diagnosticsLive.lines.length} lines · source {diagLogSource}
+                      </small>
+                      {diagnosticsLive.error && (
+                        <div role="alert" style={{ color: "var(--err)", fontSize: "0.85rem", marginTop: "0.35rem" }}>
+                          Diagnostics unavailable: {diagnosticsLive.error}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
                 <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", alignItems: "center" }}>
@@ -491,7 +498,9 @@ export function DiagnosticsView() {
                   })}
                   {(diagnosticsLive?.lines ?? diagnostics?.recent_logs ?? []).length === 0 && (
                     <div style={{ color: "var(--ink-4)", textAlign: "center", padding: "2rem" }}>
-                      No logs streamed yet. Trigger some container traffic or click Refresh.
+                      {diagnosticsLive?.error
+                        ? "No diagnostic lines returned for this source. Resolve the reported error and refresh."
+                        : "No logs streamed yet. Trigger some container traffic or click Refresh."}
                     </div>
                   )}
                 </div>

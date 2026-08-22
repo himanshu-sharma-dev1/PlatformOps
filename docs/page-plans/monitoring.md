@@ -15,6 +15,24 @@ disposable GlitchTip profile for external integration actions.
 - PlatformOps matrix §4; `MonitoringView.tsx`, `monitoringActions.ts`,
   `routers/glitchtip.py`, `routers/monitoring.py`, monitoring orchestrator.
 
+## Verified acceptance status — 2026-08-22 (DOC-1)
+
+The strict `parity-redis-20260822T111500-accept18b` and independent
+`parity-redis-20260822T035500Z-e2et1` runs each passed phases 0–8. Artifacts are
+in `/tmp/platformops-redis-acceptance/<run-id>/`.
+
+| Action group | State | Boundary |
+|---|---|---|
+| Canonical Redis health sweep, actual stop, degraded observation, same-container recovery and new healthy evidence | Parity-complete for the bounded health slice | Local cluster `1`/node `1`/service `2`; no service replacement was credited |
+| Configured GlitchTip integration status/health and compatibility boundary | Runtime-proven | Support GlitchTip was version `6.1.9`; individual external mutations/UI edge cases remain separately scoped |
+| Issues, event details, actions, uptime, keys and transaction groups | Contract-tested; selected configured calls runtime-proven | Do not promote every external mutation to page parity without side-effect assertions |
+| Native DB sweep/check history | Runtime-proven supporting evidence | It cannot replace cPlatform GlitchTip behavior |
+
+The protected cPlatform comparison remained equal for the acceptance-owned
+identity fields, while a pre-existing `SERV1006` restart loop changed its
+restart-count endpoint/MAC during observation. This is disclosed external
+volatility, not a blanket unchanged claim.
+
 ## Scope classification
 
 ### Required parity
@@ -29,18 +47,15 @@ Database monitoring sweep/check history is not the cPlatform GlitchTip contract.
 It can support health evidence but cannot replace any required external action
 or inflate page completion.
 
-## Current evidence problems to resolve first
+## Remaining full-page gaps after bounded acceptance
 
-- The Redis harness only calls monitoring sweep and a diagnostics checklist.
-- Its “failure and recovery” phase never stops Redis or verifies recovery.
-- No check row, direct PING, container state, UI update, timing, or event is
-  asserted.
-- No GlitchTip integration, issue, detail, action, uptime, key, or transaction
-  action is exercised.
-- Optional external failure can currently be treated as acceptable without
-  proving the corresponding configured success path.
-- Auto-refresh/window/selection isolation and stale-request behavior are not
-  browser tested.
+- The accepted runs stop the canonical Redis, assert degraded health, recover
+  the same target and require newer healthy evidence.
+- Configured GlitchTip support is exercised (version `6.1.9`); retain separate
+  action-level gaps for individual external mutation side effects and browser
+  auto-refresh/window/isolation behavior.
+- Native DB checks remain supporting evidence and cannot replace cPlatform
+  GlitchTip semantics.
 
 ## Work package M0 — contract freeze
 

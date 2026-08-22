@@ -3,24 +3,51 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from . import ops_common as _ops_common
+from ..orchestrator.monitoring.impl import (
+    _direct_service_probe,
+    add_monitoring_uptime_result,
+    delete_monitoring_uptime_result,
+    execute_monitoring_issue_action_result,
+    get_monitoring_keys_result,
+    get_monitoring_performance_result,
+    get_monitoring_uptime_result,
+    ingest_monitoring_transaction_result,
+)
+from ..schemas import (
+    IntegrationStatusOut,
+    MonitoringCollectionOut,
+    MonitoringEventOut,
+    MonitoringHealthOut,
+    MonitoringIssueActionRequest,
+    MonitoringIssueEventRequest,
+    MonitoringIssuesOut,
+    MonitoringIssuesRequest,
+    MonitoringMutationOut,
+    MonitoringPatchRequest,
+    MonitoringServiceRequest,
+    MonitoringTransactionIngestRequest,
+    MonitoringTransactionIngestOut,
+    MonitoringTransactionsOut,
+    MonitoringUptimeAddRequest,
+    MonitoringUptimeDeleteRequest,
+)
 # Star-import does not pull private helpers; bind entire ops_common namespace.
 globals().update({k: getattr(_ops_common, k) for k in dir(_ops_common) if not k.startswith("__")})
 
 router = APIRouter(tags=["glitchtip"])
 
-@router.post("/PlatformIO/Monitoring/Health/")
-def monitoring_health(payload: dict = Body(...), db: Session = Depends(get_db)):
-    service_name = payload.get("service_name", "")
-    window = payload.get("window", "24h")
-    if not service_name:
-        return {"success": False, "error": "service_name required"}
+@router.post("/PlatformIO/Monitoring/Health/", response_model=MonitoringHealthOut)
+def monitoring_health(payload: MonitoringServiceRequest, db: Session = Depends(get_db)):
+    service_name = payload.service_name
+    window = payload.window
 
     service_instance = db.scalar(select(ServiceInstance).where(ServiceInstance.name == service_name))
     if not service_instance:
         return {"success": False, "error": f"Service not found: {service_name}"}
 
-    container_state = service_instance.status
-    running = container_state.lower() in RUNNING_STATUSES
+    probe = _direct_service_probe(db, service_instance)
+    container_state = str(probe.get("container_state") or probe.get("value") or "unknown")
+    running = probe.get("status") == "ok"
 
     project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
     issues_result = query_monitoring_issues(db, service_name, window)
@@ -34,9 +61,15 @@ def monitoring_health(payload: dict = Body(...), db: Session = Depends(get_db)):
         health = "error"
     elif warning_count:
         health = "warn"
+    if isinstance(issues_result, dict) and issues_result.get("availability") != "available":
+        health = "unavailable"
 
     return {
         "success": True,
+        "availability": issues_result.get("availability") if issues_result.get("availability") != "available" else ("available" if probe.get("status") == "ok" else "degraded"),
+        "source": "docker+glitchtip",
+        "checked_at": probe.get("checked_at"),
+        "error": (issues_result.get("error") if isinstance(issues_result, dict) else None) or probe.get("error"),
         "health": health,
         "running": running,
         "container_state": container_state,
@@ -45,134 +78,91 @@ def monitoring_health(payload: dict = Body(...), db: Session = Depends(get_db)):
         "warning_count": warning_count,
         "service_name": service_name,
         "project_slug": project_slug,
+        "probe": probe,
     }
 
 
-@router.post("/PlatformIO/Monitoring/Issues/")
-def monitoring_issues(payload: dict = Body(...), db: Session = Depends(get_db)):
-    service_name = payload.get("service_name", "")
-    window = payload.get("window", "24h")
-    cursor = payload.get("cursor") or None
-    if not service_name:
-        return {"success": False, "error": "service_name required"}
+@router.post("/PlatformIO/Monitoring/Issues/", response_model=MonitoringIssuesOut)
+def monitoring_issues(payload: MonitoringIssuesRequest, db: Session = Depends(get_db)):
+    service_name = payload.service_name
+    window = payload.window
+    cursor = payload.cursor
     result = query_monitoring_issues(db, service_name, window, cursor=cursor)
-    if isinstance(result, dict):
-        return {
-            "success": True,
-            "issues": result.get("issues", []),
-            "next_cursor": result.get("next_cursor"),
-        }
-    return {"success": True, "issues": result or [], "next_cursor": None}
+    return {"success": result.get("availability") == "available", "service_name": service_name, "window": window, **result}
 
 
-@router.post("/PlatformIO/Monitoring/Issues/EventDetails/")
-def monitoring_issue_event_details(payload: dict = Body(...)):
-    issue_id = payload.get("issue_id")
-    if not issue_id:
-        return {"success": False, "error": "issue_id required"}
-    try:
-        event = get_monitoring_issue_event_details(issue_id)
-        return {"success": True, "event": event}
-    except Exception as exc:
-        return {"success": False, "error": str(exc)}
+@router.post("/PlatformIO/Monitoring/Issues/EventDetails/", response_model=MonitoringEventOut)
+def monitoring_issue_event_details(payload: MonitoringIssueEventRequest):
+    event = get_monitoring_issue_event_details(payload.issue_id)
+    return {"success": event.get("availability") == "available", "event": event if event.get("availability") == "available" else None, **{k: event.get(k) for k in ("availability", "source", "checked_at", "error")}}
 
 
-@router.post("/PlatformIO/Monitoring/IssueAction/")
-def monitoring_issue_action(payload: dict = Body(...)):
-    issue_id = payload.get("issue_id")
-    action = payload.get("action", "resolved")
-    if not issue_id:
-        return {"success": False, "error": "issue_id required"}
-    success = execute_monitoring_issue_action(issue_id, action)
-    return {"success": success}
+@router.post("/PlatformIO/Monitoring/IssueAction/", response_model=MonitoringMutationOut)
+def monitoring_issue_action(payload: MonitoringIssueActionRequest, db: Session = Depends(get_db)):
+    result = execute_monitoring_issue_action_result(payload.issue_id, payload.action)
+    record_event(db, category="monitoring", level="info" if result.get("success") else "error", message="GlitchTip issue action", metadata={"action": result.get("action"), "issue_id": payload.issue_id, "success": result.get("success"), "availability": result.get("availability"), "error": result.get("error")})
+    return result
 
 
-@router.post("/PlatformIO/Monitoring/Performance/")
-def monitoring_performance(payload: dict = Body(...), db: Session = Depends(get_db)):
-    service_name = payload.get("service_name", "")
-    if not service_name:
-        return {"success": False, "error": "service_name required"}
+@router.post("/PlatformIO/Monitoring/Performance/", response_model=MonitoringTransactionsOut)
+def monitoring_performance(payload: MonitoringServiceRequest, db: Session = Depends(get_db)):
+    service_name = payload.service_name
 
     service_instance = db.scalar(select(ServiceInstance).where(ServiceInstance.name == service_name))
     node_ip = service_instance.node.host if (service_instance and service_instance.node) else ""
     project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
 
-    try:
-        transactions = get_monitoring_performance(service_name, node_ip)
-        return {"success": True, "transactions": transactions, "project_slug": project_slug, "node_ip": node_ip}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    result = get_monitoring_performance_result(service_name, node_ip)
+    return {"success": result.get("availability") == "available", **result}
 
 
-@router.post("/PlatformIO/Monitoring/Keys/")
-def monitoring_keys(payload: dict = Body(...)):
-    service_name = payload.get("service_name", "")
-    if not service_name:
-        return {"success": False, "error": "service_name required"}
-    project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
-    try:
-        keys = get_monitoring_keys(service_name)
-        return {"success": True, "keys": keys, "project_slug": project_slug}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-@router.post("/PlatformIO/Monitoring/Uptime/")
-def monitoring_uptime_list_endpoint(payload: dict = Body(...)):
-    service_name = payload.get("service_name", "")
-    if not service_name:
-        return {"success": False, "error": "service_name required"}
-    project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
-    try:
-        monitors = get_monitoring_uptime_list(service_name)
-        return {"success": True, "monitors": monitors, "project_slug": project_slug}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-@router.post("/PlatformIO/Monitoring/Uptime/Add/")
-def monitoring_uptime_add(payload: dict = Body(...)):
-    service_name = payload.get("service_name", "")
-    name = payload.get("name", "")
-    url = payload.get("url", "")
-    interval = int(payload.get("interval", 60))
-    expected_status = int(payload.get("expected_status", 200))
-
-    if not service_name or not name or not url:
-        return {"success": False, "error": "service_name, name, and url required"}
-
-    res = add_monitoring_uptime_check(
-        service_name=service_name,
-        name=name,
-        url=url,
-        interval=interval,
-        expected_status=expected_status,
+@router.post("/PlatformIO/Monitoring/Performance/Ingest/", response_model=MonitoringTransactionIngestOut)
+def monitoring_performance_ingest(payload: MonitoringTransactionIngestRequest, db: Session = Depends(get_db)):
+    return ingest_monitoring_transaction_result(
+        service_name=payload.service_name,
+        transaction=payload.transaction,
+        environment=payload.environment,
+        duration_ms=payload.duration_ms,
+        tags=payload.tags,
+        db=db,
     )
-    return res
 
 
-@router.post("/PlatformIO/Monitoring/Uptime/Delete/")
-def monitoring_uptime_delete(payload: dict = Body(...)):
-    monitor_id = payload.get("monitor_id")
-    if not monitor_id:
-        return {"success": False, "error": "monitor_id required"}
-    success = delete_monitoring_uptime_check(monitor_id)
-    return {"success": success}
+@router.post("/PlatformIO/Monitoring/Keys/", response_model=MonitoringCollectionOut)
+def monitoring_keys(payload: MonitoringServiceRequest):
+    result = get_monitoring_keys_result(payload.service_name)
+    return {"success": result.get("availability") == "available", **result, "items": result.get("items", []), "keys": result.get("items", [])}
 
 
-@router.post("/PlatformIO/Monitoring/IntegrationStatus/")
+@router.post("/PlatformIO/Monitoring/Uptime/", response_model=MonitoringCollectionOut)
+def monitoring_uptime_list_endpoint(payload: MonitoringServiceRequest):
+    result = get_monitoring_uptime_result(payload.service_name)
+    return {"success": result.get("availability") == "available", **result, "items": result.get("items", []), "monitors": result.get("items", [])}
+
+
+@router.post("/PlatformIO/Monitoring/Uptime/Add/", response_model=MonitoringMutationOut)
+def monitoring_uptime_add(payload: MonitoringUptimeAddRequest, db: Session = Depends(get_db)):
+    return add_monitoring_uptime_result(service_name=payload.service_name, name=payload.name, url=payload.url, interval=payload.interval, expected_status=payload.expected_status, monitor_type=payload.monitor_type, timeout=payload.timeout, expected_body=payload.expected_body, db=db)
+
+
+@router.post("/PlatformIO/Monitoring/Uptime/Delete/", response_model=MonitoringMutationOut)
+def monitoring_uptime_delete(payload: MonitoringUptimeDeleteRequest, db: Session = Depends(get_db)):
+    return delete_monitoring_uptime_result(payload.monitor_id, db=db)
+
+
+@router.post("/PlatformIO/Monitoring/IntegrationStatus/", response_model=IntegrationStatusOut)
 @router.get("/PlatformIO/Monitoring/IntegrationStatus/")
-def monitoring_integration_status():
+def monitoring_integration_status() -> dict:
     res = get_monitoring_integration_status()
     return res
 
 
-@router.post("/PlatformIO/Monitoring/PatchObservability/")
-def monitoring_patch_observability(payload: dict = Body(...), db: Session = Depends(get_db)):
-    service_id = payload.get("service_id")
-    if not service_id:
-        return {"success": False, "error": "service_id required"}
-    res = patch_service_runtime_observability(db, service_id)
+@router.post("/PlatformIO/Monitoring/PatchObservability/", response_model=MonitoringMutationOut)
+def monitoring_patch_observability(payload: MonitoringPatchRequest, db: Session = Depends(get_db)):
+    res = patch_service_runtime_observability(db, payload.service_id)
+    res.setdefault("availability", "available" if res.get("success") else "error")
+    res.setdefault("source", "runtime_patch")
+    record_event(db, category="monitoring", level="info" if res.get("success") else "error", message="Runtime observability patch", service_id=payload.service_id, metadata={"action": "patch_observability", "success": res.get("success"), "error": res.get("error")})
     return res
 
 
@@ -197,5 +187,3 @@ class NodeLaunchRequest(BaseModel):
     ami_id: str
     instance_type: str
     region: str
-
-

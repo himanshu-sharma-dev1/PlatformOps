@@ -1,45 +1,62 @@
 // @ts-nocheck
-import { api, getAuthToken, setAuthToken } from "../../api/client";
+import { api } from "../../api/client";
 import { withPending } from "../ux/clusterUx";
 export function createMonitoringActions(s: any) {
+  let dataGeneration = 0;
   return {
   async loadGlitchTipIntegrationStatus() {
     try {
       const data = await api("/PlatformIO/Monitoring/IntegrationStatus/");
       s.setGtIntegrationStatus(data);
+      s.setGtDataStatus?.(data.availability || (data.reachable ? "available" : "unavailable"));
+      s.setGtDataError?.(data.error || null);
     } catch (e) {
+      s.setGtDataStatus?.("error");
+      s.setGtDataError?.(e?.message || "GlitchTip status request failed");
       console.error("Failed to fetch GlitchTip status:", e);
     }
   },
 
   async loadGlitchTipDataForService(serviceName, window2 = s.gtWindow) {
     if (!serviceName) return;
+    const generation = ++dataGeneration;
+    s.setGtDataStatus?.("loading");
+    s.setGtDataError?.(null);
+    // Target changes must not display the previous service's data while the
+    // direct integration requests are in flight.
+    s.setGtIssues([]);
+    s.setGtUptimeMonitors([]);
+    s.setGtKeys([]);
+    s.setGtTransactions([]);
+    s.setGtHealth?.(null);
     try {
-      const dataIssues = await api("/PlatformIO/Monitoring/Issues/", {
-        method: "POST",
-        body: JSON.stringify({ service_name: serviceName, window: window2 })
-      });
-      if (dataIssues.success) {
+      const [dataHealth, dataIssues, dataUptime, dataKeys, dataPerf] = await Promise.all([
+        api("/PlatformIO/Monitoring/Health/", { method: "POST", body: JSON.stringify({ service_name: serviceName, window: window2 }) }),
+        api("/PlatformIO/Monitoring/Issues/", { method: "POST", body: JSON.stringify({ service_name: serviceName, window: window2 }) }),
+        api("/PlatformIO/Monitoring/Uptime/", { method: "POST", body: JSON.stringify({ service_name: serviceName, window: window2 }) }),
+        api("/PlatformIO/Monitoring/Keys/", { method: "POST", body: JSON.stringify({ service_name: serviceName, window: window2 }) }),
+        api("/PlatformIO/Monitoring/Performance/", { method: "POST", body: JSON.stringify({ service_name: serviceName, window: window2 }) }),
+      ]);
+      if (generation !== dataGeneration) return;
+      if (dataHealth) s.setGtHealth(dataHealth);
+      if (dataIssues.success || dataIssues.availability === "available") {
         s.setGtIssues(dataIssues.issues || []);
         s.setGtIssuesCursor(dataIssues.cursor || dataIssues.next_cursor || null);
         s.setGtIssuesHasMore(Boolean(dataIssues.has_more || dataIssues.cursor || dataIssues.next_cursor || (dataIssues.issues || []).length >= 25));
       }
-      const dataUptime = await api("/PlatformIO/Monitoring/Uptime/", {
-        method: "POST",
-        body: JSON.stringify({ service_name: serviceName })
-      });
-      if (dataUptime.success) s.setGtUptimeMonitors(dataUptime.monitors || []);
-      const dataKeys = await api("/PlatformIO/Monitoring/Keys/", {
-        method: "POST",
-        body: JSON.stringify({ service_name: serviceName })
-      });
-      if (dataKeys.success) s.setGtKeys(dataKeys.keys || []);
-      const dataPerf = await api("/PlatformIO/Monitoring/Performance/", {
-        method: "POST",
-        body: JSON.stringify({ service_name: serviceName })
-      });
-      if (dataPerf.success) s.setGtTransactions(dataPerf.transactions || []);
+      if (dataUptime.success || dataUptime.availability === "available") s.setGtUptimeMonitors(dataUptime.monitors || dataUptime.items || []);
+      if (dataKeys.success || dataKeys.availability === "available") s.setGtKeys(dataKeys.keys || dataKeys.items || []);
+      if (dataPerf.success || dataPerf.availability === "available") s.setGtTransactions(dataPerf.transactions || []);
+      const responses = [dataHealth, dataIssues, dataUptime, dataKeys, dataPerf];
+      const error = responses.find((item) => item && item.error)?.error || null;
+      const statuses = responses.map((item) => item?.availability || (item?.success ? "available" : "unavailable"));
+      const nextStatus = statuses.includes("error") ? "error" : statuses.includes("degraded") ? "degraded" : statuses.every((item) => item === "unavailable") ? "unavailable" : statuses.includes("unavailable") ? "degraded" : "available";
+      s.setGtDataStatus?.(nextStatus);
+      s.setGtDataError?.(error);
     } catch (e) {
+      if (generation !== dataGeneration) return;
+      s.setGtDataStatus?.("error");
+      s.setGtDataError?.(e?.message || "GlitchTip request failed");
       console.error("Failed to load GlitchTip data for service:", e);
     }
   },
@@ -47,11 +64,13 @@ export function createMonitoringActions(s: any) {
   async loadMoreGtIssues() {
     const svc = s.services.find((s) => s.id === s.gtSelectedServiceId) || s.selectedService;
     if (!svc) return;
+    const generation = dataGeneration;
     try {
       const data = await api("/PlatformIO/Monitoring/Issues/", {
         method: "POST",
         body: JSON.stringify({ service_name: svc.name, window: s.gtWindow, cursor: s.gtIssuesCursor })
       });
+      if (generation !== dataGeneration) return;
       if (data.success) {
         const more = data.issues || [];
         s.setGtIssues((prev) => [...prev, ...more]);

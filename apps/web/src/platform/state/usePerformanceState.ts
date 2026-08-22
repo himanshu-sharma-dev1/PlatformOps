@@ -10,6 +10,8 @@ export function usePerformanceState() {
   const [perfAutoRefresh, setPerfAutoRefresh] = useState(false as any);
   const [nodeMetrics, setNodeMetrics] = useState(null as any);
   const [nodeMetricsWindow, setNodeMetricsWindow] = useState("1h" as any);
+  const [metricsStatus, setMetricsStatus] = useState("idle" as any);
+  const [metricsError, setMetricsError] = useState(null as any);
   return {
     serviceMetrics, setServiceMetrics,
     serviceMetricsWindow, setServiceMetricsWindow,
@@ -20,5 +22,7 @@ export function usePerformanceState() {
     perfAutoRefresh, setPerfAutoRefresh,
     nodeMetrics, setNodeMetrics,
     nodeMetricsWindow, setNodeMetricsWindow,
+    metricsStatus, setMetricsStatus,
+    metricsError, setMetricsError,
   };
 }

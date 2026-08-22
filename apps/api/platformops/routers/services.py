@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from . import ops_common as _ops_common
+from ..schemas import DiagnosticsBackfillOut
 # Star-import does not pull private helpers; bind entire ops_common namespace.
 globals().update({k: getattr(_ops_common, k) for k in dir(_ops_common) if not k.startswith("__")})
 
@@ -89,7 +90,9 @@ def create_service(payload: ServiceCreate, db: Session = Depends(get_db)) -> Ser
             contract_overrides=overrides,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        message = str(exc)
+        status = 409 if "already in use" in message else 422 if "identity fields" in message else 400
+        raise HTTPException(status_code=status, detail=message) from exc
 
 
 @router.patch("/api/services/{service_id}", response_model=ServiceOut)
@@ -106,7 +109,9 @@ def update_service(service_id: int, payload: ServiceUpdate, db: Session = Depend
             contract_overrides=overrides,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        message = str(exc)
+        status = 409 if "already in use" in message else 422 if "identity fields" in message else 400
+        raise HTTPException(status_code=status, detail=message) from exc
 
 
 @router.post("/api/services/{service_id}/preflight", response_model=PreflightOut)
@@ -121,7 +126,15 @@ def install_service_dependencies(service_id: int, db: Session = Depends(get_db))
 
 @router.post("/api/services/{service_id}/deploy", response_model=JobOut)
 def deploy(service_id: int, db: Session = Depends(get_db)) -> DeploymentJob:
-    return deploy_service(db, _get_service(db, service_id))
+    service = _get_service(db, service_id)
+    if config_capabilities_for_service(service).get("apply_enabled"):
+        prepared, error = prepare_config_runtime_target(service)
+        if not prepared:
+            raise HTTPException(status_code=409, detail=f"Runtime config target preparation failed: {error}")
+    try:
+        return deploy_service(db, service)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/api/services/{service_id}/deployment/execute", response_model=DeploymentExecuteOut)
@@ -130,11 +143,19 @@ def execute_service_deployment(
     payload: DeploymentExecuteIn,
     db: Session = Depends(get_db),
 ) -> dict:
-    return execute_deployment_plan(
-        db,
-        _get_service(db, service_id),
-        auto_install_dependencies=payload.auto_install_dependencies,
-    )
+    service = _get_service(db, service_id)
+    if config_capabilities_for_service(service).get("apply_enabled"):
+        prepared, error = prepare_config_runtime_target(service)
+        if not prepared:
+            raise HTTPException(status_code=409, detail=f"Runtime config target preparation failed: {error}")
+    try:
+        return execute_deployment_plan(
+            db,
+            service,
+            auto_install_dependencies=payload.auto_install_dependencies,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/api/services/{service_id}/delete", response_model=JobOut)
@@ -403,6 +424,8 @@ def diagnostics_live(
     tail_lines: int = 150,
     page_size: int = 100,
     cursor: int = 0,
+    start: str | None = None,
+    end: str | None = None,
     db: Session = Depends(get_db),
 ) -> dict:
     service = _get_service(db, service_id)
@@ -426,6 +449,8 @@ def diagnostics_live(
         tail_lines=tail_lines,
         page_size=page_size,
         cursor=cursor,
+        start=start,
+        end=end,
     )
 
 
@@ -439,24 +464,27 @@ def diagnostics_archive_download(
     service_id: int,
     archive_id: int,
     db: Session = Depends(get_db),
-):
+) -> Response:
     service = _get_service(db, service_id)
     result = download_log_archive(db, service, archive_id)
     if result.get("error"):
         raise HTTPException(status_code=404, detail=result["error"])
     path = result.get("path")
+    checksum = result.get("checksum_sha256") or ""
     if path and Path(path).is_file():
         return FileResponse(
             path,
             media_type=result.get("content_type") or "application/octet-stream",
             filename=result.get("filename") or Path(path).name,
+            headers={"X-Checksum-Sha256": checksum},
         )
     content = result.get("content") or ""
     return Response(
         content=content,
         media_type=result.get("content_type") or "text/plain",
         headers={
-            "Content-Disposition": f'attachment; filename="{result.get("filename") or f"archive-{archive_id}.log"}"'
+            "Content-Disposition": f'attachment; filename="{result.get("filename") or f"archive-{archive_id}.log"}"',
+            "X-Checksum-Sha256": checksum,
         },
     )
 
@@ -466,7 +494,7 @@ def diagnostics_archives_bulk_download(
     service_id: int,
     payload: LogArchiveBulkDownloadRequest,
     db: Session = Depends(get_db),
-):
+) -> StreamingResponse:
     service = _get_service(db, service_id)
     result = bulk_download_log_archives(db, service, payload.archive_ids)
     if result.get("error"):
@@ -515,6 +543,8 @@ def diagnostics_file_history(
     page: int = 1,
     page_size: int = 50,
     cursor: str = "",
+    start: str | None = None,
+    end: str | None = None,
     db: Session = Depends(get_db),
 ) -> dict:
     return service_file_history(
@@ -524,6 +554,8 @@ def diagnostics_file_history(
         page=page,
         page_size=page_size,
         cursor=cursor,
+        start=start,
+        end=end,
     )
 
 
@@ -533,6 +565,8 @@ def diagnostics_container_history(
     page: int = 1,
     page_size: int = 100,
     cursor: str = "",
+    start: str | None = None,
+    end: str | None = None,
     db: Session = Depends(get_db),
 ) -> dict:
     result = service_container_history(
@@ -541,6 +575,8 @@ def diagnostics_container_history(
         page=page,
         page_size=page_size,
         cursor=cursor,
+        start=start,
+        end=end,
     )
     # Align with DiagnosticsFileHistoryOut (log_path optional semantics)
     return {
@@ -553,6 +589,8 @@ def diagnostics_container_history(
         "total_pages": result.get("total_pages") or 1,
         "next_cursor": result.get("next_cursor"),
         "previous_cursor": result.get("previous_cursor"),
+        "start": result.get("start") or start,
+        "end": result.get("end") or end,
         "error": result.get("error"),
     }
 
@@ -585,9 +623,10 @@ def diagnostics_chat(
     return result
 
 
-@router.post("/api/services/{service_id}/diagnostics/backfill")
-def diagnostics_backfill(service_id: int, db: Session = Depends(get_db)) -> dict:
-    return backfill_service_logs(db, _get_service(db, service_id))
+@router.post("/api/services/{service_id}/diagnostics/backfill", response_model=DiagnosticsBackfillOut)
+def diagnostics_backfill(service_id: int, db: Session = Depends(get_db)) -> DiagnosticsBackfillOut:
+    result = backfill_service_logs(db, _get_service(db, service_id))
+    return DiagnosticsBackfillOut.model_validate(result)
 
 
 @router.get("/api/services/{service_id}/config", response_model=ConfigWorkspaceOut)
@@ -728,105 +767,81 @@ def validate_config_endpoint(service_id: int, payload: ConfigApply, db: Session 
 
 @router.post("/api/services/{service_id}/config/apply", response_model=JobOut)
 def apply_config_endpoint(service_id: int, payload: ConfigApply, db: Session = Depends(get_db)) -> DeploymentJob:
-    return apply_config(db, _get_service(db, service_id), content=payload.content, apply_mode=payload.apply_mode)
+    try:
+        return apply_config_direct(
+            db,
+            _get_service(db, service_id),
+            content=payload.content,
+            apply_mode=payload.apply_mode,
+        )["job"]
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/api/services/{service_id}/config/direct-apply")
+@router.post("/api/services/{service_id}/config/direct-apply", response_model=ConfigDirectApplyOut)
 def apply_config_direct_endpoint(service_id: int, payload: ConfigApply, db: Session = Depends(get_db)) -> dict:
     try:
-        result = apply_config_direct(
+        return apply_config_direct(
             db,
             _get_service(db, service_id),
             content=payload.content,
             apply_mode=payload.apply_mode,
         )
-        job = result["job"]
-        before = result["before_snapshot"]
-        after = result["after_snapshot"]
-        return {
-            "job": {
-                "id": job.id,
-                "service_id": job.service_id,
-                "node_id": job.node_id,
-                "action": job.action,
-                "status": job.status,
-                "command": job.command,
-                "output": job.output or "",
-                "error": job.error or "",
-                "created_at": job.created_at.isoformat() if job.created_at else None,
-                "started_at": job.started_at.isoformat() if job.started_at else None,
-                "ended_at": job.ended_at.isoformat() if job.ended_at else None,
-            },
-            "before_snapshot": {
-                "id": before.id,
-                "service_id": before.service_id,
-                "version": before.version,
-                "name": before.name,
-                "source": before.source,
-            },
-            "after_snapshot": {
-                "id": after.id,
-                "service_id": after.service_id,
-                "version": after.version,
-                "name": after.name,
-                "source": after.source,
-            },
-        }
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/api/services/{service_id}/config/migration/prepare")
+@router.post("/api/services/{service_id}/config/migration/prepare", response_model=ConfigMigrationPrepareOut)
 def prepare_config_migration_endpoint(
     service_id: int,
-    payload: dict[str, int],
+    payload: ConfigMigrationPrepareRequest,
     db: Session = Depends(get_db),
 ) -> dict:
     service = _get_service(db, service_id)
-    left_snapshot = _get_snapshot(db, int(payload.get("left_snapshot_id") or 0))
-    right_snapshot = _get_snapshot(db, int(payload.get("right_snapshot_id") or 0))
+    left_snapshot = _get_snapshot(db, payload.left_snapshot_id)
+    right_snapshot = _get_snapshot(db, payload.right_snapshot_id)
     try:
         return prepare_config_migration(db, service, left_snapshot=left_snapshot, right_snapshot=right_snapshot)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/api/services/{service_id}/config/migration/apply")
+@router.post("/api/services/{service_id}/config/migration/apply", response_model=ConfigMigrationApplyOut)
 def apply_config_migration_endpoint(
     service_id: int,
-    payload: dict[str, str],
+    payload: ConfigMigrationApplyRequest,
     db: Session = Depends(get_db),
 ) -> dict:
     try:
         return apply_config_migration(
             db,
             _get_service(db, service_id),
-            artifact_id=str(payload.get("artifact_id") or ""),
-            edited_yaml=str(payload.get("edited_yaml") or ""),
-            apply_mode=str(payload.get("apply_mode") or "reload"),
+            artifact_id=payload.artifact_id,
+            edited_yaml=payload.edited_yaml,
+            apply_mode=payload.apply_mode,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/api/services/{service_id}/config/migration/restore")
+@router.post("/api/services/{service_id}/config/migration/restore", response_model=ConfigMigrationApplyOut)
 def restore_config_migration_endpoint(
     service_id: int,
-    payload: dict[str, str],
+    payload: ConfigMigrationRestoreRequest,
     db: Session = Depends(get_db),
 ) -> dict:
     try:
         return restore_config_migration(
             db,
             _get_service(db, service_id),
-            artifact_id=str(payload.get("artifact_id") or ""),
-            apply_mode=str(payload.get("apply_mode") or "reload"),
+            artifact_id=payload.artifact_id,
+            apply_mode=payload.apply_mode,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/api/services/{service_id}/config/sync-peer")
+@router.post("/api/services/{service_id}/config/sync-peer", response_model=ConfigSyncPeerOut)
 def sync_peer_config_endpoint(
     service_id: int,
     payload: ConfigSyncPeer,
@@ -834,35 +849,13 @@ def sync_peer_config_endpoint(
 ) -> dict:
     service = _get_service(db, service_id)
     try:
-        result = sync_peer_config(
+        return sync_peer_config(
             db,
             service,
             peer_id=payload.peer_id,
             apply_mode=payload.apply_mode,
             requested_by=payload.requested_by,
         )
-        return {
-            "source_service_id": result["source_service_id"],
-            "peer_service_id": result["peer_service_id"],
-            "job": {
-                "id": result["job"].id,
-                "action": result["job"].action,
-                "status": result["job"].status,
-                "command": result["job"].command,
-                "output": result["job"].output or "",
-                "error": result["job"].error or "",
-            },
-            "before_snapshot": {
-                "id": result["before_snapshot"].id,
-                "name": result["before_snapshot"].name,
-                "version": result["before_snapshot"].version,
-            },
-            "after_snapshot": {
-                "id": result["after_snapshot"].id,
-                "name": result["after_snapshot"].name,
-                "version": result["after_snapshot"].version,
-            },
-        }
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

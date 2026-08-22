@@ -134,10 +134,26 @@ def _ansible_inventory_arg(node: Node) -> str:
 
 def _ansible_base_command(node: Node, playbook: str) -> str:
     ansible_dir = settings.resolve(settings.ansible_dir)
-    inventory = _ansible_inventory_arg(node)
-    user_arg = "" if node.environment == "local" else f" -u {node.ssh_user}"
+    # Resolve the actual target from the explicit connection mode/host.  The
+    # legacy implementation used ``environment == local`` here, which allowed
+    # a node with a non-loopback host but a ``local`` environment label to run
+    # lifecycle mutations against the API container's Docker daemon.
+    try:
+        from .discovery import resolve_connection_mode
+
+        connection_mode = resolve_connection_mode(node)
+    except Exception:
+        connection_mode = "local" if (node.host or "").strip().lower() in {
+            "",
+            "localhost",
+            "127.0.0.1",
+            "0.0.0.0",
+        } else "ssh"
+    is_local = connection_mode == "local"
+    inventory = "localhost," if is_local else f"{node.host},"
+    user_arg = "" if is_local else f" -u {node.ssh_user}"
     key_arg = f" --private-key {node.ssh_key_path}" if node.ssh_key_path else ""
-    connection = " -c local" if node.environment == "local" else ""
+    connection = " -c local" if is_local else ""
     return f"ansible-playbook -i {inventory}{connection}{user_arg}{key_arg} {ansible_dir / 'playbooks' / playbook}"
 
 

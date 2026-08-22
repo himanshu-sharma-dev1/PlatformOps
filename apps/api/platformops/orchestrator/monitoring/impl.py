@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import json
+import math
 import re
-from datetime import datetime, timedelta
+import subprocess
+import time
+import uuid
+from datetime import datetime
 from typing import Any
+from urllib.parse import quote, urlparse
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -25,6 +30,7 @@ from ...models import (
     SloReport,
 )
 from ...settings import settings
+from ...security import redact_text
 from ...jobs import create_job
 from ...tasks import run_job_async
 from ...query import escape_query_regex_literal
@@ -101,45 +107,13 @@ def run_monitoring_sweep(db: Session) -> list[MonitoringCheck]:
     checks: list[MonitoringCheck] = []
     services = list(db.scalars(select(ServiceInstance).order_by(ServiceInstance.name)).all())
     for service in services:
-        contract = json.loads(service.config_json or "{}")
-        health = contract.get("healthcheck", {})
-
-        if not settings.local_mode:
-            import subprocess
-            import sys
-
-            status_script = settings.resolve(settings.ansible_dir) / "playbooks" / "service_status.py"
-            cmd = [
-                sys.executable,
-                str(status_script),
-                "--container-name",
-                service.container_name,
-                "--network-name",
-                service.node.docker_network,
-            ]
-            try:
-                res = subprocess.run(cmd, capture_output=True, text=True, check=False)
-                if res.returncode == 0 and res.stdout.strip():
-                    parsed = json.loads(res.stdout)
-                    main_info = parsed.get("main_container", {})
-                    container_state = main_info.get("state", "unknown")
-                    # Update status of container based on real state
-                    service.status = "running" if container_state == "running" else container_state
-                    status = "ok" if container_state == "running" else "warning"
-                    value = container_state
-                    detail = json.dumps(main_info)
-                else:
-                    status = "warning"
-                    value = "unknown"
-                    detail = f"Status script failed: {res.stderr}"
-            except Exception as e:
-                status = "warning"
-                value = "error"
-                detail = f"Failed to execute status check: {e}"
-        else:
-            status = "ok" if service.status in RUNNING_STATUSES else "warning"
-            value = service.status
-            detail = health.get("command", "No healthcheck command configured")
+        # Never use ServiceInstance.status as probe evidence.  It is a
+        # persisted cache and can be stale exactly when an operator needs this
+        # sweep to detect degradation.
+        probe = _direct_service_probe(db, service)
+        status = str(probe.get("status") or "error")
+        value = str(probe.get("value") or "unavailable")
+        detail = json.dumps(probe, separators=(",", ":"))
 
         check = MonitoringCheck(
             service_id=service.id,
@@ -167,6 +141,120 @@ def run_monitoring_sweep(db: Session) -> list[MonitoringCheck]:
 
 def latest_monitoring_checks(db: Session, *, limit: int = 200) -> list[MonitoringCheck]:
     return list(db.scalars(select(MonitoringCheck).order_by(MonitoringCheck.created_at.desc()).limit(limit)).all())
+
+
+def _probe_timestamp() -> str:
+    """Return a timezone-neutral timestamp for direct probe evidence."""
+
+    return datetime.utcnow().isoformat(timespec="seconds") + "Z"
+
+
+def _remote_container_exec(node: Node, container_name: str, args: list[str]) -> tuple[bool, str, str]:
+    """Execute a command on the selected remote Docker engine.
+
+    This deliberately has no local-Docker fallback.  A response from the
+    control-plane engine cannot be evidence for an SSH-selected target.
+    """
+
+    host = str(node.host or "").strip()
+    user = str(node.ssh_user or "ubuntu").strip()
+    if not host:
+        return False, "", "remote node host is missing"
+    cmd = [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "ConnectTimeout=8",
+    ]
+    if node.ssh_key_path:
+        cmd.extend(["-i", node.ssh_key_path])
+    cmd.extend([f"{user}@{host}", "docker", "exec", container_name, *args])
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=20, check=False)
+    except FileNotFoundError:
+        return False, "", "ssh client is not available"
+    output = (proc.stdout or "").strip()
+    error = (proc.stderr or "").strip() or output
+    return proc.returncode == 0, output, error[:400]
+
+
+def _direct_service_probe(db: Session, service: ServiceInstance) -> dict[str, Any]:
+    """Probe a service target and return evidence, never persisted status.
+
+    Container inspection is used for all services; Redis additionally requires
+    a target-bound ``redis-cli PING``.  The caller persists a check only after
+    this function has returned.
+    """
+
+    checked_at = _probe_timestamp()
+    try:
+        from ..service.impl import get_service_live_status, _node_uses_local_docker
+
+        live = get_service_live_status(db, service, use_cache=False)
+    except Exception as exc:
+        return {
+            "status": "error",
+            "value": "probe_error",
+            "source": "docker_inspect",
+            "checked_at": checked_at,
+            "error": str(exc)[:400],
+        }
+
+    source = str(live.get("source") or "docker_inspect")
+    if not live.get("running"):
+        state = str(live.get("state") or live.get("overall_status") or "unknown")
+        return {
+            "status": "degraded" if state not in {"error", "not_found"} else "error",
+            "value": state,
+            "source": source,
+            "checked_at": checked_at,
+            "error": live.get("error") or "container is not running",
+            "container_state": state,
+        }
+
+    if str(service.service_key or "").lower() in {"redis", "redis-core", "airflow-redis"}:
+        node = service.node or (db.get(Node, service.node_id) if service.node_id else None)
+        try:
+            if node is not None and not _node_uses_local_docker(node):
+                ok, output, error = _remote_container_exec(node, service.container_name, ["redis-cli", "--raw", "PING"])
+                ping_source = "redis_ping_ssh"
+            else:
+                from ..docker_runtime import exec_container
+
+                ok, output, error = exec_container(service.container_name, ["redis-cli", "--raw", "PING"])
+                ping_source = "redis_ping"
+        except Exception as exc:
+            ok, output, error = False, "", str(exc)
+            ping_source = "redis_ping"
+        if ok and output.strip().upper() == "PONG":
+            return {
+                "status": "ok",
+                "value": "PONG",
+                "source": ping_source,
+                "checked_at": checked_at,
+                "error": None,
+                "container_state": "running",
+            }
+        return {
+            "status": "error",
+            "value": "ping_failed",
+            "source": ping_source,
+            "checked_at": checked_at,
+            "error": (error or output or "Redis did not return PONG")[:400],
+            "container_state": "running",
+        }
+
+    return {
+        "status": "ok",
+        "value": str(live.get("state") or "running"),
+        "source": source,
+        "checked_at": checked_at,
+        "error": None,
+        "container_state": str(live.get("state") or "running"),
+    }
 
 
 METRIC_WINDOW_PRESETS: dict[str, dict[str, int]] = {
@@ -281,6 +369,211 @@ def _prom_query_range(query: str, window: str, timeout: float = 8.0) -> tuple[bo
         return False, str(exc)
 
 
+def _prom_observe(query: str, *, range_window: str | None = None, timeout: float = 8.0) -> dict[str, Any]:
+    """Query Prometheus while retaining availability and sample evidence.
+
+    ``_prom_query`` intentionally remains the small legacy scalar helper used
+    by reports.  Page parity needs to distinguish an HTTP failure, an empty
+    vector, a stale sample, and a genuine numeric zero, so page handlers use
+    this richer observation envelope.
+    """
+
+    import requests
+
+    observed_at = _probe_timestamp()
+    endpoint = "/api/v1/query_range" if range_window else "/api/v1/query"
+    params: dict[str, Any] = {"query": query}
+    end = int(time.time())
+    if range_window:
+        preset = METRIC_WINDOW_PRESETS[_normalize_metric_window(range_window)]
+        start = end - int(preset["range_seconds"])
+        params.update({"start": start, "end": end, "step": max(30, int(preset["range_seconds"] / max(preset["points"], 1)))})
+    try:
+        response = requests.get(f"{_prometheus_base()}{endpoint}", params=params, timeout=timeout)
+    except Exception as exc:
+        return {
+            "state": "error",
+            "reachable": False,
+            "value": None,
+            "series": [],
+            "source": "prometheus",
+            "observed_at": observed_at,
+            "latest_sample_at": None,
+            "error": str(exc)[:400],
+        }
+    if response.status_code != 200:
+        return {
+            "state": "error",
+            "reachable": False,
+            "value": None,
+            "series": [],
+            "source": "prometheus",
+            "observed_at": observed_at,
+            "latest_sample_at": None,
+            "error": f"Prometheus HTTP {response.status_code}",
+        }
+    try:
+        payload = response.json()
+    except Exception as exc:
+        return {
+            "state": "error",
+            "reachable": True,
+            "value": None,
+            "series": [],
+            "source": "prometheus",
+            "observed_at": observed_at,
+            "latest_sample_at": None,
+            "error": f"invalid Prometheus response: {exc}",
+        }
+    if payload.get("status") != "success":
+        return {
+            "state": "error",
+            "reachable": True,
+            "value": None,
+            "series": [],
+            "source": "prometheus",
+            "observed_at": observed_at,
+            "latest_sample_at": None,
+            "error": str(payload.get("error") or "Prometheus query failed")[:400],
+        }
+    results = payload.get("data", {}).get("result") or []
+    if not results:
+        return {
+            "state": "missing",
+            "reachable": True,
+            "value": None,
+            "series": [],
+            "source": "prometheus",
+            "observed_at": observed_at,
+            "latest_sample_at": None,
+            "error": "metric series not found",
+        }
+    result = results[0] if isinstance(results[0], dict) else {}
+    if range_window:
+        raw_values = result.get("values") or []
+        if not isinstance(raw_values, (list, tuple)):
+            raw_values = []
+            malformed_samples = 1
+        else:
+            malformed_samples = 0
+        series: list[dict[str, Any]] = []
+        latest_sample_at: str | None = None
+        latest_timestamp: float | None = None
+        for item in raw_values:
+            if not isinstance(item, (list, tuple)) or len(item) < 2:
+                malformed_samples += 1
+                continue
+            try:
+                ts = float(item[0])
+                value = float(item[1])
+                label = datetime.utcfromtimestamp(ts).isoformat(timespec="seconds") + "Z"
+            except (OverflowError, TypeError, ValueError):
+                malformed_samples += 1
+                continue
+            if not (math.isfinite(ts) and math.isfinite(value)):
+                malformed_samples += 1
+                continue
+            if latest_timestamp is None or ts >= latest_timestamp:
+                latest_timestamp = ts
+                latest_sample_at = label
+            series.append({"timestamp": ts, "label": label, "value": value})
+        if not series:
+            return {
+                "state": "error" if malformed_samples else "missing",
+                "reachable": True,
+                "value": None,
+                "series": [],
+                "source": "prometheus",
+                "observed_at": observed_at,
+                "latest_sample_at": None,
+                "malformed_samples": malformed_samples,
+                "error": "all Prometheus samples were malformed" if malformed_samples else "metric series has no samples",
+            }
+        stale = bool(latest_timestamp is not None and time.time() - latest_timestamp > max(300, METRIC_WINDOW_PRESETS[_normalize_metric_window(range_window)]["step_minutes"] * 60 * 3))
+        sample_error = "one or more Prometheus samples were malformed" if malformed_samples else None
+        if stale:
+            sample_error = f"{sample_error}; latest Prometheus sample is stale" if sample_error else "latest Prometheus sample is stale"
+        return {
+            "state": "stale" if stale else "available",
+            "reachable": True,
+            "value": series[-1]["value"],
+            "series": series,
+            "source": "prometheus",
+            "observed_at": observed_at,
+            "latest_sample_at": latest_sample_at,
+            "malformed_samples": malformed_samples,
+            "error": sample_error,
+        }
+    raw_value = result.get("value") or []
+    if not isinstance(raw_value, (list, tuple)) or len(raw_value) < 2:
+        return {
+            "state": "error",
+            "reachable": True,
+            "value": None,
+            "series": [],
+            "source": "prometheus",
+            "observed_at": observed_at,
+            "latest_sample_at": None,
+            "malformed_samples": 1,
+            "error": "malformed Prometheus sample",
+        }
+    try:
+        timestamp = float(raw_value[0])
+        value = float(raw_value[1])
+        label = datetime.utcfromtimestamp(timestamp).isoformat(timespec="seconds") + "Z"
+    except (OverflowError, TypeError, ValueError) as exc:
+        return {
+            "state": "error",
+            "reachable": True,
+            "value": None,
+            "series": [],
+            "source": "prometheus",
+            "observed_at": observed_at,
+            "latest_sample_at": None,
+            "malformed_samples": 1,
+            "error": f"invalid Prometheus sample: {exc}",
+        }
+    if not (math.isfinite(timestamp) and math.isfinite(value)):
+        return {
+            "state": "error",
+            "reachable": True,
+            "value": None,
+            "series": [],
+            "source": "prometheus",
+            "observed_at": observed_at,
+            "latest_sample_at": None,
+            "malformed_samples": 1,
+            "error": "invalid Prometheus sample: non-finite value",
+        }
+    stale = time.time() - timestamp > 300
+    return {
+        "state": "stale" if stale else "available",
+        "reachable": True,
+        "value": value,
+        "series": [{"timestamp": timestamp, "label": label, "value": value}],
+        "source": "prometheus",
+        "observed_at": observed_at,
+        "latest_sample_at": label,
+        "malformed_samples": 0,
+        "error": "latest Prometheus sample is stale" if stale else None,
+    }
+
+
+def _metric_state(observations: list[dict[str, Any]]) -> tuple[str, str | None]:
+    available = sum(item.get("state") == "available" for item in observations)
+    errors = [str(item.get("error")) for item in observations if item.get("state") in {"error", "stale"} and item.get("error")]
+    if available == len(observations) and available:
+        warnings = [str(item.get("error")) for item in observations if item.get("error")]
+        return "available", warnings[0] if warnings else None
+    if available:
+        return "degraded", errors[0] if errors else "one or more metric series are unavailable"
+    if errors:
+        if any(item.get("state") == "stale" for item in observations) and not any(item.get("state") == "error" for item in observations):
+            return "stale", errors[0]
+        return "error", errors[0]
+    return "unavailable", "metric series not found"
+
+
 def _fetch_mounted_volumes(node: Node) -> list[dict[str, Any]]:
     """Collect mounted volumes via Ansible/shell df -h (or local df)."""
     import re
@@ -391,72 +684,50 @@ def get_node_metrics(db: Session, node_id: int, window: str = "1h") -> dict[str,
     instance_match = f'instance=~".*({identity_pattern}).*"' if identity_pattern else 'instance=~".+"'
 
     cpu_q = f'100 - (avg(rate(node_cpu_seconds_total{{mode="idle",{instance_match}}}[5m])) * 100)'
-    mem_q = (
-        f'(1 - node_memory_MemAvailable_bytes{{{instance_match}}} '
-        f'/ node_memory_MemTotal_bytes{{{instance_match}}}) * 100'
-    )
-    disk_q = (
-        f'(1 - node_filesystem_avail_bytes{{mountpoint="/",{instance_match}}} '
-        f'/ node_filesystem_size_bytes{{mountpoint="/",{instance_match}}}) * 100'
-    )
+    mem_q = f'(1 - node_memory_MemAvailable_bytes{{{instance_match}}} / node_memory_MemTotal_bytes{{{instance_match}}}) * 100'
+    disk_q = f'(1 - node_filesystem_avail_bytes{{mountpoint="/",{instance_match}}} / node_filesystem_size_bytes{{mountpoint="/",{instance_match}}}) * 100'
     rx_q = f"sum(rate(node_network_receive_bytes_total{{{instance_match}}}[5m])) * 8 / 1e6"
     tx_q = f"sum(rate(node_network_transmit_bytes_total{{{instance_match}}}[5m])) * 8 / 1e6"
+    instant = {
+        "cpu_percent": _prom_observe(cpu_q),
+        "memory_percent": _prom_observe(mem_q),
+        "disk_percent": _prom_observe(disk_q),
+        "network_rx_mbps": _prom_observe(rx_q),
+        "network_tx_mbps": _prom_observe(tx_q),
+    }
+    ranges = {
+        "cpu_series": _prom_observe(cpu_q, range_window=metric_window),
+        "memory_series": _prom_observe(mem_q, range_window=metric_window),
+        "disk_series": _prom_observe(disk_q, range_window=metric_window),
+    }
+    observations = list(instant.values()) + list(ranges.values())
+    availability, first_error = _metric_state(observations)
+    latest_samples = [item.get("latest_sample_at") for item in observations if item.get("latest_sample_at")]
 
-    ok_cpu, cpu_val = _prom_query(cpu_q)
-    ok_mem, mem_val = _prom_query(mem_q)
-    ok_disk, disk_val = _prom_query(disk_q)
-    ok_rx, rx_val = _prom_query(rx_q)
-    ok_tx, tx_val = _prom_query(tx_q)
-    ok_cpu_s, cpu_series = _prom_query_range(cpu_q, metric_window)
-    ok_mem_s, mem_series = _prom_query_range(mem_q, metric_window)
-    ok_disk_s, disk_series = _prom_query_range(disk_q, metric_window)
-
-    prometheus_reachable = any([ok_cpu, ok_mem, ok_disk, ok_rx, ok_tx, ok_cpu_s, ok_mem_s, ok_disk_s])
-    errors = [v for ok, v in [(ok_cpu, cpu_val), (ok_mem, mem_val), (ok_disk, disk_val)] if not ok and isinstance(v, str)]
-
-    if not prometheus_reachable:
-        return {
-            "node_id": node.id,
-            "node_name": node.name,
-            "window": metric_window,
-            "cpu_percent": 0.0,
-            "memory_percent": 0.0,
-            "disk_percent": 0.0,
-            "network_rx_mbps": 0.0,
-            "network_tx_mbps": 0.0,
-            "cpu_series": [],
-            "memory_series": [],
-            "disk_series": [],
-            "mounted_volumes": mounted_volumes,
-            "prometheus_reachable": False,
-            "error": errors[0] if errors else "Prometheus unreachable",
-        }
-
-    def _num(ok: bool, val: Any) -> float:
-        if ok and isinstance(val, (int, float)):
-            return round(float(val), 1)
-        return 0.0
-
-    def _series(ok: bool, val: Any) -> list[dict[str, Any]]:
-        if ok and isinstance(val, list):
-            return val
-        return []
+    def _value(name: str) -> float | None:
+        item = instant[name]
+        return item.get("value") if item.get("state") == "available" else None
 
     return {
         "node_id": node.id,
         "node_name": node.name,
         "window": metric_window,
-        "cpu_percent": _num(ok_cpu, cpu_val),
-        "memory_percent": _num(ok_mem, mem_val),
-        "disk_percent": _num(ok_disk, disk_val),
-        "network_rx_mbps": _num(ok_rx, rx_val),
-        "network_tx_mbps": _num(ok_tx, tx_val),
-        "cpu_series": _series(ok_cpu_s, cpu_series),
-        "memory_series": _series(ok_mem_s, mem_series),
-        "disk_series": _series(ok_disk_s, disk_series),
+        "cpu_percent": _value("cpu_percent"),
+        "memory_percent": _value("memory_percent"),
+        "disk_percent": _value("disk_percent"),
+        "network_rx_mbps": _value("network_rx_mbps"),
+        "network_tx_mbps": _value("network_tx_mbps"),
+        "cpu_series": ranges["cpu_series"].get("series", []),
+        "memory_series": ranges["memory_series"].get("series", []),
+        "disk_series": ranges["disk_series"].get("series", []),
         "mounted_volumes": mounted_volumes,
-        "prometheus_reachable": True,
-        "error": None,
+        "prometheus_reachable": any(item.get("reachable") for item in observations),
+        "availability": availability,
+        "source": "prometheus",
+        "checked_at": _probe_timestamp(),
+        "latest_sample_at": max(latest_samples) if latest_samples else None,
+        "units": {"cpu_percent": "%", "memory_percent": "%", "disk_percent": "%", "network_rx_mbps": "Mbps", "network_tx_mbps": "Mbps"},
+        "error": first_error,
     }
 
 
@@ -468,174 +739,121 @@ def get_service_metrics(db: Session, service_id: int, window: str = "1h") -> dic
     metric_window = _normalize_metric_window(window)
     service_key = service.service_key
     container = service.container_name or service_key
-
-    # Container-level metrics via cAdvisor / exporter style series when available
+    # cAdvisor metrics are scoped to the selected container.  Do not fall
+    # back to a service-key regex: another instance could otherwise leak into
+    # this target's page.
     cpu_q = f'sum(rate(container_cpu_usage_seconds_total{{name="{container}"}}[5m])) * 100'
     mem_q = f'sum(container_memory_usage_bytes{{name="{container}"}}) / 1024 / 1024'
-
-    ok_cpu, cpu_val = _prom_query(cpu_q)
-    if ok_cpu and cpu_val is None:
-        ok_cpu, cpu_val = _prom_query(
-            f'sum(rate(container_cpu_usage_seconds_total{{name=~".*{service_key}.*"}}[5m])) * 100'
-        )
-    ok_mem, mem_val = _prom_query(mem_q)
-    if ok_mem and mem_val is None:
-        ok_mem, mem_val = _prom_query(
-            f'sum(container_memory_usage_bytes{{name=~".*{service_key}.*"}}) / 1024 / 1024'
-        )
-    ok_cpu_s, cpu_series = _prom_query_range(
-        f'sum(rate(container_cpu_usage_seconds_total{{name=~".*{service_key}.*"}}[5m])) * 100',
-        metric_window,
-    )
-    err_q = f'sum(rate(container_last_seen{{name=~".*{service_key}.*"}}[5m]))'  # placeholder marker
-    # Prefer process restarts from cadvisor
-    ok_restarts, restart_val = _prom_query(
-        f'sum(container_start_time_seconds{{name=~".*{service_key}.*"}}) or vector(0)'
-    )
-
-    prometheus_reachable = ok_cpu or ok_mem or ok_cpu_s
-    errors = [v for ok, v in [(ok_cpu, cpu_val), (ok_mem, mem_val)] if not ok and isinstance(v, str)]
-
-    if not prometheus_reachable:
-        return {
-            "service_id": service.id,
-            "service_name": service.name,
-            "service_key": service_key,
-            "node_id": service.node_id,
-            "window": metric_window,
-            "cpu_percent": 0.0,
-            "memory_mb": 0.0,
-            "log_error_rate": 0.0,
-            "queue_depth": 0,
-            "restart_count": 0,
-            "latency_ms_p95": 0.0,
-            "cpu_series": [],
-            "error_rate_series": [],
-            "queue_depth_series": [],
-            "db_metrics": None,
-            "broker_metrics": None,
-            "custom_charts": [],
-            "prometheus_reachable": False,
-            "error": errors[0] if errors else "Prometheus unreachable",
-        }
-
-    def _num(ok: bool, val: Any, default: float = 0.0) -> float:
-        if ok and isinstance(val, (int, float)):
-            return round(float(val), 2)
-        return default
-
-    cpu_percent = _num(ok_cpu, cpu_val)
-    memory_mb = _num(ok_mem, mem_val)
-
-    # Error rate from Loki is out of scope here; surface 0 when Prom has no app-level counters
-    log_error_rate = 0.0
-    ok_err_s, err_series = _prom_query_range(
-        f'sum(rate(container_cpu_system_seconds_total{{name=~".*{service_key}.*"}}[5m])) * 100',
-        metric_window,
-    )
-    error_rate_series = err_series if ok_err_s and isinstance(err_series, list) else []
-
+    instant = {"cpu_percent": _prom_observe(cpu_q), "memory_mb": _prom_observe(mem_q)}
+    ranges = {"cpu_series": _prom_observe(cpu_q, range_window=metric_window)}
+    observations = list(instant.values()) + list(ranges.values())
+    availability, first_error = _metric_state(observations)
     result: dict[str, Any] = {
         "service_id": service.id,
         "service_name": service.name,
         "service_key": service_key,
         "node_id": service.node_id,
         "window": metric_window,
-        "cpu_percent": cpu_percent,
-        "memory_mb": memory_mb,
-        "log_error_rate": log_error_rate,
-        "queue_depth": 0,
-        "restart_count": int(_num(ok_restarts, restart_val, 0)),
-        "latency_ms_p95": 0.0,
-        "cpu_series": cpu_series if ok_cpu_s and isinstance(cpu_series, list) else [],
-        "error_rate_series": error_rate_series,
+        "cpu_percent": instant["cpu_percent"].get("value") if instant["cpu_percent"].get("state") == "available" else None,
+        "memory_mb": instant["memory_mb"].get("value") if instant["memory_mb"].get("state") == "available" else None,
+        # Application error, latency and queue telemetry are not derivable
+        # from CPU/container counters.  They remain explicitly unavailable.
+        "log_error_rate": None,
+        "queue_depth": None,
+        "restart_count": None,
+        "latency_ms_p95": None,
+        "cpu_series": ranges["cpu_series"].get("series", []),
+        "error_rate_series": [],
         "queue_depth_series": [],
+        "db_metrics": None,
+        "broker_metrics": None,
         "custom_charts": [],
-        "prometheus_reachable": True,
-        "error": None,
+        "prometheus_reachable": any(item.get("reachable") for item in observations),
+        "availability": availability,
+        "source": "prometheus",
+        "checked_at": _probe_timestamp(),
+        # This is refreshed after exporter/database/custom observations are
+        # collected below.  cAdvisor may be absent while Redis or another
+        # collector still provides measured samples.
+        "latest_sample_at": None,
+        "units": {"cpu_percent": "%", "memory_mb": "MiB", "log_error_rate": "events/s", "queue_depth": "items", "latency_ms_p95": "ms"},
+        "error": first_error,
     }
 
-    # Database-specific metrics from real exporters
+    def _prom_values(definitions: dict[str, str]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        values: dict[str, Any] = {}
+        local_obs: list[dict[str, Any]] = []
+        for key, query in definitions.items():
+            item = _prom_observe(query)
+            local_obs.append(item)
+            values[key] = item.get("value") if item.get("state") == "available" else None
+        return values, local_obs
+
     if service_key in ("postgres-core", "postgres", "clickhouse-core"):
-        ok_ac, ac = _prom_query("pg_stat_activity_count{state=\"active\"} or sum(pg_stat_activity_count)")
-        ok_id, idle = _prom_query("pg_stat_activity_count{state=\"idle\"}")
-        ok_ro, ro = _prom_query("rate(pg_stat_database_tup_fetched[5m])")
-        ok_wo, wo = _prom_query("rate(pg_stat_database_tup_inserted[5m]) + rate(pg_stat_database_tup_updated[5m])")
-        ok_ch, ch = _prom_query(
-            "sum(pg_stat_database_blks_hit) / clamp_min(sum(pg_stat_database_blks_hit + pg_stat_database_blks_read), 1) * 100"
-        )
-        ok_lk, lk = _prom_query("sum(pg_locks_count) or vector(0)")
-        result["db_metrics"] = {
-            "active_connections": int(_num(ok_ac, ac)),
-            "idle_connections": int(_num(ok_id, idle)),
-            "read_ops": int(_num(ok_ro, ro)),
-            "write_ops": int(_num(ok_wo, wo)),
-            "cache_hit_ratio": _num(ok_ch, ch),
-            "transaction_locks": int(_num(ok_lk, lk)),
-        }
-    elif service_key in ("redis-core", "redis"):
-        ok_c, conn = _prom_query("redis_connected_clients")
-        ok_cmd, cmds = _prom_query("rate(redis_commands_processed_total[5m])")
-        ok_hit, hits = _prom_query(
-            "redis_keyspace_hits_total / clamp_min(redis_keyspace_hits_total + redis_keyspace_misses_total, 1) * 100"
-        )
-        result["db_metrics"] = {
-            "active_connections": int(_num(ok_c, conn)),
-            "idle_connections": 0,
-            "read_ops": int(_num(ok_cmd, cmds)),
-            "write_ops": 0,
-            "cache_hit_ratio": _num(ok_hit, hits),
-            "transaction_locks": 0,
-        }
-    else:
-        result["db_metrics"] = None
+        values, db_obs = _prom_values({
+            "active_connections": 'pg_stat_activity_count{state="active"}',
+            "idle_connections": 'pg_stat_activity_count{state="idle"}',
+            "read_ops": "rate(pg_stat_database_tup_fetched[5m])",
+            "write_ops": "rate(pg_stat_database_tup_inserted[5m]) + rate(pg_stat_database_tup_updated[5m])",
+            "cache_hit_ratio": "sum(pg_stat_database_blks_hit) / clamp_min(sum(pg_stat_database_blks_hit + pg_stat_database_blks_read), 1) * 100",
+            "transaction_locks": "sum(pg_locks_count)",
+        })
+        result["db_metrics"] = values
+        observations.extend(db_obs)
+    elif service_key in ("redis-core", "redis", "airflow-redis"):
+        values, db_obs = _prom_values({
+            "active_connections": "redis_connected_clients",
+            "read_ops": "rate(redis_commands_processed_total[5m])",
+            "cache_hit_ratio": "redis_keyspace_hits_total / clamp_min(redis_keyspace_hits_total + redis_keyspace_misses_total, 1) * 100",
+        })
+        result["db_metrics"] = {**values, "idle_connections": None, "write_ops": None, "transaction_locks": None}
+        observations.extend(db_obs)
+        cmd_series = _prom_observe("rate(redis_commands_processed_total[5m])", range_window=metric_window)
+        result["commands_series"] = cmd_series.get("series", [])
+        observations.append(cmd_series)
+    elif service_key in ("rabbitmq-core", "rabbitmq"):
+        values, broker_obs = _prom_values({
+            "ingestion_rate": "rate(rabbitmq_global_messages_received_total[5m])",
+            "delivery_rate": "rate(rabbitmq_global_messages_delivered_total[5m])",
+            "queued_ready": "sum(rabbitmq_queue_messages_ready)",
+            "queued_unacked": "sum(rabbitmq_queue_messages_unacked)",
+            "consumer_count": "sum(rabbitmq_queue_consumers)",
+        })
+        result["broker_metrics"] = values
+        result["queue_depth"] = values.get("queued_ready")
+        queue_series = _prom_observe("sum(rabbitmq_queue_messages_ready)", range_window=metric_window)
+        result["queue_depth_series"] = queue_series.get("series", [])
+        observations.extend(broker_obs + [queue_series])
 
-    if service_key in ("rabbitmq-core", "rabbitmq"):
-        ok_in, ing = _prom_query("rate(rabbitmq_global_messages_received_total[5m]) or rate(rabbitmq_queue_messages_published_total[5m])")
-        ok_del, delv = _prom_query("rate(rabbitmq_global_messages_delivered_total[5m]) or rate(rabbitmq_queue_messages_delivered_total[5m])")
-        ok_ready, ready = _prom_query("sum(rabbitmq_queue_messages_ready)")
-        ok_unack, unack = _prom_query("sum(rabbitmq_queue_messages_unacked)")
-        ok_cons, cons = _prom_query("sum(rabbitmq_queue_consumers)")
-        result["broker_metrics"] = {
-            "ingestion_rate": _num(ok_in, ing),
-            "delivery_rate": _num(ok_del, delv),
-            "queued_ready": int(_num(ok_ready, ready)),
-            "queued_unacked": int(_num(ok_unack, unack)),
-            "consumer_count": int(_num(ok_cons, cons)),
-        }
-        result["queue_depth"] = int(_num(ok_ready, ready))
-        ok_qd_s, qd_series = _prom_query_range("sum(rabbitmq_queue_messages_ready)", metric_window)
-        if ok_qd_s and isinstance(qd_series, list):
-            result["queue_depth_series"] = qd_series
-    else:
-        result["broker_metrics"] = None
-
-    # Schema-driven custom charts from service contract
     contract = json.loads(service.config_json or "{}")
     custom_defs = contract.get("custom_metrics") or contract.get("performance_charts") or []
-    custom_charts: list[dict[str, Any]] = []
-    for item in custom_defs:
+    for item in custom_defs if isinstance(custom_defs, list) else []:
         if not isinstance(item, dict):
             continue
         title = item.get("title") or item.get("name") or "Custom metric"
         unit = item.get("unit") or ""
         queries = item.get("series") or item.get("queries") or []
-        series_out: list[dict[str, Any]] = []
         if isinstance(queries, dict):
-            queries = [{"name": k, "query": v} for k, v in queries.items()]
-        for series_def in queries:
+            queries = [{"name": key, "query": value} for key, value in queries.items()]
+        series_out = []
+        for series_def in queries if isinstance(queries, list) else []:
             if not isinstance(series_def, dict):
                 continue
-            q = series_def.get("query") or series_def.get("promql") or ""
-            name = series_def.get("name") or series_def.get("label") or "series"
-            if not q:
+            query = series_def.get("query") or series_def.get("promql") or ""
+            if not query:
                 continue
-            ok_s, pts = _prom_query_range(q, metric_window)
-            series_out.append({"name": name, "points": pts if ok_s and isinstance(pts, list) else []})
+            observed = _prom_observe(query, range_window=metric_window)
+            observations.append(observed)
+            series_out.append({"name": series_def.get("name") or series_def.get("label") or "series", "points": observed.get("series", [])})
         if series_out:
-            custom_charts.append({"title": title, "unit": unit, "series": series_out})
-    result["custom_charts"] = custom_charts
+            result["custom_charts"].append({"title": title, "unit": unit, "series": series_out})
 
+    result["availability"], result["error"] = _metric_state(observations)
+    measured = [item for item in observations if item.get("latest_sample_at")]
+    result["latest_sample_at"] = max((item["latest_sample_at"] for item in measured), default=None)
+    measured_sources = sorted({str(item.get("source")) for item in measured if item.get("source")})
+    if measured_sources:
+        result["source"] = ",".join(measured_sources)
     return result
 
 
@@ -867,26 +1085,249 @@ def get_dashboard_summary(db: Session) -> dict[str, Any]:
     }
 
 
+def _glitchtip_config() -> tuple[str, str, str, bool]:
+    base_url = str(settings.glitchtip_base_url or "").rstrip("/")
+    org = str(settings.glitchtip_org_slug or "").strip()
+    token = str(settings.glitchtip_token or "").strip()
+    return base_url, org, token, bool(base_url and org and token)
+
+
+def _resolve_glitchtip_project_id(
+    base_url: str, org: str, token: str, project_slug: str, *, timeout: float = 8.0
+) -> tuple[int | None, str | None]:
+    """Resolve a configured project slug to GlitchTip's numeric project ID.
+
+    GlitchTip's project-key APIs use ``organization/project-slug`` while
+    uptime monitor creation and event-envelope ingestion require ``project``
+    to be the numeric ID.  Keep that compatibility detail in one adapter and
+    return only bounded, redacted errors to callers.
+    """
+
+    import requests
+
+    slug = str(project_slug or "").strip()
+    if not slug:
+        return None, "GlitchTip project slug is empty"
+    if slug.isdigit() and int(slug) > 0:
+        return int(slug), None
+    try:
+        response = requests.get(
+            f"{base_url}/api/0/projects/{quote(org, safe='')}/{quote(slug, safe='')}/",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=timeout,
+        )
+    except Exception as exc:
+        return None, str(exc)[:400]
+    if response.status_code != 200:
+        return None, f"GlitchTip project lookup HTTP {response.status_code}"
+    try:
+        payload = response.json() or {}
+    except Exception as exc:
+        return None, f"GlitchTip project lookup returned invalid JSON: {exc}"[:400]
+    if not isinstance(payload, dict):
+        return None, "GlitchTip project lookup returned a malformed payload"
+    raw_id = payload.get("id")
+    try:
+        project_id = int(raw_id)
+    except (TypeError, ValueError):
+        project_id = 0
+    if project_id <= 0:
+        return None, "GlitchTip project lookup did not return a numeric project ID"
+    return project_id, None
+
+
+def _transaction_groups_from_payload(payload: Any) -> list[dict[str, Any]] | None:
+    """Normalize current and legacy transaction-group response envelopes."""
+
+    if isinstance(payload, list):
+        candidates = payload
+    elif isinstance(payload, dict):
+        candidates: Any = None
+        for key in ("items", "results", "transactions", "transaction_groups", "transactionGroups", "data"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                candidates = value
+                break
+            if key == "data" and isinstance(value, dict):
+                candidates = _transaction_groups_from_payload(value)
+                if candidates is not None:
+                    break
+        if candidates is None:
+            return None
+    else:
+        return None
+    return [item for item in candidates if isinstance(item, dict)]
+
+
+def _filter_transaction_groups(
+    transactions: list[dict[str, Any]], project_id: int
+) -> list[dict[str, Any]]:
+    """Retain groups for the resolved project without depending on slug fields."""
+
+    filtered: list[dict[str, Any]] = []
+    for item in transactions:
+        raw_project = item.get("project_id", item.get("projectId", item.get("project")))
+        if isinstance(raw_project, dict):
+            raw_project = raw_project.get("id")
+        if raw_project in (None, ""):
+            # The request is project-scoped; older GlitchTip responses omit the
+            # project field, so retain those records rather than discarding
+            # valid groups solely because the serializer differs.
+            filtered.append(item)
+            continue
+        try:
+            if int(raw_project) == project_id:
+                filtered.append(item)
+        except (TypeError, ValueError):
+            continue
+    return filtered
+
+
+def _fetch_monitoring_transaction_groups(
+    *,
+    base_url: str,
+    org: str,
+    token: str,
+    project_id: int,
+    node_ip: str = "",
+    timeout: float = 10.0,
+) -> dict[str, Any]:
+    """Fetch transaction groups using numeric project filtering.
+
+    GlitchTip 6.x returns a cursor-paginated object for this endpoint, while
+    older deployments returned a bare list.  Both are normalized here.  The
+    optional environment filter is retained for cPlatform compatibility and
+    retried without it when a valid response is empty.
+    """
+
+    import re
+    import requests
+
+    endpoint = f"{base_url}/api/0/organizations/{quote(org, safe='')}/transaction-groups/"
+    headers = {"Authorization": f"Bearer {token}"}
+    params: dict[str, str] = {"project": str(project_id)}
+    if node_ip and node_ip != "0.0.0.0":
+        params["environment"] = node_ip
+
+    def request(current_params: dict[str, str]) -> tuple[list[dict[str, Any]] | None, str | None, Any]:
+        try:
+            response = requests.get(endpoint, headers=headers, params=current_params, timeout=timeout)
+        except Exception as exc:
+            return None, str(exc)[:400], None
+        if response.status_code != 200:
+            return None, f"GlitchTip transaction-groups HTTP {response.status_code}", response
+        try:
+            payload = response.json() or []
+        except Exception as exc:
+            return None, f"GlitchTip returned invalid transaction-groups JSON: {exc}"[:400], response
+        normalized = _transaction_groups_from_payload(payload)
+        if normalized is None:
+            return None, "GlitchTip returned a malformed transaction-groups payload", response
+        return _filter_transaction_groups(normalized, project_id), None, response
+
+    transactions, error, response = request(params)
+    if error:
+        return {"transactions": [], "error": error, "next_cursor": None}
+    if not transactions and "environment" in params:
+        transactions, fallback_error, fallback_response = request({"project": str(project_id)})
+        if fallback_error:
+            return {"transactions": [], "error": fallback_error, "next_cursor": None}
+        response = fallback_response
+
+    next_cursor = None
+    link_header = getattr(response, "headers", {}).get("Link", "") if response is not None else ""
+    if link_header:
+        match = re.search(r"[?&]cursor=([^&>\"]+)[^>]*>;\s*rel=\"next\"", link_header)
+        if match:
+            next_cursor = match.group(1)
+    return {"transactions": transactions or [], "error": None, "next_cursor": next_cursor}
+
+
+def _validate_uptime_url(url: Any) -> tuple[str | None, str | None]:
+    """Accept only absolute HTTP(S) targets before creating a monitor.
+
+    GlitchTip's monitor endpoint accepts a URL that it will actively request.
+    Rejecting malformed or non-web schemes locally prevents an invalid target
+    from being persisted remotely and keeps the typed action response honest.
+    """
+
+    candidate = "" if url is None else str(url)
+    if not candidate or candidate != candidate.strip() or any(char.isspace() for char in candidate):
+        return None, "url must be an absolute http or https URL"
+    try:
+        parsed = urlparse(candidate)
+        hostname = parsed.hostname
+    except ValueError:
+        hostname = None
+        parsed = None
+    if parsed is None or parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc or not hostname:
+        return None, "url must be an absolute http or https URL"
+    return candidate, None
+
+
 def get_monitoring_integration_status() -> dict[str, Any]:
     import requests
-    base_url = settings.glitchtip_base_url.rstrip("/")
-    org = settings.glitchtip_org_slug
-    token = settings.glitchtip_token
-    configured = bool(base_url and org and token)
-    reachable = False
-    error_msg = ""
-    if configured:
-        try:
-            resp = requests.get(f"{base_url}/api/0/", headers={"Authorization": f"Bearer {token}"}, timeout=5)
-            reachable = resp.status_code < 500
-        except Exception as exc:
-            error_msg = str(exc)
+
+    base_url, org, token, configured = _glitchtip_config()
+    checked_at = _probe_timestamp()
+    if not configured:
+        return {
+            "success": True,
+            "configured": False,
+            "reachable": False,
+            "availability": "unavailable",
+            "status": "unavailable",
+            "base_url": base_url,
+            "org": org,
+            "checked_at": checked_at,
+            "error": "GlitchTip integration is not configured",
+        }
+    # GlitchTip's generic API root is not a reliable authenticated health
+    # signal across supported versions (some images return 500 there while
+    # the mapped project/organization APIs work).  Probe the least-privilege
+    # capability already required by the monitoring views instead: listing
+    # projects visible to the configured organization.
+    capability_url = f"{base_url}/api/0/organizations/{quote(org, safe='')}/projects/"
+    try:
+        resp = requests.get(capability_url, headers={"Authorization": f"Bearer {token}"}, timeout=5)
+    except Exception as exc:
+        availability = "error"
+        # Requests exceptions should not be able to echo the configured
+        # bearer token, even when a mocked/adapter exception includes it.
+        error_msg = redact_text(str(exc), secrets=(token,))[:400]
+        reachable = False
+    else:
+        if not (200 <= resp.status_code < 300):
+            availability = "error"
+            error_msg = f"GlitchTip HTTP {resp.status_code}"
+            reachable = False
+        else:
+            try:
+                payload = resp.json()
+            except Exception as exc:
+                availability = "error"
+                error_msg = f"GlitchTip capability response returned invalid JSON: {redact_text(str(exc), secrets=(token,))}"[:400]
+                reachable = False
+            else:
+                # The organization can legitimately have no projects, so an
+                # empty list/dict is still a successful capability response.
+                if not isinstance(payload, (list, dict)):
+                    availability = "error"
+                    error_msg = "GlitchTip capability response was malformed"
+                    reachable = False
+                else:
+                    availability = "available"
+                    error_msg = None
+                    reachable = True
     return {
         "success": True,
-        "configured": configured,
+        "configured": True,
         "reachable": reachable,
+        "availability": availability,
+        "status": availability,
         "base_url": base_url,
         "org": org,
+        "checked_at": checked_at,
         "error": error_msg,
     }
 
@@ -895,25 +1336,30 @@ def query_monitoring_issues(db: Session, service_name: str, window: str, cursor:
     import re
     import requests
     project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
-    base_url = settings.glitchtip_base_url.rstrip("/")
-    token = settings.glitchtip_token
-    org = settings.glitchtip_org_slug
-
-    empty = {"issues": [], "next_cursor": None}
-    if not (base_url and token and org):
+    base_url, org, token, configured = _glitchtip_config()
+    checked_at = _probe_timestamp()
+    empty = {
+        "issues": [], "next_cursor": None, "has_more": False,
+        "availability": "unavailable" if not configured else "error",
+        "source": "glitchtip", "checked_at": checked_at,
+        "error": "GlitchTip integration is not configured" if not configured else None,
+    }
+    if not configured:
         return empty
 
-    stats_period = "24h" if window == "24h" else "7d"
+    stats_period = "24h" if str(window).lower() in {"24h", "1d"} else "7d"
     url = f"{base_url}/api/0/projects/{org}/{project_slug}/issues/"
-    if cursor:
-        url = f"{url}?cursor={cursor}"
     headers = {"Authorization": f"Bearer {token}"}
-    params = {"statsPeriod": stats_period, "query": ""}
+    params: dict[str, Any] = {"statsPeriod": stats_period, "query": ""}
+    if cursor:
+        params["cursor"] = cursor
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=10)
         if resp.status_code != 200:
-            return empty
+            return {**empty, "error": f"GlitchTip HTTP {resp.status_code}"}
         issues = resp.json() or []
+        if not isinstance(issues, list):
+            return {**empty, "error": "GlitchTip returned a malformed issues payload"}
         normalized = []
         for issue in issues[:20]:
             metadata = issue.get("metadata") or {}
@@ -941,16 +1387,18 @@ def query_monitoring_issues(db: Session, service_name: str, window: str, cursor:
             if match:
                 next_cursor = match.group(1)
 
-        return {"issues": normalized, "next_cursor": next_cursor}
+        return {
+            "issues": normalized, "next_cursor": next_cursor, "has_more": bool(next_cursor),
+            "availability": "available", "source": "glitchtip", "checked_at": checked_at, "error": None,
+        }
     except Exception as exc:
-        print(f"GlitchTip query issues failed: {exc}")
-        return empty
+        return {**empty, "error": str(exc)[:400]}
 
 
 def get_monitoring_issue_event_details(issue_id: str) -> dict[str, Any]:
     import requests
-    base_url = settings.glitchtip_base_url.rstrip("/")
-    token = settings.glitchtip_token
+    base_url, _org, token, configured = _glitchtip_config()
+    checked_at = _probe_timestamp()
 
     empty = {
         "id": "",
@@ -962,27 +1410,26 @@ def get_monitoring_issue_event_details(issue_id: str) -> dict[str, Any]:
         "entries": [],
         "request": None,
     }
-    if not (base_url and token and issue_id):
-        return empty
+    if not (configured and issue_id):
+        return {**empty, "availability": "unavailable", "source": "glitchtip", "checked_at": checked_at, "error": "GlitchTip integration is not configured"}
 
     headers = {"Authorization": f"Bearer {token}"}
     url = f"{base_url}/api/0/issues/{issue_id}/events/latest/"
     try:
         resp = requests.get(url, headers=headers, timeout=10)
         if resp.status_code == 200:
-            return resp.json()
-    except Exception:
-        pass
-    return empty
+            return {**(resp.json() or empty), "availability": "available", "source": "glitchtip", "checked_at": checked_at, "error": None}
+        return {**empty, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": f"GlitchTip HTTP {resp.status_code}"}
+    except Exception as exc:
+        return {**empty, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": str(exc)[:400]}
 
 
-def execute_monitoring_issue_action(issue_id: str, action: str) -> bool:
+def execute_monitoring_issue_action_result(issue_id: str, action: str) -> dict[str, Any]:
     import requests
-    base_url = settings.glitchtip_base_url.rstrip("/")
-    token = settings.glitchtip_token
-
-    if not (base_url and token and issue_id):
-        return False
+    base_url, _org, token, configured = _glitchtip_config()
+    checked_at = _probe_timestamp()
+    if not (configured and issue_id):
+        return {"success": False, "availability": "unavailable", "source": "glitchtip", "checked_at": checked_at, "error": "GlitchTip integration is not configured"}
 
     headers = {"Authorization": f"Bearer {token}"}
     url = f"{base_url}/api/0/issues/{issue_id}/"
@@ -990,9 +1437,10 @@ def execute_monitoring_issue_action(issue_id: str, action: str) -> bool:
     if action_l in ("delete", "remove"):
         try:
             resp = requests.delete(url, headers=headers, timeout=10)
-            return resp.status_code in (200, 201, 204)
-        except Exception:
-            return False
+            ok = resp.status_code in (200, 201, 204)
+            return {"success": ok, "availability": "available" if ok else "error", "source": "glitchtip", "checked_at": checked_at, "action": action_l, "target_id": str(issue_id), "error": None if ok else f"GlitchTip HTTP {resp.status_code}"}
+        except Exception as exc:
+            return {"success": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "action": action_l, "target_id": str(issue_id), "error": str(exc)[:400]}
     status_map = {
         "resolve": "resolved",
         "resolved": "resolved",
@@ -1001,12 +1449,21 @@ def execute_monitoring_issue_action(issue_id: str, action: str) -> bool:
         "unresolve": "unresolved",
         "unresolved": "unresolved",
     }
-    status = status_map.get(action_l, "resolved")
+    if action_l not in status_map:
+        return {"success": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "action": action_l, "target_id": str(issue_id), "error": f"Unsupported issue action: {action}"}
+    status = status_map[action_l]
     try:
         resp = requests.put(url, headers=headers, json={"status": status}, timeout=10)
-        return resp.status_code in (200, 201, 204)
-    except Exception:
-        return False
+        ok = resp.status_code in (200, 201, 204)
+        return {"success": ok, "availability": "available" if ok else "error", "source": "glitchtip", "checked_at": checked_at, "action": status, "target_id": str(issue_id), "error": None if ok else f"GlitchTip HTTP {resp.status_code}"}
+    except Exception as exc:
+        return {"success": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "action": status, "target_id": str(issue_id), "error": str(exc)[:400]}
+
+
+def execute_monitoring_issue_action(issue_id: str, action: str) -> bool:
+    """Legacy boolean adapter retained for existing callers."""
+
+    return bool(execute_monitoring_issue_action_result(issue_id, action).get("success"))
 
 
 def get_monitoring_uptime_list(service_name: str) -> list[dict[str, Any]]:
@@ -1053,10 +1510,53 @@ def get_monitoring_uptime_list(service_name: str) -> list[dict[str, Any]]:
         return []
 
 
+def get_monitoring_uptime_result(service_name: str) -> dict[str, Any]:
+    """Typed uptime collection envelope; the list helper remains compatible."""
+
+    import requests
+
+    project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
+    base_url, org, token, configured = _glitchtip_config()
+    checked_at = _probe_timestamp()
+    if not configured:
+        return {"items": [], "project_slug": project_slug, "availability": "unavailable", "source": "glitchtip", "checked_at": checked_at, "error": "GlitchTip integration is not configured"}
+    try:
+        response = requests.get(f"{base_url}/api/0/organizations/{org}/monitors/", headers={"Authorization": f"Bearer {token}"}, timeout=10)
+        if response.status_code != 200:
+            return {"items": [], "project_slug": project_slug, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": f"GlitchTip HTTP {response.status_code}"}
+        monitors = response.json() or []
+        if not isinstance(monitors, list):
+            return {"items": [], "project_slug": project_slug, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": "GlitchTip returned a malformed uptime payload"}
+        filtered = [item for item in monitors if isinstance(item, dict) and (item.get("projectName") or "").lower() == project_slug.lower()]
+        for monitor in filtered:
+            monitor_id = monitor.get("id")
+            if not monitor_id:
+                continue
+            try:
+                detail = requests.get(f"{base_url}/api/0/organizations/{org}/monitors/{monitor_id}/", headers={"Authorization": f"Bearer {token}"}, timeout=5)
+                if detail.status_code == 200 and isinstance(detail.json(), dict):
+                    monitor.update(detail.json())
+                checks = requests.get(f"{base_url}/api/0/organizations/{org}/monitors/{monitor_id}/checks/", params={"is_change": "true"}, headers={"Authorization": f"Bearer {token}"}, timeout=5)
+                if checks.status_code == 200:
+                    monitor["incidents"] = checks.json() or []
+                    monitor["checks"] = monitor.get("checks") or monitor["incidents"]
+            except Exception:
+                # Collection remains available; individual history is absent.
+                continue
+        return {"items": filtered, "project_slug": project_slug, "availability": "available", "source": "glitchtip", "checked_at": checked_at, "error": None}
+    except Exception as exc:
+        return {"items": [], "project_slug": project_slug, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": str(exc)[:400]}
+
+
 def add_monitoring_uptime_check(
     service_name: str, name: str, url: str, interval: int, expected_status: int = 200
 ) -> dict[str, Any]:
     import requests
+
+    validated_url, validation_error = _validate_uptime_url(url)
+    if validation_error:
+        return {"success": False, "availability": "error", "error": validation_error, "validation": "invalid_url"}
+
     project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
     base_url = settings.glitchtip_base_url.rstrip("/")
     token = settings.glitchtip_token
@@ -1065,14 +1565,18 @@ def add_monitoring_uptime_check(
     if not (base_url and token and org):
         return {"success": False, "error": "GlitchTip is not configured"}
 
+    project_id, project_error = _resolve_glitchtip_project_id(base_url, org, token, project_slug)
+    if project_error:
+        return {"success": False, "availability": "error", "error": project_error}
+
     headers = {"Authorization": f"Bearer {token}"}
     data = {
         "monitorType": "Ping",
         "name": name,
-        "url": url,
+        "url": validated_url,
         "expectedStatus": expected_status,
         "interval": f"00:00:{interval}" if interval < 60 else f"00:{interval // 60:02d}:{interval % 60:02d}",
-        "project": project_slug,
+        "project": str(project_id),
     }
     try:
         resp = requests.post(f"{base_url}/api/0/organizations/{org}/monitors/", headers=headers, json=data, timeout=10)
@@ -1081,6 +1585,64 @@ def add_monitoring_uptime_check(
         return {"success": False, "error": f"GlitchTip returned {resp.status_code}: {resp.text}"}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+def add_monitoring_uptime_result(
+    *, service_name: str, name: str, url: str, interval: int, expected_status: int = 200,
+    monitor_type: str = "Ping", timeout: int = 10, expected_body: str = "", db: Session | None = None,
+) -> dict[str, Any]:
+    import requests
+
+    project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
+    checked_at = _probe_timestamp()
+    validated_url, validation_error = _validate_uptime_url(url)
+    if validation_error:
+        result = {
+            "success": False,
+            "availability": "error",
+            "source": "glitchtip",
+            "checked_at": checked_at,
+            "project_slug": project_slug,
+            "error": validation_error,
+            "validation": "invalid_url",
+        }
+        if db is not None:
+            record_event(
+                db,
+                category="monitoring",
+                level="error",
+                message="GlitchTip uptime monitor add rejected",
+                metadata={
+                    "action": "uptime_add",
+                    "service_name": service_name,
+                    "monitor_name": name,
+                    "success": False,
+                    "availability": "error",
+                    "validation": "invalid_url",
+                    "error": validation_error,
+                },
+            )
+        return result
+
+    base_url, org, token, configured = _glitchtip_config()
+    if not configured:
+        result = {"success": False, "availability": "unavailable", "source": "glitchtip", "checked_at": checked_at, "error": "GlitchTip integration is not configured"}
+    else:
+        project_id, project_error = _resolve_glitchtip_project_id(base_url, org, token, project_slug)
+        if project_error:
+            result = {"success": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "project_slug": project_slug, "error": project_error}
+        else:
+            headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+            payload = {"monitorType": monitor_type, "name": name, "url": validated_url, "expectedStatus": expected_status, "interval": interval, "timeout": timeout, "expectedBody": expected_body, "project": str(project_id)}
+            try:
+                response = requests.post(f"{base_url}/api/0/organizations/{org}/monitors/", headers=headers, json=payload, timeout=10)
+                ok = response.status_code in (200, 201)
+                result = {"success": ok, "availability": "available" if ok else "error", "source": "glitchtip", "checked_at": checked_at, "monitor": response.json() if ok else None, "project_slug": project_slug, "project_id": project_id, "error": None if ok else f"GlitchTip HTTP {response.status_code}"}
+            except Exception as exc:
+                result = {"success": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "project_slug": project_slug, "error": str(exc)[:400]}
+    if db is not None:
+        record_event(db, category="monitoring", level="info" if result.get("success") else "error", message="GlitchTip uptime monitor add", metadata={"action": "uptime_add", "service_name": service_name, "monitor_name": name, "success": result.get("success"), "availability": result.get("availability"), "error": result.get("error")})
+    return result
 
 
 def delete_monitoring_uptime_check(monitor_id: str) -> bool:
@@ -1100,6 +1662,25 @@ def delete_monitoring_uptime_check(monitor_id: str) -> bool:
         return resp.status_code in (200, 201, 204)
     except Exception:
         return False
+
+
+def delete_monitoring_uptime_result(monitor_id: str, db: Session | None = None) -> dict[str, Any]:
+    import requests
+
+    base_url, org, token, configured = _glitchtip_config()
+    checked_at = _probe_timestamp()
+    if not configured:
+        result = {"success": False, "availability": "unavailable", "source": "glitchtip", "checked_at": checked_at, "target_id": str(monitor_id), "error": "GlitchTip integration is not configured"}
+    else:
+        try:
+            response = requests.delete(f"{base_url}/api/0/organizations/{org}/monitors/{monitor_id}/", headers={"Authorization": f"Bearer {token}"}, timeout=10)
+            ok = response.status_code in (200, 201, 204)
+            result = {"success": ok, "availability": "available" if ok else "error", "source": "glitchtip", "checked_at": checked_at, "target_id": str(monitor_id), "error": None if ok else f"GlitchTip HTTP {response.status_code}"}
+        except Exception as exc:
+            result = {"success": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "target_id": str(monitor_id), "error": str(exc)[:400]}
+    if db is not None:
+        record_event(db, category="monitoring", level="info" if result.get("success") else "error", message="GlitchTip uptime monitor delete", metadata={"action": "uptime_delete", "monitor_id": str(monitor_id), "success": result.get("success"), "availability": result.get("availability"), "error": result.get("error")})
+    return result
 
 
 def get_monitoring_keys(service_name: str) -> list[dict[str, Any]]:
@@ -1123,29 +1704,164 @@ def get_monitoring_keys(service_name: str) -> list[dict[str, Any]]:
     return []
 
 
-def get_monitoring_performance(service_name: str, node_ip: str = "") -> list[dict[str, Any]]:
+def get_monitoring_keys_result(service_name: str) -> dict[str, Any]:
     import requests
+
     project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
-    base_url = settings.glitchtip_base_url.rstrip("/")
-    token = settings.glitchtip_token
-    org = settings.glitchtip_org_slug
-
-    if not (base_url and token and org):
-        return []
-
-    headers = {"Authorization": f"Bearer {token}"}
-    url = f"{base_url}/api/0/organizations/{org}/transaction-groups/"
-    params = {}
-    if node_ip and node_ip != "0.0.0.0":
-        params["environment"] = node_ip
+    base_url, org, token, configured = _glitchtip_config()
+    checked_at = _probe_timestamp()
+    if not configured:
+        return {"items": [], "project_slug": project_slug, "availability": "unavailable", "source": "glitchtip", "checked_at": checked_at, "error": "GlitchTip integration is not configured"}
     try:
-        resp = requests.get(url, headers=headers, params=params, timeout=10)
-        if resp.status_code == 200:
-            txs = resp.json() or []
-            return [tx for tx in txs if (tx.get("projectName") or "").lower() == project_slug.lower()]
-    except Exception:
-        pass
-    return []
+        response = requests.get(f"{base_url}/api/0/projects/{org}/{project_slug}/keys/", headers={"Authorization": f"Bearer {token}"}, timeout=10)
+        if response.status_code != 200:
+            return {"items": [], "project_slug": project_slug, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": f"GlitchTip HTTP {response.status_code}"}
+        items = response.json() or []
+        if not isinstance(items, list):
+            return {"items": [], "project_slug": project_slug, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": "GlitchTip returned a malformed keys payload"}
+        return {"items": items, "project_slug": project_slug, "availability": "available", "source": "glitchtip", "checked_at": checked_at, "error": None}
+    except Exception as exc:
+        return {"items": [], "project_slug": project_slug, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": str(exc)[:400]}
+
+
+def get_monitoring_performance(service_name: str, node_ip: str = "") -> list[dict[str, Any]]:
+    return get_monitoring_performance_result(service_name, node_ip).get("transactions", [])
+
+
+def get_monitoring_performance_result(service_name: str, node_ip: str = "") -> dict[str, Any]:
+    project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
+    base_url, org, token, configured = _glitchtip_config()
+    checked_at = _probe_timestamp()
+    if not configured:
+        return {"transactions": [], "project_slug": project_slug, "project_id": None, "node_ip": node_ip, "availability": "unavailable", "source": "glitchtip", "checked_at": checked_at, "error": "GlitchTip integration is not configured"}
+
+    project_id, project_error = _resolve_glitchtip_project_id(base_url, org, token, project_slug)
+    if project_error:
+        return {"transactions": [], "project_slug": project_slug, "project_id": None, "node_ip": node_ip, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": project_error}
+
+    fetched = _fetch_monitoring_transaction_groups(
+        base_url=base_url,
+        org=org,
+        token=token,
+        project_id=project_id,
+        node_ip=node_ip,
+    )
+    if fetched.get("error"):
+        return {"transactions": [], "project_slug": project_slug, "project_id": project_id, "node_ip": node_ip, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "error": fetched["error"]}
+    return {"transactions": fetched.get("transactions", []), "project_slug": project_slug, "project_id": project_id, "node_ip": node_ip, "next_cursor": fetched.get("next_cursor"), "availability": "available", "source": "glitchtip", "checked_at": checked_at, "error": None}
+
+
+def ingest_monitoring_transaction_result(
+    *,
+    service_name: str,
+    transaction: str,
+    environment: str = "",
+    duration_ms: float = 0.0,
+    tags: dict[str, str] | None = None,
+    db: Session | None = None,
+    poll_attempts: int = 6,
+    poll_interval: float = 0.5,
+) -> dict[str, Any]:
+    """Submit a real Sentry envelope and boundedly observe its group.
+
+    GlitchTip 6.x accepts transaction telemetry through the project numeric
+    ``/api/{project_id}/envelope/`` endpoint authenticated by a project DSN
+    public key.  The configured PlatformOps API token is used only for project
+    and key lookup; it is never placed in the envelope or returned to callers.
+    """
+
+    import requests
+
+    project_slug = settings.glitchtip_project_map.get(service_name, service_name.lower())
+    checked_at = _probe_timestamp()
+    base_url, org, token, configured = _glitchtip_config()
+    result: dict[str, Any]
+    event_id = uuid.uuid4().hex
+    if not configured:
+        result = {"success": False, "accepted_pending": False, "availability": "unavailable", "source": "glitchtip", "checked_at": checked_at, "project_slug": project_slug, "project_id": None, "event_id": event_id, "transactions": [], "error": "GlitchTip integration is not configured"}
+    else:
+        project_id, project_error = _resolve_glitchtip_project_id(base_url, org, token, project_slug)
+        if project_error:
+            result = {"success": False, "accepted_pending": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "project_slug": project_slug, "project_id": None, "event_id": event_id, "transactions": [], "error": project_error}
+        else:
+            keys_result = get_monitoring_keys_result(service_name)
+            public_key = None
+            for key in keys_result.get("items", []):
+                if isinstance(key, dict):
+                    public_key = key.get("public") or key.get("publicKey") or key.get("public_key")
+                    if public_key:
+                        break
+            if not public_key:
+                result = {"success": False, "accepted_pending": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "project_slug": project_slug, "project_id": project_id, "event_id": event_id, "transactions": [], "error": keys_result.get("error") or "GlitchTip project has no ingest key"}
+            else:
+                now = time.time()
+                event: dict[str, Any] = {
+                    "event_id": event_id,
+                    "type": "transaction",
+                    "transaction": str(transaction),
+                    "platform": "python",
+                    "contexts": {},
+                    "start_timestamp": now - max(0.0, float(duration_ms)) / 1000.0,
+                    "timestamp": now,
+                    "environment": environment or None,
+                    "tags": {"platformops_service": service_name, **(tags or {})},
+                }
+                envelope = "\n".join([
+                    json.dumps({"event_id": event_id, "sent_at": datetime.utcnow().isoformat(timespec="seconds") + "Z"}),
+                    json.dumps({"type": "transaction", "content_type": "application/json"}),
+                    json.dumps(event),
+                    "",
+                ])
+                try:
+                    response = requests.post(
+                        f"{base_url}/api/{project_id}/envelope/",
+                        headers={
+                            "X-Sentry-Auth": f"Sentry sentry_version=7, sentry_key={public_key}, sentry_client=platformops/1.0",
+                            "Content-Type": "application/x-sentry-envelope",
+                        },
+                        data=envelope,
+                        timeout=10,
+                    )
+                except Exception as exc:
+                    result = {"success": False, "accepted_pending": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "project_slug": project_slug, "project_id": project_id, "event_id": event_id, "transactions": [], "error": str(exc)[:400]}
+                else:
+                    if response.status_code not in (200, 201, 202):
+                        result = {"success": False, "accepted_pending": False, "availability": "error", "source": "glitchtip", "checked_at": checked_at, "project_slug": project_slug, "project_id": project_id, "event_id": event_id, "transactions": [], "error": f"GlitchTip envelope HTTP {response.status_code}"}
+                    else:
+                        result = {"success": True, "accepted_pending": True, "availability": "accepted_pending", "source": "glitchtip", "checked_at": checked_at, "project_slug": project_slug, "project_id": project_id, "event_id": event_id, "transactions": [], "error": "GlitchTip accepted the transaction; group materialization is pending"}
+                        for attempt in range(max(1, min(int(poll_attempts), 12))):
+                            fetched = _fetch_monitoring_transaction_groups(base_url=base_url, org=org, token=token, project_id=project_id, node_ip=environment)
+                            if fetched.get("error"):
+                                result["availability"] = "error"
+                                result["error"] = fetched["error"]
+                                break
+                            if fetched.get("transactions"):
+                                result["accepted_pending"] = False
+                                result["availability"] = "available"
+                                result["transactions"] = fetched["transactions"]
+                                result["error"] = None
+                                break
+                            if attempt + 1 < max(1, min(int(poll_attempts), 12)):
+                                time.sleep(max(0.0, min(float(poll_interval), 2.0)))
+    if db is not None:
+        record_event(
+            db,
+            category="monitoring",
+            level="info" if result.get("success") else "error",
+            message="GlitchTip transaction ingest",
+            metadata={
+                "action": "transaction_ingest",
+                "service_name": service_name,
+                "project_slug": project_slug,
+                "project_id": result.get("project_id"),
+                "event_id": event_id,
+                "success": result.get("success"),
+                "accepted_pending": result.get("accepted_pending"),
+                "availability": result.get("availability"),
+                "error": result.get("error"),
+            },
+        )
+    return result
 
 
 def patch_service_runtime_observability(db: Session, service_id: int) -> dict[str, Any]:
@@ -1158,10 +1874,41 @@ def patch_service_runtime_observability(db: Session, service_id: int) -> dict[st
     if settings.local_mode:
         return {
             "success": False,
+            "availability": "error",
+            "source": "runtime_patch",
             "error": "Runtime patch requires a remote node (local_mode has no real container target).",
             "stdout": "",
             "stderr": "",
         }
+
+    # The PlatformOps GlitchTip credential is an API bearer token, not a DSN
+    # key. Resolve the public project key before patching a target runtime so
+    # the command never places a bearer secret in a service's DSN.
+    base_url, org, token, configured = _glitchtip_config()
+    project_slug = settings.glitchtip_project_map.get(service.name, service.name.lower())
+    if not configured:
+        return {
+            "success": False,
+            "availability": "unavailable",
+            "source": "runtime_patch",
+            "error": "GlitchTip integration is not configured",
+            "stdout": "",
+            "stderr": "",
+        }
+    project_id, project_error = _resolve_glitchtip_project_id(base_url, org, token, project_slug)
+    if project_error:
+        return {"success": False, "availability": "error", "source": "runtime_patch", "error": project_error, "stdout": "", "stderr": ""}
+    keys_result = get_monitoring_keys_result(service.name)
+    public_key = next(
+        (
+            key.get("public") or key.get("publicKey") or key.get("public_key")
+            for key in keys_result.get("items", [])
+            if isinstance(key, dict)
+        ),
+        None,
+    )
+    if not public_key:
+        return {"success": False, "availability": "error", "source": "runtime_patch", "error": keys_result.get("error") or "GlitchTip project has no ingest key", "stdout": "", "stderr": ""}
 
     # Set transient status to patching
     service.status = "patching"
@@ -1169,11 +1916,10 @@ def patch_service_runtime_observability(db: Session, service_id: int) -> dict[st
 
     patch_script = settings.resolve(settings.ansible_dir) / "playbooks" / "service_runtime_patch.py"
     # Args must match service_runtime_patch.py (underscores, not hyphens).
-    dsn = (
-        f"{settings.glitchtip_base_url.rstrip('/')}/{service.id}"
-        if not settings.glitchtip_token
-        else f"http://{settings.glitchtip_token}@{settings.glitchtip_base_url.split('://', 1)[-1].rstrip('/')}/{service.id}"
-    )
+    parsed_base = urlparse(base_url)
+    dsn_host = parsed_base.netloc or parsed_base.path
+    dsn_path = parsed_base.path.rstrip("/") if parsed_base.netloc else ""
+    dsn = f"{parsed_base.scheme or 'http'}://{public_key}@{dsn_host}{dsn_path}/{project_id}"
     cmd = [
         sys.executable,
         str(patch_script),

@@ -1,0 +1,83 @@
+# Disposable acceptance overlay.  It is intentionally limited to the
+# isolated Compose project and gives every run fresh named volumes.  The base
+# stack remains the source of service definitions and network policy.
+services:
+  platformops:
+    image: ${PLATFORMOPS_ACCEPTANCE_IMAGE:?set PLATFORMOPS_ACCEPTANCE_IMAGE}
+    build: null
+    environment:
+      PLATFORMOPS_SMTP_HOST: mailpit
+      PLATFORMOPS_SMTP_PORT: "1025"
+      PLATFORMOPS_GLITCHTIP_BASE_URL: http://observability-glitchtip:8000
+      PLATFORMOPS_PROMETHEUS_BASE_URL: http://observability-prometheus:9090
+      PLATFORMOPS_LOKI_BASE_URL: http://observability-loki:3100
+      PLATFORMOPS_LOKI_WRITE_URL: http://observability-loki:3100
+      PLATFORMOPS_GLITCHTIP_TOKEN: ${PLATFORMOPS_GLITCHTIP_TOKEN:-}
+      PLATFORMOPS_GLITCHTIP_ORG_SLUG: ${PLATFORMOPS_GLITCHTIP_ORG_SLUG:-acceptance}
+      PLATFORMOPS_GLITCHTIP_PROJECT_MAP: '${PLATFORMOPS_GLITCHTIP_PROJECT_MAP:-{"redis-core":"redis-core"}}'
+      ANSIBLE_HOST_KEY_CHECKING: "False"
+    volumes:
+      - acceptance_platformops_data:/app/data
+
+  postgres:
+    volumes:
+      - acceptance_postgres_data:/var/lib/postgresql/data
+  redis:
+    volumes:
+      - acceptance_redis_data:/data
+  rabbitmq:
+    volumes:
+      - acceptance_rabbitmq_data:/var/lib/rabbitmq
+  prometheus:
+    volumes:
+      - ./isolated/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - acceptance_prometheus_data:/prometheus
+  loki:
+    volumes:
+      - ./isolated/loki.yml:/etc/loki/config.yml:ro
+      - acceptance_loki_data:/loki
+  docker-engine:
+    volumes:
+      - acceptance_docker_engine_data:/var/lib/docker
+      # The remote target and its private DinD daemon must share only the
+      # run-scoped bind-root namespace.  This makes target-created config/data
+      # paths visible to the daemon without exposing a host socket.
+      - acceptance_remote_target_root:/tmp/platformops
+  # Acceptance-only remote target.  It has no host socket or published port;
+  # API SSH/Ansible reaches it on the private Compose network, while its
+  # Docker CLI reaches only the disposable DinD daemon over TCP.
+  ssh-target:
+    build:
+      context: ../..
+      dockerfile: scripts/fixtures/ssh-target/Dockerfile
+    image: platformops-acceptance-ssh-target:${PLATFORMOPS_ACCEPTANCE_IMAGE_TAG:-latest}
+    environment:
+      ACCEPTANCE_SSH_AUTHORIZED_KEY_FILE: /run/acceptance/authorized_key
+      DOCKER_HOST: tcp://docker-engine:2375
+    volumes:
+      - ${PLATFORMOPS_SSH_PUBLIC_KEY_PATH:?generated SSH public key path required}:/run/acceptance/authorized_key:ro
+      - acceptance_remote_target_root:/tmp/platformops
+    networks:
+      default:
+        aliases:
+          - platformops-ssh-target
+    depends_on:
+      docker-engine:
+        condition: service_healthy
+volumes:
+  acceptance_postgres_data:
+    name: ${PLATFORMOPS_ACCEPTANCE_POSTGRES_VOLUME:?set PLATFORMOPS_ACCEPTANCE_POSTGRES_VOLUME}
+  acceptance_redis_data:
+    name: ${PLATFORMOPS_ACCEPTANCE_REDIS_VOLUME:?set PLATFORMOPS_ACCEPTANCE_REDIS_VOLUME}
+  acceptance_rabbitmq_data:
+    name: ${PLATFORMOPS_ACCEPTANCE_RABBITMQ_VOLUME:?set PLATFORMOPS_ACCEPTANCE_RABBITMQ_VOLUME}
+  acceptance_prometheus_data:
+    name: ${PLATFORMOPS_ACCEPTANCE_PROMETHEUS_VOLUME:?set PLATFORMOPS_ACCEPTANCE_PROMETHEUS_VOLUME}
+  acceptance_loki_data:
+    name: ${PLATFORMOPS_ACCEPTANCE_LOKI_VOLUME:?set PLATFORMOPS_ACCEPTANCE_LOKI_VOLUME}
+  acceptance_docker_engine_data:
+    name: ${PLATFORMOPS_ACCEPTANCE_DOCKER_VOLUME:?set PLATFORMOPS_ACCEPTANCE_DOCKER_VOLUME}
+  acceptance_platformops_data:
+    name: ${PLATFORMOPS_ACCEPTANCE_PLATFORMOPS_VOLUME:?set PLATFORMOPS_ACCEPTANCE_PLATFORMOPS_VOLUME}
+  acceptance_remote_target_root:
+    name: ${PLATFORMOPS_ACCEPTANCE_REMOTE_VOLUME:?set PLATFORMOPS_ACCEPTANCE_REMOTE_VOLUME}

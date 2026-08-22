@@ -22,19 +22,31 @@ counterpart.” Those rows must be classified non-parity unless a source audit
 finds a precise cPlatform action. Observability cannot be declared complete by
 deploying or inspecting `platformops-obs` alone.
 
-## Current evidence problems to resolve first
+## Verified acceptance status — 2026-08-22 (DOC-1)
 
-- The Redis harness only calls `GET /api/observability/status` and logs two
-  fields; it does not assert values, readiness, freshness, target identity,
-  degradation, recovery, or cross-page evidence.
-- Pipeline status may be derived from database service state instead of direct
-  collector probes.
-- Native deploy/teardown/bootstrap actions have no direct cPlatform counterpart
-  and currently inflate the page surface.
-- No Redis exporter target, Prometheus sample, Loki marker, Alloy state, direct
-  container status, or navigation consistency is proven.
-- No component-specific failure injection is performed.
-- Success may be reported when the telemetry pipeline is uninitialized.
+Both `parity-redis-20260822T111500-accept18b` (strict executor) and
+`parity-redis-20260822T035500Z-e2et1` (independent) passed phases 0–8. Artifacts
+are under `/tmp/platformops-redis-acceptance/<run-id>/`.
+
+| Action group | State | Boundary |
+|---|---|---|
+| Direct Redis/service, Prometheus, Loki and Alloy readiness correlation | Runtime-proven for the bounded aggregate | Same canonical Redis IDs and run labels were used across pages |
+| Alloy/component degradation and recovery | Runtime-proven | Partial signal state and recovery were asserted with direct evidence |
+| Navigation to responsible Monitoring/Performance/Diagnostics behavior | Contract-tested / Runtime-proven where exercised | Do not claim browser automation beyond the tested invite/session flow |
+| Native deploy/status/teardown/bootstrap controls | Implemented, PlatformOps-only | No cPlatform standalone Observability counterpart; exclude from parity score |
+
+The aggregate status is traceable to direct signals, not a database-only green
+state. This page has no standalone cPlatform `Parity-complete` label.
+
+## Remaining full-page gaps after bounded acceptance
+
+- The accepted runs query direct service/Prometheus/Loki/Alloy evidence,
+  correlate the canonical target and prove Alloy/component degradation and
+  recovery; an uninitialized pipeline is not a ready claim.
+- Native deploy/teardown/bootstrap controls have no cPlatform counterpart and
+  remain explicitly PlatformOps-only.
+- Full browser navigation and every collector failure combination remain
+  action-level gaps; retain direct per-signal state rather than DB-only status.
 
 ## Desired page contract
 

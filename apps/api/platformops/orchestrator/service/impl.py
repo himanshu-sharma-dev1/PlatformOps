@@ -75,6 +75,125 @@ def _service_config(value: str | None) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {}
 
 
+_IDENTITY_OVERRIDE_KEYS = {
+    "id",
+    "external_id",
+    "node_id",
+    "service_id",
+    "service_key",
+    "container_id",
+    "container_name",
+}
+
+
+def _canonical_service_key(value: Any) -> str:
+    key = str(value or "").strip()
+    if not key:
+        raise ValueError("service_key is required")
+    aliases = {
+        "aiorchestrator": "ai-orchestrator",
+        "cplatform": "ai-orchestrator",
+        "trainingserver": "dtrain-controller",
+        "dtrain": "dtrain-controller",
+    }
+    return aliases.get(key.casefold(), key)
+
+
+def _validate_service_overrides(overrides: dict[str, Any] | None) -> dict[str, Any]:
+    """Validate mutation-sensitive contract fields without dropping metadata.
+
+    Catalog contracts intentionally allow operator metadata and future fields,
+    but identity fields belong to the inventory row and must not be mutable via
+    ``contract_overrides``.  Runtime values receive small type/range checks so
+    bad requests fail before a DB row or deployment job is created.
+    """
+
+    if overrides is None:
+        return {}
+    if not isinstance(overrides, dict):
+        raise ValueError("contract_overrides must be an object")
+    protected = sorted(_IDENTITY_OVERRIDE_KEYS.intersection(overrides))
+    if protected:
+        raise ValueError(f"contract_overrides cannot change identity fields: {', '.join(protected)}")
+    validated = copy.deepcopy(overrides)
+    for key in ("ports", "volumes", "config_files", "log_paths"):
+        if key in validated:
+            value = validated[key]
+            if not isinstance(value, list) or any(not isinstance(item, (str, int)) for item in value):
+                raise ValueError(f"{key} must be a list of strings")
+            validated[key] = [str(item).strip() for item in value if str(item).strip()]
+    if "host_port" in validated and validated["host_port"] not in (None, ""):
+        try:
+            host_port = int(validated["host_port"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("host_port must be an integer between 1 and 65535") from exc
+        if not 1 <= host_port <= 65535:
+            raise ValueError("host_port must be an integer between 1 and 65535")
+        validated["host_port"] = host_port
+    if "environment" in validated and not isinstance(validated["environment"], dict):
+        raise ValueError("environment must be an object")
+    if "healthcheck" in validated and not isinstance(validated["healthcheck"], dict):
+        raise ValueError("healthcheck must be an object")
+    for key in ("image", "command", "runtime_config_path"):
+        if key in validated and validated[key] is not None and not isinstance(validated[key], str):
+            raise ValueError(f"{key} must be a string")
+    return validated
+
+
+def _service_name_collision(
+    db: Session,
+    *,
+    node_id: int,
+    name: str,
+    container_name: str | None = None,
+    exclude_id: int | None = None,
+) -> str | None:
+    """Return a deterministic collision reason for the target node."""
+
+    if not hasattr(db, "scalar"):
+        return None
+    base = select(ServiceInstance).where(
+        ServiceInstance.node_id == node_id,
+        ServiceInstance.status != "deleted",
+    )
+    rows = list(db.scalars(base).all()) if hasattr(db, "scalars") else []
+    wanted_name = name.casefold()
+    wanted_container = (container_name or "").strip().casefold()
+    for row in rows:
+        if exclude_id is not None and row.id == exclude_id:
+            continue
+        if str(row.name or "").strip().casefold() == wanted_name:
+            return f"Service name '{name}' is already in use on this node"
+        if wanted_container and str(row.container_name or "").strip().casefold() == wanted_container:
+            return f"Container name '{container_name}' is already in use on this node"
+    return None
+
+
+def _ensure_redis_runtime_contract(
+    contract: dict[str, Any], *, node_id: int, volume_root: str
+) -> dict[str, Any]:
+    """Keep Redis' config/data/log identity intact across create and edit."""
+
+    catalog_contract = rendered_contract("redis-core", node_id=node_id, volume_root=volume_root) or {}
+    required_volumes = list(catalog_contract.get("volumes") or [])
+    current_volumes = list(contract.get("volumes") or [])
+
+    def destination(value: Any) -> str:
+        parts = str(value).split(":")
+        return parts[1].split(":", 1)[0] if len(parts) > 1 else parts[0]
+
+    current_destinations = {destination(item) for item in current_volumes}
+    for required in required_volumes:
+        if destination(required) not in current_destinations:
+            current_volumes.append(required)
+            current_destinations.add(destination(required))
+    contract["volumes"] = current_volumes
+    for key in ("config_files", "runtime_config_path", "healthcheck"):
+        if key not in contract or not contract.get(key):
+            contract[key] = copy.deepcopy(catalog_contract.get(key) or ({} if key == "healthcheck" else [] if key == "config_files" else ""))
+    return contract
+
+
 def create_service_instance(
     db: Session,
     *,
@@ -85,17 +204,18 @@ def create_service_instance(
 ) -> ServiceInstance:
     from ..ids import allocate_service_external_id
 
-    # Normalize cPlatform aliases
-    key = service_key
+    # Normalize cPlatform aliases and reject malformed runtime overrides before
+    # allocating an external identity or touching persistence.
+    key = _canonical_service_key(service_key)
+    validated_overrides = _validate_service_overrides(contract_overrides)
     alias_map = {
         "AIOrchestrator": "ai-orchestrator",
         "cplatform": "ai-orchestrator",
         "TrainingServer": "dtrain-controller",
         "dTrain": "dtrain-controller",
     }
-    key = alias_map.get(key, key)
 
-    normalized_overrides = _normalize_service_overrides(contract_overrides, default_install_mode="ansible")
+    normalized_overrides = _normalize_service_overrides(validated_overrides, default_install_mode="ansible")
     contract = _service_contract_for_node(
         key,
         node_id=node.id,
@@ -138,6 +258,15 @@ def create_service_instance(
                 existing.external_id = allocate_service_external_id(db)
                 db.commit()
                 db.refresh(existing)
+            # Registration is idempotent, while an explicit edit request must
+            # still deep-merge its operator values into the existing card.
+            if name is not None or normalized_overrides:
+                return update_service_instance(
+                    db,
+                    existing,
+                    name=name,
+                    contract_overrides=normalized_overrides,
+                )
             return existing
 
     merged = _deep_merge_dict(contract, normalized_overrides)
@@ -148,6 +277,28 @@ def create_service_instance(
     merged["install_mode"] = install_mode
     merged["service_install"] = install_mode.upper()
 
+    display_name = str(name).strip() if name is not None else ""
+    resolved_name = display_name or contract.get("display_name") or contract.get("name") or key
+    resolved_container = str(merged.get("container_name") or f"node-{node.id}-{key}").strip()
+    if not resolved_name.strip():
+        raise ValueError("service name is required")
+    if not resolved_container:
+        raise ValueError("service container name is required")
+    collision = _service_name_collision(
+        db,
+        node_id=int(node.id),
+        name=resolved_name,
+        container_name=resolved_container,
+    )
+    if collision:
+        raise ValueError(collision)
+
+    # Redis' config mount is part of its canonical runtime identity.  A
+    # fixture may override data/log mounts, but omitting the config mount would
+    # make readiness/config apply unverifiable and silently change the product.
+    if key == "redis-core":
+        merged = _ensure_redis_runtime_contract(merged, node_id=node.id, volume_root=node.volume_root)
+
     external_id = allocate_service_external_id(db)
     status = "registered" if install_mode == "manual" else "created"
 
@@ -155,7 +306,7 @@ def create_service_instance(
         external_id=external_id,
         node_id=node.id,
         service_key=key,
-        name=name or contract.get("display_name") or contract.get("name") or key,
+        name=resolved_name,
         kind=merged.get("kind", "app"),
         container_name=merged.get("container_name", f"node-{node.id}-{key}"),
         image=merged.get("image", ""),
@@ -190,6 +341,7 @@ def update_service_instance(
     name: str | None = None,
     contract_overrides: dict[str, Any] | None = None,
 ) -> ServiceInstance:
+    validated_overrides = _validate_service_overrides(contract_overrides)
     existing_config = _service_config(service.config_json)
     catalog_contract = _service_contract_for_node(
         service.service_key,
@@ -203,7 +355,7 @@ def update_service_instance(
     merged_contract = _deep_merge_dict(catalog_contract, existing_config)
     existing_mode = existing_config.get("install_mode") or existing_config.get("service_install")
     normalized_overrides = _normalize_service_overrides(
-        contract_overrides,
+        validated_overrides,
         default_install_mode=_normalize_install_mode(existing_mode, default="ansible"),
     )
     merged_contract = _deep_merge_dict(merged_contract, normalized_overrides)
@@ -213,14 +365,31 @@ def update_service_instance(
     )
     merged_contract["install_mode"] = install_mode
     merged_contract["service_install"] = install_mode.upper()
+    if service.service_key == "redis-core":
+        merged_contract = _ensure_redis_runtime_contract(
+            merged_contract,
+            node_id=int(service.node_id),
+            volume_root=service.node.volume_root,
+        )
 
     if name is not None:
-        service.name = (name.strip() or service.name or merged_contract.get("display_name") or service.service_key)
+        service.name = name.strip()
+        if not service.name:
+            raise ValueError("service name is required")
     elif not service.name:
         service.name = merged_contract.get("display_name") or merged_contract.get("name") or service.service_key
     service.kind = merged_contract.get("kind", service.kind)
     service.container_name = merged_contract.get("container_name", service.container_name)
     service.image = merged_contract.get("image", service.image)
+    collision = _service_name_collision(
+        db,
+        node_id=int(service.node_id),
+        name=str(service.name or ""),
+        container_name=str(service.container_name or ""),
+        exclude_id=int(service.id) if getattr(service, "id", None) else None,
+    )
+    if collision:
+        raise ValueError(collision)
     if service.status in {"created", "registered"}:
         service.status = "registered" if install_mode == "manual" else "created"
     service.config_json = json.dumps(merged_contract)
@@ -601,20 +770,42 @@ def deploy_service(db: Session, service: ServiceInstance) -> DeploymentJob:
 
     def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
         bg_service = bg_db.get(ServiceInstance, service_id)
+        runtime = (
+            _verify_service_runtime(bg_db, bg_service)
+            if ok and bg_service
+            else {"ok": False, "error": bg_job.error or "Service was removed before deploy completion"}
+        )
+        verified_ok = bool(ok and bg_service and runtime.get("ok"))
+        if not verified_ok:
+            # The callback owns the terminal state for deferred deploy jobs.
+            # This also covers a concurrent service deletion: the job must not
+            # remain running merely because its FK target disappeared.
+            bg_job.status = JobStatus.failed.value
+            bg_job.error = (bg_job.error or "") or str(runtime.get("error") or "Runtime verification failed")
+            bg_job.output = (bg_job.output or "") + f"\nRuntime verification: {runtime.get('error') or 'failed'}"
+        else:
+            bg_job.status = JobStatus.success.value
         if bg_service:
-            bg_service.status = "running" if ok else "error"
+            bg_service.status = "running" if verified_ok else "error"
             bg_db.add(bg_service)
             record_event(
                 bg_db,
                 category="deployment",
-                level="info" if ok else "error",
+                level="info" if verified_ok else "error",
                 message=f"Deploy finished for {bg_service.name} with status {bg_service.status}",
                 service_id=service_id,
                 node_id=node_id,
-                metadata={"job_id": bg_job.id},
+                metadata={"job_id": bg_job.id, "command_ok": ok, "runtime": runtime},
             )
 
-    return run_job_async(db, job, cwd=settings.project_root, timeout_seconds=300, on_complete=on_complete)
+    return run_job_async(
+        db,
+        job,
+        cwd=settings.project_root,
+        timeout_seconds=300,
+        on_complete=on_complete,
+        defer_terminal_status=True,
+    )
 
 
 def _deployment_command_preview(node: Node, service: ServiceInstance | None, service_key: str) -> str:
@@ -702,17 +893,25 @@ def delete_service(db: Session, service: ServiceInstance) -> DeploymentJob:
     def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
         bg_service = bg_db.get(ServiceInstance, service_id)
         if bg_service:
-            bg_service.status = "deleted" if ok else "error"
+            inspect, inspect_error, source = _docker_inspect_for_node(
+                bg_db.get(Node, int(bg_service.node_id)), bg_service.container_name
+            ) if ok else (None, bg_job.error, "not_checked")
+            removed = bool(ok and inspect is None and inspect_error in {"not_found", None})
+            if not removed:
+                bg_job.status = JobStatus.failed.value
+                bg_job.error = (bg_job.error or "") or str(inspect_error or "Container still exists after delete")
+                bg_job.output = (bg_job.output or "") + f"\nDelete verification: {inspect_error or 'container still exists'}"
+            bg_service.status = "deleted" if removed else "error"
             bg_db.add(bg_service)
             bg_db.commit()
             record_event(
                 bg_db,
                 category="lifecycle",
-                level="info" if ok else "error",
+                level="info" if removed else "error",
                 message=f"Delete finished for {service_name} with status {bg_service.status}",
                 service_id=service_id,
                 node_id=bg_service.node_id,
-                metadata={"job_id": bg_job.id},
+                metadata={"job_id": bg_job.id, "command_ok": ok, "removed": removed, "source": source},
             )
 
     return run_job_async(db, job, cwd=settings.project_root, timeout_seconds=180, on_complete=on_complete)
@@ -899,7 +1098,15 @@ def execute_deployment_plan(
     summary = "Deployment plan execution blocked."
     if preflight_after["ok"]:
         target_job = deploy_service(db, service)
-        ok = target_job.status == JobStatus.success.value
+        # A deploy job is asynchronous: queued/running means the plan was
+        # accepted and the caller must poll ``target_job`` for the observed
+        # runtime terminal result.  Do not report a false plan failure merely
+        # because readiness verification has not finished yet.
+        ok = target_job.status in {
+            JobStatus.queued.value,
+            JobStatus.running.value,
+            JobStatus.success.value,
+        }
         summary = (
             f"Executed deployment plan for {service.name}."
             if ok
@@ -1631,6 +1838,181 @@ def _docker_inspect_for_node(node: Node | None, container_name: str) -> tuple[di
         return data, err, "docker_inspect"
     data, err = _docker_inspect_remote(node, container_name)
     return data, err, "docker_inspect_ssh"
+
+
+def _verify_service_runtime(
+    db: Session,
+    service: ServiceInstance,
+    *,
+    timeout_seconds: float = 30.0,
+    poll_interval_seconds: float = 0.5,
+) -> dict[str, Any]:
+    """Verify the target container and readiness on the resolved node.
+
+    Ansible returning zero only proves that the playbook completed.  Lifecycle
+    success is deliberately withheld until inspect sees the exact container
+    running and service-specific readiness succeeds.  Remote nodes use SSH
+    for both operations; the control-plane Docker engine is never a fallback.
+    """
+
+    import time
+
+    node = service.node or db.get(Node, service.node_id)
+    deadline = time.monotonic() + max(0.0, float(timeout_seconds))
+    interval = min(max(float(poll_interval_seconds), 0.05), 2.0)
+    last_state = "unknown"
+    last_health = ""
+    last_readiness = "not_checked"
+    last_error = "container not found"
+    source = "docker_inspect"
+    actual_image = ""
+    cfg_json = _service_config(service.config_json)
+    expected_healthcheck = cfg_json.get("healthcheck") or {}
+    if not expected_healthcheck:
+        try:
+            expected_contract = rendered_contract(
+                service.service_key,
+                node_id=int(getattr(node, "id", service.node_id)),
+                volume_root=getattr(node, "volume_root", "/tmp/platformops") or "/tmp/platformops",
+            ) or {}
+            expected_healthcheck = expected_contract.get("healthcheck") or {}
+        except Exception:
+            expected_healthcheck = {}
+
+    while True:
+        inspect, error, source = _docker_inspect_for_node(node, service.container_name)
+        if inspect is None:
+            last_error = error or "container not found"
+        else:
+            expected_name = f"/{service.container_name}".rstrip("/")
+            actual_name = str(inspect.get("Name") or "")
+            if actual_name and actual_name != expected_name:
+                return {"ok": False, "source": source, "error": f"runtime name mismatch: {actual_name}"}
+            cfg = inspect.get("Config") or {}
+            expected_image = str(service.image or "").strip()
+            actual_image = str(cfg.get("Image") or "").strip()
+            if expected_image and actual_image and expected_image != actual_image:
+                return {
+                    "ok": False,
+                    "source": source,
+                    "error": f"runtime image mismatch: expected {expected_image}, observed {actual_image}",
+                }
+            state = inspect.get("State") or {}
+            last_state = str(state.get("Status") or "unknown").lower()
+            last_health = str(((state.get("Health") or {}).get("Status") or "")).lower()
+            expected_network = str(getattr(node, "docker_network", "") or "").strip() if node else ""
+            networks = ((inspect.get("NetworkSettings") or {}).get("Networks") or {})
+            if expected_network and isinstance(networks, dict) and networks and expected_network not in networks:
+                return {
+                    "ok": False,
+                    "source": source,
+                    "error": f"runtime network mismatch: {expected_network} not attached",
+                }
+
+            required_destinations: set[str] = set()
+            if service.service_key == "redis-core":
+                required_destinations = {"/data", "/var/log/redis", "/usr/local/etc/redis/redis.conf"}
+            if required_destinations:
+                observed_destinations = {
+                    str(item.get("Destination") or "")
+                    for item in (inspect.get("Mounts") or [])
+                    if isinstance(item, dict)
+                }
+                missing_mounts = sorted(required_destinations - observed_destinations)
+                if missing_mounts:
+                    return {
+                        "ok": False,
+                        "source": source,
+                        "error": f"runtime mounts missing: {', '.join(missing_mounts)}",
+                    }
+
+            is_running = bool(state.get("Running")) and last_state == "running"
+            if last_state in {"exited", "dead"} or (not is_running and last_state not in {"created", "restarting", "paused"}):
+                return {"ok": False, "source": source, "error": f"container state is {last_state or 'unknown'}"}
+
+            readiness = "container-running"
+            readiness_ok = is_running
+            if service.service_key == "redis-core" and is_running:
+                if node is None or _node_uses_local_docker(node):
+                    from ..docker_runtime import exec_container
+
+                    ping_ok, output, ping_error = exec_container(service.container_name, ["redis-cli", "ping"])
+                else:
+                    import shlex
+                    import subprocess
+
+                    host = (node.host or "").strip()
+                    user = (node.ssh_user or "ubuntu").strip()
+                    key = (node.ssh_key_path or "").strip()
+                    cmd = [
+                        "ssh",
+                        "-o",
+                        "BatchMode=yes",
+                        "-o",
+                        "StrictHostKeyChecking=no",
+                        "-o",
+                        "ConnectTimeout=8",
+                    ]
+                    if key:
+                        cmd.extend(["-i", key])
+                    cmd.extend([f"{user}@{host}", f"docker exec {shlex.quote(service.container_name)} redis-cli ping"])
+                    try:
+                        remaining = max(0.1, deadline - time.monotonic())
+                        proc = subprocess.run(
+                            cmd,
+                            capture_output=True,
+                            text=True,
+                            timeout=min(8.0, remaining),
+                        )
+                        ping_ok = proc.returncode == 0 and "PONG" in (proc.stdout or "")
+                        output = proc.stdout or ""
+                        ping_error = (proc.stderr or "").strip() or ("redis-cli did not return PONG" if not ping_ok else "")
+                    except Exception as exc:
+                        ping_ok, output, ping_error = False, "", str(exc)
+                last_readiness = "redis-cli:PONG" if ping_ok and "PONG" in str(output) else "redis-cli:pending"
+                last_error = ping_error or "PONG not observed"
+                readiness_ok = bool(ping_ok and "PONG" in str(output))
+                readiness = last_readiness
+
+            # A configured Docker healthcheck is authoritative.  During the
+            # short window between container creation and Docker attaching the
+            # health state, ``State.Health`` can be absent; that is still
+            # startup, not success.  Services without a healthcheck retain
+            # the running/PONG readiness contract.
+            docker_healthcheck = cfg.get("Healthcheck") or {}
+            healthcheck_configured = bool(
+                docker_healthcheck.get("Test") or expected_healthcheck.get("command")
+            )
+            health_ok = (
+                last_health == "healthy"
+                if healthcheck_configured
+                else not last_health or last_health == "healthy"
+            )
+            if readiness_ok and health_ok:
+                return {
+                    "ok": True,
+                    "source": source,
+                    "readiness": readiness,
+                    "image": actual_image,
+                    "config": cfg_json,
+                    "state": last_state,
+                    "health": last_health or None,
+                }
+            last_error = f"state={last_state}, health={last_health or 'none'}, readiness={last_readiness}"
+
+        if time.monotonic() >= deadline:
+            return {
+                "ok": False,
+                "source": source,
+                "error": (
+                    f"runtime readiness timed out after {float(timeout_seconds):g}s; "
+                    f"{last_error}; state={last_state}, health={last_health or 'none'}"
+                ),
+                "state": last_state,
+                "health": last_health or None,
+                "readiness": last_readiness,
+            }
+        time.sleep(interval)
 
 
 def _map_inspect_to_live(

@@ -18,18 +18,30 @@ claims.
 - PlatformOps matrix §3; `DiagnosticsView.tsx`, `diagnosticsActions.ts`,
   services/diagnostics routers and diagnostics orchestrator.
 
-## Current evidence problems to resolve first
+## Verified acceptance status — 2026-08-22 (DOC-1)
 
-- Redis harness does not inject deterministic markers or require readiness
-  content.
-- It accepts empty live/history lines and zero archives as green.
-- It does not test cursor next/previous, gaps, duplicates, time range, source,
-  rotation, file tail, archive creation/view/checksum, backfill terminal state,
-  or exact Loki markers.
-- Bulk download runs only if archives happen to exist.
-- Chat HTTP 200 is accepted without requiring configured provider, grounded
-  evidence, or honest unavailable semantics.
-- No secret/path traversal/oversized/Unicode/missing-container cases are tested.
+The strict `parity-redis-20260822T111500-accept18b` and independent
+`parity-redis-20260822T035500Z-e2et1` runs both passed phases 0–8. Evidence is
+stored at `/tmp/platformops-redis-acceptance/<run-id>/`.
+
+| Action group | State | Boundary |
+|---|---|---|
+| Deterministic Redis marker, file/container tail/history, rotated archive, archive SHA, single/bulk ZIP download, Loki query and terminal backfill | Parity-complete for the bounded log slice | Every claim is tied to the canonical run marker and service `2` |
+| Ingestion stats and configured/unconfigured analyst behavior | Runtime-proven | The analyst result was an honest unavailable state when unconfigured |
+| Cursor edge cases, path/Unicode/size/disappearing-container matrix and all archive variants | Contract-tested / Implemented as applicable | Do not infer exhaustive legacy diagnostics parity |
+
+The runtime marker and archive artifacts contain no credentials; artifact scans
+reported zero secrets.
+
+## Remaining full-page gaps after bounded acceptance
+
+- The accepted runs require deterministic markers, rotated archives, exact
+  archive SHA, single/bulk ZIP, Loki query and terminal backfill; empty required
+  evidence is not accepted.
+- Cursor gap/duplicate variants, all path/size/disappearing-container cases,
+  mixed archive failures and configured analyst grounding remain action-level
+  gaps.
+- Unconfigured analyst behavior is reported honestly, not as a successful chat.
 
 ## Work package D0 — contract freeze
 

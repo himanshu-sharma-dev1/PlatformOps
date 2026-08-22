@@ -1,57 +1,31 @@
 // @ts-nocheck
-import { api, getAuthToken, setAuthToken } from "../../api/client";
+import { api } from "../../api/client";
 export function createObservabilityActions(s: any) {
+  let statusRequest = 0;
   return {
-  async bootstrapObservability(nodeId) {
-    try {
-      s.setObservabilityBusyNodeId(nodeId);
-      const result = await api(`/api/nodes/${nodeId}/observability/bootstrap`, {
-        method: "POST"
-      });
-      s.setNotice(result.summary);
-      await s.refresh();
-      await s.loadNodeJobHistory(nodeId);
-    } catch (error) {
-      s.setNotice(`Observability bootstrap failed: ${error.message}`);
-    } finally {
-      s.setObservabilityBusyNodeId(null);
+  async refreshObservabilityStackStatus(serviceId?: number, marker?: string) {
+    const redis = (s.services || []).find((item: any) => item.id === serviceId)
+      || (s.services || []).find((item: any) => item.id === s.selectedService?.id)
+      || (s.services || []).find((item: any) => item.service_key === "redis-core");
+    if (!redis?.id) {
+      s.setObservabilityStatus(null);
+      s.setObservabilityError("Select a Redis service to probe direct observability evidence.");
+      return;
     }
-  },
-
-  async refreshObservabilityStackStatus() {
-    s.setObsStackBusy("status");
+    const requestId = ++statusRequest;
+    s.setObservabilityLoading(true);
+    s.setObservabilityError("");
     try {
-      const data = await api("/api/observability/status");
-      const containers = Array.isArray(data?.containers) ? data.containers : Array.isArray(data) ? data : [];
-      s.setObsStackContainers(containers);
-      s.setObsStackOutput("");
+      const runMarker = marker ?? s.observabilityMarker ?? "";
+      const data = await api(`/api/observability/status?service_id=${redis.id}&marker=${encodeURIComponent(runMarker)}`);
+      if (requestId !== statusRequest) return;
+      s.setObservabilityStatus(data);
     } catch (e) {
-      s.setObsStackOutput(e?.message || "Failed to load observability status");
+      if (requestId !== statusRequest) return;
+      s.setObservabilityStatus(null);
+      s.setObservabilityError(e?.message || "Direct observability probes failed");
     } finally {
-      s.setObsStackBusy("");
-    }
-  },
-
-  async runObservabilityStackAction(action) {
-    if (action === "teardown" && !window.confirm("Teardown the observability stack? This stops managed stack containers.")) return;
-    s.setObsStackBusy(action);
-    s.setObsStackOutput("");
-    try {
-      const data = await api(`/api/observability/${action}`, { method: "POST" });
-      const out = typeof data.output === "string" ? data.output : JSON.stringify(data, null, 2);
-      s.setObsStackOutput(out || (data.success ? `${action} completed` : `${action} failed`));
-      if (!data.success) s.setNotice(`Observability ${action} failed \u2014 see output`);
-      else s.setNotice(`Observability ${action} finished`);
-      await s.refreshObservabilityStackStatus();
-      try {
-        const pipe = await api("/api/observability/pipeline");
-        s.setObservabilityPipeline(pipe);
-      } catch {
-      }
-    } catch (e) {
-      s.setObsStackOutput(e?.message || `${action} failed`);
-    } finally {
-      s.setObsStackBusy("");
+      if (requestId === statusRequest) s.setObservabilityLoading(false);
     }
   }
   };

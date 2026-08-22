@@ -1,129 +1,83 @@
 // @ts-nocheck
-import React from "react";
+import React, { useEffect } from "react";
 import { GlassCard } from "../components/GlassCard";
 import { usePlatform } from "../platform/usePlatform";
-import { isSeedDemoName } from "../components/charts";
 
 /** ObservabilityView — Phase 1 extracted page JSX. */
 export function ObservabilityView() {
   const p = usePlatform() as any;
-  const bootstrapObservability = p.bootstrapObservability;
-  const nodes = p.nodes;
-  const obsStackBusy = p.obsStackBusy;
-  const obsStackContainers = p.obsStackContainers;
-  const obsStackOutput = p.obsStackOutput;
-  const observabilityBusyNodeId = p.observabilityBusyNodeId;
-  const observabilityPipeline = p.observabilityPipeline;
-  const refresh = p.refresh;
+  const status = p.observabilityStatus;
+  const marker = p.observabilityMarker;
+  const redis = (p.services || []).find((item: any) => item.id === p.selectedService?.id)
+    || (p.services || []).find((item: any) => item.service_key === "redis-core");
   const refreshObservabilityStackStatus = p.refreshObservabilityStackStatus;
-  const runObservabilityStackAction = p.runObservabilityStackAction;
+  useEffect(() => {
+    refreshObservabilityStackStatus(redis?.id, marker);
+  }, [redis?.id]);
+
+  const signalEntries = Object.entries(status?.signals || {}) as Array<[string, any]>;
+  const stateClass = (state: string) => state === "available" ? "pill-ok" : state === "error" || state === "unavailable" ? "pill-err" : "pill-warn";
 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       <div className="page-head">
         <div className="titles">
-          <h1>Observability stack</h1>
-          <p className="sub">Deploy, status-check, and tear down the Prometheus / Loki / Alloy control plane. Bootstrap collectors on individual nodes.</p>
+          <h1>Observability readiness</h1>
+          <p className="sub">Direct Redis, Prometheus, Alloy, Loki-marker, and optional GlitchTip evidence for the canonical selected service.</p>
         </div>
         <div className="actions">
-          <button className="btn btn-secondary" disabled={obsStackBusy === "status"} onClick={() => refreshObservabilityStackStatus()}>
-            {obsStackBusy === "status" ? "Refreshing…" : "Refresh status"}
-          </button>
-          <button className="btn btn-primary" disabled={!!obsStackBusy} onClick={() => runObservabilityStackAction("deploy")}>
-            {obsStackBusy === "deploy" ? "Deploying…" : "Deploy stack"}
-          </button>
-          <button className="btn btn-danger" disabled={!!obsStackBusy} onClick={() => runObservabilityStackAction("teardown")}>
-            {obsStackBusy === "teardown" ? "Tearing down…" : "Teardown stack"}
+          <button className="btn btn-secondary" disabled={p.observabilityLoading || !redis} onClick={() => refreshObservabilityStackStatus(redis?.id, marker)}>
+            {p.observabilityLoading ? "Probing…" : "Refresh direct probes"}
           </button>
         </div>
       </div>
 
-      {(() => {
-        const plane = (observabilityPipeline?.nodes ?? []).filter((n) => !isSeedDemoName(n.node_name));
-        const healthy = plane.filter((n) => n.pipeline_ready).length;
-        return (
       <div className="stat-strip">
-        <div className="stat-tile"><div className="stat-label">Pipeline nodes</div><div className="stat-value">{plane.length || "—"}</div></div>
-        <div className="stat-tile"><div className="stat-label">Healthy</div><div className="stat-value">{plane.length ? healthy : "—"}</div></div>
-        <div className="stat-tile"><div className="stat-label">Degraded</div><div className="stat-value">{plane.length ? plane.length - healthy : "—"}</div></div>
-        <div className="stat-tile"><div className="stat-label">Stack containers</div><div className="stat-value">{obsStackContainers.length || "—"}</div></div>
+        <div className="stat-tile"><div className="stat-label">Overall</div><div className="stat-value">{status?.overall_state || "—"}</div></div>
+        <div className="stat-tile"><div className="stat-label">Service</div><div className="stat-value">{status?.target?.service_external_id || redis?.external_id || "—"}</div></div>
+        <div className="stat-tile"><div className="stat-label">Container</div><div className="stat-value" style={{ fontSize: "0.9rem" }}>{status?.target?.container_name || redis?.container_name || "—"}</div></div>
+        <div className="stat-tile"><div className="stat-label">Freshness gate</div><div className="stat-value">{status ? `${status.freshness_seconds}s` : "—"}</div></div>
       </div>
-        );
-      })()}
 
       <GlassCard style={{ padding: "1.25rem" }}>
         <div className="panel-title" style={{ marginBottom: "0.85rem" }}>
-          <h2>Compose status</h2>
-          <span>{obsStackContainers.length ? `${obsStackContainers.length} containers` : "no data"}</span>
+          <h2>Run correlation</h2>
+          <span>exact marker required</span>
         </div>
-        {obsStackContainers.length > 0 ? (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
-            <thead>
-              <tr style={{ color: "var(--ink-4)", textAlign: "left" }}>
-                <th style={{ padding: "0.4rem 0" }}>Name</th>
-                <th>State</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {obsStackContainers.map((c: any, i: number) => (
-                <tr key={c.Name || c.name || i} style={{ borderTop: "1px solid var(--line-2)" }}>
-                  <td style={{ padding: "0.45rem 0" }}><code>{c.Name || c.name || "—"}</code></td>
-                  <td>{c.State || c.state || "—"}</td>
-                  <td style={{ color: "var(--ink-3)" }}>{c.Status || c.status || "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p style={{ color: "var(--ink-4)" }}>No stack status yet. Deploy the stack or refresh after compose is available.</p>
-        )}
-        {obsStackOutput && (
-          <pre style={{ marginTop: "1rem", padding: "0.85rem", borderRadius: 10, background: "#010307", color: "#e2e8f0", fontSize: "0.75rem", maxHeight: 280, overflow: "auto", whiteSpace: "pre-wrap" }}>{obsStackOutput}</pre>
-        )}
+        <div style={{ display: "flex", gap: 8 }}>
+          <input className="input" style={{ flex: 1 }} placeholder="Acceptance run marker, e.g. OBS-RUN-..." value={marker} onChange={(event) => p.setObservabilityMarker(event.target.value)} />
+          <button className="btn btn-primary" disabled={!redis || !marker.trim() || p.observabilityLoading} onClick={() => refreshObservabilityStackStatus(redis?.id, marker)}>Correlate marker</button>
+        </div>
+        {p.observabilityError ? <p style={{ color: "var(--err)" }}>{p.observabilityError}</p> : null}
       </GlassCard>
 
       <GlassCard style={{ padding: "1.25rem" }}>
         <div className="panel-title" style={{ marginBottom: "0.85rem" }}>
-          <h2>Per-node plane</h2>
-          <span>{observabilityPipeline ? `${observabilityPipeline.nodes.length} nodes` : "loading"}</span>
+          <h2>Direct evidence</h2>
+          <span>{status?.generated_at ? new Date(status.generated_at).toLocaleString() : "not probed"}</span>
         </div>
-        {observabilityPipeline ? (
+        {status ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "0.85rem" }}>
-            {observabilityPipeline.nodes.map((node) => (
-              <article key={node.node_id} style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "0.9rem" }}>
+            {signalEntries.map(([name, signal]) => (
+              <article key={name} style={{ border: "1px solid var(--line)", borderRadius: 12, padding: "0.9rem" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                  <strong>{node.node_name}</strong>
-                  <span className={`pill ${node.pipeline_ready ? "pill-ok" : "pill-warn"}`}>{node.ingestion_state}</span>
+                  <strong>{name}</strong>
+                  <span className={`pill ${stateClass(signal.state)}`}>{signal.state}</span>
                 </div>
-                <div className="tags" style={{ marginTop: 8 }}>
-                  {Object.entries(node.components || {}).map(([k, v]) => (
-                    <span key={k}>{k}: {String(v)}</span>
-                  ))}
-                </div>
-                {(node.issues || []).length > 0 && (
-                  <ul style={{ margin: "0.55rem 0 0 1rem", color: "var(--ink-3)", fontSize: "0.8rem" }}>
-                    {node.issues.slice(0, 3).map((issue) => <li key={issue}>{issue}</li>)}
-                  </ul>
-                )}
-                <button
-                  className="btn btn-secondary btn-sm"
-                  style={{ marginTop: 10 }}
-                  disabled={observabilityBusyNodeId === node.node_id}
-                  onClick={() => bootstrapObservability(node.node_id)}
-                >
-                  {observabilityBusyNodeId === node.node_id ? "Bootstrapping…" : "Bootstrap plane"}
-                </button>
+                <div style={{ marginTop: 8, fontSize: "0.78rem", color: "var(--ink-3)" }}>Source: <code>{signal.source}</code></div>
+                <div style={{ marginTop: 4, fontSize: "0.78rem", color: "var(--ink-3)" }}>Evidence: {signal.evidence_at ? new Date(signal.evidence_at).toLocaleString() : "none"}{signal.age_seconds != null ? ` (${Math.round(signal.age_seconds)}s old)` : ""}</div>
+                {signal.error ? <p style={{ color: "var(--err)", fontSize: "0.8rem" }}>{signal.error}</p> : null}
               </article>
             ))}
-            {observabilityPipeline.nodes.length === 0 && (
-              <p style={{ color: "var(--ink-4)" }}>No nodes registered for pipeline reporting.</p>
-            )}
           </div>
         ) : (
-          <p style={{ color: "var(--ink-4)" }}>Loading pipeline report…</p>
+          <p style={{ color: "var(--ink-4)" }}>Select Redis and run the direct probes. HTTP success or empty data is never shown as healthy.</p>
         )}
+        <div className="actions" style={{ marginTop: 14 }}>
+          {[["monitoring", "Monitoring"], ["performance", "Performance"], ["diagnostics", "Diagnostics"], ["config", "Config"], ["clusters", "Clusters"]].map(([view, label]) => <button key={view} className="btn btn-secondary btn-sm" onClick={() => p.setActiveView(view)}>{label}</button>)}
+        </div>
+        <p style={{ marginTop: 14, color: "var(--ink-4)", fontSize: "0.76rem" }}>Support-stack deployment is PlatformOps-native infrastructure and is excluded from cPlatform parity.</p>
       </GlassCard>
     </div>
   );

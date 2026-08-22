@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import base64
 import contextlib
 import copy
+import hashlib
+import ipaddress
 import json
+import re
+import shlex
+import shutil
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -20,12 +27,103 @@ from ..models import (
     ServiceInstance,
 )
 from ..settings import settings
-from ..tasks import run_job_async
-from .common import (
-    _ansible_base_command,
-    _deep_merge_dict,
-    record_event,
-)
+from ..security import redact_text
+from .common import _deep_merge_dict, record_event
+
+
+_REDIS_SERVICE_KEYS = {"redis-core", "airflow-redis"}
+_REDIS_REPEATABLE_DIRECTIVES = {"save", "rename-command", "include", "user"}
+
+
+def _config_format(service: ServiceInstance | None) -> str:
+    if service is not None and service.service_key in _REDIS_SERVICE_KEYS:
+        return "redis"
+    return "yaml"
+
+
+def _parse_redis_config(content: str) -> tuple[dict[str, Any], list[str]]:
+    parsed: dict[str, Any] = {}
+    errors: list[str] = []
+    if "\x00" in content:
+        return {}, ["Redis config contains a NUL byte."]
+    if len(content.encode("utf-8")) > 1_048_576:
+        return {}, ["Redis config exceeds the 1 MiB editor limit."]
+    for line_number, raw_line in enumerate(content.splitlines(), start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split(None, 1)
+        if len(parts) != 2:
+            errors.append(f"Line {line_number}: directive and value are required.")
+            continue
+        directive, value = parts[0].lower(), parts[1].strip()
+        if not re.fullmatch(r"[a-z][a-z0-9_-]*", directive):
+            errors.append(f"Line {line_number}: invalid Redis directive {parts[0]!r}.")
+            continue
+        if not value:
+            errors.append(f"Line {line_number}: {directive} requires a value.")
+            continue
+        if directive in parsed and directive not in _REDIS_REPEATABLE_DIRECTIVES:
+            errors.append(f"Line {line_number}: duplicate Redis directive {directive!r}.")
+            continue
+        if directive == "maxmemory" and not re.fullmatch(r"\d+(?:[kKmMgGtT][bB]?)?", value):
+            errors.append(f"Line {line_number}: invalid maxmemory value {value!r}.")
+        elif directive == "loglevel" and value.lower() not in {"debug", "verbose", "notice", "warning", "nothing"}:
+            errors.append(f"Line {line_number}: invalid loglevel {value!r}.")
+        elif directive in {"appendonly", "protected-mode", "daemonize"} and value.lower() not in {"yes", "no"}:
+            errors.append(f"Line {line_number}: {directive} must be yes or no.")
+        if directive in _REDIS_REPEATABLE_DIRECTIVES:
+            parsed.setdefault(directive, []).append(value)
+        else:
+            parsed[directive] = value
+    if not parsed and not errors:
+        errors.append("Redis config content is empty.")
+    return parsed, errors
+
+
+def _parse_config_document(service: ServiceInstance, content: str) -> dict[str, Any]:
+    if _config_format(service) == "redis":
+        parsed, errors = _parse_redis_config(content)
+        if errors:
+            raise ValueError(" ".join(errors))
+        return parsed
+    raw = yaml.safe_load(content)
+    if raw is None:
+        raise ValueError("Config content is empty.")
+    if not isinstance(raw, dict):
+        raise ValueError("Root element of config must be a YAML dictionary.")
+    return raw
+
+
+def _render_redis_config(values: dict[str, Any]) -> str:
+    lines: list[str] = []
+    for directive in sorted(values):
+        value = values[directive]
+        if isinstance(value, list):
+            lines.extend(f"{directive} {item}" for item in value)
+        else:
+            lines.append(f"{directive} {value}")
+    return "\n".join(lines) + "\n"
+
+
+def _merge_redis_config_text(left: str, right: str) -> str:
+    """Preserve target comments/order and append baseline-only directives."""
+    left_values, left_errors = _parse_redis_config(left)
+    right_values, right_errors = _parse_redis_config(right)
+    if left_errors or right_errors:
+        raise ValueError(" ".join(left_errors + right_errors))
+    merged = right.rstrip("\n")
+    missing = {key: value for key, value in left_values.items() if key not in right_values}
+    if missing:
+        merged += "\n" + _render_redis_config(missing).rstrip("\n")
+    return merged + "\n"
+
+
+def _require_config_capability(service: ServiceInstance, capability: str) -> None:
+    capabilities = config_capabilities_for_service(service)
+    if not capabilities.get(capability):
+        reason = capabilities.get("disabled_reason") or f"Config capability {capability} is disabled."
+        raise ValueError(str(reason))
 
 
 def _infer_config_action(message: str, metadata: dict[str, Any]) -> str:
@@ -163,10 +261,8 @@ def compare_config_snapshots(
     if left_snapshot.service_id != service.id or right_snapshot.service_id != service.id:
         raise ValueError("Both snapshots must belong to the selected service.")
 
-    left_raw = yaml.safe_load(left_snapshot.content) or {}
-    right_raw = yaml.safe_load(right_snapshot.content) or {}
-    left = left_raw if isinstance(left_raw, dict) else {"content": left_raw}
-    right = right_raw if isinstance(right_raw, dict) else {"content": right_raw}
+    left = _parse_config_document(service, left_snapshot.content)
+    right = _parse_config_document(service, right_snapshot.content)
 
     differences: list[dict[str, Any]] = []
     for key in sorted(set(left) | set(right)):
@@ -198,87 +294,27 @@ def compare_config_snapshots(
 
 
 def _read_remote_config_content(service: ServiceInstance) -> tuple[str | None, str | None]:
-    """Return (content, error) from a mounted file or the declared node."""
-    import subprocess
-    from pathlib import Path
-
+    """Read the declared runtime file from the service's node, never the API host."""
     contract = _merged_service_contract(service)
-    config_files = list(contract.get("config_files") or [])
     runtime_path = str(contract.get("runtime_config_path") or contract.get("config_path") or "")
-    candidates: list[str] = []
-    for p in config_files:
-        if p:
-            candidates.append(str(p))
-    if runtime_path:
-        candidates.append(runtime_path)
-    volume_root = getattr(service.node, "volume_root", None) or "/tmp/platformops"
-    if not candidates:
-        candidates.append(f"{volume_root.rstrip('/')}/config/{service.service_key}/config.yaml")
-
-    # 1) Host filesystem (volume mounts)
-    for config_path in candidates:
-        if config_path.startswith("/app/"):
-            continue
-        path = Path(config_path)
-        if path.is_file():
-            try:
-                return path.read_text(encoding="utf-8", errors="replace"), None
-            except Exception as exc:
-                return None, str(exc)
-
-    # 2) Read from the declared node.  Local nodes use the configured SDK
-    # engine (DOCKER_HOST in the isolated stack); remote nodes stay on SSH.
+    if not runtime_path.startswith("/"):
+        return None, "No absolute runtime_config_path is defined for this service."
     container = (service.container_name or "").strip()
-    if container:
-        in_container_paths = [p for p in candidates if p.startswith("/app/")]
-        if not in_container_paths and config_files:
-            # map host volume .../config/file -> /app/config/file when standard mount
-            for p in config_files:
-                name = Path(p).name
-                in_container_paths.append(f"/app/config/{name}")
-        if not in_container_paths:
-            in_container_paths = ["/app/config/dtrain_config.yaml", "/app/config/config.yaml"]
-        node = service.node
-        from .discovery import resolve_connection_mode
+    node = service.node
+    if not container or node is None:
+        return None, "Service container and node are required for runtime config reads."
+    from .discovery import resolve_connection_mode
 
-        connection_mode = resolve_connection_mode(node) if node is not None else "local"
-        for cpath in in_container_paths:
-            try:
-                if connection_mode == "local":
-                    from .docker_runtime import exec_container
+    connection_mode = resolve_connection_mode(node)
+    if connection_mode == "local":
+        from .docker_runtime import exec_container
 
-                    ok, output, _error = exec_container(container, ["cat", cpath])
-                    if ok and output.strip():
-                        return output, None
-                    continue
+        ok, output, error = exec_container(container, ["cat", runtime_path])
+        return (output, None) if ok else (None, error or "runtime config read failed")
 
-                if not node.host:
-                    continue
-                command = [
-                    "ansible",
-                    f"{node.host},",
-                    "-m",
-                    "command",
-                    "-a",
-                    f"docker exec {container} cat {cpath}",
-                    "-u",
-                    node.ssh_user or "ubuntu",
-                ]
-                if node.ssh_key_path:
-                    command.extend(["--private-key", node.ssh_key_path])
-                proc = subprocess.run(
-                    command,
-                    cwd=str(settings.project_root),
-                    capture_output=True,
-                    text=True,
-                    timeout=20,
-                )
-                if proc.returncode == 0 and (proc.stdout or "").strip():
-                    return proc.stdout, None
-            except Exception:
-                continue
-
-    return None, f"Config file not found (tried host paths + node container exec on {container or 'n/a'})"
+    if not node.host:
+        return None, "Remote node host is not configured."
+    return _remote_read_container_file(node, container, runtime_path)
 
 
 def detect_drift(db: Session, service: ServiceInstance) -> DriftReport:
@@ -314,29 +350,19 @@ def detect_drift(db: Session, service: ServiceInstance) -> DriftReport:
         )
     elif (latest_snapshot.content or "").strip() != (live_content or "").strip():
         try:
-            expected = yaml.safe_load(latest_snapshot.content) or {}
-            actual = yaml.safe_load(live_content) or {}
-            if isinstance(expected, dict) and isinstance(actual, dict):
-                for key in sorted(set(expected) | set(actual)):
-                    if expected.get(key) != actual.get(key):
-                        differences.append(
-                            {
-                                "field": key,
-                                "expected": expected.get(key),
-                                "actual": actual.get(key),
-                                "severity": "warning",
-                            }
-                        )
-            else:
-                differences.append(
-                    {
-                        "field": "_content",
-                        "expected": "matches snapshot",
-                        "actual": "differs",
-                        "severity": "warning",
-                    }
-                )
-        except Exception:
+            expected = _parse_config_document(service, latest_snapshot.content)
+            actual = _parse_config_document(service, live_content)
+            for key in sorted(set(expected) | set(actual)):
+                if expected.get(key) != actual.get(key):
+                    differences.append(
+                        {
+                            "field": key,
+                            "expected": expected.get(key),
+                            "actual": actual.get(key),
+                            "severity": "warning",
+                        }
+                    )
+        except (TypeError, ValueError, yaml.YAMLError):
             differences.append(
                 {
                     "field": "_content",
@@ -391,14 +417,12 @@ def _merged_service_contract(service: ServiceInstance) -> dict[str, Any]:
             instance = {}
     except Exception:
         instance = {}
-    merged = dict(catalog)
+    nonempty_instance: dict[str, Any] = {}
     for k, v in instance.items():
         if v is None or v == "" or v == [] or v == {}:
             continue
-        if isinstance(v, dict) and isinstance(merged.get(k), dict):
-            merged[k] = {**merged[k], **v}
-        else:
-            merged[k] = v
+        nonempty_instance[k] = v
+    merged = _deep_merge_dict(catalog, nonempty_instance)
     # Ensure config_files from catalog when instance empty
     if not merged.get("config_files") and catalog.get("config_files"):
         merged["config_files"] = catalog["config_files"]
@@ -409,12 +433,12 @@ def _merged_service_contract(service: ServiceInstance) -> dict[str, Any]:
 
 def current_config(service: ServiceInstance) -> str:
     contract = _merged_service_contract(service)
-    if contract.get("rendered_config_content"):
-        return str(contract.get("rendered_config_content"))
     # Prefer real file on disk / in container
     remote_content, remote_err = _read_remote_config_content(service)
     if remote_content is not None and remote_content.strip():
         return remote_content
+    if contract.get("rendered_config_content"):
+        return str(contract.get("rendered_config_content"))
     rendered = {
         "service": service.name,
         "service_key": service.service_key,
@@ -439,7 +463,7 @@ def config_capabilities_for_service(service: ServiceInstance) -> dict[str, Any]:
         if config_files
         else (contract.get("runtime_config_path") or contract.get("config_path") or "")
     )
-    has_config_surface = bool(config_files or contract.get("runtime_config_path") or contract.get("environment") or contract.get("command"))
+    has_config_surface = bool(config_path and service.container_name and service.node is not None)
     restart_required = kind in {"infrastructure", "helper"} or service.service_key.startswith("dtrain")
     disabled_reason = ""
     if not has_config_surface:
@@ -448,6 +472,7 @@ def config_capabilities_for_service(service: ServiceInstance) -> dict[str, Any]:
         "snapshot_enabled": has_config_surface,
         "apply_enabled": has_config_surface,
         "restore_enabled": has_config_surface,
+        "migration_enabled": has_config_surface,
         "restart_required": restart_required,
         "config_path": config_path,
         "disabled_reason": disabled_reason,
@@ -455,14 +480,50 @@ def config_capabilities_for_service(service: ServiceInstance) -> dict[str, Any]:
     }
 
 
+def prepare_config_runtime_target(service: ServiceInstance) -> tuple[bool, str]:
+    """Ensure a local DinD file bind has a real engine-visible source file."""
+
+    from .discovery import resolve_connection_mode
+
+    if service.node is None or resolve_connection_mode(service.node) != "local":
+        return True, "remote target is prepared by Ansible on its own host"
+    contract = _merged_service_contract(service)
+    runtime_path = str(contract.get("runtime_config_path") or contract.get("config_path") or "")
+    if not runtime_path.startswith("/"):
+        return False, "No absolute runtime config path is defined."
+    source_path = ""
+    for volume in contract.get("volumes") or []:
+        parts = str(volume).split(":")
+        if len(parts) >= 2 and parts[1] == runtime_path:
+            source_path = parts[0]
+            break
+    if not source_path:
+        return True, f"No exact file bind maps to runtime config path {runtime_path}; no DinD staging needed."
+    initial_content = str(contract.get("rendered_config_content") or "")
+    if not initial_content:
+        initial_content = (
+            "# Managed by PlatformOps.\n"
+            if _config_format(service) == "redis"
+            else "# Managed by PlatformOps. Replace with service-specific config.\n"
+        )
+    from .docker_runtime import ensure_engine_host_file
+
+    return ensure_engine_host_file(
+        source_path,
+        initial_content,
+        helper_image="redis:7-alpine",
+    )
+
+
 def config_workspace(db: Session, service: ServiceInstance, *, source: str = "live") -> dict[str, Any]:
     snapshot_page = list_config_snapshots_page(db, service, limit=100, offset=0, source_filter="all", search="")
     snapshots = snapshot_page["items"]
     capabilities = config_capabilities_for_service(service)
     active_checkpoint = snapshots[0] if snapshots else None
-    content = current_config(service)
-    content_source = "live"
-    message = "Loaded live service config."
+    live_content, live_error = _read_remote_config_content(service)
+    content = live_content if live_content is not None else current_config(service)
+    content_source = "live" if live_content is not None else "runtime_unavailable"
+    message = "Loaded live service config." if live_content is not None else f"Runtime read failed: {live_error}"
     if source == "latest_snapshot":
         latest = snapshots[0] if snapshots else None
         if latest is not None:
@@ -503,9 +564,13 @@ def config_workspace(db: Session, service: ServiceInstance, *, source: str = "li
         "snapshot_count": len(snapshots),
         "active_checkpoint": active_checkpoint,
         "drift_state": drift_state,
-        "config_source_label": "Latest checkpoint" if content_source == "latest_snapshot" else "Live config",
+        "config_source_label": "Latest checkpoint" if content_source == "latest_snapshot" else ("Live config" if content_source == "live" else "Runtime unavailable"),
         "config_path": cfg_path,
         "file_label": f"{service.container_name}/{Path(str(cfg_path)).name}",
+        "content_hash": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+        "config_format": _config_format(service),
+        "live_read_ok": live_content is not None,
+        "live_read_error": live_error or "",
         "config_capabilities": capabilities,
         "runtime_target": {
             "container_name": service.container_name,
@@ -543,19 +608,24 @@ def prepare_config_migration(
     left_snapshot: ConfigSnapshot,
     right_snapshot: ConfigSnapshot,
 ) -> dict[str, Any]:
+    _require_config_capability(service, "migration_enabled")
     if left_snapshot.service_id != service.id or right_snapshot.service_id != service.id:
         raise ValueError("Selected snapshots must belong to the active service.")
     try:
-        left_data = yaml.safe_load(left_snapshot.content) or {}
-        right_data = yaml.safe_load(right_snapshot.content) or {}
-    except Exception as exc:
+        left_data = _parse_config_document(service, left_snapshot.content)
+        right_data = _parse_config_document(service, right_snapshot.content)
+    except (TypeError, ValueError, yaml.YAMLError) as exc:
         raise ValueError(f"Unable to parse selected snapshots: {exc}") from exc
     merged = copy.deepcopy(left_data if isinstance(left_data, dict) else {"value": left_data})
     if isinstance(right_data, dict):
         merged = _deep_merge_dict(merged, right_data)
     else:
         merged = {"value": right_data}
-    merged_yaml = yaml.safe_dump(merged, sort_keys=False)
+    merged_yaml = (
+        _merge_redis_config_text(left_snapshot.content, right_snapshot.content)
+        if _config_format(service) == "redis"
+        else yaml.safe_dump(merged, sort_keys=False)
+    )
     compare = compare_config_snapshots(db, service, left_snapshot=left_snapshot, right_snapshot=right_snapshot)
     artifact_id = f"{int(datetime.utcnow().timestamp())}-{left_snapshot.id}-{right_snapshot.id}"
     artifact_payload = {
@@ -571,7 +641,13 @@ def prepare_config_migration(
     _migration_artifact_path(service.id, artifact_id).write_text(
         json.dumps(artifact_payload, indent=2), encoding="utf-8"
     )
-    validation = validate_config(merged_yaml)
+    validation = validate_config(merged_yaml, service=service)
+    record_event(
+        db, category="config", level="info",
+        message=f"Prepared config migration artifact {artifact_id} for {service.name}",
+        service_id=service.id, node_id=service.node_id,
+        metadata={"action": "migration_prepared", "artifact_id": artifact_id},
+    )
     return {
         "artifact_id": artifact_id,
         "left_snapshot": get_config_snapshot_detail(db, left_snapshot),
@@ -599,17 +675,22 @@ def apply_config_direct(
     apply_mode: str,
     requested_by: str = "platform-operator",
 ) -> dict[str, Any]:
-    validation = validate_config(content)
+    _require_config_capability(service, "apply_enabled")
+    validation = validate_config(content, service=service)
     if not validation["ok"]:
         raise ValueError(validation["message"])
     before = create_config_snapshot(db, service, source="pre-apply", requested_by=requested_by)
-    job = apply_config(db, service, content=content, apply_mode=apply_mode)
-    contract = json.loads(service.config_json or "{}")
-    contract["rendered_config_content"] = content
-    service.config_json = json.dumps(contract)
-    db.commit()
-    db.refresh(service)
-    after = create_config_snapshot(db, service, source="post-apply", requested_by=requested_by)
+    job = apply_config(db, service, content=content, apply_mode=apply_mode, requested_by=requested_by)
+    after = None
+    if job.status == "success":
+        db.refresh(service)
+        after = create_config_snapshot(
+            db,
+            service,
+            source="post-apply",
+            requested_by=requested_by,
+            content_override=content,
+        )
     return {"job": job, "before_snapshot": before, "after_snapshot": after}
 
 
@@ -625,17 +706,18 @@ def apply_config_migration(
     artifact = _load_migration_artifact(service.id, artifact_id)
     final_yaml = edited_yaml.strip() or str(artifact.get("final_yaml") or "")
     result = apply_config_direct(db, service, content=final_yaml, apply_mode=apply_mode, requested_by=requested_by)
-    artifact["applied_at"] = datetime.utcnow().isoformat() + "Z"
-    artifact["backup_snapshot_id"] = result["before_snapshot"].id
-    artifact["resolved_config_path"] = config_capabilities_for_service(service).get("config_path") or ""
-    artifact["apply_mode"] = apply_mode
-    _migration_artifact_path(service.id, artifact_id).write_text(json.dumps(artifact, indent=2), encoding="utf-8")
+    if result["job"].status == "success":
+        artifact["applied_at"] = datetime.utcnow().isoformat() + "Z"
+        artifact["backup_snapshot_id"] = result["before_snapshot"].id
+        artifact["resolved_config_path"] = config_capabilities_for_service(service).get("config_path") or ""
+        artifact["apply_mode"] = apply_mode
+        _migration_artifact_path(service.id, artifact_id).write_text(json.dumps(artifact, indent=2), encoding="utf-8")
     return {
         "artifact_id": artifact_id,
         "service_id": service.id,
         "job": result["job"],
         "backup_snapshot_id": result["before_snapshot"].id,
-        "resolved_config_path": artifact["resolved_config_path"],
+        "resolved_config_path": artifact.get("resolved_config_path", ""),
         "apply_mode": apply_mode,
         "applied_content": final_yaml,
     }
@@ -742,7 +824,9 @@ def create_config_snapshot(
     name: str | None = None,
     source: str = "manual",
     requested_by: str = "platform-operator",
+    content_override: str | None = None,
 ) -> ConfigSnapshot:
+    _require_config_capability(service, "snapshot_enabled")
     latest_version = db.scalar(
         select(ConfigSnapshot.version)
         .where(ConfigSnapshot.service_id == service.id)
@@ -762,11 +846,16 @@ def create_config_snapshot(
     while final_name.casefold() in existing_names:
         final_name = f"{requested_name}-v{duplicate_counter}"
         duplicate_counter += 1
+    live_content = content_override
+    if live_content is None:
+        live_content, live_error = _read_remote_config_content(service)
+        if live_content is None:
+            raise ValueError(f"Cannot snapshot unavailable runtime config: {live_error}")
     snapshot = ConfigSnapshot(
         service_id=service.id,
         version=version,
         name=final_name,
-        content=current_config(service),
+        content=live_content,
         source=source,
     )
     db.add(snapshot)
@@ -834,6 +923,9 @@ def rename_config_snapshot(
 
 
 def restore_config_snapshot(db: Session, service: ServiceInstance, snapshot: ConfigSnapshot) -> DeploymentJob:
+    _require_config_capability(service, "restore_enabled")
+    if snapshot.service_id != service.id:
+        raise ValueError("Config snapshot does not belong to the selected service.")
     service_id = int(service.id)
     node_id = int(service.node_id) if service.node_id else None
     snapshot_version = int(snapshot.version)
@@ -849,8 +941,16 @@ def restore_config_snapshot(db: Session, service: ServiceInstance, snapshot: Con
         )
         return finish_job(db, job, ok=False, error=validation["message"])
 
-    # Directly execute apply_config with restart apply_mode
-    job = apply_config(db, service, content=snapshot_content, apply_mode="restart")
+    # The verified apply path owns write, lifecycle check, health verification,
+    # persistence, and rollback. A failed restore must not start a second path.
+    result = apply_config_direct(
+        db,
+        service,
+        content=snapshot_content,
+        apply_mode="restart",
+        requested_by="platform-operator",
+    )
+    job = result["job"]
     if job.status == "success":
         record_event(
             db,
@@ -861,66 +961,15 @@ def restore_config_snapshot(db: Session, service: ServiceInstance, snapshot: Con
             node_id=node_id,
             metadata={"job_id": job.id, "snapshot_version": snapshot_version},
         )
-        return job
-
-    # If direct apply didn't complete immediately, use async runner with detached-safe callback
-    runtime_dir = settings.resolve(settings.runtime_dir)
-    runtime_dir.mkdir(parents=True, exist_ok=True)
-    temp_yaml = runtime_dir / f"config-restore-{service_id}-{int(datetime.utcnow().timestamp())}.yml"
-    temp_yaml.write_text(snapshot_content, encoding="utf-8")
-
-    if not settings.local_mode:
-        script_path = settings.resolve(settings.ansible_dir) / "playbooks" / "service_config_apply.sh"
-        command = (
-            f"bash {script_path} "
-            f"--container-name {service.container_name} "
-            f"--config-yaml {temp_yaml} "
-            f"--service-name {service.service_key} "
-            f"--apply-mode restart"
-        )
-        job = create_job(db, action="restore-config", command=command, service_id=service_id, node_id=node_id)
-
-        def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
-            bg_service = bg_db.get(ServiceInstance, service_id)
-            if bg_service:
-                if ok:
-                    with contextlib.suppress(Exception):
-                        bg_service.config_json = json.dumps(yaml.safe_load(snapshot_content))
-                        bg_db.add(bg_service)
-                        bg_db.commit()
-                record_event(
-                    bg_db,
-                    category="config",
-                    level="info" if ok else "error",
-                    message=f"Restored configuration to snapshot version {snapshot_version} for {service_name}"
-                    if ok
-                    else f"Configuration restore failed for {service_name}",
-                    service_id=service_id,
-                    node_id=node_id,
-                    metadata={"job_id": bg_job.id},
-                )
-
-        return run_job_async(db, job, cwd=settings.project_root, on_complete=on_complete)
-
-    job = create_job(
-        db,
-        action="restore-config",
-        command=f"restore-snapshot-{snapshot.version}",
-        service_id=service.id,
-        node_id=service.node_id,
-    )
-    return finish_job(
-        db,
-        job,
-        ok=False,
-        error=(
-            "Config restore requires a real node target. "
-            "Set PLATFORMOPS_LOCAL_MODE=false and configure SSH/Ansible for the service node."
-        ),
-    )
+    return job
 
 
 def validate_config(content: str, service: ServiceInstance | None = None) -> dict[str, Any]:
+    if _config_format(service) == "redis":
+        _parsed, errors = _parse_redis_config(content)
+        if errors:
+            return {"ok": False, "message": " ".join(errors)}
+        return {"ok": True, "message": "Redis configuration validated successfully."}
     try:
         parsed = yaml.safe_load(content)
         if parsed is None:
@@ -950,161 +999,384 @@ def validate_config(content: str, service: ServiceInstance | None = None) -> dic
         return {"ok": False, "message": f"YAML syntax error: {exc}"}
 
 
-def apply_config(db: Session, service: ServiceInstance, *, content: str, apply_mode: str) -> DeploymentJob:
-    import subprocess
-    from pathlib import Path
+_REDIS_CONFIG_GET_DIRECTIVES = {
+    "appendfsync",
+    "appendonly",
+    "databases",
+    "loglevel",
+    "maxmemory",
+    "maxmemory-policy",
+    "tcp-keepalive",
+    "timeout",
+}
 
+
+def _ansible_target_args(node: Any) -> tuple[list[str] | None, str | None, tuple[str, ...]]:
+    """Build a safe explicit one-host inventory for an SSH node."""
+
+    host = str(getattr(node, "host", "") or "").strip()
+    if not host:
+        return None, "Remote node host is not configured.", ()
+    valid_host = False
+    with contextlib.suppress(ValueError):
+        valid_host = ipaddress.ip_address(host).version == 4
+    if not valid_host:
+        valid_host = (
+            len(host) <= 253
+            and all(
+                label
+                and len(label) <= 63
+                and re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?", label)
+                for label in host.rstrip(".").split(".")
+            )
+        )
+    if not valid_host:
+        return None, "Remote node host must be a safe IPv4 address or DNS name.", ()
+    user = str(getattr(node, "ssh_user", "") or "ubuntu").strip()
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]{0,118}", user):
+        return None, "Remote SSH user contains unsafe characters.", ()
+    key = str(getattr(node, "ssh_key_path", "") or "").strip()
+    if key and not Path(key).is_file():
+        return None, "Configured remote SSH key is not readable.", (key,)
+    facts: dict[str, Any] = {}
+    with contextlib.suppress(TypeError, json.JSONDecodeError):
+        parsed = json.loads(getattr(node, "facts_json", "") or "{}")
+        if isinstance(parsed, dict):
+            facts = parsed
+    raw_port = facts.get("ssh_port", facts.get("ansible_port", 22))
+    try:
+        port = int(raw_port)
+    except (TypeError, ValueError):
+        return None, "Configured remote SSH port is invalid.", (key,)
+    if not 1 <= port <= 65535:
+        return None, "Configured remote SSH port is invalid.", (key,)
+    options = str(facts.get("ssh_options") or facts.get("ansible_ssh_common_args") or "").strip()
+    if len(options) > 1000 or "\x00" in options or "\n" in options or "\r" in options:
+        return None, "Configured remote SSH options are invalid.", (key, options)
+    args = [host, "-i", f"{host},", "-u", user, "-e", f"ansible_port={port}"]
+    if key:
+        args.extend(["--private-key", key])
+    if options:
+        args.extend(["--ssh-common-args", options])
+    return args, None, (key, options)
+
+
+def _ansible_ad_hoc(node: Any, module: str, module_args: str, *, timeout: int = 90) -> tuple[bool, str, str]:
+    """Run one target-bound Ansible module and read its machine result."""
+    import subprocess
+
+    target_args, target_error, redactions = _ansible_target_args(node)
+    if target_args is None:
+        return False, "", target_error or "Remote Ansible target is invalid."
+    if not re.fullmatch(r"[A-Za-z0-9_.]+", module):
+        return False, "", "Ansible module name contains unsafe characters."
+    result_dir = Path(tempfile.mkdtemp(prefix="platformops-ansible-result-"))
+    command = [
+        "ansible",
+        *target_args,
+        "-m",
+        module,
+        "-a",
+        module_args,
+        "--tree",
+        str(result_dir),
+    ]
+    try:
+        proc = subprocess.run(
+            command,
+            cwd=str(settings.project_root),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        result_files = [path for path in result_dir.iterdir() if path.is_file()]
+        if not result_files:
+            error = redact_text(
+                (proc.stderr or proc.stdout or "Ansible returned no target result.").strip(),
+                secrets=redactions,
+            )
+            return False, "", error[:1000]
+        payload = json.loads(result_files[0].read_text(encoding="utf-8"))
+        if isinstance(payload.get("content"), str):
+            with contextlib.suppress(json.JSONDecodeError):
+                payload = json.loads(payload["content"])
+        stdout = str(payload.get("stdout") or "")
+        stderr = str(payload.get("stderr") or payload.get("msg") or "")
+        failed = bool(payload.get("failed")) or int(payload.get("rc") or 0) != 0 or proc.returncode != 0
+        return (not failed), stdout, redact_text(stderr, secrets=redactions)[:1000]
+    except Exception as exc:
+        return False, "", redact_text(f"Ansible {module} failed: {exc}", secrets=redactions)
+    finally:
+        shutil.rmtree(result_dir, ignore_errors=True)
+
+
+def _remote_exec_container(node: Any, container: str, args: list[str]) -> tuple[bool, str, str]:
+    command = " ".join(shlex.quote(part) for part in ["docker", "exec", container, *args])
+    return _ansible_ad_hoc(node, "command", command)
+
+
+def _remote_read_container_file(node: Any, container: str, path: str) -> tuple[str | None, str | None]:
+    ok, encoded, error = _remote_exec_container(node, container, ["base64", path])
+    if not ok:
+        return None, error or "Remote runtime config read failed."
+    try:
+        return base64.b64decode("".join(encoded.split()), validate=True).decode("utf-8"), None
+    except (ValueError, UnicodeDecodeError) as exc:
+        return None, f"Remote runtime config was not valid UTF-8/base64: {exc}"
+
+
+def _remote_write_container_file(node: Any, container: str, path: str, content: str) -> tuple[bool, str]:
+    if not path.startswith("/"):
+        return False, "absolute runtime config path is required"
+    local_path = ""
+    remote_stage = f"/tmp/platformops-config-{hashlib.sha256(content.encode('utf-8')).hexdigest()[:16]}"
+    container_stage = f"{path}.platformops-stage"
+    try:
+        with tempfile.NamedTemporaryFile(mode="wb", prefix="platformops-config-", delete=False) as handle:
+            handle.write(content.encode("utf-8"))
+            local_path = handle.name
+        copy_args = f"src={shlex.quote(local_path)} dest={shlex.quote(remote_stage)} mode=0644"
+        copied, _output, copy_error = _ansible_ad_hoc(node, "copy", copy_args)
+        if not copied:
+            return False, f"remote stage copy failed: {copy_error}"
+        preserve_and_replace = (
+            f"set -- $(stat -c '%a %u %g' {shlex.quote(path)}) && "
+            f"chmod \"$1\" {shlex.quote(container_stage)} && "
+            f"chown \"$2:$3\" {shlex.quote(container_stage)} && "
+            f"mv -f {shlex.quote(container_stage)} {shlex.quote(path)}"
+        )
+        inspect_command = f"docker inspect {shlex.quote(container)}"
+        running_parser = (
+            "import json,sys; data=json.load(sys.stdin)[0]; "
+            "print('true' if data['State']['Running'] else 'false')"
+        )
+        mount_parser = (
+            "import json,sys; data=json.load(sys.stdin)[0]; target=sys.argv[1]; "
+            "print(next((m.get('Source','') for m in data.get('Mounts',[]) "
+            "if m.get('Type')=='bind' and m.get('Destination')==target),''))"
+        )
+        image_parser = "import json,sys; print(json.load(sys.stdin)[0]['Config']['Image'])"
+        in_place_replace = (
+            f"cat {shlex.quote(container_stage)} > {shlex.quote(path)} && "
+            f"rm -f {shlex.quote(container_stage)}"
+        )
+        helper_replace = "test -f /platformops-target && cat /platformops-stage > /platformops-target"
+        operation = (
+            f"running=$({inspect_command} | python3 -c {shlex.quote(running_parser)}) && "
+            f"mount_source=$({inspect_command} | python3 -c {shlex.quote(mount_parser)} {shlex.quote(path)}) && "
+            f"if [ \"$running\" = true ]; then "
+            f"docker cp {shlex.quote(remote_stage)} {shlex.quote(container + ':' + container_stage)} && "
+            f"if [ -n \"$mount_source\" ]; then "
+            f"docker exec -u 0 {shlex.quote(container)} sh -c {shlex.quote(in_place_replace)}; "
+            f"else docker exec -u 0 {shlex.quote(container)} sh -c {shlex.quote(preserve_and_replace)}; fi; "
+            f"elif [ -n \"$mount_source\" ]; then "
+            f"image=$({inspect_command} | python3 -c {shlex.quote(image_parser)}) && "
+            f"docker run --rm --user 0:0 --entrypoint sh "
+            f"-v \"$mount_source:/platformops-target\" "
+            f"-v {shlex.quote(remote_stage + ':/platformops-stage:ro')} "
+            f"\"$image\" -c {shlex.quote(helper_replace)}; "
+            f"else docker cp {shlex.quote(remote_stage)} {shlex.quote(container + ':' + path)}; fi"
+        )
+        shell_command = f"trap {shlex.quote('rm -f ' + shlex.quote(remote_stage))} EXIT; {operation}"
+        wrote, _output, write_error = _ansible_ad_hoc(node, "shell", shell_command)
+        return wrote, write_error
+    finally:
+        if local_path:
+            with contextlib.suppress(OSError):
+                Path(local_path).unlink()
+
+
+def _remote_restart_container(node: Any, container: str, *, timeout: int = 30) -> tuple[bool, str]:
+    status_parser = "import json,sys; print(json.load(sys.stdin)[0]['State']['Status'])"
+    command = " && ".join(
+        [
+            f"docker restart -t {int(timeout)} {shlex.quote(container)}",
+            f"test \"$(docker inspect {shlex.quote(container)} | python3 -c {shlex.quote(status_parser)})\" = running",
+        ]
+    )
+    restarted, _output, restart_error = _ansible_ad_hoc(node, "shell", command, timeout=timeout + 60)
+    return restarted, restart_error
+
+
+def _redis_memory_bytes(value: str) -> int | None:
+    match = re.fullmatch(r"(\d+)([kKmMgGtT])?[bB]?", value.strip())
+    if not match:
+        return None
+    multiplier = {None: 1, "k": 1024, "m": 1024**2, "g": 1024**3, "t": 1024**4}[match.group(2).lower() if match.group(2) else None]
+    return int(match.group(1)) * multiplier
+
+
+def _verify_redis_runtime(
+    container: str,
+    content: str,
+    exec_runtime: Any,
+) -> tuple[bool, str]:
+    ping_ok, ping_output, ping_error = exec_runtime(container, ["redis-cli", "--raw", "PING"])
+    if not ping_ok or ping_output.strip().upper() != "PONG":
+        return False, f"Redis PING failed: {ping_error or ping_output.strip() or 'no PONG'}"
+    parsed, errors = _parse_redis_config(content)
+    if errors:
+        return False, "Redis verification parse failed: " + " ".join(errors)
+    for directive in sorted(_REDIS_CONFIG_GET_DIRECTIVES.intersection(parsed)):
+        ok, output, error = exec_runtime(container, ["redis-cli", "--raw", "CONFIG", "GET", directive])
+        if not ok:
+            return False, f"Redis CONFIG GET {directive} failed: {error or output.strip()}"
+        lines = output.splitlines()
+        if len(lines) < 2 or lines[0].strip().lower() != directive:
+            return False, f"Redis CONFIG GET {directive} returned an unexpected response."
+        expected = str(parsed[directive]).strip().strip('"\'')
+        actual = lines[1].strip()
+        matches = (
+            _redis_memory_bytes(expected) == _redis_memory_bytes(actual)
+            if directive == "maxmemory"
+            else expected.casefold() == actual.casefold()
+        )
+        if not matches:
+            return False, f"Redis CONFIG GET {directive} mismatch: expected {expected!r}, got {actual!r}."
+    return True, "Redis PONG and applicable CONFIG GET values verified."
+
+
+def _persist_verified_config(db: Session, service: ServiceInstance, content: str) -> None:
+    try:
+        contract = json.loads(service.config_json or "{}")
+    except json.JSONDecodeError:
+        contract = {}
+    if not isinstance(contract, dict):
+        contract = {}
+    contract["rendered_config_content"] = content
+    service.config_json = json.dumps(contract)
+    db.add(service)
+    db.commit()
+    db.refresh(service)
+
+
+def apply_config(
+    db: Session,
+    service: ServiceInstance,
+    *,
+    content: str,
+    apply_mode: str,
+    requested_by: str = "platform-operator",
+) -> DeploymentJob:
+    _require_config_capability(service, "apply_enabled")
     validation = validate_config(content, service=service)
     service_id = int(service.id)
     node_id = int(service.node_id) if service.node_id else None
-    if not validation["ok"]:
-        job = create_job(
-            db, action="apply-config-blocked", command="validate-yaml", service_id=service_id, node_id=node_id
-        )
-        return finish_job(db, job, ok=False, error=validation["message"])
-
-    # Write config to a temporary yaml file under data/runtime/
-    runtime_dir = settings.resolve(settings.runtime_dir)
-    runtime_dir.mkdir(parents=True, exist_ok=True)
-    temp_yaml = runtime_dir / f"config-apply-{service_id}-{int(datetime.utcnow().timestamp())}.yml"
-    temp_yaml.write_text(content, encoding="utf-8")
-
-    # Always try host path + docker cp so apply works without relying on LOCAL_MODE alone
-    contract = _merged_service_contract(service)
-    host_paths = [str(p) for p in (contract.get("config_files") or []) if p and not str(p).startswith("/app/")]
-    runtime_in_container = str(contract.get("runtime_config_path") or "")
-    wrote_host = False
-    write_log: list[str] = []
-    for hp in host_paths:
-        try:
-            path = Path(hp)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(content, encoding="utf-8")
-            wrote_host = True
-            write_log.append(f"wrote_host:{hp}")
-        except Exception as exc:
-            write_log.append(f"host_fail:{hp}:{exc}")
-
-    container = (service.container_name or "").strip()
-    if container:
-        targets = []
-        if runtime_in_container:
-            targets.append(runtime_in_container)
-        for hp in host_paths:
-            targets.append(f"/app/config/{Path(hp).name}")
-        if not targets:
-            targets = ["/app/config/dtrain_config.yaml"]
-        for target in targets:
-            try:
-                # ensure dir exists then docker cp
-                subprocess.run(
-                    ["docker", "exec", container, "mkdir", "-p", str(Path(target).parent)],
-                    capture_output=True,
-                    text=True,
-                    timeout=15,
-                )
-                proc = subprocess.run(
-                    ["docker", "cp", str(temp_yaml), f"{container}:{target}"],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
-                if proc.returncode == 0:
-                    write_log.append(f"docker_cp:{target}")
-                    if apply_mode in {"restart", "reload"}:
-                        subprocess.run(
-                            ["docker", "restart", container],
-                            capture_output=True,
-                            text=True,
-                            timeout=60,
-                        )
-                        write_log.append(f"restarted:{container}")
-                    break
-                write_log.append(f"docker_cp_fail:{target}:{(proc.stderr or proc.stdout or '')[:120]}")
-            except Exception as exc:
-                write_log.append(f"docker_exc:{exc}")
-
-    # Prefer direct host/docker write when it already succeeded (API shares host docker socket).
-    # Do not mark failure solely because the ansible helper script is unavailable (e.g. no sudo).
-    wrote_ok = any(x.startswith("wrote_host:") or x.startswith("docker_cp:") for x in write_log)
-    if wrote_ok:
-        job = create_job(
-            db,
-            action="apply-config",
-            command=f"direct-config-apply mode={apply_mode} log={';'.join(write_log)}",
-            service_id=service_id,
-            node_id=node_id,
-        )
-        with contextlib.suppress(Exception):
-            cfg = json.loads(service.config_json or "{}")
-            if not isinstance(cfg, dict):
-                cfg = {}
-            cfg["rendered_config_content"] = content
-            service.config_json = json.dumps(cfg)
-            db.add(service)
-            db.commit()
-        record_event(
-            db,
-            category="config",
-            level="info",
-            message=f"Applied configuration change to {service.name} ({apply_mode})",
-            service_id=service_id,
-            node_id=node_id,
-            metadata={"write_log": write_log, "apply_mode": apply_mode, "path": "direct"},
-        )
-        return finish_job(db, job, ok=True, output=";".join(write_log))
-
-    if not settings.local_mode:
-        script_path = settings.resolve(settings.ansible_dir) / "playbooks" / "service_config_apply.sh"
-        command = (
-            f"bash {script_path} "
-            f"--container-name {service.container_name} "
-            f"--config-yaml {temp_yaml} "
-            f"--service-name {service.service_key} "
-            f"--apply-mode {apply_mode}"
-        )
-        job = create_job(db, action="apply-config", command=command, service_id=service_id, node_id=node_id)
-
-        def on_complete(bg_db: Session, bg_job: DeploymentJob, ok: bool):
-            bg_service = bg_db.get(ServiceInstance, service_id)
-            if bg_service:
-                if ok:
-                    with contextlib.suppress(Exception):
-                        cfg = json.loads(bg_service.config_json or "{}")
-                        if not isinstance(cfg, dict):
-                            cfg = {}
-                        cfg["rendered_config_content"] = content
-                        bg_service.config_json = json.dumps(cfg)
-                        bg_db.add(bg_service)
-                record_event(
-                    bg_db,
-                    category="config",
-                    level="info" if ok else "error",
-                    message=f"Applied configuration change to {bg_service.name} ({apply_mode})"
-                    if ok
-                    else f"Configuration apply failed for {bg_service.name}",
-                    service_id=service_id,
-                    node_id=node_id,
-                    metadata={"job_id": bg_job.id, "write_log": write_log},
-                )
-
-        return run_job_async(db, job, cwd=settings.project_root, on_complete=on_complete)
-
-    # Fallback when neither direct write nor ansible path applied
+    normalized_mode = apply_mode.strip().lower()
+    if normalized_mode not in {"reload", "restart"}:
+        validation = {"ok": False, "message": "apply_mode must be 'reload' or 'restart'."}
     job = create_job(
         db,
         action="apply-config",
-        command=f"direct-config-apply mode={apply_mode} log={';'.join(write_log)}",
+        command=f"verified-runtime-config-apply mode={normalized_mode or apply_mode}",
         service_id=service_id,
         node_id=node_id,
     )
-    return finish_job(
-        db,
-        job,
-        ok=False,
-        error=(
-            "Config apply could not write host path or docker container. "
-            f"log={';'.join(write_log) or 'empty'}"
-        ),
-        output="\n".join(write_log),
-    )
+    if not validation["ok"]:
+        record_event(
+            db, category="config", level="error",
+            message=f"Configuration apply rejected for {service.name}",
+            service_id=service_id, node_id=node_id,
+            metadata={"action": "apply_failed", "actor": requested_by, "apply_mode": normalized_mode, "error": validation["message"]},
+        )
+        return finish_job(db, job, ok=False, error=validation["message"])
+    contract = _merged_service_contract(service)
+    runtime_path = str(contract.get("runtime_config_path") or contract.get("config_path") or "")
+    container = (service.container_name or "").strip()
+    from .discovery import resolve_connection_mode
+
+    mode = resolve_connection_mode(service.node)
+    if mode == "local":
+        from .docker_runtime import exec_container, restart_container, write_container_file
+
+        exec_runtime = exec_container
+        write_runtime = write_container_file
+        restart_runtime = restart_container
+
+        def read_runtime(target_container: str, target_path: str) -> tuple[bool, str, str]:
+            return exec_container(target_container, ["cat", target_path])
+    else:
+        node = service.node
+
+        def exec_runtime(target_container: str, args: list[str]) -> tuple[bool, str, str]:
+            return _remote_exec_container(node, target_container, args)
+
+        def write_runtime(target_container: str, target_path: str, target_content: str) -> tuple[bool, str]:
+            return _remote_write_container_file(node, target_container, target_path, target_content)
+
+        def restart_runtime(target_container: str, *, timeout: int = 30) -> tuple[bool, str]:
+            return _remote_restart_container(node, target_container, timeout=timeout)
+
+        def read_runtime(target_container: str, target_path: str) -> tuple[bool, str, str]:
+            remote_content, remote_error = _remote_read_container_file(node, target_container, target_path)
+            return (True, remote_content, "") if remote_content is not None else (False, "", remote_error or "remote read failed")
+
+    read_ok, previous_content, read_error = read_runtime(container, runtime_path)
+    if not read_ok:
+        error = f"Unable to capture rollback bytes before apply: {read_error or previous_content.strip()}"
+        record_event(db, category="config", level="error", message=f"Configuration apply failed for {service.name}", service_id=service_id, node_id=node_id, metadata={"action": "apply_failed", "actor": requested_by, "stage": "pre_read", "error": error})
+        return finish_job(db, job, ok=False, error=error)
+
+    wrote = False
+    error = ""
+    checks: list[str] = []
+    ok, write_error = write_runtime(container, runtime_path, content)
+    if not ok:
+        error = f"Runtime config write failed: {write_error}"
+    else:
+        wrote = True
+        verify_ok, live_content, verify_error = read_runtime(container, runtime_path)
+        if not verify_ok or live_content.encode("utf-8") != content.encode("utf-8"):
+            error = f"Runtime file byte verification failed: {verify_error or 'content mismatch'}"
+        else:
+            checks.append("runtime_bytes=verified")
+    if not error:
+        restarted, restart_error = restart_runtime(container)
+        if not restarted:
+            error = f"Runtime {normalized_mode} check failed: {restart_error}"
+        else:
+            checks.append(f"{normalized_mode}=verified")
+    if not error and _config_format(service) == "redis":
+        redis_ok, redis_message = _verify_redis_runtime(container, content, exec_runtime)
+        if not redis_ok:
+            error = redis_message
+        else:
+            checks.append("redis_runtime=verified")
+
+    rollback_details = "not_needed"
+    if error and wrote:
+        rollback_ok, rollback_error = write_runtime(container, runtime_path, previous_content)
+        if rollback_ok:
+            rollback_restart_ok, rollback_restart_error = restart_runtime(container)
+            rollback_read_ok, rollback_content, rollback_read_error = read_runtime(container, runtime_path)
+            rollback_health_ok, rollback_health_error = True, ""
+            if rollback_restart_ok and rollback_read_ok and _config_format(service) == "redis":
+                ping_ok, ping_output, ping_error = exec_runtime(
+                    container,
+                    ["redis-cli", "--raw", "PING"],
+                )
+                rollback_health_ok = ping_ok and ping_output.strip().upper() == "PONG"
+                rollback_health_error = ping_error or (
+                    "Redis rollback PING did not return PONG." if not rollback_health_ok else ""
+                )
+            rollback_ok = (
+                rollback_restart_ok
+                and rollback_read_ok
+                and rollback_content == previous_content
+                and rollback_health_ok
+            )
+            rollback_error = (
+                rollback_error
+                or rollback_restart_error
+                or rollback_read_error
+                or rollback_health_error
+            )
+        rollback_details = "verified" if rollback_ok else f"failed:{rollback_error or 'rollback verification mismatch'}"
+        error = f"{error}; rollback={rollback_details}"
+    if error:
+        record_event(db, category="config", level="error", message=f"Configuration apply failed for {service.name}", service_id=service_id, node_id=node_id, metadata={"action": "apply_failed", "actor": requested_by, "stage_checks": checks, "rollback": rollback_details, "error": error})
+        return finish_job(db, job, ok=False, error=error, output=";".join(checks))
+
+    _persist_verified_config(db, service, content)
+    record_event(db, category="config", level="info", message=f"Applied verified configuration change to {service.name} ({normalized_mode})", service_id=service_id, node_id=node_id, metadata={"action": "applied", "actor": requested_by, "checks": checks, "runtime_path": runtime_path})
+    return finish_job(db, job, ok=True, output=";".join(checks))

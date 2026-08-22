@@ -16,6 +16,10 @@ export function useMonitoringState() {
   const [txSort, setTxSort] = useState("latency" as any);
   const [gtIssuesCursor, setGtIssuesCursor] = useState(null as any);
   const [gtIssuesHasMore, setGtIssuesHasMore] = useState(false as any);
+  const [gtDataStatus, setGtDataStatus] = useState("idle" as any);
+  const [gtDataError, setGtDataError] = useState(null as any);
+  const [gtDataSource, setGtDataSource] = useState("glitchtip" as any);
+  const [gtHealth, setGtHealth] = useState(null as any);
   return {
     monitoringSubTab, setMonitoringSubTab,
     gtIssues, setGtIssues,
@@ -32,5 +36,9 @@ export function useMonitoringState() {
     txSort, setTxSort,
     gtIssuesCursor, setGtIssuesCursor,
     gtIssuesHasMore, setGtIssuesHasMore,
+    gtDataStatus, setGtDataStatus,
+    gtDataError, setGtDataError,
+    gtDataSource, setGtDataSource,
+    gtHealth, setGtHealth,
   };
 }

@@ -107,8 +107,8 @@ def login():
     if r.status_code != 200:
         raise SystemExit(f"Authentication failed with HTTP {r.status_code}; refusing unauthenticated E2E mutations.")
     data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-    token = data.get("token") or data.get("access_token") or data.get("session_token")
-    if token:
+    token = data.get("token")
+    if isinstance(token, str) and token.strip():
         SESSION.headers["Authorization"] = f"Bearer {token}"
         print("🟢 Authenticated for E2E (no invite/mail flow)")
     else:
@@ -539,9 +539,16 @@ def run_tests():
     print("🟢 Observability pipeline report retrieved successfully")
 
     # 7.2 Observability Status
-    r = SESSION.get(f"{BASE_URL}/api/observability/status")
+    obs_params = {"service_id": service_id}
+    observability_marker = os.environ.get("PLATFORMOPS_OBSERVABILITY_MARKER", "").strip()
+    if observability_marker:
+        obs_params["marker"] = observability_marker
+    r = SESSION.get(f"{BASE_URL}/api/observability/status", params=obs_params)
     assert_status(r, 200)
-    print("🟢 Observability collector status verified")
+    obs_status = r.json()
+    assert obs_status.get("target", {}).get("service_id") == service_id
+    assert "signals" in obs_status and "overall_state" in obs_status
+    print(f"🟢 Observability direct probe status verified: {obs_status.get('overall_state')}")
 
     # 7.3 Node Metrics
     r = SESSION.get(f"{BASE_URL}/api/metrics/node")
@@ -565,12 +572,10 @@ def run_tests():
 
     # 7.7 Dashboard summary includes gpu_node_count
     r = SESSION.get(f"{BASE_URL}/api/dashboard/summary")
-    if r.status_code == 200:
-        summary = r.json()
-        assert "gpu_node_count" in summary, "dashboard summary missing gpu_node_count"
-        print(f"🟢 Dashboard summary gpu_node_count={summary.get('gpu_node_count')}")
-    else:
-        print(f"🟡 Dashboard summary returned HTTP {r.status_code} (env schema may need migrate); skipping gpu_node_count assert")
+    assert_status(r, 200)
+    summary = r.json()
+    assert "gpu_node_count" in summary, "dashboard summary missing gpu_node_count"
+    print(f"🟢 Dashboard summary gpu_node_count={summary.get('gpu_node_count')}")
 
     # 7.8 Node metrics schema fields
     r = SESSION.get(f"{BASE_URL}/api/nodes/{node_id}/metrics?window=1h")
@@ -624,7 +629,7 @@ def run_tests():
     else:
         chat_error = str(chat.get("error") or "")
         if "not configured" in chat_error.lower():
-            print(f"🟡 Diagnostics AI chat unavailable: optional LLM is unconfigured ({chat_error})")
+            print(f"🟢 Diagnostics AI chat explicitly unavailable by contract ({chat_error})")
         else:
             raise AssertionError(f"configured diagnostics chat failed: {chat_error or chat}")
 
@@ -632,13 +637,11 @@ def run_tests():
     r = SESSION.get(f"{BASE_URL}/api/services/{service_id}/diagnostics/archives")
     assert_status(r, 200)
     archives = r.json()
-    if archives:
-        archive_id = archives[0]["id"]
-        r = SESSION.get(f"{BASE_URL}/api/services/{service_id}/diagnostics/archives/{archive_id}/view")
-        assert_status(r, 200)
-        print(f"🟢 Archive view succeeded for archive {archive_id}")
-    else:
-        print("🟡 No archives indexed; skipping archive view")
+    assert isinstance(archives, list) and archives, "diagnostics archive index is empty"
+    archive_id = archives[0]["id"]
+    r = SESSION.get(f"{BASE_URL}/api/services/{service_id}/diagnostics/archives/{archive_id}/view")
+    assert_status(r, 200)
+    print(f"🟢 Archive view succeeded for archive {archive_id}")
 
     # 7.13 Issues cursor contract
     r = SESSION.post(
@@ -655,12 +658,11 @@ def run_tests():
                 f"{BASE_URL}/PlatformIO/Monitoring/Issues/",
                 json={"service_name": svc_name, "window": "24h"},
             )
-    if r.status_code == 200 and r.json().get("success"):
-        assert "issues" in r.json()
-        assert "next_cursor" in r.json()
-        print(f"🟢 Issues cursor contract ok (issues={len(r.json().get('issues') or [])})")
-    else:
-        print("🟡 Issues query skipped/failed for this environment")
+    assert_status(r, 200)
+    assert r.json().get("success"), f"Issues query failed: {r.json()}"
+    assert "issues" in r.json()
+    assert "next_cursor" in r.json()
+    print(f"🟢 Issues cursor contract ok (issues={len(r.json().get('issues') or [])})")
 
     # -------------------------------------------------------------
     log_header("Phase 8: Cleanup & Cascaded Retracts")

@@ -5,39 +5,36 @@ from fastapi import APIRouter
 
 from . import ops_common as _ops_common
 from ..query import escape_query_regex_literal
+from ..schemas import ProcessMetricsOut
+from ..orchestrator.monitoring.impl import _metric_state, _probe_timestamp, _prom_observe
 # Star-import does not pull private helpers; bind entire ops_common namespace.
 globals().update({k: getattr(_ops_common, k) for k in dir(_ops_common) if not k.startswith("__")})
 
 router = APIRouter(tags=["monitoring"])
 
 @router.get("/api/metrics/node")
-def get_node_metrics():
-    try:
-        queries = {
-            "cpu": '100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)',
-            "memory": "(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100",
-            "disk": '(1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100',
-        }
-        results = {}
-        for key, q in queries.items():
-            response = requests.get(
-                f"{settings.prometheus_base_url.rstrip('/')}/api/v1/query",
-                params={"query": q},
-                timeout=5,
-            )
-            response.raise_for_status()
-            data = response.json()
-            if data.get("data", {}).get("result"):
-                results[key] = data["data"]["result"][0]["value"][1]
-            else:
-                results[key] = 0
-        results["prometheus_reachable"] = True
-        return results
-    except Exception as e:
-        return {"error": str(e), "prometheus_reachable": False}
+def get_node_metrics(node_id: int | None = None, db: Session = Depends(get_db)):
+    if node_id is not None:
+        return orchestrator_get_node_metrics(db, node_id, window="1h")
+    observations = {
+        "cpu": _prom_observe('100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)'),
+        "memory": _prom_observe("(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100"),
+        "disk": _prom_observe('(1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100'),
+    }
+    availability, error = _metric_state(list(observations.values()))
+    return {
+        "cpu": observations["cpu"].get("value") if observations["cpu"].get("state") == "available" else None,
+        "memory": observations["memory"].get("value") if observations["memory"].get("state") == "available" else None,
+        "disk": observations["disk"].get("value") if observations["disk"].get("state") == "available" else None,
+        "prometheus_reachable": any(item.get("reachable") for item in observations.values()),
+        "availability": availability,
+        "source": "prometheus",
+        "checked_at": _probe_timestamp(),
+        "error": error,
+    }
 
 
-@router.get("/api/metrics/processes")
+@router.get("/api/metrics/processes", response_model=ProcessMetricsOut)
 def get_process_metrics(
     node_id: int | None = None,
     sort: str = "cpu",
@@ -67,35 +64,53 @@ def get_process_metrics(
         if instance_pattern:
             memory_labels.append(f'instance=~".*({instance_pattern}).*"')
         memory_matcher = "{" + ",".join(memory_labels) + "}"
-        cpu_query = f"topk({safe_limit}, sum by (groupname) (rate(namedprocess_namegroup_cpu_seconds_total{cpu_matcher}[5m])))"
-        memory_query = f"topk({safe_limit}, sum by (groupname) (namedprocess_namegroup_memory_bytes{memory_matcher}))"
+        cpu_query = f"topk({safe_limit}, sum by (instance, groupname) (rate(namedprocess_namegroup_cpu_seconds_total{cpu_matcher}[5m])))"
+        memory_query = f"topk({safe_limit}, sum by (instance, groupname) (namedprocess_namegroup_memory_bytes{memory_matcher}))"
         endpoint = f"{settings.prometheus_base_url.rstrip('/')}/api/v1/query"
         cpu_response = requests.get(endpoint, params={"query": cpu_query}, timeout=5)
         memory_response = requests.get(endpoint, params={"query": memory_query}, timeout=5)
         cpu_response.raise_for_status()
         memory_response.raise_for_status()
 
+        cpu_payload = cpu_response.json()
+        memory_payload = memory_response.json()
+        if cpu_payload.get("status") != "success" or memory_payload.get("status") != "success":
+            raise RuntimeError(str(cpu_payload.get("error") or memory_payload.get("error") or "Prometheus process query failed"))
         processes: dict[str, dict] = {}
-        for item in cpu_response.json().get("data", {}).get("result") or []:
-            name = item.get("metric", {}).get("groupname", "unknown")
-            processes.setdefault(name, {"name": name, "cpu": 0.0, "memory": 0.0})["cpu"] = float(
+        for item in cpu_payload.get("data", {}).get("result") or []:
+            labels = item.get("metric", {})
+            name = labels.get("groupname", "unknown")
+            identity = labels.get("instance") or "unknown"
+            key_name = f"{identity}:{name}"
+            processes.setdefault(key_name, {"name": name, "cpu": None, "memory": None, "instance": identity})["cpu"] = float(
                 item.get("value", [0, 0])[1]
             )
-        for item in memory_response.json().get("data", {}).get("result") or []:
-            name = item.get("metric", {}).get("groupname", "unknown")
+        for item in memory_payload.get("data", {}).get("result") or []:
+            labels = item.get("metric", {})
+            name = labels.get("groupname", "unknown")
+            identity = labels.get("instance") or "unknown"
+            key_name = f"{identity}:{name}"
             # Memory is returned in MiB and labelled by the response to avoid
             # presenting raw bytes as a percentage.
-            processes.setdefault(name, {"name": name, "cpu": 0.0, "memory": 0.0})["memory"] = round(
+            processes.setdefault(key_name, {"name": name, "cpu": None, "memory": None, "instance": identity})["memory"] = round(
                 float(item.get("value", [0, 0])[1]) / 1024 / 1024, 2
             )
         key = "memory" if sort == "memory" else "cpu"
-        rows = sorted(processes.values(), key=lambda item: float(item[key]), reverse=True)[:safe_limit]
+        rows = sorted(processes.values(), key=lambda item: float(item[key]) if item.get(key) is not None else float("-inf"), reverse=True)[:safe_limit]
+        node_name = node.name if node_id is not None else None
+        for row in rows:
+            row["node_id"] = node_id
+            row["node_name"] = node_name
+        availability = "available" if processes else "unavailable"
         return {
             "processes": rows,
             "node_id": node_id,
+            "node_name": node_name,
             "sort": key,
             "memory_unit": "MiB",
-            "prometheus_reachable": True,
+            "source": "prometheus",
+            "availability": availability,
+            "checked_at": _probe_timestamp(),
         }
     except HTTPException:
         raise
@@ -105,7 +120,9 @@ def get_process_metrics(
             "node_id": node_id,
             "sort": "memory" if sort == "memory" else "cpu",
             "memory_unit": "MiB",
-            "prometheus_reachable": False,
+            "source": "prometheus",
+            "availability": "error",
+            "checked_at": _probe_timestamp(),
             "error": str(e),
         }
 

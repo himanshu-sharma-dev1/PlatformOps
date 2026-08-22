@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import re
 import secrets
 import smtplib
 import uuid
@@ -19,6 +20,17 @@ from ..settings import settings
 
 ROLES = ("System_Admin", "Operational", "Management")
 STATUSES = ("active", "pending", "disabled")
+
+
+def _validate_identity(user_email: str, user_number: str | None = None) -> tuple[bool, str]:
+    """Mirror cPlatform's EmailValidator plus optional 10+ digit phone rule."""
+    email = (user_email or "").strip()
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
+        return False, "Failure, Invalid email format."
+    phone = (user_number or "").strip()
+    if phone and (not phone.isdigit() or len(phone) < 10):
+        return False, "Failure, Invalid phone number format."
+    return True, "User Request Validated Successfully"
 
 
 def _send_invite_email(*, recipient: str, recipient_name: str, token: str) -> tuple[bool, str]:
@@ -211,16 +223,21 @@ def create_user(
     permissions: list[str] | None = None,
 ) -> tuple[bool, str, dict[str, Any] | None]:
     email = user_email.strip().lower()
-    role = user_role if user_role in ROLES else "Operational"
-    if not email or "@" not in email:
-        return False, "Invalid email address.", None
+    valid, validation_message = _validate_identity(email, user_number)
+    if not valid:
+        return False, validation_message, None
+    if user_role not in ROLES:
+        return False, "Failure, Invalid Role Provided.", None
+    role = user_role
     if get_user_by_email(db, email):
         return False, "User email already exists.", None
     count = len(db.scalars(select(UserInfo)).all())
     if count >= int(settings.max_users or 50):
         return False, "Maximum user count reached.", None
-    if not password or len(password) < 8:
-        return False, "Password must be at least 8 characters.", None
+    # Legacy direct-user creation requires a password but does not enforce the
+    # invitation page's client-side strength meter in the backend.
+    if not password:
+        return False, "Password is required.", None
     user = UserInfo(
         user_id=_new_user_id(),
         user_email=email,
@@ -253,6 +270,13 @@ def update_user(
     user = get_user_by_id(db, user_id)
     if not user:
         return False, "User does not exist.", None
+    valid, validation_message = _validate_identity(user.user_email, user_number if user_number is not None else user.user_number)
+    if not valid:
+        return False, validation_message, None
+    if user_role is not None and user_role not in ROLES:
+        return False, "Failure, Invalid Role Provided.", None
+    if status is not None and status not in STATUSES:
+        return False, "Invalid user status.", None
     if user_name is not None:
         user.user_name = user_name.strip()
     if user_role is not None and user_role in ROLES:
@@ -264,9 +288,9 @@ def update_user(
     if permissions is not None:
         user.permissions = json.dumps([str(item) for item in permissions if str(item).strip()])
     if password:
-        if len(password) < 8:
-            return False, "Password must be at least 8 characters.", None
         user.password_hash = _hash_password(password)
+    if status is not None and status != "active":
+        _invalidate_user_sessions(db, user.user_id)
     db.commit()
     db.refresh(user)
     return True, f"User {user.user_name} updated.", _user_out(user)
@@ -286,13 +310,18 @@ def delete_user(db: Session, user_id: str, *, initiated_by: str = "") -> tuple[b
             return False, "Cannot delete the last System_Admin."
     email = user.user_email
     # purge sessions + invites
-    for sess in db.scalars(select(AuthSession).where(AuthSession.user_id == user.user_id)).all():
-        db.delete(sess)
+    _invalidate_user_sessions(db, user.user_id)
     for inv in db.scalars(select(InviteToken).where(InviteToken.user_email == email)).all():
         db.delete(inv)
     db.delete(user)
     db.commit()
     return True, f'User "{email}" deleted successfully.'
+
+
+def _invalidate_user_sessions(db: Session, user_id: str) -> None:
+    """Remove every bearer session for a user before status/deletion commits."""
+    for sess in db.scalars(select(AuthSession).where(AuthSession.user_id == user_id)).all():
+        db.delete(sess)
 
 
 def invite_user(
@@ -306,12 +335,19 @@ def invite_user(
     invited_by: str = "system",
 ) -> tuple[bool, str, dict[str, Any] | None]:
     email = user_email.strip().lower()
-    role = role if role in ROLES else "Operational"
-    if not email or "@" not in email:
-        return False, "Invalid email.", None
+    valid, validation_message = _validate_identity(email, phone)
+    if not valid:
+        return False, validation_message, None
+    if role not in ROLES:
+        return False, "Failure, Invalid Role Provided.", None
     existing = get_user_by_email(db, email)
     if existing and existing.status == "active":
         return False, "Active user already exists for this email.", None
+    if existing and existing.status not in {"pending", "active"}:
+        return False, "User already exists for this email.", None
+    invite_permissions = _permissions_list(existing) if existing and permissions is None else [
+        str(item) for item in (permissions or []) if str(item).strip()
+    ]
     if existing and existing.status == "pending":
         # refresh invite
         for inv in db.scalars(
@@ -332,7 +368,7 @@ def invite_user(
             user_name=name.strip() or email.split("@")[0],
             user_role=role,
             user_number=(phone or "").strip(),
-            permissions=json.dumps(permissions or []),
+            permissions=json.dumps(invite_permissions),
             status="pending",
             password_hash="",
             login_count=0,
@@ -342,7 +378,10 @@ def invite_user(
         db.flush()
 
     if permissions is not None:
-        existing.permissions = json.dumps([str(item) for item in permissions if str(item).strip()])
+        existing.permissions = json.dumps(invite_permissions)
+    existing.user_name = name.strip() or existing.user_name or email.split("@")[0]
+    existing.user_role = role
+    existing.user_number = (phone or "").strip()
 
     token = secrets.token_urlsafe(24)
     invite = InviteToken(
@@ -351,7 +390,7 @@ def invite_user(
         user_email=email,
         user_role=role,
         user_number=(phone or existing.user_number or "").strip(),
-        permissions=json.dumps(permissions or []),
+        permissions=json.dumps(invite_permissions),
         invited_by=invited_by,
         is_used=0,
         is_revoked=0,
@@ -387,6 +426,7 @@ def resend_invites(db: Session, emails: list[str], invited_by: str) -> dict[str,
             user_email=email,
             phone=user.user_number,
             role=user.user_role,
+            permissions=_permissions_list(user),
             invited_by=invited_by,
         )
         if ok:
@@ -435,18 +475,32 @@ def get_invite(db: Session, token: str) -> dict[str, Any]:
     }
 
 
-def accept_invite(db: Session, token: str, password: str) -> tuple[bool, str, dict[str, Any] | None]:
-    preview = get_invite(db, token)
-    if preview["state"] != "valid":
-        return False, f"Invite is {preview['state']}.", None
-    if not password or len(password) < 8:
-        return False, "Password must be at least 8 characters.", None
-    invite = db.scalar(select(InviteToken).where(InviteToken.token == token))
+def accept_invite(
+    db: Session,
+    token: str,
+    password: str,
+    full_name: str,
+) -> tuple[bool, str, dict[str, Any] | None]:
+    # PostgreSQL serializes concurrent acceptance on this token. SQLite ignores
+    # FOR UPDATE, which is acceptable for isolated unit tests.
+    invite = db.scalar(
+        select(InviteToken).where(InviteToken.token == token).with_for_update()
+    )
     if not invite:
-        return False, "Invite not found.", None
+        return False, "Invite is invalid.", None
+    if invite.is_revoked:
+        return False, "Invite is revoked.", None
+    if invite.is_used:
+        return False, "Invite is used.", None
+    age = datetime.utcnow() - (invite.created_at or datetime.utcnow())
+    if age > timedelta(days=30):
+        return False, "Invite is expired.", None
+    if not (full_name or "").strip() or not password:
+        return False, "Name and password are required.", None
     user = get_user_by_email(db, invite.user_email)
     if not user:
         return False, "Pending user record missing.", None
+    user.user_name = full_name.strip()
     user.status = "active"
     user.password_hash = _hash_password(password)
     user.user_role = invite.user_role or user.user_role
@@ -454,7 +508,28 @@ def accept_invite(db: Session, token: str, password: str) -> tuple[bool, str, di
     invite.is_used = 1
     db.commit()
     db.refresh(user)
-    return True, "Invite accepted. You can sign in.", _user_out(user)
+    session = _issue_session(db, user)
+    # Keep the user fields at the top level for callers of this orchestrator,
+    # while exposing the same auth envelope returned by normal login to API
+    # clients. The raw bearer token is never included in the user serializer.
+    return True, "Invite accepted. You can sign in.", {**session, **session["user"]}
+
+
+def _issue_session(db: Session, user: UserInfo, *, count_login: bool = False) -> dict[str, Any]:
+    """Create the single bearer-session shape shared by login and invite accept."""
+    if count_login:
+        user.login_count = (user.login_count or 0) + 1
+        user.last_login_at = datetime.utcnow()
+    token = secrets.token_urlsafe(32)
+    expires = datetime.utcnow() + timedelta(hours=int(settings.auth_session_hours or 72))
+    db.add(AuthSession(token=token, user_id=user.user_id, expires_at=expires))
+    db.commit()
+    db.refresh(user)
+    return {
+        "token": token,
+        "expires_at": expires.isoformat(),
+        "user": _user_out(user),
+    }
 
 
 def login(db: Session, email: str, password: str) -> tuple[bool, str, dict[str, Any] | None]:
@@ -466,18 +541,7 @@ def login(db: Session, email: str, password: str) -> tuple[bool, str, dict[str, 
         return False, f"Account is {user.status}; complete invite or contact admin.", None
     if not _verify_password(password, user.password_hash):
         return False, "Invalid username or password.", None
-    user.login_count = (user.login_count or 0) + 1
-    user.last_login_at = datetime.utcnow()
-    token = secrets.token_urlsafe(32)
-    expires = datetime.utcnow() + timedelta(hours=int(settings.auth_session_hours or 72))
-    db.add(AuthSession(token=token, user_id=user.user_id, expires_at=expires))
-    db.commit()
-    db.refresh(user)
-    return True, "Login successful.", {
-        "token": token,
-        "expires_at": expires.isoformat(),
-        "user": _user_out(user),
-    }
+    return True, "Login successful.", _issue_session(db, user, count_login=True)
 
 
 def logout(db: Session, token: str) -> None:
@@ -493,11 +557,16 @@ def session_user(db: Session, token: str | None) -> UserInfo | None:
     sess = db.scalar(select(AuthSession).where(AuthSession.token == token))
     if not sess:
         return None
-    if sess.expires_at and sess.expires_at < datetime.utcnow():
+    if sess.expires_at and sess.expires_at <= datetime.utcnow():
         db.delete(sess)
         db.commit()
         return None
-    return get_user_by_id(db, sess.user_id)
+    user = get_user_by_id(db, sess.user_id)
+    if not user or user.status != "active":
+        db.delete(sess)
+        db.commit()
+        return None
+    return user
 
 
 def update_last_visited(db: Session, user: UserInfo, snapshot: dict[str, Any]) -> dict[str, Any]:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
+from sqlalchemy import func
 
 from . import ops_common as _ops_common
 # Star-import does not pull private helpers; bind entire ops_common namespace.
@@ -97,9 +98,25 @@ def _normalize_ingress_ports(value: Any) -> str:
     return str(value or "")
 
 
+def _node_name_collision(db: Session, *, cluster_id: int, name: str, exclude_id: int | None = None) -> Node | None:
+    """Resolve names case-insensitively within their owning cluster."""
+
+    statement = select(Node).where(Node.cluster_id == cluster_id, func.lower(Node.name) == name.casefold())
+    if exclude_id is not None:
+        statement = statement.where(Node.id != exclude_id)
+    return db.scalar(statement)
+
+
 @router.post("/api/nodes", response_model=NodeOut)
 def create_node(payload: NodeCreate, db: Session = Depends(get_db)) -> Node:
     cluster = _get_cluster(db, payload.cluster_id)
+    node_name = str(payload.name or "").strip()
+    if not node_name:
+        raise HTTPException(status_code=422, detail="Node name is required")
+    if _node_name_collision(db, cluster_id=cluster.id, name=node_name):
+        raise HTTPException(status_code=409, detail="Node name already exists in this cluster")
+    if not str(payload.host or "").strip():
+        raise HTTPException(status_code=422, detail="Node host is required")
     private_key = payload.ssh_private_key
     node_data = payload.model_dump(
         exclude={
@@ -112,6 +129,9 @@ def create_node(payload: NodeCreate, db: Session = Depends(get_db)) -> Node:
             "ami_id",
         }
     )
+    node_data["name"] = node_name
+    node_data["host"] = str(node_data.get("host") or "").strip()
+    node_data["ssh_user"] = str(node_data.get("ssh_user") or "ubuntu").strip() or "ubuntu"
     if payload.az and not payload.availability_zone:
         node_data["availability_zone"] = payload.az
     if payload.monitoring_port is not None:
@@ -211,6 +231,18 @@ def update_node(node_id: int, payload: NodeUpdate, db: Session = Depends(get_db)
         return node
     if "cluster_id" in updates:
         _get_cluster(db, updates["cluster_id"])
+    if "name" in updates:
+        updates["name"] = str(updates["name"] or "").strip()
+        if not updates["name"]:
+            raise HTTPException(status_code=422, detail="Node name is required")
+        if _node_name_collision(db, cluster_id=int(updates.get("cluster_id", node.cluster_id)), name=updates["name"], exclude_id=node.id):
+            raise HTTPException(status_code=409, detail="Node name already exists in this cluster")
+    if "host" in updates:
+        updates["host"] = str(updates["host"] or "").strip()
+        if not updates["host"]:
+            raise HTTPException(status_code=422, detail="Node host is required")
+    if "ssh_user" in updates:
+        updates["ssh_user"] = str(updates["ssh_user"] or "").strip() or "ubuntu"
 
     az = updates.pop("az", None)
     if az is not None and not updates.get("availability_zone"):

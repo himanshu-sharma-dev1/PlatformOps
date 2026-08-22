@@ -5,6 +5,8 @@ const historyCursorValue = (value: unknown): string => (
   value === undefined || value === null || value === "" || value === 0 || value === "0" ? "" : String(value)
 );
 
+let diagnosticsRequestSequence = 0;
+
 export function createDiagnosticsActions(s: any) {
   return {
   async loadDiagnostics(service, options) {
@@ -54,6 +56,7 @@ export function createDiagnosticsActions(s: any) {
   },
 
   async loadDiagnosticsLive(service, options) {
+    const requestSequence = ++diagnosticsRequestSequence;
     const source = options?.source ?? s.diagLogSource;
     const targetServiceKey = options?.targetServiceKey ?? s.diagnosticsTargetKey;
     const targetId = (() => {
@@ -76,21 +79,24 @@ export function createDiagnosticsActions(s: any) {
       const path = source === "container_history" ? `/api/services/${targetId}/diagnostics/container-history?${params2}` : `/api/services/${targetId}/diagnostics/file-history?${params2}${filePath ? `&log_path=${encodeURIComponent(filePath)}` : ""}`;
       try {
         const hist = await api(path);
+        if (requestSequence !== diagnosticsRequestSequence) return;
         const lines = (hist.lines || hist.entries || []).map(
           (l) => typeof l === "string" ? { message: l, level: "INFO", timestamp: (/* @__PURE__ */ new Date()).toISOString() } : l
         );
+        const historyError = hist.error || null;
         s.setDiagnosticsLive({
           lines,
           source_state: source,
           next_cursor: hist.next_cursor ?? null,
           previous_cursor: hist.previous_cursor ?? null,
-          total_available: hist.total ?? lines.length,
+          total_available: hist.total_count ?? hist.total ?? lines.length,
+          error: historyError,
           poll_interval_ms: s.logsPollMs
         });
         s.setHistoryTotalPages(hist.total_pages || hist.history_total_pages || 0);
         s.setHistoryCursor(historyCursorValue(hist.next_cursor));
         s.setHistoryPreviousCursor?.(historyCursorValue(hist.previous_cursor));
-        if (!options?.silent) s.setNotice(`Loaded ${lines.length} history lines (${source})`);
+        if (!options?.silent) s.setNotice(historyError ? `${source}: ${historyError}` : `Loaded ${lines.length} history lines (${source})`);
       } catch (e) {
         if (!options?.silent) s.setNotice(e?.message || "History query failed");
         s.setDiagnosticsLive({ lines: [], source_state: source, next_cursor: null, previous_cursor: null, total_available: 0, poll_interval_ms: s.logsPollMs });
@@ -108,11 +114,12 @@ export function createDiagnosticsActions(s: any) {
       }
       try {
         const data = await api(`/api/services/${targetId}/diagnostics/file-tail?log_path=${encodeURIComponent(logPath)}&tail_lines=${s.tailLines}`);
+        if (requestSequence !== diagnosticsRequestSequence) return;
         const lines = (data.lines || data.entries || []).map(
           (l) => typeof l === "string" ? { message: l, level: "INFO", timestamp: (/* @__PURE__ */ new Date()).toISOString() } : l
         );
-        s.setDiagnosticsLive({ lines, source_state: "file_live", next_cursor: lines.length, total_available: lines.length, poll_interval_ms: s.logsPollMs });
-        if (!options?.silent) s.setNotice(`File live: ${lines.length} lines from ${logPath}`);
+        s.setDiagnosticsLive({ lines, source_state: "file_live", next_cursor: lines.length, total_available: lines.length, error: data.error || null, poll_interval_ms: s.logsPollMs });
+        if (!options?.silent) s.setNotice(data.error ? `File live: ${data.error}` : `File live: ${lines.length} lines from ${logPath}`);
       } catch (e) {
         if (!options?.silent) s.setNotice(e?.message || "File tail failed");
       }
@@ -126,9 +133,12 @@ export function createDiagnosticsActions(s: any) {
     });
     if (targetServiceKey) params.set("target_service_key", targetServiceKey);
     const next = await api(`/api/services/${service.id}/diagnostics/live?${params.toString()}`);
+    if (requestSequence !== diagnosticsRequestSequence) return;
     if (!options?.silent) {
       s.setNotice(
-        `Diagnostics ${next.source_state}: ${next.lines.length} lines \xB7 showing ${next.next_cursor}/${next.total_available}`
+        next.error
+          ? `Diagnostics unavailable: ${next.error}`
+          : `Diagnostics ${next.source_state}: ${next.lines.length} lines \xB7 showing ${next.next_cursor}/${next.total_available}`
       );
     }
     s.setLogsPollMs(next.poll_interval_ms);
@@ -209,8 +219,17 @@ export function createDiagnosticsActions(s: any) {
     const result = await api(`/api/services/${target?.service_id ?? target?.id ?? sourceService.id}/diagnostics/backfill`, {
       method: "POST"
     });
-    s.setJob(result.job);
-    s.setNotice(`Log backfill job #${result.job.id} completed. Status: ${result.job.status}`);
+    let terminalJob = result.job;
+    s.setJob(terminalJob);
+    const terminal = new Set(["success", "failed"]);
+    const deadline = Date.now() + 60000;
+    while (terminalJob && !terminal.has(terminalJob.status) && Date.now() < deadline) {
+      await new Promise((resolve) => window.setTimeout(resolve, 500));
+      terminalJob = await api(`/api/jobs/${terminalJob.id}`);
+      s.setJob(terminalJob);
+    }
+    const status = terminalJob?.status || "timeout";
+    s.setNotice(`Log backfill job #${result.job.id} ${status}${terminalJob?.error ? `: ${terminalJob.error}` : ""}`);
     await s.loadDiagnostics(sourceService, { targetServiceKey: targetKey, preserveSelection: true });
   },
 

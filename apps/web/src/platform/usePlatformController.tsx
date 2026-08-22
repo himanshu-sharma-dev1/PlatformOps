@@ -201,6 +201,37 @@ export function usePlatformController(): PlatformApi {
       } catch {
         if (!cancelled) s.setLlmStatus({ configured: false });
       }
+      const hash = window.location.hash || "";
+      const inviteMatch = hash.match(/#\/invite\/([^/?#]+)/);
+      if (inviteMatch) {
+        const tokenInv = inviteMatch[1];
+        try {
+          const preview = await api(`/api/auth/invite/${tokenInv}`);
+          if (!cancelled) {
+            s.setInviteAccept({
+              token: tokenInv,
+              fullName: preview?.invite?.user_name || "",
+              password: "",
+              confirmPassword: "",
+              agreed: false,
+              busy: false,
+              error: "",
+              preview,
+            });
+            s.setAuthReady(true);
+          }
+        } catch (e) {
+          if (!cancelled) {
+            s.setInviteAccept({
+              token: tokenInv,
+              preview: { state: "error", invite: null },
+              error: e?.message || "Unable to load invitation",
+            });
+            s.setAuthReady(true);
+          }
+        }
+        return;
+      }
       const token = getAuthToken();
       if (!token) {
         if (!cancelled) {
@@ -221,16 +252,6 @@ export function usePlatformController(): PlatformApi {
           s.setAuthUser(null);
           s.setAuthReady(true);
         }
-      }
-      try {
-        const hash = window.location.hash || "";
-        const m = hash.match(/#\/invite\/([^/?#]+)/);
-        if (m) {
-          const tokenInv = m[1];
-          const preview = await api(`/api/auth/invite/${tokenInv}`);
-          if (!cancelled) s.setInviteAccept({ token: tokenInv, password: "", preview });
-        }
-      } catch {
       }
     })();
     return () => {

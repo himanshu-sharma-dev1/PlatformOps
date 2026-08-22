@@ -16,18 +16,28 @@ performance.
 - PlatformOps matrix §5; `PerformanceView.tsx`, `performanceActions.ts`,
   monitoring router/orchestrator PromQL paths.
 
-## Current evidence problems to resolve first
+## Verified acceptance status — 2026-08-22 (DOC-1)
 
-- Redis harness issues no workload and does not query direct Prometheus.
-- It treats HTTP 200 and response keys as success even when reachability is
-  false, arrays are empty, or values are placeholders.
-- It does not prove Redis exporter/node exporter targets, run labels,
-  timestamps, units, windows, trends, or target isolation.
-- `log_error_rate`, `queue_depth`, `latency_ms_p95`, and current error series are
-  known placeholders/non-error telemetry.
-- No collector-loss versus Redis-health distinction or recovery is tested.
-- No frontend chart, refresh, auto-refresh, process sort, or stale request test
-  exists in the golden run.
+Both complete runs—strict `parity-redis-20260822T111500-accept18b` and
+independent `parity-redis-20260822T035500Z-e2et1`—passed phases 0–8. Artifacts
+are under `/tmp/platformops-redis-acceptance/<run-id>/`.
+
+| Action group | State | Boundary |
+|---|---|---|
+| Canonical node/service metrics, bounded Redis workload, direct Prometheus comparison and target labels | Parity-complete for the bounded telemetry slice | Exact run/service/node labels and non-empty direct evidence were required |
+| Exporter loss while Redis remains healthy and recovery with fresh samples | Runtime-proven | This proves telemetry degradation/recovery, not every collector topology |
+| Window/refresh/process-sort UI and stale-request behavior | Contract-tested / Implemented | No full browser automation claim |
+| `log_error_rate`, `queue_depth`, `latency_ms_p95` and current non-error series | Mapped / Implemented only | Placeholder/non-error fields remain excluded from parity completion |
+
+## Remaining full-page gaps after bounded acceptance
+
+- The accepted runs generate bounded load, compare direct Prometheus samples,
+  enforce run/target labels, and prove exporter-loss versus Redis-health
+  distinction plus recovery.
+- `log_error_rate`, `queue_depth`, `latency_ms_p95`, and current error series
+  remain placeholders/non-error telemetry and are excluded from completion.
+- Full browser chart/refresh/process-sort/stale-request coverage and every
+  cPlatform metric semantic remain action-level gaps.
 
 ## Work package P0 — metric contract freeze
 

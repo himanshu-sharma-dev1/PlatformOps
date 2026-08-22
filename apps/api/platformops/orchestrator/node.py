@@ -48,7 +48,23 @@ def validate_node(db: Session, node: Node) -> DeploymentJob:
         bg_node = bg_db.get(Node, node_id)
         if not bg_node:
             return
-        bg_node.status = "healthy" if ok else "unreachable"
+        probe: dict[str, Any] = {}
+        probe_error = ""
+        if ok:
+            try:
+                probe = _probe_node_ssh_docker(bg_node)
+                if probe.get("ssh_ok") is False:
+                    probe_error = str(probe.get("detail") or "SSH connection failed")
+                elif probe.get("docker_ok") is False:
+                    probe_error = str(probe.get("detail") or "Docker engine is unavailable on the target")
+            except Exception as exc:
+                probe_error = str(exc)
+        verified_ok = bool(ok and not probe_error)
+        if not verified_ok:
+            bg_job.status = JobStatus.failed.value
+            bg_job.error = (bg_job.error or "") or probe_error or "Ansible node validation failed"
+            bg_job.output = (bg_job.output or "") + (f"\nTarget probe: {probe_error}" if probe_error else "")
+        bg_node.status = "healthy" if verified_ok else "unreachable"
         # Merge validation facts into existing operator facts (cpu/mem/gpu must survive)
         existing: dict[str, Any] = {}
         try:
@@ -59,8 +75,8 @@ def validate_node(db: Session, node: Node) -> DeploymentJob:
             existing = {}
         existing["checked_at"] = datetime.utcnow().isoformat() + "Z"
         existing["mode"] = "production-ansible"
-        existing["last_validate_ok"] = bool(ok)
-        if ok:
+        existing["last_validate_ok"] = verified_ok
+        if verified_ok:
             try:
                 if bg_job.output and '"msg":' in (bg_job.output or ""):
                     import re
@@ -88,10 +104,10 @@ def validate_node(db: Session, node: Node) -> DeploymentJob:
         record_event(
             bg_db,
             category="lifecycle",
-            level="info" if ok else "warning",
-            message=f"Node validation {'succeeded' if ok else 'failed'} for '{bg_node.name}'",
+            level="info" if verified_ok else "warning",
+            message=f"Node validation {'succeeded' if verified_ok else 'failed'} for '{bg_node.name}'",
             node_id=node_id,
-            metadata={"job_id": bg_job.id, "ok": ok},
+            metadata={"job_id": bg_job.id, "ok": verified_ok, "probe": probe, "error": probe_error},
         )
 
     return run_job_async(db, job, cwd=settings.project_root, on_complete=on_complete)

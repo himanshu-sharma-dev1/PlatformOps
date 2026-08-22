@@ -10,27 +10,42 @@ PlatformOps-only features. The shared contract remains:
 - [`../redis-seven-page-acceptance-fixture.md`](../redis-seven-page-acceptance-fixture.md)
 - [`../selected-page-functional-parity.md`](../selected-page-functional-parity.md)
 - [`../mvp-status.md`](../mvp-status.md)
+- [`current-other-pages-status-2026-08-21.md`](current-other-pages-status-2026-08-21.md)
+  for the latest live status of the six non-Cluster pages and the current
+  isolated support-stack topology.
+- [`current-acceptance-handover-2026-08-22.md`](current-acceptance-handover-2026-08-22.md)
+  for the concise verified handover and residual boundaries.
 
-## Mandatory evidence reconciliation
+## Verified acceptance checkpoint — 2026-08-22 (DOC-1)
 
-Commit `0d0276b` introduced the Redis harness and records a green run with ID
-`parity-redis-20260820T211916Z-da398c8`. That is useful evidence, but it cannot
-be treated as final proof because:
+The strict executor run `parity-redis-20260822T111500-accept18b` and the
+independent run `parity-redis-20260822T035500Z-e2et1` both passed phases 0–8.
+Their redacted evidence bundles are under
+`/tmp/platformops-redis-acceptance/<run-id>/` (the executor bundle includes
+`manifest.json`, every `phase-*.json`, `direct-runtime.json`, and
+`final-summary.json`). The current acceptance checkpoint supersedes the older
+2026-08-20/21 green-banner warnings below; the detailed plans still retain
+unexercised legacy actions and their earlier implementation guidance.
 
-- the run ID identifies `da398c8`, not current HEAD `0d0276b`;
-- the authoritative action matrix still contains Implemented and Unverified
-  rows;
-- multiple harness phases accept warnings, empty data, or HTTP 200 as success;
-- Monitoring does not actually stop/recover Redis;
-- Performance does not generate load or compare direct Prometheus evidence;
-- Config does not assert runtime `redis-cli CONFIG GET` values;
-- Diagnostics does not require deterministic markers, archives, or Loki data;
-- Users can fall back to a response token rather than proving Mailpit delivery;
-- cleanup prints success without a complete residue query.
+| Page | Bounded acceptance state | What is proven | What is not promoted |
+|---|---|---|---|
+| Clusters | Runtime-proven; parity-complete for the Redis fixture action set | canonical lifecycle, terminal jobs, direct runtime, PING/logs, invalid deploy, positive disposable SSH branch | every legacy/provider/UI action |
+| Config Manager | Runtime-proven; parity-complete for the tested config action set | exact file bytes, `CONFIG GET`, apply, drift, compare, restore/rollback | migration/peer and all editor edge cases |
+| Users | Runtime-proven for API + Mailpit + browser invite/session flow | invite delivery, preview/accept/login, token terminal paths, role/status | full browser automation of all admin controls |
+| Monitoring | Runtime-proven for health recovery and configured GlitchTip boundary | stop/recovery and configured integration behavior | unexercised external mutation/UI edge cases |
+| Performance | Runtime-proven for bounded telemetry slice | workload, direct Prometheus comparison, exporter-loss recovery | placeholder charts and unproven legacy metric semantics |
+| Diagnostics | Runtime-proven for deterministic log/archive slice | Loki marker, archive checksum, ZIP, terminal backfill | full cursor/edge-case matrix and configured analyst |
+| Observability | Runtime-proven for direct aggregate signals | direct signals plus Alloy degraded/recovered | standalone native controls; no legacy standalone page claim |
 
-Therefore every page plan begins with contract reconciliation and ends with a
-fresh HEAD-built evidence run. Never change documentation labels merely to
-match the commit message.
+Use `Mapped`, `Implemented`, `Contract-tested`, `Runtime-proven`, and
+`Parity-complete` per action group in the corresponding plan. A page-level
+label above is bounded to the cited fixture and is not blanket parity for every
+legacy control.
+
+The canonical local subject is cluster `1`, node `1`, service `2`, catalog key
+`redis-core`, container `node-1-redis-core`. Positive private SSH used disposable
+node `2`/service `3` target `platformops-ssh-target`; the supplied credential
+for external `216.48.189.195` was rejected, so no claim is made for that host.
 
 ## Page plans
 
@@ -72,7 +87,10 @@ match the commit message.
 - No warning path can produce a green authoritative run.
 - Cleanup queries database tables, jobs, containers, files, Mailpit, optional
   GlitchTip, Prometheus targets, and Loki labels.
-- cPlatform resources are counted/hashed before and after and remain unchanged.
+- Protected cPlatform membership/container identity/image/IP/ports/DB-row
+  comparisons are recorded before/after; disclose unrelated external volatility
+  (for example pre-existing `SERV1006` restart-loop endpoint/MAC changes) rather
+  than claiming blanket unchanged state.
 
 ## Package definition of done
 

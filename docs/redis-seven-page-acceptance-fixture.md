@@ -15,6 +15,41 @@ sharing the same run ID and evidence bundle.
 This avoids page-specific fake fixtures and proves that the pages are coherent
 views of one real managed service.
 
+## 1.1 Verified acceptance evidence — 2026-08-22 (DOC-1)
+
+The strict executor run `parity-redis-20260822T111500-accept18b` and independent
+run `parity-redis-20260822T035500Z-e2et1` each passed phases 0–8. Use the
+redacted bundles at:
+
+```text
+/tmp/platformops-redis-acceptance/parity-redis-20260822T111500-accept18b/
+/tmp/platformops-redis-acceptance/parity-redis-20260822T035500Z-e2et1/
+```
+
+The observed canonical local identity was cluster `1`, node `1`, service `2`,
+catalog key `redis-core`, container `node-1-redis-core`. The acceptance proved
+the bounded page slices: Users Browser + Mailpit invite/session; Config exact
+file bytes, `CONFIG GET`, apply, drift and rollback; Diagnostics exact Loki
+marker, archive SHA, ZIP and terminal backfill; Monitoring stop/recovery plus
+configured GlitchTip; Performance bounded load/direct Prometheus/exporter-loss
+recovery; and Observability direct signals with Alloy degraded/recovered.
+
+The positive private SSH fixture was disposable node `2`/service `3`, target
+`platformops-ssh-target`. It proved exact config read/apply/rollback, SSH
+inspect/PONG, bad-key terminal failure without local fallback, and ephemeral-key
+destruction. The supplied credential for external `216.48.189.195` was rejected;
+no behavior claim is made for that host. Browser automation evidence is limited
+to the invite/session flow. Legacy standalone Observability controls are
+PlatformOps-only and are not parity evidence.
+
+The private support stack used isolated networks only, with no host Docker socket,
+cPlatform network, or forbidden ports; GlitchTip was `6.1.9`. Cleanup found zero
+owned resources and artifact scans found zero secrets. Protected cPlatform
+membership/container identity/image/IP/ports/DB-row comparison was equal and no
+acceptance references were found. A pre-existing `SERV1006` restart loop changed
+its restart-count endpoint/MAC during observation; report this external
+volatility rather than claiming blanket cPlatform immutability.
+
 ## 2. What “one service” means
 
 ### Single product target
@@ -323,7 +358,9 @@ claiming a separate product stack.
 5. Delete optional GlitchTip monitors/projects created by the run.
 6. Query by run ID across tables, events, Mailpit, Loki labels, and containers;
    record intentional retained audit evidence separately.
-7. Assert no cPlatform resource changed.
+7. Compare protected cPlatform membership/container identity/image/IP/ports/DB
+   row and acceptance references; report any unrelated external volatility
+   separately rather than asserting blanket immutability.
 
 Exit: no operational fixture residue remains; only explicitly retained sanitized
 test evidence exists.
@@ -411,4 +448,5 @@ fresh fixture. A checkpoint run cannot be reported as a full pass.
 - Users invite/auth behavior passes through Mailpit in the same run.
 - All required actions reach terminal states and all expected failures remain
   truthful.
-- Cleanup proves no operational residue and no cPlatform change.
+- Cleanup proves no operational residue and the protected cPlatform comparison;
+  unrelated external volatility is disclosed separately.

@@ -13,15 +13,14 @@ export function PerformanceView() {
   const loadNodeMetricsData = p.loadNodeMetricsData;
   const loadServiceMetrics = p.loadServiceMetrics;
   const loadingMetrics = p.loadingMetrics;
+  const metricsStatus = p.metricsStatus || "idle";
+  const metricsError = p.metricsError;
   const nodeMetrics = p.nodeMetrics;
   const nodeMetricsWindow = p.nodeMetricsWindow;
   const nodes = p.nodes;
   const perfAutoRefresh = p.perfAutoRefresh;
   const perfProcessSort = p.perfProcessSort;
   const processMetrics = p.processMetrics;
-  const realtimeNodeMetrics = p.realtimeNodeMetrics;
-  const refresh = p.refresh;
-  const renderTreeNavigator = p.renderTreeNavigator;
   const selectedNode = p.selectedNode;
   const selectedService = p.selectedService;
   const serviceMetrics = p.serviceMetrics;
@@ -122,6 +121,12 @@ export function PerformanceView() {
         </GlassCard>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {metricsStatus !== "idle" && (
+            <GlassCard style={{ padding: "0.75rem 1rem", borderColor: metricsStatus === "available" ? "var(--line)" : "var(--err)" }}>
+              <strong>{metricsStatus === "loading" ? "Loading measured telemetry…" : `Prometheus: ${metricsStatus}`}</strong>
+              {metricsError ? <span style={{ marginLeft: 8, color: "var(--ink-4)" }}>{metricsError}</span> : null}
+            </GlassCard>
+          )}
           {!showNode && !showService && (
             <GlassCard style={{ padding: "2.5rem", textAlign: "center" }}>
               <h3 style={{ marginBottom: "0.5rem" }}>Select a node or service</h3>
@@ -135,13 +140,13 @@ export function PerformanceView() {
                 <h2>Node · {selectedNode!.name}</h2>
                 <span>{selectedNode!.host}</span>
               </div>
-              {nodeMetrics || realtimeNodeMetrics ? (
+              {nodeMetrics ? (
                 <>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem", marginBottom: "1rem" }}>
-                    <div><small style={{ color: "var(--ink-4)" }}>CPU</small><div style={{ fontWeight: 700 }}>{nodeMetrics?.cpu_percent ?? realtimeNodeMetrics?.cpu ?? "—"}%</div></div>
-                    <div><small style={{ color: "var(--ink-4)" }}>Memory</small><div style={{ fontWeight: 700 }}>{nodeMetrics?.memory_percent ?? realtimeNodeMetrics?.memory ?? "—"}%</div></div>
-                    <div><small style={{ color: "var(--ink-4)" }}>Disk</small><div style={{ fontWeight: 700 }}>{nodeMetrics?.disk_percent ?? realtimeNodeMetrics?.disk ?? "—"}%</div></div>
-                    <div><small style={{ color: "var(--ink-4)" }}>Net Rx/Tx</small><div style={{ fontWeight: 700 }}>{nodeMetrics ? `${nodeMetrics.network_rx_mbps}/${nodeMetrics.network_tx_mbps}` : "—"} Mbps</div></div>
+                    <div><small style={{ color: "var(--ink-4)" }}>CPU</small><div style={{ fontWeight: 700 }}>{nodeMetrics?.cpu_percent ?? "—"}{nodeMetrics?.cpu_percent != null ? "%" : ""}</div></div>
+                    <div><small style={{ color: "var(--ink-4)" }}>Memory</small><div style={{ fontWeight: 700 }}>{nodeMetrics?.memory_percent ?? "—"}{nodeMetrics?.memory_percent != null ? "%" : ""}</div></div>
+                    <div><small style={{ color: "var(--ink-4)" }}>Disk</small><div style={{ fontWeight: 700 }}>{nodeMetrics?.disk_percent ?? "—"}{nodeMetrics?.disk_percent != null ? "%" : ""}</div></div>
+                    <div><small style={{ color: "var(--ink-4)" }}>Net Rx/Tx</small><div style={{ fontWeight: 700 }}>{nodeMetrics?.network_rx_mbps != null && nodeMetrics?.network_tx_mbps != null ? `${nodeMetrics.network_rx_mbps}/${nodeMetrics.network_tx_mbps} Mbps` : "—"}</div></div>
                   </div>
                   {nodeMetrics && (
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem" }}>
@@ -180,12 +185,12 @@ export function PerformanceView() {
                       </thead>
                       <tbody>
                         {[...processMetrics].sort((a, b) => {
-                          if (perfProcessSort === "memory") return parseFloat(b.memory || "0") - parseFloat(a.memory || "0");
-                          return parseFloat(b.cpu) - parseFloat(a.cpu);
+                          if (perfProcessSort === "memory") return (b.memory != null ? parseFloat(b.memory) : -Infinity) - (a.memory != null ? parseFloat(a.memory) : -Infinity);
+                          return (b.cpu != null ? parseFloat(b.cpu) : -Infinity) - (a.cpu != null ? parseFloat(a.cpu) : -Infinity);
                         }).slice(0, 12).map((p, i) => (
                           <tr key={`${p.name}-${i}`} style={{ borderTop: "1px solid var(--line-2)" }}>
                             <td style={{ padding: "0.35rem 0" }}><code>{p.name}</code></td>
-                            <td style={{ textAlign: "right" }}>{parseFloat(p.cpu).toFixed(3)}</td>
+                            <td style={{ textAlign: "right" }}>{p.cpu != null ? parseFloat(p.cpu).toFixed(3) : "—"}</td>
                             <td style={{ textAlign: "right" }}>{p.memory != null ? parseFloat(p.memory).toFixed(1) : "—"}</td>
                           </tr>
                         ))}
@@ -245,10 +250,10 @@ export function PerformanceView() {
                 <span>{serviceMetrics.service_key}</span>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem", marginBottom: "1rem" }}>
-                <div><small style={{ color: "var(--ink-4)" }}>CPU</small><div style={{ fontWeight: 700 }}>{serviceMetrics.cpu_percent}%</div></div>
-                <div><small style={{ color: "var(--ink-4)" }}>Memory</small><div style={{ fontWeight: 700 }}>{serviceMetrics.memory_mb} MB</div></div>
-                <div><small style={{ color: "var(--ink-4)" }}>Restarts</small><div style={{ fontWeight: 700 }}>{serviceMetrics.restart_count}</div></div>
-                <div><small style={{ color: "var(--ink-4)" }}>Queue</small><div style={{ fontWeight: 700 }}>{serviceMetrics.queue_depth}</div></div>
+                <div><small style={{ color: "var(--ink-4)" }}>CPU</small><div style={{ fontWeight: 700 }}>{serviceMetrics.cpu_percent ?? "—"}{serviceMetrics.cpu_percent != null ? "%" : ""}</div></div>
+                <div><small style={{ color: "var(--ink-4)" }}>Memory</small><div style={{ fontWeight: 700 }}>{serviceMetrics.memory_mb ?? "—"}{serviceMetrics.memory_mb != null ? " MB" : ""}</div></div>
+                <div><small style={{ color: "var(--ink-4)" }}>Restarts</small><div style={{ fontWeight: 700 }}>{serviceMetrics.restart_count ?? "—"}</div></div>
+                <div><small style={{ color: "var(--ink-4)" }}>Queue</small><div style={{ fontWeight: 700 }}>{serviceMetrics.queue_depth ?? "—"}</div></div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem" }}>
                 <div>

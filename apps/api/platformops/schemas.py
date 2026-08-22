@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -387,6 +387,27 @@ class JobOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class DiagnosticsBackfillJobOut(BaseModel):
+    """Safe, pollable projection of a diagnostics backfill job.
+
+    The general job response includes its executable command.  A diagnostics
+    submission must not echo that command because it contains encoded source
+    labels and runtime paths, so this projection deliberately exposes only
+    lifecycle and result fields.
+    """
+
+    id: int
+    service_id: int | None = None
+    node_id: int | None = None
+    type: str
+    status: str
+    output: str = ""
+    error: str = ""
+    created_at: datetime
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+
+
 class NodeJobHistoryItemOut(BaseModel):
     id: int
     action: str
@@ -416,6 +437,14 @@ class NodeJobHistoryOut(BaseModel):
 class ConfigApply(BaseModel):
     content: str
     apply_mode: str = "reload"
+
+    @field_validator("apply_mode")
+    @classmethod
+    def validate_apply_mode(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"reload", "restart"}:
+            raise ValueError("apply_mode must be 'reload' or 'restart'")
+        return normalized
 
 
 class ConfigSyncPeer(BaseModel):
@@ -494,9 +523,72 @@ class ConfigWorkspaceOut(BaseModel):
     config_source_label: str = "Live contract"
     config_path: str = ""
     file_label: str = ""
+    content_hash: str = ""
+    config_format: str = "yaml"
+    live_read_ok: bool = False
+    live_read_error: str = ""
     config_capabilities: dict[str, Any] = Field(default_factory=dict)
     runtime_target: dict[str, Any] = Field(default_factory=dict)
     peers: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ConfigDirectApplyOut(BaseModel):
+    job: JobOut
+    before_snapshot: ConfigSnapshotOut
+    after_snapshot: ConfigSnapshotOut | None = None
+
+
+class ConfigMigrationPrepareRequest(BaseModel):
+    left_snapshot_id: int
+    right_snapshot_id: int
+
+
+class ConfigMigrationPrepareOut(BaseModel):
+    artifact_id: str
+    left_snapshot: ConfigSnapshotDetailOut
+    right_snapshot: ConfigSnapshotDetailOut
+    differences: list[ConfigSnapshotDiffItemOut]
+    final_yaml: str
+    final_content: str
+    validation: ConfigValidateOut
+    summary: str
+
+
+class ConfigMigrationApplyRequest(BaseModel):
+    artifact_id: str
+    edited_yaml: str = ""
+    apply_mode: str = "reload"
+
+
+class ConfigMigrationRestoreRequest(BaseModel):
+    artifact_id: str
+    apply_mode: str = "reload"
+
+
+class ConfigMigrationApplyOut(BaseModel):
+    artifact_id: str
+    service_id: int
+    job: JobOut
+    backup_snapshot_id: int
+    resolved_config_path: str = ""
+    apply_mode: str | None = None
+    applied_content: str
+
+
+class ConfigPeerSnapshotOut(BaseModel):
+    id: int
+    name: str
+    version: int
+
+    model_config = {"from_attributes": True}
+
+
+class ConfigSyncPeerOut(BaseModel):
+    source_service_id: int
+    peer_service_id: int
+    job: JobOut
+    before_snapshot: ConfigPeerSnapshotOut
+    after_snapshot: ConfigPeerSnapshotOut | None = None
 
 
 class ConfigTimelineEventOut(BaseModel):
@@ -573,6 +665,8 @@ class DiagnosticsLiveOut(BaseModel):
     generated_at: str
     connection_mode: str = "unknown"
     error: str | None = None
+    start: str | None = None
+    end: str | None = None
 
 
 class DiagnosticsInsightActionOut(BaseModel):
@@ -673,6 +767,141 @@ class MonitoringCheckOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# Compatibility Monitoring / GlitchTip contracts.  Legacy fields remain
+# available, while ``availability`` and ``source`` prevent an empty response
+# from being mistaken for a healthy integration.
+class MonitoringServiceRequest(BaseModel):
+    service_name: str = Field(min_length=1)
+    window: str = "24h"
+
+
+class MonitoringIssuesRequest(MonitoringServiceRequest):
+    cursor: str | None = None
+
+
+class MonitoringIssueEventRequest(BaseModel):
+    issue_id: str = Field(min_length=1)
+
+
+class MonitoringIssueActionRequest(MonitoringIssueEventRequest):
+    action: str = Field(min_length=1)
+
+
+class MonitoringUptimeAddRequest(MonitoringServiceRequest):
+    name: str = Field(min_length=1)
+    url: str = Field(min_length=1)
+    monitor_type: str = "Ping"
+    interval: int = Field(default=60, ge=1, le=86400)
+    expected_status: int = Field(default=200, ge=100, le=599)
+    timeout: int = Field(default=10, ge=1, le=120)
+    expected_body: str = ""
+
+
+class MonitoringUptimeDeleteRequest(BaseModel):
+    monitor_id: str = Field(min_length=1)
+
+
+class MonitoringPatchRequest(BaseModel):
+    service_id: int = Field(gt=0)
+
+
+class IntegrationStatusOut(BaseModel):
+    success: bool = True
+    configured: bool = False
+    reachable: bool = False
+    availability: str = "unavailable"
+    status: str = "unavailable"
+    base_url: str = ""
+    org: str = ""
+    error: str | None = None
+    checked_at: str | None = None
+
+
+class MonitoringEnvelopeOut(BaseModel):
+    success: bool
+    availability: str = "unavailable"
+    source: str = "glitchtip"
+    checked_at: str | None = None
+    error: str | None = None
+
+
+class MonitoringHealthOut(MonitoringEnvelopeOut):
+    health: str = "unavailable"
+    running: bool | None = None
+    container_state: str | None = None
+    issue_count: int | None = None
+    error_count: int | None = None
+    warning_count: int | None = None
+    service_name: str = ""
+    project_slug: str = ""
+    probe: dict[str, Any] = Field(default_factory=dict)
+
+
+class MonitoringIssuesOut(MonitoringEnvelopeOut):
+    issues: list[dict[str, Any]] = Field(default_factory=list)
+    next_cursor: str | None = None
+    has_more: bool = False
+    service_name: str = ""
+    window: str = "24h"
+
+
+class MonitoringEventOut(MonitoringEnvelopeOut):
+    event: dict[str, Any] | None = None
+
+
+class MonitoringMutationOut(MonitoringEnvelopeOut):
+    action: str | None = None
+    target_id: str | None = None
+    monitor: dict[str, Any] | None = None
+
+
+class MonitoringCollectionOut(MonitoringEnvelopeOut):
+    items: list[dict[str, Any]] = Field(default_factory=list)
+    monitors: list[dict[str, Any]] = Field(default_factory=list)
+    keys: list[dict[str, Any]] = Field(default_factory=list)
+    project_slug: str = ""
+
+
+class MonitoringTransactionsOut(MonitoringEnvelopeOut):
+    transactions: list[dict[str, Any]] = Field(default_factory=list)
+    project_slug: str = ""
+    project_id: int | None = None
+    node_ip: str = ""
+
+
+class MonitoringTransactionIngestRequest(MonitoringServiceRequest):
+    transaction: str = Field(min_length=1)
+    environment: str = ""
+    duration_ms: float = Field(default=0.0, ge=0.0, le=86_400_000.0)
+    tags: dict[str, str] = Field(default_factory=dict)
+
+
+class MonitoringTransactionIngestOut(MonitoringTransactionsOut):
+    event_id: str | None = None
+    accepted_pending: bool = False
+
+
+class ProcessMetricOut(BaseModel):
+    name: str
+    cpu: float | None = None
+    memory: float | None = None
+    node_id: int | None = None
+    node_name: str | None = None
+    instance: str | None = None
+
+
+class ProcessMetricsOut(BaseModel):
+    processes: list[ProcessMetricOut] = Field(default_factory=list)
+    node_id: int | None = None
+    node_name: str | None = None
+    sort: str = "cpu"
+    memory_unit: str = "MiB"
+    source: str = "prometheus"
+    availability: str = "unavailable"
+    checked_at: str | None = None
+    error: str | None = None
+
+
 class TopologyOut(BaseModel):
     nodes: list[dict[str, Any]]
     services: list[dict[str, Any]]
@@ -722,6 +951,7 @@ class LogArchiveOut(BaseModel):
     readable: str
     reason: str
     discovered_at: datetime
+    checksum_sha256: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -856,34 +1086,39 @@ class NodeMetricsOut(BaseModel):
     node_id: int
     node_name: str
     window: str
-    cpu_percent: float
-    memory_percent: float
-    disk_percent: float
-    network_rx_mbps: float
-    network_tx_mbps: float
+    cpu_percent: float | None
+    memory_percent: float | None
+    disk_percent: float | None
+    network_rx_mbps: float | None
+    network_tx_mbps: float | None
     cpu_series: list[MetricSeriesPointOut]
     memory_series: list[MetricSeriesPointOut]
     disk_series: list[MetricSeriesPointOut]
     mounted_volumes: list[MountedVolumeOut] = []
     prometheus_reachable: bool | None = None
+    availability: str = "unavailable"
+    source: str = "prometheus"
+    checked_at: str | None = None
+    latest_sample_at: str | None = None
+    units: dict[str, str] = {}
     error: str | None = None
 
 
 class ServiceDbMetricsOut(BaseModel):
-    active_connections: int = 0
-    idle_connections: int = 0
-    read_ops: int = 0
-    write_ops: int = 0
-    cache_hit_ratio: float = 0.0
-    transaction_locks: int = 0
+    active_connections: int | None = None
+    idle_connections: int | None = None
+    read_ops: float | None = None
+    write_ops: float | None = None
+    cache_hit_ratio: float | None = None
+    transaction_locks: int | None = None
 
 
 class ServiceBrokerMetricsOut(BaseModel):
-    ingestion_rate: float = 0.0
-    delivery_rate: float = 0.0
-    queued_ready: int = 0
-    queued_unacked: int = 0
-    consumer_count: int = 0
+    ingestion_rate: float | None = None
+    delivery_rate: float | None = None
+    queued_ready: float | None = None
+    queued_unacked: float | None = None
+    consumer_count: float | None = None
 
 
 class CustomChartSeriesOut(BaseModel):
@@ -903,12 +1138,12 @@ class ServiceMetricsOut(BaseModel):
     service_key: str
     node_id: int
     window: str
-    cpu_percent: float
-    memory_mb: float
-    log_error_rate: float
-    queue_depth: int
-    restart_count: int
-    latency_ms_p95: float
+    cpu_percent: float | None
+    memory_mb: float | None
+    log_error_rate: float | None
+    queue_depth: float | None
+    restart_count: float | None
+    latency_ms_p95: float | None
     cpu_series: list[MetricSeriesPointOut]
     error_rate_series: list[MetricSeriesPointOut]
     queue_depth_series: list[MetricSeriesPointOut]
@@ -916,6 +1151,12 @@ class ServiceMetricsOut(BaseModel):
     broker_metrics: ServiceBrokerMetricsOut | None = None
     custom_charts: list[CustomChartOut] = []
     prometheus_reachable: bool | None = None
+    availability: str = "unavailable"
+    source: str = "prometheus"
+    checked_at: str | None = None
+    latest_sample_at: str | None = None
+    units: dict[str, str] = {}
+    commands_series: list[MetricSeriesPointOut] = []
     error: str | None = None
 
 
@@ -1039,6 +1280,8 @@ class DiagnosticsFileHistoryOut(BaseModel):
     next_cursor: str | None = None
     previous_cursor: str | None = None
     error: str | None = None
+    start: str | None = None
+    end: str | None = None
 
 
 class LogArchiveViewOut(BaseModel):
@@ -1047,6 +1290,7 @@ class LogArchiveViewOut(BaseModel):
     lines: list[str] = []
     total_lines: int = 0
     truncated: bool = False
+    checksum_sha256: str | None = None
     error: str | None = None
 
 
@@ -1055,6 +1299,7 @@ class LogArchiveDownloadOut(BaseModel):
     filename: str = ""
     content_type: str = "text/plain"
     ready: bool = False
+    checksum_sha256: str | None = None
     error: str | None = None
 
 
@@ -1084,6 +1329,18 @@ class DiagnosticsChatOut(BaseModel):
     suggestions: list[str] = []
     error: str | None = None
     provider: str | None = None
+
+
+class DiagnosticsBackfillOut(BaseModel):
+    """Backfill submission plus the stable job identity used for polling."""
+
+    id: int
+    service_id: int
+    ready: bool
+    status: str
+    requirements: dict[str, Any] = Field(default_factory=dict)
+    job: DiagnosticsBackfillJobOut
+    summary: str = ""
 
 
 class UserOut(BaseModel):
@@ -1149,6 +1406,7 @@ class LoginOut(BaseModel):
 
 
 class InviteAcceptRequest(BaseModel):
+    full_name: str
     password: str
 
 
@@ -1533,6 +1791,37 @@ class ObservabilityPipelineOut(BaseModel):
     sources: dict[str, Any]
     nodes: list[ObservabilityNodePipelineOut]
     summary: dict[str, int]
+
+
+class ObservabilitySignalOut(BaseModel):
+    state: Literal["available", "degraded", "unavailable", "error", "not_configured"]
+    source: str
+    checked_at: str
+    evidence_at: str | None = None
+    age_seconds: float | None = None
+    fresh: bool = False
+    error: str | None = None
+    detail: dict[str, Any] = Field(default_factory=dict)
+
+
+class ObservabilityTargetOut(BaseModel):
+    cluster_id: int
+    cluster_name: str
+    node_id: int
+    node_name: str
+    service_id: int
+    service_external_id: str
+    service_name: str
+    service_key: str
+    container_name: str
+
+
+class ObservabilityStatusOut(BaseModel):
+    generated_at: str
+    overall_state: Literal["available", "degraded", "unavailable", "error"]
+    freshness_seconds: int
+    target: ObservabilityTargetOut
+    signals: dict[str, ObservabilitySignalOut]
 
 
 class ObservabilityBootstrapOut(BaseModel):

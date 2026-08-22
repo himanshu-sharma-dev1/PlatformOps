@@ -54,6 +54,7 @@ from ..orchestrator import (
     catalog_cards,
     check_port_and_name_availability,
     compare_config_snapshots,
+    config_capabilities_for_service,
     complete_maintenance,
     create_audit_export,
     create_config_snapshot,
@@ -130,6 +131,7 @@ from ..orchestrator import (
     list_releases,
     mark_force_delete_approval_used,
     observability_pipeline_report,
+    observability_status_report,
     placement_auto_deploy,
     placement_recommendations,
     patch_service_runtime_observability,
@@ -171,6 +173,7 @@ from ..orchestrator import (
 from ..orchestrator import (
     config_workspace as build_config_workspace,
 )
+from ..orchestrator.config import prepare_config_runtime_target
 from ..orchestrator import (
     get_node_metrics as orchestrator_get_node_metrics,
 )
@@ -187,6 +190,12 @@ from ..schemas import (
     TestGitRepoRequest,
     TestRegistryRequest,
     ConfigApply,
+    ConfigDirectApplyOut,
+    ConfigMigrationApplyOut,
+    ConfigMigrationApplyRequest,
+    ConfigMigrationPrepareOut,
+    ConfigMigrationPrepareRequest,
+    ConfigMigrationRestoreRequest,
     ConfigSnapshotCompareOut,
     ConfigSnapshotCreate,
     ConfigSnapshotDetailOut,
@@ -194,6 +203,7 @@ from ..schemas import (
     ConfigSnapshotPageOut,
     ConfigSnapshotRename,
     ConfigSyncPeer,
+    ConfigSyncPeerOut,
     ConfigTimelinePageOut,
     ConfigValidateOut,
     ConfigWorkspaceOut,
@@ -256,6 +266,7 @@ from ..schemas import (
     NodeUpdate,
     ObservabilityBootstrapOut,
     ObservabilityPipelineOut,
+    ObservabilityStatusOut,
     OperationalEventOut,
     PlacementDeployOut,
     PlacementRecommendationOut,

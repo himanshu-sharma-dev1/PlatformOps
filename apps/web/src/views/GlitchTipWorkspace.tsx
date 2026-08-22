@@ -21,6 +21,9 @@ export function GlitchTipWorkspace() {
   const gtWindow = p.gtWindow;
   const gtTransactions = p.gtTransactions;
   const gtUptimeMonitors = p.gtUptimeMonitors;
+  const gtDataStatus = p.gtDataStatus || "idle";
+  const gtDataError = p.gtDataError;
+  const gtHealth = p.gtHealth;
   const incidents = p.incidents;
   const loadEventDetails = p.loadEventDetails;
   const loadGlitchTipDataForService = p.loadGlitchTipDataForService;
@@ -47,6 +50,7 @@ export function GlitchTipWorkspace() {
   
   const configured = gtIntegrationStatus?.configured;
   const reachable = gtIntegrationStatus?.reachable;
+  const integrationState = gtIntegrationStatus?.availability || (configured && reachable ? "available" : "unavailable");
   
   const handleServiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = parseInt(e.target.value);
@@ -69,14 +73,19 @@ export function GlitchTipWorkspace() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(255, 255, 255, 0.02)", padding: "0.75rem 1rem", borderRadius: "12px", border: "1px solid var(--line)" }}>
         <div style={{ display: "flex", gap: "1.5rem", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span className={`status-dot ${configured && reachable ? "ok" : "error"}`} style={{ width: "10px", height: "10px", borderRadius: "50%", display: "inline-block" }}></span>
+            <span className={`status-dot ${integrationState === "available" ? "ok" : integrationState === "error" ? "error" : "warn"}`} style={{ width: "10px", height: "10px", borderRadius: "50%", display: "inline-block" }}></span>
             <strong style={{ fontSize: "0.9rem" }}>
-              {configured && reachable ? "GlitchTip connected" : "GlitchTip offline"}
+              {integrationState === "available" ? "GlitchTip connected" : integrationState === "error" ? "GlitchTip error" : "GlitchTip unavailable"}
             </strong>
           </div>
           {configured && (
             <small style={{ color: "var(--ink-4)" }}>
               Base URL: <code>{gtIntegrationStatus?.base_url}</code> | Org: <code>{gtIntegrationStatus?.org}</code>
+            </small>
+          )}
+          {gtHealth && (
+            <small style={{ color: gtHealth.health === "ok" ? "var(--ok)" : gtHealth.health === "unavailable" ? "var(--ink-4)" : "var(--err)" }}>
+              Target health: <strong>{gtHealth.health}</strong>{gtHealth.container_state ? ` · ${gtHealth.container_state}` : ""}
             </small>
           )}
         </div>
@@ -86,6 +95,13 @@ export function GlitchTipWorkspace() {
             {selectedService ? <code style={{ marginLeft: 8 }}>{selectedService.service_key}</code> : null}
           </div>
       </div>
+
+      {gtDataStatus !== "available" && gtDataStatus !== "idle" && (
+        <GlassCard style={{ padding: "0.75rem 1rem", borderColor: gtDataStatus === "error" ? "var(--err)" : "var(--line)" }}>
+          <strong>{gtDataStatus === "loading" ? "Loading direct GlitchTip data…" : `GlitchTip data: ${gtDataStatus}`}</strong>
+          {gtDataError ? <span style={{ marginLeft: 8, color: "var(--ink-4)" }}>{gtDataError}</span> : null}
+        </GlassCard>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 3fr", gap: "1.5rem" }}>
         <GlassCard style={{ padding: "1rem", height: "fit-content" }}>
@@ -250,7 +266,7 @@ export function GlitchTipWorkspace() {
                   </div>
                 )}
                 {gtIssues.length === 0 && (
-                  <div style={{ textAlign: "center", padding: "2rem", color: "var(--ink-4)" }}>No unresolved issues mapped to this project slug in GlitchTip.</div>
+                  <div style={{ textAlign: "center", padding: "2rem", color: "var(--ink-4)" }}>{gtDataStatus === "available" ? "No unresolved issues mapped to this project slug in GlitchTip." : "Issues are unavailable until the configured GlitchTip probe succeeds."}</div>
                 )}
               </div>
             </GlassCard>

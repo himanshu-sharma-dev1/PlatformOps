@@ -15,7 +15,9 @@ endpoints = [
     ("GET", "/api/catalog/services/option-copilot/install-schema?node_id=1", None),
     ("GET", "/api/topology", None),
     ("GET", "/api/observability/pipeline", None),
-    ("GET", "/api/observability/status", None),
+    # The direct observability contract is target-scoped.  The placeholder is
+    # resolved to the canonical redis-core ID after authentication below.
+    ("GET", "/api/observability/status?service_id=0", None),
     ("GET", "/api/dashboard/summary", None),
     ("GET", "/api/events", None),
     ("GET", "/api/capabilities/coverage", None),
@@ -86,7 +88,7 @@ def login(session: requests.Session) -> None:
         payload = response.json()
     except ValueError as exc:
         raise SystemExit("Authentication returned non-JSON data; refusing API checks.") from exc
-    token = payload.get("token") or payload.get("access_token") or payload.get("session_token")
+    token = payload.get("token")
     if not isinstance(token, str) or not token.strip():
         raise SystemExit("Authentication returned no bearer token; refusing API checks.")
     session.headers.update({"Authorization": f"Bearer {token}"})
@@ -103,6 +105,30 @@ print(f"BASE={BASE_URL}")
 
 failed = 0
 passed = 0
+
+# Resolve the target-scoped observability request instead of silently probing
+# an unscoped endpoint (which correctly returns HTTP 422).
+try:
+    services_response = session.get(f"{BASE_URL}/api/services", timeout=10)
+    services_payload = services_response.json() if services_response.status_code == 200 else []
+    services = services_payload if isinstance(services_payload, list) else services_payload.get("items", [])
+    redis_target = next(
+        (item for item in services if str(item.get("service_key", "")).lower() in {"redis", "redis-core", "airflow-redis"}),
+        None,
+    )
+    if not redis_target or not redis_target.get("id"):
+        raise SystemExit("Canonical redis-core target is required before observability status checks.")
+    marker = os.environ.get("PLATFORMOPS_OBSERVABILITY_MARKER", "").strip()
+    query = f"/api/observability/status?service_id={int(redis_target['id'])}"
+    if marker:
+        from urllib.parse import quote
+        query += f"&marker={quote(marker)}"
+    endpoints = [
+        (method, query if path == "/api/observability/status?service_id=0" else path, payload)
+        for method, path, payload in endpoints
+    ]
+except (ValueError, TypeError, requests.RequestException) as exc:
+    raise SystemExit(f"Canonical redis-core target lookup failed; refusing observability checks: {exc}") from exc
 
 for method, path, payload in endpoints:
     url = f"{BASE_URL}{path}"

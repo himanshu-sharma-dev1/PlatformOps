@@ -1,8 +1,10 @@
-"""Small runtime-facing tests for the selected observability endpoints."""
+"""Direct-probe and freshness tests for the Observability contract."""
 from __future__ import annotations
 
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -11,80 +13,80 @@ if str(API_ROOT) not in sys.path:
     sys.path.insert(0, str(API_ROOT))
 
 
-def test_query_regex_literal_keeps_hyphens_and_escapes_re2_meta_characters():
-    from platformops.query import escape_query_regex_literal
+class FakeDb:
+    def __init__(self):
+        self.service = SimpleNamespace(id=41, node_id=7, service_key="redis-core", external_id="SERV1041", name="redis-core", container_name="acceptance-redis-core")
+        self.node = SimpleNamespace(id=7, cluster_id=3, name="acceptance-node", host="localhost", facts_json='{"connection_mode":"local"}')
+        self.cluster = SimpleNamespace(id=3, name="acceptance-cluster")
 
-    assert escape_query_regex_literal("mvp-dind-node") == "mvp-dind-node"
-    assert escape_query_regex_literal("node.1[0]") == r"node\\.1\\[0\\]"
-    # Backslashes and quotes need the additional PromQL/LogQL string layer.
-    assert escape_query_regex_literal('x\\y"z') == r"x\\\\y\"z"
-
-
-def test_observability_status_reports_unavailable_engine_without_500(monkeypatch: pytest.MonkeyPatch):
-    from platformops.routers import observability
-
-    class FailingDocker:
-        @staticmethod
-        def from_env():
-            raise RuntimeError("engine unavailable")
-
-    monkeypatch.setattr(observability, "docker", FailingDocker)
-
-    result = observability.get_observability_status()
-
-    assert result["containers"] == []
-    assert result["available"] is False
-    assert "engine unavailable" in result["error"]
+    def get(self, _model, item_id):
+        return {41: self.service, 7: self.node, 3: self.cluster}.get(item_id)
 
 
-def test_observability_status_maps_compose_containers(monkeypatch: pytest.MonkeyPatch):
-    from platformops.routers import observability
+class FakeResponse:
+    status_code = 200
 
-    class FakeAPI:
-        def containers(self, **_kwargs):
-            return [
-                {
-                    "Id": "b" * 64,
-                    "Names": ["/platformops-obs-loki"],
-                    "State": "running",
-                    "Status": "Up 2 minutes",
-                    "Labels": {
-                        "com.docker.compose.project": "platformops-obs",
-                        "com.docker.compose.service": "loki",
-                    },
-                },
-                {
-                    "Id": "a" * 64,
-                    "Names": ["/platformops-obs-prometheus"],
-                    "State": "exited",
-                    "Status": "Exited (1) 10 seconds ago",
-                    "Labels": {
-                        "com.docker.compose.project": "platformops-obs",
-                        "com.docker.compose.service": "prometheus",
-                    },
-                },
-            ]
 
-    class FakeClient:
-        api = FakeAPI()
+def _patch_ready(monkeypatch: pytest.MonkeyPatch, *, marker_found: bool = True, sample_age: int = 0):
+    from platformops.orchestrator.reports import impl
 
-        def close(self):
-            return None
+    now = datetime.now(UTC).timestamp() - sample_age
+    monkeypatch.setattr(impl, "inspect_container", lambda _name: ({"State": {"Running": True, "Status": "running", "Health": {"Status": "healthy"}}}, None))
+    monkeypatch.setattr(impl, "exec_container", lambda _name, _args: (True, "PONG\n", ""))
 
-    class FakeDocker:
-        @staticmethod
-        def from_env():
-            return FakeClient()
+    def fake_json(url, *, params=None):
+        if url.endswith("/api/v1/targets"):
+            return {"status": "success", "data": {"activeTargets": [{"labels": {"service_id": "41", "container_name": "acceptance-redis-core"}, "health": "up", "lastScrape": datetime.now(UTC).isoformat(), "lastError": ""}]}}, None
+        if url.endswith("/api/v1/query"):
+            return {"status": "success", "data": {"result": [{"value": [now, "1"]}]}}, None
+        if url.endswith("/loki/api/v1/query_range"):
+            values = [[str(int(now * 1_000_000_000)), "OBS-RUN-123 Redis marker"]] if marker_found else []
+            return {"status": "success", "data": {"result": [{"values": values}] if values else []}}, None
+        raise AssertionError(url)
 
-    monkeypatch.setattr(observability, "docker", FakeDocker)
+    monkeypatch.setattr(impl, "_obs_get_json", fake_json)
+    monkeypatch.setattr(impl.requests, "get", lambda *_args, **_kwargs: FakeResponse())
 
-    result = observability.get_observability_status()
 
-    assert result["available"] is True
-    assert result["error"] is None
-    assert [item["Name"] for item in result["containers"]] == [
-        "platformops-obs-loki",
-        "platformops-obs-prometheus",
-    ]
-    assert result["containers"][0]["Service"] == "loki"
-    assert result["containers"][1]["State"] == "exited"
+def test_status_requires_direct_fresh_correlated_evidence(monkeypatch: pytest.MonkeyPatch):
+    from platformops.orchestrator.reports.impl import observability_status_report
+
+    _patch_ready(monkeypatch)
+    result = observability_status_report(FakeDb(), service_id=41, marker="OBS-RUN-123")
+    assert result["overall_state"] == "available"
+    assert result["target"]["container_name"] == "acceptance-redis-core"
+    assert result["signals"]["service"]["detail"]["pong"] is True
+    assert result["signals"]["prometheus"]["detail"]["sample_value"] == 1.0
+    assert result["signals"]["loki"]["detail"]["matches"] == 1
+    assert result["signals"]["glitchtip"]["state"] == "not_configured"
+
+
+def test_http_success_with_empty_marker_result_is_not_healthy(monkeypatch: pytest.MonkeyPatch):
+    from platformops.orchestrator.reports.impl import observability_status_report
+
+    _patch_ready(monkeypatch, marker_found=False)
+    result = observability_status_report(FakeDb(), service_id=41, marker="OBS-RUN-123")
+    assert result["overall_state"] == "degraded"
+    assert result["signals"]["loki"]["state"] == "unavailable"
+    assert result["signals"]["alloy"]["state"] == "degraded"
+
+
+def test_stale_prometheus_sample_is_degraded(monkeypatch: pytest.MonkeyPatch):
+    from platformops.orchestrator.reports.impl import observability_status_report
+
+    _patch_ready(monkeypatch, sample_age=300)
+    result = observability_status_report(FakeDb(), service_id=41, marker="OBS-RUN-123")
+    assert result["overall_state"] == "degraded"
+    assert result["signals"]["prometheus"]["state"] == "degraded"
+    assert result["signals"]["prometheus"]["fresh"] is False
+
+
+def test_container_probe_failure_is_error_not_db_health(monkeypatch: pytest.MonkeyPatch):
+    from platformops.orchestrator.reports import impl
+    from platformops.orchestrator.reports.impl import observability_status_report
+
+    _patch_ready(monkeypatch)
+    monkeypatch.setattr(impl, "inspect_container", lambda _name: (None, "engine unavailable"))
+    result = observability_status_report(FakeDb(), service_id=41, marker="OBS-RUN-123")
+    assert result["overall_state"] == "error"
+    assert "engine unavailable" in result["signals"]["service"]["error"]

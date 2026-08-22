@@ -1,172 +1,163 @@
-version: '3.9'
+name: ${PLATFORMOPS_OBS_PROJECT:?set PLATFORMOPS_OBS_PROJECT to a unique disposable name}
 
+# Supporting evidence infrastructure only. It is not a cPlatform parity target.
+# The sole external network is the disposable platformops-isolated project; no
+# host Docker socket, cPlatform network, fixed IP, or host port is used.
 services:
-  platformops-obs-loki:
+  loki:
     image: grafana/loki:3.2.1
-    container_name: platformops-obs-loki
-    command: -config.file=/etc/loki/config.yaml
-    ports:
-      - "9021:3100"
+    command: ["-config.file=/etc/loki/config.yml"]
     volumes:
-      - /home/ubuntu/PlatformOps/ops/compose/observability/loki-config.yaml:/etc/loki/config.yaml:ro
-      - /home/ubuntu/PlatformOps/data/observability/loki:/loki
+      - ./observability/loki-config.yaml:/etc/loki/config.yml:ro
+      - loki_data:/loki
     networks:
-      compose_platformops_prod_network:
-        ipv4_address: 180.80.0.50
-    restart: unless-stopped
+      obs_private:
+        aliases: [observability-support-loki]
+      isolated_runtime:
+        aliases: [observability-loki]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3100/ready | grep -q ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
-  platformops-obs-alloy:
+  alloy:
     image: grafana/alloy:v1.5.1
-    container_name: platformops-obs-alloy
-    command:
-      - run
-      - /etc/alloy/config.alloy
-      - --server.http.listen-addr=0.0.0.0:12345
-    ports:
-      - "12346:12345"
+    command: ["run", "/etc/alloy/config.alloy", "--server.http.listen-addr=0.0.0.0:12345", "--storage.path=/var/lib/alloy"]
     volumes:
-      - /home/ubuntu/PlatformOps/ops/compose/observability/config.alloy:/etc/alloy/config.alloy:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /home/ubuntu/PlatformOps/data/observability/alloy:/var/lib/alloy
+      - ./observability/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy_data:/var/lib/alloy
     networks:
-      compose_platformops_prod_network:
-        ipv4_address: 180.80.0.51
+      obs_private:
+      isolated_runtime:
+        aliases: [observability-alloy]
     depends_on:
-      - platformops-obs-loki
-    restart: unless-stopped
+      loki:
+        condition: service_healthy
 
-  platformops-obs-prometheus:
+  prometheus:
     image: prom/prometheus:v2.52.0
-    container_name: platformops-obs-prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-    ports:
-      - "9022:9090"
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus"]
     volumes:
-      - /home/ubuntu/PlatformOps/ops/compose/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ${PLATFORMOPS_OBS_PROM_CONFIG:?generated config path required}:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
     networks:
-      compose_platformops_prod_network:
-        ipv4_address: 180.80.0.52
-    restart: unless-stopped
+      obs_private:
+      isolated_runtime:
+        aliases: [observability-prometheus]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9090/-/ready | grep -q 'Prometheus Server is Ready'"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
-  platformops-obs-node-exporter:
-    image: prom/node-exporter:v1.8.2
-    container_name: platformops-obs-node-exporter
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.rootfs=/rootfs'
-      - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    networks:
-      compose_platformops_prod_network:
-        ipv4_address: 180.80.0.53
-    restart: unless-stopped
-
-  platformops-obs-process-exporter:
-    image: platformops/process-exporter:latest
-    container_name: platformops-obs-process-exporter
-    privileged: true
-    ports:
-      - "9257:9256"
-    volumes:
-      - /proc:/host/proc:ro
-    networks:
-      compose_platformops_prod_network:
-        ipv4_address: 180.80.0.54
-    restart: unless-stopped
-
-  platformops-obs-glitchtip-postgres:
-    image: postgres:16
-    container_name: platformops-obs-glitchtip-postgres
+  glitchtip-db:
+    profiles: ["glitchtip"]
+    image: postgres:16-alpine
     environment:
       POSTGRES_DB: glitchtip
       POSTGRES_USER: glitchtip
-      POSTGRES_PASSWORD: change-me
+      POSTGRES_PASSWORD: ${PLATFORMOPS_OBS_DB_PASSWORD:?generated database password required}
     volumes:
-      - /home/ubuntu/PlatformOps/data/observability/glitchtip/postgres:/var/lib/postgresql/data
-    networks:
-      compose_platformops_prod_network:
-        ipv4_address: 180.80.0.55
-    restart: unless-stopped
+      - glitchtip_db_data:/var/lib/postgresql/data
+    networks: [obs_private]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U glitchtip -d glitchtip"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
-  platformops-obs-glitchtip-valkey:
-    image: valkey/valkey:7.2
-    container_name: platformops-obs-glitchtip-valkey
-    command: valkey-server --save 60 1000 --appendonly yes
+  glitchtip-valkey:
+    profiles: ["glitchtip"]
+    image: valkey/valkey:7.2-alpine
+    command: ["valkey-server", "--save", "60", "1000", "--appendonly", "yes"]
     volumes:
-      - /home/ubuntu/PlatformOps/data/observability/glitchtip/valkey:/data
-    networks:
-      compose_platformops_prod_network:
-        ipv4_address: 180.80.0.56
-    restart: unless-stopped
+      - glitchtip_valkey_data:/data
+    networks: [obs_private]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
-  platformops-obs-glitchtip-migrate:
+  glitchtip-migrate:
+    profiles: ["glitchtip"]
     image: iktaraai/services:glitchtip-iktara-6.1.9
-    container_name: platformops-obs-glitchtip-migrate
-    env_file:
-      - /home/ubuntu/PlatformOps/ops/compose/observability/glitchtip.env
-    environment:
-      DATABASE_URL: postgresql://glitchtip:change-me@180.80.0.55:5432/glitchtip
-      REDIS_URL: redis://180.80.0.56:6379/0
+    environment: &glitchtip_environment
+      DATABASE_URL: postgresql://glitchtip:${PLATFORMOPS_OBS_DB_PASSWORD}@glitchtip-db:5432/glitchtip
+      REDIS_URL: redis://glitchtip-valkey:6379/0
+      SECRET_KEY: ${PLATFORMOPS_OBS_SECRET_KEY:?generated GlitchTip secret required}
+      GLITCHTIP_DOMAIN: http://observability-glitchtip:8000
+      ENABLE_OPEN_USER_REGISTRATION: "False"
+      PORT: "8000"
+      EMAIL_URL: consolemail://
+    command: ["./manage.py", "migrate", "--noinput"]
+    networks: [obs_private]
     depends_on:
-      - platformops-obs-glitchtip-postgres
-      - platformops-obs-glitchtip-valkey
-    networks:
-      compose_platformops_prod_network:
-        ipv4_address: 180.80.0.57
-    command: ./manage.py migrate
+      glitchtip-db:
+        condition: service_healthy
+      glitchtip-valkey:
+        condition: service_healthy
     restart: "no"
 
-  platformops-obs-glitchtip-web:
+  glitchtip-bootstrap:
+    profiles: ["glitchtip"]
     image: iktaraai/services:glitchtip-iktara-6.1.9
-    container_name: platformops-obs-glitchtip-web
-    user: root
-    env_file:
-      - /home/ubuntu/PlatformOps/ops/compose/observability/glitchtip.env
     environment:
-      DATABASE_URL: postgresql://glitchtip:change-me@180.80.0.55:5432/glitchtip
-      REDIS_URL: redis://180.80.0.56:6379/0
+      <<: *glitchtip_environment
+      DJANGO_SUPERUSER_EMAIL: ${PLATFORMOPS_OBS_ADMIN_EMAIL:?disposable admin email required}
+      DJANGO_SUPERUSER_PASSWORD: ${PLATFORMOPS_OBS_ADMIN_PASSWORD:?generated admin password required}
+    command:
+      - sh
+      - -c
+      - >-
+        ./manage.py createsuperuser --noinput --email "$${DJANGO_SUPERUSER_EMAIL}" ||
+        ./manage.py shell -c 'import os; from django.contrib.auth import get_user_model;
+        assert get_user_model().objects.filter(email=os.environ["DJANGO_SUPERUSER_EMAIL"]).exists()'
+    networks: [obs_private]
     depends_on:
-      - platformops-obs-glitchtip-postgres
-      - platformops-obs-glitchtip-valkey
-    ports:
-      - "9008:8000"
-    volumes:
-      - /home/ubuntu/PlatformOps/ops/compose/observability/patch_glitchtip_schema.py:/tmp/patch_glitchtip_schema.py:ro
-      - /home/ubuntu/PlatformOps/ops/compose/observability/glitchtip_runtime_map.yaml:/tmp/glitchtip_runtime_map.yaml:ro
-    command: sh -lc "python /tmp/patch_glitchtip_schema.py && ./bin/start.sh"
-    networks:
-      compose_platformops_prod_network:
-        ipv4_address: 180.80.0.58
-    restart: unless-stopped
+      glitchtip-migrate:
+        condition: service_completed_successfully
+    restart: "no"
 
-  platformops-obs-glitchtip-worker:
+  glitchtip:
+    profiles: ["glitchtip"]
     image: iktaraai/services:glitchtip-iktara-6.1.9
-    container_name: platformops-obs-glitchtip-worker
-    user: root
-    env_file:
-      - /home/ubuntu/PlatformOps/ops/compose/observability/glitchtip.env
-    environment:
-      DATABASE_URL: postgresql://glitchtip:change-me@180.80.0.55:5432/glitchtip
-      REDIS_URL: redis://180.80.0.56:6379/0
-      SERVER_ROLE: worker
-    depends_on:
-      - platformops-obs-glitchtip-postgres
-      - platformops-obs-glitchtip-valkey
-    volumes:
-      - /home/ubuntu/PlatformOps/ops/compose/observability/patch_glitchtip_schema.py:/tmp/patch_glitchtip_schema.py:ro
-      - /home/ubuntu/PlatformOps/ops/compose/observability/glitchtip_runtime_map.yaml:/tmp/glitchtip_runtime_map.yaml:ro
-    command: sh -lc "python /tmp/patch_glitchtip_schema.py && ./bin/start.sh"
+    environment: *glitchtip_environment
     networks:
-      compose_platformops_prod_network:
-        ipv4_address: 180.80.0.59
-    restart: unless-stopped
+      obs_private:
+      isolated_runtime:
+        aliases: [observability-glitchtip, glitchtip]
+    depends_on:
+      glitchtip-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/_health/\", timeout=3)' || python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/\", timeout=3)'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  glitchtip-worker:
+    profiles: ["glitchtip"]
+    image: iktaraai/services:glitchtip-iktara-6.1.9
+    environment:
+      <<: *glitchtip_environment
+      SERVER_ROLE: worker
+    networks: [obs_private]
+    depends_on:
+      glitchtip-bootstrap:
+        condition: service_completed_successfully
 
 networks:
-  compose_platformops_prod_network:
+  obs_private:
+    internal: true
+  isolated_runtime:
     external: true
+    name: ${PLATFORMOPS_ISOLATED_NETWORK:-platformops-isolated_default}
+
+volumes:
+  loki_data:
+  alloy_data:
+  prometheus_data:
+  glitchtip_db_data:
+  glitchtip_valkey_data:

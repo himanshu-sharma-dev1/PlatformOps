@@ -109,7 +109,7 @@ export function ConfigView() {
                 )}
               </div>
               <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
-                <button className="btn btn-secondary btn-sm" onClick={captureSnapshot}>Capture snapshot</button>
+                <button className="btn btn-secondary btn-sm" disabled={!config?.config_capabilities?.snapshot_enabled || !config?.live_read_ok} onClick={captureSnapshot}>Capture snapshot</button>
                 <button className="btn btn-secondary btn-sm" onClick={detectConfigDrift}>Detect drift</button>
                 <button className="btn btn-secondary btn-sm" onClick={() => selectedService && loadConfig(selectedService, "live")}>Refresh live</button>
                 <button type="button" className={`btn btn-sm ${configEditMode ? "btn-primary" : "btn-secondary"}`} onClick={() => setConfigEditMode((v) => !v)}>{configEditMode ? "Editing" : "Edit mode"}</button>
@@ -118,7 +118,7 @@ export function ConfigView() {
                   <button type="button" className={`btn btn-xs ${configApplyMode === "reload" ? "btn-primary" : "btn-secondary"}`} onClick={() => setConfigApplyMode("reload")}>Reload</button>
                   <button type="button" className={`btn btn-xs ${configApplyMode === "restart" ? "btn-primary" : "btn-secondary"}`} onClick={() => setConfigApplyMode("restart")}>Restart</button>
                 </div>
-                <button className="btn btn-primary btn-sm" onClick={applyCurrentConfig}>Apply config</button>
+                <button className="btn btn-primary btn-sm" disabled={!config?.config_capabilities?.apply_enabled} onClick={applyCurrentConfig}>Apply config</button>
               </div>
             </div>
 
@@ -134,7 +134,7 @@ export function ConfigView() {
             {configTab === "current" && (
               <div style={{ display: "flex", flexDirection: "column", gap: "1rem", flex: 1 }}>
 
-                {(config?.content_source === "live_fallback" || config?.content_source === "latest_snapshot" || (config?.config_source_label || "").toLowerCase().includes("checkpoint") || (config?.config_source_label || "").toLowerCase().includes("fallback")) && (
+                {(config?.content_source === "runtime_unavailable" || config?.content_source === "live_fallback" || config?.content_source === "latest_snapshot" || (config?.config_source_label || "").toLowerCase().includes("checkpoint") || (config?.config_source_label || "").toLowerCase().includes("fallback")) && (
                   <div style={{
                     padding: "0.75rem 1rem",
                     borderRadius: 10,
@@ -142,10 +142,10 @@ export function ConfigView() {
                     background: "rgba(234, 179, 8, 0.08)",
                     fontSize: "0.85rem",
                   }}>
-                    <strong>Database / checkpoint fallback</strong>
+                    <strong>{config?.live_read_ok ? "Checkpoint content" : "Runtime config unavailable"}</strong>
                     <div style={{ color: "var(--ink-3)", marginTop: 4 }}>
-                      Live file may be unavailable. Showing <code>{config?.config_source_label || config?.content_source}</code>.
-                      You can still edit, validate, and apply when a node target is ready.
+                      Showing <code>{config?.config_source_label || config?.content_source}</code>.
+                      {!config?.live_read_ok && config?.live_read_error ? ` ${config.live_read_error}` : ""}
                     </div>
                   </div>
                 )}
@@ -242,7 +242,7 @@ export function ConfigView() {
                       setNotice(validation.message);
                     }}
                   >
-                    Validate YAML Syntax
+                    Validate {config?.config_format === "redis" ? "Redis Syntax" : "YAML Syntax"}
                   </button>
                 </div>
               </div>
@@ -516,9 +516,9 @@ export function ConfigView() {
                 />
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
                   <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                    <button className="btn btn-secondary btn-sm" onClick={validateMigrationYaml}>Validate YAML</button>
-                    <button className="btn btn-primary btn-sm" onClick={applyPreparedMigration}>Apply migration</button>
-                    <button className="btn btn-secondary btn-sm" onClick={restorePreparedMigration}>Restore backup</button>
+                    <button className="btn btn-secondary btn-sm" onClick={validateMigrationYaml}>Validate {config?.config_format === "redis" ? "Redis" : "YAML"}</button>
+                    <button className="btn btn-primary btn-sm" disabled={!config?.config_capabilities?.migration_enabled} onClick={applyPreparedMigration}>Apply migration</button>
+                    <button className="btn btn-secondary btn-sm" disabled={!config?.config_capabilities?.restore_enabled} onClick={restorePreparedMigration}>Restore backup</button>
                   </div>
                 </div>
 

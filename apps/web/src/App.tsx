@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Layout } from "./components/Layout";
 import { PlatformProvider, usePlatform } from "./platform/usePlatform";
-import { api } from "./api/client";
+import { api, setAuthToken } from "./api/client";
 import { ClustersView } from "./views/ClustersView";
 import { ConfigView } from "./views/ConfigView";
 import { DiagnosticsView } from "./views/DiagnosticsView";
@@ -24,8 +24,7 @@ function AuthenticatedShell() {
   if (p.authReady === false) {
     return <div style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>Loading session…</div>;
   }
-  if (typeof p.renderUsersView === "function" && p.inviteAccept && p.inviteAccept.preview?.state === "valid") {
-    // reuse controller invite UI by rendering a tiny bridge
+  if (p.inviteAccept) {
     return <InviteBridge />;
   }
   if (!p.authUser) {
@@ -213,18 +212,87 @@ function LoginBridge() {
 
 function InviteBridge() {
   const p = usePlatform() as any;
-  // Fall through to users invite accept UI embedded in controller state
+  const invite = p.inviteAccept || {};
+  const state = invite.preview?.state || "error";
+  const update = (patch: any) => p.setInviteAccept({ ...invite, ...patch });
+  const password = String(invite.password || "");
+  const passwordRules = {
+    length: password.length >= 12,
+    upper: /[A-Z]/.test(password),
+    lower: /[a-z]/.test(password),
+    number: /[0-9]/.test(password),
+    symbol: /[^A-Za-z0-9]/.test(password),
+    nocommon: password.length > 0 && !new Set([
+      "password123", "qwerty123456", "iloveyou12345", "admin1234567",
+      "123456789012", "yantrai123456", "welcome12345", "letmein12345",
+      "changeme1234",
+    ]).has(password.toLowerCase()),
+  };
+  const strength = Object.values(passwordRules).filter(Boolean).length;
+  const canSubmit = state === "valid" && strength >= 5
+    && password === invite.confirmPassword && Boolean(invite.fullName?.trim())
+    && Boolean(invite.agreed) && !invite.busy;
+  const stateMessages: Record<string, string> = {
+    expired: "This invitation has expired. Ask an administrator to resend it.",
+    used: "This invitation has already been accepted. Sign in with the account credentials.",
+    revoked: "This invitation was cancelled by an administrator.",
+    invalid: "This invitation link is invalid.",
+    error: invite.error || "The invitation could not be loaded. Try again.",
+    success: "Your account has been created. You can now sign in.",
+  };
+  const leaveInviteRoute = () => {
+    p.setInviteAccept(null);
+    // The invitation token is a one-time credential. Replace the hash rather
+    // than assigning an empty hash, which leaves a misleading `/#` route.
+    window.history.replaceState(null, document.title, `${window.location.pathname}${window.location.search}`);
+  };
   return (
     <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: "2rem" }}>
-      <div style={{ maxWidth: 440, width: "100%" }}>
-        <h1>Accept invite</h1>
-        <p>{p.inviteAccept?.preview?.invite?.user_email}</p>
-        <input className="input" type="password" value={p.inviteAccept?.password || ""} onChange={(e) => p.setInviteAccept({ ...p.inviteAccept, password: e.target.value })} style={{ width: "100%", marginBottom: 12 }} />
-        <button className="btn btn-primary" style={{ width: "100%" }} onClick={async () => {
-          await api(`/api/auth/invite/${p.inviteAccept.token}/accept`, { method: "POST", body: JSON.stringify({ password: p.inviteAccept.password }) });
-          p.setInviteAccept(null);
-          window.location.hash = "";
-        }}>Activate account</button>
+      <div style={{ maxWidth: 480, width: "100%", padding: "2rem", border: "1px solid var(--line)", borderRadius: 16 }}>
+        <h1>{state === "valid" ? "Accept invitation" : "Invitation status"}</h1>
+        {state !== "valid" ? (
+          <>
+            <p>{stateMessages[state] || stateMessages.invalid}</p>
+            <button className="btn btn-primary" onClick={leaveInviteRoute}>Go to sign in</button>
+          </>
+        ) : (
+          <>
+            <p>{invite.preview?.invite?.user_email}</p>
+            <p style={{ color: "var(--ink-4)" }}>Invited by {invite.preview?.invite?.invited_by || "Administrator"} as {invite.preview?.invite?.user_role}</p>
+            <input className="input" placeholder="Full name" value={invite.fullName || ""} onChange={(e) => update({ fullName: e.target.value, error: "" })} style={{ width: "100%", marginBottom: 12 }} />
+            <input className="input" type="password" placeholder="Password" value={password} onChange={(e) => update({ password: e.target.value, error: "" })} style={{ width: "100%", marginBottom: 8 }} />
+            <div style={{ fontSize: "0.75rem", color: strength >= 5 ? "var(--ok)" : "var(--ink-4)", marginBottom: 12 }}>
+              12+ characters; uppercase, lowercase, number, symbol, and not a common password. ({strength}/6 rules)
+            </div>
+            <input className="input" type="password" placeholder="Confirm password" value={invite.confirmPassword || ""} onChange={(e) => update({ confirmPassword: e.target.value, error: "" })} style={{ width: "100%", marginBottom: 12 }} />
+            <label style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <input type="checkbox" checked={Boolean(invite.agreed)} onChange={(e) => update({ agreed: e.target.checked })} />
+              <span>I agree to the terms of service and privacy policy.</span>
+            </label>
+            {invite.error ? <div style={{ color: "var(--err)", marginBottom: 12 }}>{invite.error}</div> : null}
+            <button className="btn btn-primary" disabled={!canSubmit} style={{ width: "100%" }} onClick={async () => {
+              update({ busy: true, error: "" });
+              try {
+                const result = await api<any>(`/api/auth/invite/${invite.token}/accept`, {
+                  method: "POST",
+                  body: JSON.stringify({ full_name: invite.fullName.trim(), password })
+                });
+                if (!result?.token || !result?.user) {
+                  throw new Error("Invitation response missing authentication session");
+                }
+                // Invite acceptance returns the same session envelope as
+                // login. Persist it before leaving the public invite route so
+                // the shell immediately renders the authenticated application.
+                setAuthToken(result.token);
+                p.setAuthUser(result.user);
+                leaveInviteRoute();
+                void p.refresh?.().catch?.(() => {});
+              } catch (e: any) {
+                update({ busy: false, error: e?.message || "Invitation acceptance failed" });
+              }
+            }}>{invite.busy ? "Creating account…" : "Accept invitation & sign in"}</button>
+          </>
+        )}
       </div>
     </div>
   );

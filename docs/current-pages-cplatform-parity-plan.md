@@ -84,6 +84,40 @@ Do not publish page percentages. HTTP 200/202 or job creation is not runtime
 proof. Poll async jobs to terminal state and verify database plus container,
 file, email, telemetry, or cleanup evidence.
 
+## 2.1 Verified acceptance checkpoint — 2026-08-22 (DOC-1)
+
+Two complete isolated runs passed every phase 0–8:
+
+- strict executor: `parity-redis-20260822T111500-accept18b`;
+- independent confirmation: `parity-redis-20260822T035500Z-e2et1`.
+
+Redacted phase artifacts are at
+`/tmp/platformops-redis-acceptance/<run-id>/`. The shared local identity was
+cluster `1`, node `1`, service `2`, catalog key `redis-core`, container
+`node-1-redis-core`. The run proves the bounded action slices listed in the
+page plans: Users Browser + Mailpit invite/session; Config exact file bytes,
+`CONFIG GET`, apply, drift and rollback; Diagnostics deterministic Loki marker,
+archive SHA, ZIP and terminal backfill; Monitoring Redis stop/recovery and
+configured GlitchTip; Performance bounded load, direct Prometheus comparison and
+exporter-loss recovery; and Observability direct signals with Alloy
+degraded/recovered. It does not promote every legacy action to
+`Parity-complete`.
+
+The positive private SSH branch used disposable node `2`/service `3` target
+`platformops-ssh-target`: exact config read/apply/rollback, SSH inspect/PONG,
+bad-key terminal failure without local fallback, and ephemeral-key destruction
+were proven. The supplied credential for external `216.48.189.195` was
+rejected; do not claim that host.
+
+Acceptance safety is bounded: private support services use the isolated
+networks only (no host Docker socket, cPlatform network, or forbidden ports),
+current GlitchTip is `6.1.9`, cleanup reported zero owned resources, and artifact
+scans reported zero secrets. Protected cPlatform membership/container
+identity/image/IP/ports/DB-row comparison was equal with no acceptance
+references. A pre-existing `SERV1006` restart loop changed its restart-count
+endpoint/MAC during observation; disclose that external volatility and never
+state that cPlatform was blanket unchanged.
+
 ## 3. Shared foundation
 
 ### Contract inventory

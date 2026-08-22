@@ -20,8 +20,9 @@ def diagnostics_archive_view(
 ) -> dict:
     service = _get_service(db, service_id)
     result = view_log_archive(db, service, archive_id, max_lines=max_lines)
-    if result.get("error") == "Archive not found":
-        raise HTTPException(status_code=404, detail="Archive not found")
+    if result.get("error"):
+        detail = str(result["error"])
+        status = 404 if detail == "Archive not found" or "not available on disk" in detail else 403 if "not allowed" in detail else 502
+        raise HTTPException(status_code=status, detail=detail)
     return result
-
 

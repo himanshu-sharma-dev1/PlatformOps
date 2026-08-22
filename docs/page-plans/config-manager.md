@@ -15,18 +15,30 @@ migration behavior required by cPlatform, restore, errors, recovery, and audit.
 - PlatformOps paths: `ConfigView.tsx`, `configActions.ts`, service config router
   family, `orchestrator/config.py`, and `service_config_apply.sh`.
 
-## Current evidence problems to resolve first
+## Verified acceptance status — 2026-08-22 (DOC-1)
 
-- The green run sends YAML-like `maxmemory: 256mb`; final proof must establish
-  exactly how that becomes valid `redis.conf` content.
-- It does not inspect the live file or execute `redis-cli CONFIG GET`.
-- Direct apply is assumed synchronous from HTTP 200; job/event/restart evidence
-  is incomplete.
-- Drift is queried but its expected value and source are not asserted.
-- Timeline, snapshot view/rename, pagination, validation errors, migration,
-  peer behavior, partial failures, and UI reachability are not covered.
-- Restore success is not followed by runtime/file equality assertions.
-- Evidence run suffix is not current HEAD.
+Both `parity-redis-20260822T111500-accept18b` (strict executor) and
+`parity-redis-20260822T035500Z-e2et1` (independent) passed phases 0–8. Artifacts
+are in `/tmp/platformops-redis-acceptance/<run-id>/`.
+
+| Action group | State | Boundary |
+|---|---|---|
+| Live workspace, baseline snapshot, validation, semantic apply, drift, compare, restore and rollback | Parity-complete for the bounded Redis fixture | Exact config bytes and `redis-cli CONFIG GET` were checked before/after; service `2` is the canonical local target |
+| Terminal jobs, restart/reload and audit events | Runtime-proven | Apply and restore reached terminal success with recorded events |
+| Invalid/unsupported and rollback failure handling | Contract-tested; bounded failure evidence retained | Do not infer all remote/provider failure variants |
+| Migration, peer sync, rename/pagination and every legacy editor branch | Mapped / Implemented / Contract-tested as applicable | No blanket parity claim without a direct cPlatform counterpart and runtime proof |
+
+The positive private SSH branch (node `2`, service `3`) also proved exact
+remote config read/apply/rollback and SSH PONG. No external-host claim is made
+for rejected credentials at `216.48.189.195`.
+
+## Remaining full-page gaps after bounded acceptance
+
+- The two 2026-08-22 runs prove exact live file bytes, `CONFIG GET`, terminal
+  apply/restore, drift, compare, rollback and events for the canonical Redis.
+- Full migration/peer semantics, rename/pagination edge cases, every editor
+  branch, remote/provider failures and browser reachability remain action-level
+  gaps and are not promoted to page-wide parity.
 
 ## Scope decision before implementation
 

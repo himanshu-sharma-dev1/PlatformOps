@@ -93,7 +93,10 @@ export function createConfigActions(s: any) {
         })
       });
       s.setJob(result.job);
-      s.setNotice(`Rollout sync to peer ${peerName} complete! Checkpoint v${result.before_snapshot.version} -> v${result.after_snapshot.version}`);
+      const checkpoint = result.after_snapshot
+        ? `checkpoint v${result.before_snapshot.version} -> v${result.after_snapshot.version}`
+        : `pre-apply checkpoint v${result.before_snapshot.version}; no post-apply checkpoint was created`;
+      s.setNotice(`Peer sync to ${peerName} ${result.job.status}: ${checkpoint}${result.job.error ? ` (${result.job.error})` : ""}`);
       await s.refresh();
     } catch (err) {
       console.error(err);
@@ -151,7 +154,10 @@ export function createConfigActions(s: any) {
       body: JSON.stringify({ content: s.config.content, apply_mode: s.configApplyMode })
     });
     s.setJob(result.job);
-    s.setNotice(`Config apply (${s.configApplyMode}) ${result.job.status}: checkpoint v${result.before_snapshot.version} -> v${result.after_snapshot.version}`);
+    const checkpoint = result.after_snapshot
+      ? `checkpoint v${result.before_snapshot.version} -> v${result.after_snapshot.version}`
+      : `pre-apply checkpoint v${result.before_snapshot.version}; no post-apply checkpoint was created`;
+    s.setNotice(`Config apply (${s.configApplyMode}) ${result.job.status}: ${checkpoint}${result.job.error ? ` (${result.job.error})` : ""}`);
     await s.loadConfig(s.selectedService, s.configSource);
     await s.refresh();
   },
@@ -177,7 +183,7 @@ export function createConfigActions(s: any) {
 
   async validateMigrationYaml() {
     if (!s.selectedService || !s.migrationContent.trim()) {
-      s.setMigrationValidation("Prepare or paste migration YAML first.");
+      s.setMigrationValidation("Prepare or paste migration config first.");
       return;
     }
     const validation = await api(`/api/services/${s.selectedService.id}/config/validate`, {

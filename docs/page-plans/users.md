@@ -16,18 +16,29 @@ Mailpit, not Redis.
 - PlatformOps matrix §6; `UsersView.tsx`, `App.tsx`, `authActions.ts`,
   `routers/auth_users.py`, user orchestrator/models.
 
-## Current evidence problems to resolve first
+## Verified acceptance status — 2026-08-22 (DOC-1)
 
-- Matrix says the invitation UI is unreachable because `App.tsx` gates it on a
-  nonexistent `renderUsersView` function.
-- Current Redis harness can use a token returned directly by the API when
-  Mailpit is unavailable; that does not prove email delivery.
-- Preview/accept failures are warnings rather than authoritative failures.
-- It does not assert token single-use, expiry, revoke/resend invalidation,
-  role/status edit, non-admin authorization, session change, user deletion, or
-  residue cleanup.
-- User/invite IDs are not stored in the canonical manifest for cleanup.
-- The current run does not prove browser routing from an emailed link.
+The strict executor run `parity-redis-20260822T111500-accept18b` and independent
+run `parity-redis-20260822T035500Z-e2et1` passed phases 0–8. Redacted artifacts
+are under `/tmp/platformops-redis-acceptance/<run-id>/`.
+
+| Action group | State | Boundary |
+|---|---|---|
+| Bootstrap login, active-user create, invite, Mailpit delivery, preview, browser invite/session accept, invited login and logout | Parity-complete for the bounded invite/session slice | Browser automation evidence stops at the invite/session flow; it is not full Users-page automation |
+| Single-use, expiry, resend/revoke invalidation, role/status transition and cleanup | Runtime-proven | Disposable accounts/messages were used; no credentials or tokens are documented |
+| List/filter/search and every admin UI control | Mapped / Implemented / Contract-tested as applicable | No browser parity claim beyond the tested invite/session path |
+
+Mailpit was the delivery authority; a returned API token is not the acceptance
+claim. Artifact scans found zero secrets.
+
+## Remaining full-page gaps after bounded acceptance
+
+- The accepted runs prove Mailpit delivery, browser invite/session routing,
+  preview/accept/login, single-use, expiry, resend/revoke invalidation,
+  role/status changes and cleanup using disposable identities.
+- Full browser automation of list/filter/search and every admin control remains
+  unproven; do not generalize the invite/session browser result.
+- API-token fallback is not acceptance evidence; Mailpit is the delivery source.
 
 ## Work package U0 — contract freeze
 

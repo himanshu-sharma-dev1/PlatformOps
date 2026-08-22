@@ -17,6 +17,26 @@ behavior without expanding PlatformOps-native governance or cloud features.
   actions, `routers/clusters.py`, `routers/nodes.py`, `routers/services.py`, and
   service/node/discovery orchestrators.
 
+## Verified acceptance status — 2026-08-22 (DOC-1)
+
+Evidence: strict `parity-redis-20260822T111500-accept18b` and independent
+`parity-redis-20260822T035500Z-e2et1`, both phases 0–8 passed; see
+`/tmp/platformops-redis-acceptance/<run-id>/`.
+
+| Action group | State | Boundary |
+|---|---|---|
+| Canonical cluster/node/`redis-core` registration, preflight, deploy, terminal job, inspect, PING, readiness log, live status and cleanup | Parity-complete for the bounded Redis fixture | IDs are cluster `1`, node `1`, service `2`; this is not every legacy UI/provider action |
+| Invalid deployment and corrected target recovery | Runtime-proven | Failed terminal state and no phantom healthy target were asserted |
+| Positive private SSH node `2`/service `3` (`platformops-ssh-target`) | Runtime-proven | Config read/apply/rollback, inspect/PONG and ephemeral-key destruction passed |
+| Bad SSH key and unreachable external target | Contract-tested / Runtime-proven failure | No local DinD fallback; supplied credential for `216.48.189.195` was rejected, so that host has no claim |
+| Full cPlatform catalog/provider/UI/action matrix | Mapped / Implemented / Contract-tested as applicable | Unexercised rows remain at their prior state |
+
+The protected cPlatform comparison was equal for membership, container identity,
+image, IP, ports and DB row, with no acceptance references. A pre-existing
+`SERV1006` restart loop changed its restart-count endpoint/MAC during
+observation; disclose that external volatility instead of claiming blanket
+immutability.
+
 ## Scope classification
 
 ### Required cPlatform parity
@@ -35,19 +55,18 @@ inventory cleanup, approval governance, backup endpoint, and native topology
 must not expand unless cPlatform source proves a counterpart. Keep them from
 regressing required paths, but do not count them toward parity.
 
-## Current evidence problems to resolve first
+## Remaining full-page gaps after bounded acceptance
 
-- Matrix rows still label edit/delete/lifecycle/job logs and multiple node paths
-  merely Implemented or Unverified.
-- The Redis harness creates/deploys and calls live status, but does not require
-  exact container name/image/mount/config/health/log/persisted external ID.
-- Node validation is skipped silently when a non-200 response occurs.
-- Preflight logs `ok` without asserting it or its missing dependency set.
-- No UI/browser reachability is proven by the harness.
-- Cleanup checks status codes but does not query database/container/files for
-  residue.
-- Failure deployment, remote-to-local fallback, edit deep merge, collision
-  checks, discovery/adoption, and lifecycle blockers are not covered.
+- Full legacy edit/delete/provider/UI coverage remains outside the bounded
+  Redis acceptance slice.
+- The accepted local and disposable SSH branches prove direct identity, mounts,
+  config, health, PING, logs, terminal jobs and no-fallback failure behavior.
+- Browser reachability, exhaustive catalog/dependency variants, collision
+  checks, discovery/adoption, and every lifecycle blocker remain action-level
+  gaps; keep those rows at Mapped/Implemented/Contract-tested as applicable.
+- Protected cPlatform comparison is recorded, but pre-existing `SERV1006`
+  restart-loop volatility changed restart-count endpoint/MAC and must not be
+  rewritten as blanket immutability.
 
 ## Work package C0 — contract freeze
 
@@ -136,7 +155,9 @@ unsupported override, preflight pass/fail, and UI onboarding reachability.
 - [ ] Verify snapshots/archives/checks/history treatment matches FK contract.
 - [ ] Delete node and cluster in the cPlatform-supported order.
 - [ ] Query every run-labeled row and direct DinD/file path after cleanup.
-- [ ] Prove cPlatform container/network/volume/database inventory is unchanged.
+- [ ] Prove protected cPlatform container/network/volume/database membership,
+  identity, image, IP and port/DB-row comparison, while disclosing unrelated
+  external volatility rather than claiming blanket immutability.
 
 ## Required Redis evidence
 

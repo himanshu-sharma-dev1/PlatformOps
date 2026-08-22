@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
+import yaml
 
 API_ROOT = Path(__file__).resolve().parents[1]
 if str(API_ROOT) not in sys.path:
@@ -143,6 +144,228 @@ def test_service_update_deep_merges_existing_contract_and_normalizes_install_mod
     assert updated.status == "registered"
 
 
+def _runtime_inspect(*, health: str, running: bool = True, status: str = "running"):
+    """Build the small Docker inspect shape consumed by runtime verification."""
+
+    return {
+        "Name": "/node-3-redis-core",
+        "Config": {
+            "Image": "redis:7-alpine",
+            "Healthcheck": {"Test": ["CMD-SHELL", "redis-cli ping"]},
+        },
+        "State": {
+            "Status": status,
+            "Running": running,
+            "Health": {"Status": health},
+        },
+        "NetworkSettings": {"Networks": {"platformops-isolated_default": {}}},
+        "Mounts": [
+            {"Destination": "/data"},
+            {"Destination": "/var/log/redis"},
+            {"Destination": "/usr/local/etc/redis/redis.conf"},
+        ],
+    }
+
+
+def _runtime_service():
+    return SimpleNamespace(
+        id=3,
+        node_id=3,
+        service_key="redis-core",
+        container_name="node-3-redis-core",
+        image="redis:7-alpine",
+        config_json=json.dumps({"healthcheck": {"command": "redis-cli ping"}}),
+        node=SimpleNamespace(
+            id=3,
+            host="localhost",
+            connection_mode="auto",
+            docker_network="platformops-isolated_default",
+        ),
+    )
+
+
+def test_runtime_verification_polls_starting_until_healthy_and_pong(monkeypatch):
+    from platformops.orchestrator import docker_runtime
+    from platformops.orchestrator.service import impl
+
+    inspections = iter(
+        [
+            _runtime_inspect(health="starting"),
+            _runtime_inspect(health="healthy"),
+        ]
+    )
+    calls = []
+    monkeypatch.setattr(impl, "_docker_inspect_for_node", lambda *_args: (next(inspections), None, "docker_inspect"))
+    monkeypatch.setattr(impl, "_node_uses_local_docker", lambda *_args: True)
+    monkeypatch.setattr(
+        docker_runtime,
+        "exec_container",
+        lambda container, args: (calls.append((container, args)) or (True, "PONG\n", "")),
+    )
+
+    result = impl._verify_service_runtime(
+        object(),
+        _runtime_service(),
+        timeout_seconds=0.2,
+        poll_interval_seconds=0.05,
+    )
+
+    assert result["ok"] is True
+    assert result["health"] == "healthy"
+    assert result["readiness"] == "redis-cli:PONG"
+    assert len(calls) == 2
+
+
+def test_runtime_verification_times_out_while_health_is_starting(monkeypatch):
+    from platformops.orchestrator import docker_runtime
+    from platformops.orchestrator.service import impl
+
+    monkeypatch.setattr(
+        impl,
+        "_docker_inspect_for_node",
+        lambda *_args: (_runtime_inspect(health="starting"), None, "docker_inspect"),
+    )
+    monkeypatch.setattr(impl, "_node_uses_local_docker", lambda *_args: True)
+    monkeypatch.setattr(docker_runtime, "exec_container", lambda *_args: (True, "PONG\n", ""))
+
+    result = impl._verify_service_runtime(
+        object(),
+        _runtime_service(),
+        timeout_seconds=0.12,
+        poll_interval_seconds=0.05,
+    )
+
+    assert result["ok"] is False
+    assert "runtime readiness timed out after 0.12s" in result["error"]
+    assert result["state"] == "running"
+    assert result["health"] == "starting"
+
+
+def test_execute_deployment_plan_treats_running_target_as_accepted(monkeypatch):
+    from platformops.orchestrator.service import impl
+
+    service = SimpleNamespace(
+        id=9,
+        node_id=3,
+        name="Redis",
+        service_key="redis-core",
+        node=SimpleNamespace(id=3),
+    )
+    monkeypatch.setattr(
+        impl,
+        "deployment_plan",
+        lambda *_args: {"blocked_by": ["redis-core"], "ok": False},
+    )
+    monkeypatch.setattr(
+        impl,
+        "dependency_preflight",
+        lambda *_args: {"ok": True, "missing": [], "stopped": [], "message": "ready"},
+    )
+    monkeypatch.setattr(
+        impl,
+        "deploy_service",
+        lambda *_args: SimpleNamespace(id=19, status="running"),
+    )
+    monkeypatch.setattr(impl, "record_event", lambda *_args, **_kwargs: None)
+
+    result = impl.execute_deployment_plan(object(), service, auto_install_dependencies=False)
+
+    assert result["ok"] is True
+    assert result["target_job"].status == "running"
+
+
+def test_redis_playbook_prepares_engine_visible_writable_paths():
+    playbook = (API_ROOT.parents[1] / "ops/ansible/playbooks/docker_service.yml").read_text(encoding="utf-8")
+
+    assert "Prepare Redis data and log paths in the Docker engine namespace" in playbook
+    assert "id -u redis" in playbook
+    assert "chown -R \"${uid}:${gid}\" /data /var/log/redis" in playbook
+    assert "chmod 0644 /var/log/redis/redis.log" in playbook
+    assert 'service_key | default(\'\') == \'redis-core\'' in playbook
+    # The preparation task mounts the complete contract but only changes the
+    # data/log paths; the config bind remains the authoritative file mount.
+    assert 'volumes: "{{ contract.volumes | default([]) }}"' in playbook
+
+    parsed = yaml.safe_load(playbook)
+    prep = next(task for task in parsed[0]["tasks"] if task["name"].startswith("Prepare Redis data"))
+    module = prep["community.docker.docker_container"]
+    assert module["command"] and len(module["command"]) == 1
+    assert "touch /var/log/redis/redis.log" in module["command"][0]
+    assert module["user"] == "0:0"
+    assert module["volumes"] == "{{ contract.volumes | default([]) }}"
+
+
+def test_deploy_callback_terminalizes_readiness_failure_and_removed_service(monkeypatch):
+    from platformops.models import JobStatus
+    from platformops.orchestrator.service import impl
+
+    service = SimpleNamespace(
+        id=41,
+        node_id=8,
+        name="Redis",
+        service_key="redis-core",
+        container_name="node-8-redis-core",
+        image="redis:7-alpine",
+        config_json=json.dumps({"volumes": []}),
+        node=SimpleNamespace(id=8, volume_root="/tmp/platformops", docker_network="platformops-test"),
+        status="created",
+    )
+    job = SimpleNamespace(id=77, status=JobStatus.queued.value, error="", output="")
+
+    class FakeDb:
+        def __init__(self):
+            self.service = service
+
+        def get(self, model, _id):
+            return self.service
+
+        def add(self, _value):
+            return None
+
+        def commit(self):
+            return None
+
+        def refresh(self, _value):
+            return None
+
+    db = FakeDb()
+    callback = {}
+    monkeypatch.setattr(impl.settings, "local_mode", False)
+    monkeypatch.setattr(impl, "dependency_preflight", lambda *_args: {"ok": True})
+    monkeypatch.setattr(impl, "write_job_vars", lambda *_args: Path("/tmp/deploy.yml"))
+    monkeypatch.setattr(impl, "_ansible_base_command", lambda *_args: "ansible-playbook")
+    monkeypatch.setattr(impl, "create_job", lambda *_args, **_kwargs: job)
+    monkeypatch.setattr(impl, "record_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "platformops.orchestrator.config._merged_service_contract",
+        lambda *_args: {"image": "redis:7-alpine", "volumes": []},
+    )
+
+    def fake_run_job_async(_db, _job, **kwargs):
+        callback.update(kwargs)
+        return job
+
+    monkeypatch.setattr(impl, "run_job_async", fake_run_job_async)
+    impl.deploy_service(db, service)
+
+    # A readiness timeout after Ansible exits must be terminal failed.
+    monkeypatch.setattr(impl, "_verify_service_runtime", lambda *_args: {"ok": False, "error": "PONG timeout"})
+    callback["on_complete"](db, job, True)
+    assert job.status == JobStatus.failed.value
+    assert "PONG timeout" in job.error or "Runtime verification" in job.output
+    assert service.status == "error"
+
+    # If deletion detaches the FK before the worker callback, do not leave a
+    # deferred job running forever.
+    db.service = None
+    job.status = JobStatus.running.value
+    job.error = "Ansible target failed"
+    job.output = ""
+    callback["on_complete"](db, job, False)
+    assert job.status == JobStatus.failed.value
+    assert job.error == "Ansible target failed"
+
+
 def test_record_event_redacts_nested_credentials(monkeypatch):
     from platformops.orchestrator import common
 
@@ -242,6 +465,75 @@ def test_local_node_validation_playbook_does_not_require_sudo():
     """Local/DinD validation must use the same privilege rule as deployment."""
     playbook = (API_ROOT.parents[1] / "ops/ansible/playbooks/validate_node.yml").read_text(encoding="utf-8")
     assert 'become: "{{ (ansible_connection | default(\'ssh\')) != \'local\' }}"' in playbook
+
+
+def test_api_runtime_image_contract_has_only_pinned_ssh_client():
+    dockerfile = (API_ROOT.parents[1] / "ops/docker/web-api/Dockerfile").read_text(encoding="utf-8")
+    assert "openssh-client=1:10.0p1-7+deb13u4" in dockerfile
+    assert "RUN ssh -V" in dockerfile
+    assert "openssh-server" not in dockerfile
+    assert "sshd" not in dockerfile
+
+
+def test_remote_node_validation_uses_ssh_ansible_target_without_local_fallback(monkeypatch):
+    from platformops.orchestrator import node as node_impl
+
+    node = SimpleNamespace(
+        id=12,
+        name="remote-node",
+        host="remote.example.test",
+        ssh_user="ops",
+        ssh_key_path="/tmp/remote-key",
+        facts_json=json.dumps({"connection_mode": "ssh"}),
+        status="unknown",
+    )
+    job = SimpleNamespace(id=19, command="", status="running", error="", output="")
+    captured: dict[str, object] = {}
+
+    class FakeDb:
+        def get(self, _model, _id):
+            return node
+
+        def add(self, _value):
+            return None
+
+        def commit(self):
+            return None
+
+        def refresh(self, _value):
+            return None
+
+    monkeypatch.setattr(node_impl.settings, "local_mode", False)
+
+    def fake_create_job(_db, **kwargs):
+        job.command = kwargs["command"]
+        return job
+
+    monkeypatch.setattr(node_impl, "create_job", fake_create_job)
+    monkeypatch.setattr(
+        node_impl,
+        "run_job_async",
+        lambda _db, _job, **kwargs: captured.update(kwargs) or job,
+    )
+    probes: list[str] = []
+    monkeypatch.setattr(
+        node_impl,
+        "_probe_node_ssh_docker",
+        lambda target: probes.append(target.host) or {"ssh_ok": True, "docker_ok": True, "detail": "remote"},
+    )
+
+    node_impl.validate_node(FakeDb(), node)
+    command = job.command
+    assert "-i remote.example.test," in command
+    assert "-u ops" in command
+    assert "--private-key /tmp/remote-key" in command
+    assert "-c local" not in command
+    assert "localhost," not in command
+    assert "on_complete" in captured
+
+    captured["on_complete"](FakeDb(), job, True)
+    assert probes == ["remote.example.test", "remote.example.test"]
+    assert node.status == "healthy"
 
 
 def test_detach_resource_references_clears_nullable_history_links():

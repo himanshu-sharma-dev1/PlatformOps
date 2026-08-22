@@ -41,7 +41,13 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     docker.io \
+    openssh-client=1:10.0p1-7+deb13u4 \
     && rm -rf /var/lib/apt/lists/*
+
+# Remote Ansible targets require the client binary in the control-plane image.
+# Keep the runtime limited to openssh-client: no SSH server, host keys, or credentials
+# are created here.  Fail the image build if the pinned client is unavailable.
+RUN ssh -V 2>&1 | grep -q '^OpenSSH_'
 
 # Debian's docker.io package does not consistently ship the client binary in
 # slim runtime images. Keep the known-good client used by the observability

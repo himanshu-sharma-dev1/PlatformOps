@@ -1,9 +1,17 @@
 discovery.docker "containers" {
-  host = "unix:///var/run/docker.sock"
+  host = "tcp://docker-engine:2375"
 }
 
 discovery.relabel "docker_logs" {
   targets = discovery.docker.containers.targets
+
+  // Collect only the dedicated acceptance helper. Unrelated historical DinD
+  // logs can otherwise keep fresh marker evidence behind stale batches.
+  rule {
+    source_labels = ["__meta_docker_container_label_platformops_observability_container_name"]
+    regex = ".+"
+    action = "keep"
+  }
   
   rule {
     source_labels = ["__meta_docker_container_name"]
@@ -11,28 +19,36 @@ discovery.relabel "docker_logs" {
     target_label = "container_name"
   }
   rule {
+    source_labels = ["__meta_docker_container_label_platformops_observability_container_name"]
+    regex = "(.+)"
+    target_label = "container_name"
+  }
+  rule {
     source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
     target_label = "compose_service"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_platformops_observability_log_path"]
+    regex = "(.+)"
+    target_label = "filename"
   }
 }
 
 loki.source.docker "containers" {
-  host = "unix:///var/run/docker.sock"
+  host = "tcp://docker-engine:2375"
   targets = discovery.relabel.docker_logs.output
+  refresh_interval = "2s"
   forward_to = [loki.process.docker_enrich.receiver]
 }
 
 loki.process "docker_enrich" {
   forward_to = [loki.write.default.receiver]
-  
-  stage.drop {
-    older_than = "24h"
-    drop_counter_reason = "line_too_old"
-  }
 }
 
 loki.write "default" {
   endpoint {
-    url = "http://platformops-obs-loki:3100/loki/api/v1/push"
+    // `loki` also exists on the attached isolated runtime network. Use the
+    // support-private alias so writes cannot round-robin into the wrong stack.
+    url = "http://observability-support-loki:3100/loki/api/v1/push"
   }
 }

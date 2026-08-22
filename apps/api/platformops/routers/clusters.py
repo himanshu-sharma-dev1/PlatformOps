@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
+from sqlalchemy import func
 
 from . import ops_common as _ops_common
 # Star-import does not pull private helpers; bind entire ops_common namespace.
@@ -15,19 +16,29 @@ def _cluster_type(payload: ClusterCreate | ClusterUpdate) -> str | None:
     value = getattr(payload, "type", None) or getattr(payload, "cluster_type", None)
     return str(value).strip() if value is not None else None
 
+
+def _cluster_name_collision(db: Session, *, name: str, exclude_id: int | None = None) -> Cluster | None:
+    statement = select(Cluster).where(func.lower(Cluster.name) == name.casefold())
+    if exclude_id is not None:
+        statement = statement.where(Cluster.id != exclude_id)
+    return db.scalar(statement)
+
 @router.post("/api/clusters", response_model=ClusterOut)
 def create_cluster(payload: ClusterCreate, db: Session = Depends(get_db)) -> Cluster:
-    existing = db.scalar(select(Cluster).where(Cluster.name == payload.name))
+    cluster_name = str(payload.name or "").strip()
+    if not cluster_name:
+        raise HTTPException(status_code=422, detail="Cluster name is required")
+    existing = _cluster_name_collision(db, name=cluster_name)
     if existing:
         raise HTTPException(status_code=409, detail="Cluster name already exists")
     cluster = Cluster(
-        name=payload.name,
-        region=payload.region,
-        environment=payload.environment,
-        description=payload.description,
+        name=cluster_name,
+        region=str(payload.region or "local").strip() or "local",
+        environment=str(payload.environment or "development").strip() or "development",
+        description=str(payload.description or ""),
         cluster_type=_cluster_type(payload) or "standalone",
-        variant=payload.variant,
-        role=payload.role,
+        variant=str(payload.variant or "").strip(),
+        role=str(payload.role or "").strip(),
         repo_type=payload.repo_type or "github",
         repo_url=payload.repo_url or "",
         repo_branch=payload.repo_branch or "main",
@@ -72,7 +83,10 @@ def update_cluster(cluster_id: int, payload: ClusterUpdate, db: Session = Depend
     if not updates:
         return _mask_cluster(cluster)
     if "name" in updates:
-        existing = db.scalar(select(Cluster).where(Cluster.name == updates["name"], Cluster.id != cluster.id))
+        updates["name"] = str(updates["name"] or "").strip()
+        if not updates["name"]:
+            raise HTTPException(status_code=422, detail="Cluster name is required")
+        existing = _cluster_name_collision(db, name=updates["name"], exclude_id=cluster.id)
         if existing:
             raise HTTPException(status_code=409, detail="Cluster name already exists")
     # Empty secret fields mean "keep existing" (cPlatform replace semantics)

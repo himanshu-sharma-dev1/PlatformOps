@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import base64
+import gzip
+import hashlib
 import json
+import os
+import posixpath
 import re
+import shlex
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 import requests
@@ -33,13 +40,72 @@ from ...models import (
 )
 from ...settings import settings
 from ...tasks import run_job_async
-from ...query import escape_query_regex_literal
+from ...schemas import DiagnosticsBackfillJobOut
+from ...security import redact_text
 from ..common import (
     RUNNING_STATUSES,
-    _ansible_base_command,
     _service_display_name,
     record_event,
 )
+
+
+_JOB_SECRET_TEXT = re.compile(
+    r"(?i)(\b(?:password|passwd|token|secret|api[_-]?key|authorization|bearer)\b\s*[:=]\s*)[^\s,;]+"
+)
+_DIAGNOSTICS_BACKFILL_COMMAND = "diagnostics-backfill"
+
+
+def _safe_backfill_job_text(value: str | None) -> str:
+    """Keep job result text useful without echoing credential-shaped values."""
+
+    return _JOB_SECRET_TEXT.sub(r"\1[REDACTED]", redact_text(value))
+
+
+def _serialize_backfill_job(job: DeploymentJob) -> DiagnosticsBackfillJobOut:
+    """Return a stable diagnostics projection; never expose the executable command."""
+
+    return DiagnosticsBackfillJobOut(
+        id=job.id,
+        service_id=job.service_id,
+        node_id=job.node_id,
+        type=job.action,
+        status=job.status,
+        output=_safe_backfill_job_text(job.output),
+        error=_safe_backfill_job_text(job.error),
+        created_at=job.created_at or datetime.utcnow(),
+        started_at=job.started_at,
+        ended_at=job.ended_at,
+    )
+
+
+def _sanitize_backfill_job_record(db: Session, job: DeploymentJob) -> DeploymentJob:
+    """Persist only safe diagnostics fields before returning or allowing polling."""
+
+    job.command = _DIAGNOSTICS_BACKFILL_COMMAND
+    job.output = _safe_backfill_job_text(job.output)
+    job.error = _safe_backfill_job_text(job.error)
+    db.commit()
+    db.refresh(job)
+    return job
+
+
+def _finish_backfill_job(
+    db: Session,
+    job: DeploymentJob,
+    *,
+    ok: bool,
+    output: str = "",
+    error: str = "",
+) -> DeploymentJob:
+    """Complete a synchronous backfill without committing unsafe result text."""
+
+    return finish_job(
+        db,
+        job,
+        ok=ok,
+        output=_safe_backfill_job_text(output),
+        error=_safe_backfill_job_text(error),
+    )
 
 
 def _diagnostics_target_label(kind: str) -> str:
@@ -97,7 +163,10 @@ def service_diagnostics(
     from ..service import _service_by_key
 
     source = source_service or service
-    contract = json.loads(service.config_json or "{}")
+    try:
+        contract = json.loads(service.config_json or "{}")
+    except (TypeError, json.JSONDecodeError):
+        contract = {}
     log_paths = contract.get("log_paths", [])
     required = required_dependencies(source.service_key)
     available_targets = diagnostics_targets_for_service(db, source)
@@ -198,6 +267,56 @@ def service_diagnostics(
     }
 
 
+_LOG_TIMESTAMP_RE = re.compile(
+    r"^(?P<stamp>\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)"
+)
+
+
+def _parse_log_timestamp(value: Any) -> datetime | None:
+    """Parse Loki/docker/ISO timestamps into an aware UTC datetime.
+
+    Epoch values are accepted in seconds, milliseconds, microseconds, or
+    nanoseconds.  Keeping this parser local to diagnostics avoids silently
+    applying a different timezone policy to history and live-tail filters.
+    """
+
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        text = str(value).strip()
+        try:
+            numeric = float(text)
+        except (TypeError, ValueError):
+            numeric = None
+        if numeric is not None and re.fullmatch(r"\d+(?:\.\d+)?", text):
+            magnitude = abs(numeric)
+            divisor = 1.0 if magnitude < 1e11 else 1e3 if magnitude < 1e14 else 1e6 if magnitude < 1e17 else 1e9
+            try:
+                parsed = datetime.fromtimestamp(numeric / divisor, tz=timezone.utc)
+            except (OverflowError, OSError, ValueError):
+                return None
+        else:
+            match = _LOG_TIMESTAMP_RE.match(text)
+            candidate = match.group("stamp") if match else text
+            candidate = candidate.replace("Z", "+00:00")
+            try:
+                parsed = datetime.fromisoformat(candidate)
+            except ValueError:
+                return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _timestamp_text(value: Any) -> str:
+    parsed = _parse_log_timestamp(value)
+    if parsed is None:
+        return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return parsed.isoformat().replace("+00:00", "Z")
+
+
 def service_live_logs(
     db: Session,
     service: ServiceInstance,
@@ -205,11 +324,13 @@ def service_live_logs(
     tail_lines: int = 150,
     page_size: int = 100,
     cursor: int = 0,
+    start: str | int | float | None = None,
+    end: str | int | float | None = None,
 ) -> dict[str, Any]:
     safe_tail = max(10, min(tail_lines, 1000))
     safe_page = max(10, min(page_size, 1000))
     safe_cursor = max(0, cursor)
-    fetch_size = safe_tail if safe_cursor == 0 else safe_page
+    fetch_size = min(5000, safe_tail + safe_cursor) if safe_cursor else safe_tail
     lines: list[dict[str, str]] = []
     error: str | None = None
     connection_mode = "unknown"
@@ -260,12 +381,15 @@ def service_live_logs(
                 if not raw_lines and result.stderr:
                     raw_lines = result.stderr.splitlines()
             for raw in raw_lines[-fetch_size:]:
-                message = raw.strip()
-                if not message or message.endswith(" | SUCCESS => {") or message == "}":
+                # Preserve the message byte-for-byte (apart from the transport
+                # newline).  ``strip`` used to destroy indentation and made
+                # long/Unicode markers impossible to correlate.
+                message = raw.rstrip("\r\n")
+                if message.endswith(" | SUCCESS => {") or message == "}":
                     continue
                 timestamp = datetime.utcnow().isoformat() + "Z"
                 first, separator, remainder = message.partition(" ")
-                if separator and "T" in first and first[:4].isdigit():
+                if separator and _parse_log_timestamp(first) is not None:
                     timestamp = first
                     message = remainder
                 lines.append(
@@ -279,12 +403,48 @@ def service_live_logs(
         except Exception as exc:
             error = str(exc)
 
+    # ``cursor`` is a bounded offset within the fetched tail.  Fetching a
+    # larger tail for a non-zero cursor lets callers walk a stable snapshot
+    # without pretending that docker's tail API is a durable event store.
+    if not error and safe_cursor:
+        if safe_cursor >= len(lines):
+            lines = []
+        else:
+            lines = lines[safe_cursor:]
+    if not error and (start is not None or end is not None):
+        start_dt = _parse_log_timestamp(start) if start is not None else None
+        end_dt = _parse_log_timestamp(end) if end is not None else None
+        if start is not None and start_dt is None:
+            error = "Invalid start timestamp"
+            lines = []
+        elif end is not None and end_dt is None:
+            error = "Invalid end timestamp"
+            lines = []
+        elif start_dt and end_dt and start_dt > end_dt:
+            error = "start timestamp must not be after end timestamp"
+            lines = []
+        elif start_dt or end_dt:
+            filtered: list[dict[str, str]] = []
+            for line in lines:
+                line_dt = _parse_log_timestamp(line["timestamp"])
+                if line_dt is None:
+                    continue
+                if start_dt and line_dt < start_dt:
+                    continue
+                if end_dt and line_dt > end_dt:
+                    continue
+                filtered.append(line)
+            lines = filtered
+
     # This endpoint is a bounded real tail, not a fabricated pageable event
     # feed. Cursor values remain for response compatibility.
     total_available = len(lines)
     next_cursor = safe_cursor + len(lines)
     has_more_history = False
     source_state = "streaming" if not error and service.status in RUNNING_STATUSES else "unavailable" if error else "snapshot"
+    if not error and not lines:
+        error = "No container log lines available"
+        source_state = "unavailable"
     defaults = observability_catalog().get("defaults", {})
     poll_interval_ms = int(defaults.get("poll_interval_ms", 2500))
 
@@ -301,9 +461,191 @@ def service_live_logs(
         "has_more_history": has_more_history,
         "lines": lines,
         "connection_mode": connection_mode,
+        "container_name": service.container_name or service.service_key,
         "error": error,
+        "start": str(start) if start is not None else None,
+        "end": str(end) if end is not None else None,
         "generated_at": datetime.utcnow().isoformat() + "Z",
     }
+
+
+def _encode_history_cursor(payload: dict[str, Any]) -> str:
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _decode_history_cursor(
+    token: str,
+    *,
+    service_id: int,
+    source: str,
+    selector: str,
+    page_size: int,
+    start_ns: int | None,
+    end_ns: int | None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    if not token:
+        return None, None
+    try:
+        padded = token + "=" * (-len(token) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")))
+    except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError):
+        return None, "Invalid history cursor"
+    if not isinstance(payload, dict) or payload.get("version") != 1:
+        return None, "Invalid history cursor"
+    expected = {
+        "service_id": service_id,
+        "source": source,
+        "selector": selector,
+        "page_size": page_size,
+        "start_ns": start_ns,
+        "end_ns": end_ns,
+    }
+    for key, value in expected.items():
+        if payload.get(key) != value:
+            return None, "History cursor does not match the selected source or time range"
+    try:
+        anchor = int(payload["anchor_ts_ns"])
+    except (KeyError, TypeError, ValueError):
+        return None, "Invalid history cursor"
+    direction = payload.get("direction")
+    if direction not in {"older", "newer"}:
+        return None, "Invalid history cursor direction"
+    payload["anchor_ts_ns"] = anchor
+    return payload, None
+
+
+def _loki_history(
+    db: Session,
+    service: ServiceInstance,
+    *,
+    source: str,
+    selector: str,
+    page: int = 1,
+    page_size: int = 100,
+    cursor: str = "",
+    log_path: str = "",
+    start: str | int | float | None = None,
+    end: str | int | float | None = None,
+) -> dict[str, Any]:
+    """Read one deterministic Loki page with strict source/range cursors."""
+
+    page = max(1, int(page or 1))
+    page_size = max(1, min(int(page_size or 100), 1000))
+    start_dt = _parse_log_timestamp(start) if start is not None else None
+    end_dt = _parse_log_timestamp(end) if end is not None else None
+    if start is not None and start_dt is None:
+        return {"lines": [], "source": source, "log_path": log_path, "page": page, "page_size": page_size, "total_count": 0, "total_pages": 0, "next_cursor": None, "previous_cursor": None, "start": str(start) if start is not None else None, "end": str(end) if end is not None else None, "error": "Invalid start timestamp", "loki_reachable": False}
+    if end is not None and end_dt is None:
+        return {"lines": [], "source": source, "log_path": log_path, "page": page, "page_size": page_size, "total_count": 0, "total_pages": 0, "next_cursor": None, "previous_cursor": None, "start": str(start) if start is not None else None, "end": str(end) if end is not None else None, "error": "Invalid end timestamp", "loki_reachable": False}
+    if start_dt and end_dt and start_dt > end_dt:
+        return {"lines": [], "source": source, "log_path": log_path, "page": page, "page_size": page_size, "total_count": 0, "total_pages": 0, "next_cursor": None, "previous_cursor": None, "start": str(start) if start is not None else None, "end": str(end) if end is not None else None, "error": "start timestamp must not be after end timestamp", "loki_reachable": False}
+    start_ns = int(start_dt.timestamp() * 1_000_000_000) if start_dt else None
+    end_ns = int(end_dt.timestamp() * 1_000_000_000) if end_dt else None
+    cursor_data, cursor_error = _decode_history_cursor(
+        cursor,
+        service_id=service.id,
+        source=source,
+        selector=selector,
+        page_size=page_size,
+        start_ns=start_ns,
+        end_ns=end_ns,
+    )
+    base = {
+        "lines": [], "source": source, "log_path": log_path, "page": page,
+        "page_size": page_size, "total_count": 0, "total_pages": 0,
+        "next_cursor": None, "previous_cursor": None, "start": str(start) if start is not None else None,
+        "end": str(end) if end is not None else None, "loki_reachable": False,
+    }
+    if cursor_error:
+        base["error"] = cursor_error
+        return base
+
+    loki_url = settings.loki_base_url.rstrip("/")
+    total_count = 0
+    try:
+        count_params = {"query": f"count_over_time({selector}[720h])"}
+        if start_ns is not None:
+            count_params["start"] = str(start_ns)
+        if end_ns is not None:
+            count_params["end"] = str(end_ns)
+        count_resp = requests.get(f"{loki_url}/loki/api/v1/query", params=count_params, timeout=5)
+        if count_resp.status_code != 200:
+            base["error"] = f"Loki unavailable (HTTP {count_resp.status_code})"
+            return base
+        count_data = count_resp.json()
+        result = count_data.get("data", {}).get("result") or []
+        if result:
+            values = [item.get("value", [0, 0])[1] for item in result if item.get("value")]
+            total_count = sum(int(float(value)) for value in values)
+        base["loki_reachable"] = True
+    except Exception as exc:
+        base["error"] = f"Loki unavailable: {exc}"
+        return base
+
+    direction = cursor_data.get("direction") if cursor_data else "older"
+    now_ns = int(datetime.now(timezone.utc).timestamp() * 1_000_000_000)
+    anchor_ns = int(cursor_data["anchor_ts_ns"]) if cursor_data else (end_ns or now_ns)
+    query_start = start_ns
+    query_end = end_ns
+    if direction == "older":
+        query_end = min(query_end, anchor_ns) if query_end is not None else anchor_ns
+    else:
+        query_start = max(query_start, anchor_ns) if query_start is not None else anchor_ns
+    params: dict[str, str] = {
+        "query": selector,
+        "limit": str(page_size),
+        "direction": "forward" if direction == "newer" else "backward",
+    }
+    if query_start is not None:
+        params["start"] = str(query_start)
+    if query_end is not None:
+        params["end"] = str(query_end)
+    try:
+        response = requests.get(f"{loki_url}/loki/api/v1/query_range", params=params, timeout=10)
+        if response.status_code != 200:
+            base["error"] = f"Loki history query failed (HTTP {response.status_code})"
+            return base
+        timestamped: list[tuple[int, str, dict[str, Any]]] = []
+        seen: set[tuple[int, str]] = set()
+        for stream in response.json().get("data", {}).get("result") or []:
+            for raw_ts, raw_message in stream.get("values") or []:
+                try:
+                    ts_ns = int(raw_ts)
+                except (TypeError, ValueError):
+                    continue
+                message = str(raw_message)
+                key = (ts_ns, message)
+                if key in seen:
+                    continue
+                seen.add(key)
+                timestamped.append((ts_ns, message, {
+                    "timestamp": _timestamp_text(ts_ns),
+                    "level": _detect_log_level(message),
+                    "message": message,
+                    "source": source,
+                }))
+        timestamped.sort(key=lambda item: (item[0], item[1]))
+        if len(timestamped) > page_size:
+            timestamped = timestamped[-page_size:] if direction == "older" else timestamped[:page_size]
+        lines = [item[2] for item in timestamped]
+        base.update({"lines": lines, "total_count": total_count, "total_pages": (total_count + page_size - 1) // page_size if total_count else 0})
+        if not timestamped:
+            base["error"] = "No matching history for the selected source and time range" if total_count == 0 else "No history at this cursor"
+            return base
+        oldest_ns = timestamped[0][0]
+        newest_ns = timestamped[-1][0]
+        common = {"version": 1, "service_id": service.id, "source": source, "selector": selector, "page_size": page_size, "start_ns": start_ns, "end_ns": end_ns}
+        # A full page may have more records; a short page is terminal.  The
+        # count query is advisory only, so this remains correct if counts lag.
+        if len(timestamped) >= page_size:
+            base["next_cursor"] = _encode_history_cursor({**common, "anchor_ts_ns": oldest_ns - 1, "direction": "older", "page": page + 1})
+        if cursor_data or page > 1:
+            base["previous_cursor"] = _encode_history_cursor({**common, "anchor_ts_ns": newest_ns + 1, "direction": "newer", "page": max(1, page - 1)})
+        return base
+    except Exception as exc:
+        base["error"] = f"Loki history query failed: {exc}"
+        return base
 
 
 def service_container_history(
@@ -313,105 +655,27 @@ def service_container_history(
     page: int = 1,
     page_size: int = 100,
     cursor: str = "",
+    start: str | int | float | None = None,
+    end: str | int | float | None = None,
 ) -> dict[str, Any]:
-    """Query Loki for historical container stdout/stderr by container_name label."""
-    import base64
-    import time
+    """Query Loki for historical stdout/stderr for exactly one container."""
 
-    loki_url = settings.loki_base_url.rstrip("/")
     container = service.container_name or service.service_key
-    selector = "{" + f'container_name="{container}"' + "}"
-    # Also try docker name label variants
-    alt_selector = "{" + f'name="{container}"' + "}"
-
-    cache_key = f"ctrhist:{service.id}:{page}:{page_size}:{cursor or ''}"
-    now_ts = time.time()
-    cached = _LOKI_PAGE_CACHE.get(cache_key)
-    if cached and (now_ts - cached[0]) < _LOKI_PAGE_CACHE_TTL_S:
-        return cached[1]
-
-    lines: list[dict[str, Any]] = []
-    total_count = 0
-    next_cursor = None
-    previous_cursor = None
-    loki_reachable = False
-    used_selector = selector
-
-    try:
-        for sel in (selector, alt_selector, "{" + f'service_name=~".*{service.service_key}.*"' + "}"):
-            count_resp = requests.get(
-                f"{loki_url}/loki/api/v1/query",
-                params={"query": f"count_over_time({sel}[720h])"},
-                timeout=5,
-            )
-            if count_resp.status_code == 200:
-                loki_reachable = True
-                result = count_resp.json().get("data", {}).get("result") or []
-                if result:
-                    total_count = int(float(result[0].get("value", [0, 0])[1]))
-                    used_selector = sel
-                    break
-    except Exception:
-        pass
-
-    total_pages = max(1, (total_count + page_size - 1) // page_size) if total_count else 1
-
-    if loki_reachable:
-        try:
-            end_ns = str(int(time.time()) * 1_000_000_000)
-            direction = "older"
-            anchor_ns = end_ns
-            if cursor:
-                try:
-                    cursor_data = json.loads(base64.b64decode(cursor))
-                    direction = "newer" if cursor_data.get("direction") == "newer" else "older"
-                    anchor_ns = str(cursor_data.get("anchor_ts_ns", end_ns))
-                except Exception:
-                    direction = "older"
-                    anchor_ns = end_ns
-            params = {
-                "query": used_selector,
-                "limit": str(page_size),
-                "direction": "forward" if direction == "newer" else "backward",
-            }
-            params["start" if direction == "newer" else "end"] = anchor_ns
-            resp = requests.get(f"{loki_url}/loki/api/v1/query_range", params=params, timeout=10)
-            if resp.status_code == 200:
-                timestamped_lines: list[tuple[int, dict[str, Any]]] = []
-                for stream in resp.json().get("data", {}).get("result") or []:
-                    for ts_ns, msg in stream.get("values") or []:
-                        timestamped_lines.append((int(ts_ns), {
-                            "timestamp": datetime.utcfromtimestamp(int(ts_ns) / 1e9).strftime("%Y-%m-%dT%H:%M:%S"),
-                            "level": _detect_log_level(msg),
-                            "message": msg,
-                            "source": "container_history",
-                        }))
-                timestamped_lines.sort(key=lambda item: item[0])
-                lines = [item[1] for item in timestamped_lines]
-                if timestamped_lines:
-                    oldest_ns = timestamped_lines[0][0]
-                    newest_ns = timestamped_lines[-1][0]
-                    next_payload = {"anchor_ts_ns": oldest_ns - 1, "direction": "older", "page": page + 1}
-                    previous_payload = {"anchor_ts_ns": newest_ns + 1, "direction": "newer", "page": max(1, page - 1)}
-                    next_cursor = base64.b64encode(json.dumps(next_payload).encode()).decode()
-                    previous_cursor = base64.b64encode(json.dumps(previous_payload).encode()).decode()
-        except Exception:
-            pass
-
-    result = {
-        "lines": lines,
-        "source": "container_history",
-        "container_name": container,
-        "page": page,
-        "page_size": page_size,
-        "total_count": total_count,
-        "total_pages": total_pages,
-        "next_cursor": next_cursor,
-        "previous_cursor": previous_cursor,
-        "loki_reachable": loki_reachable,
-        "error": None if (loki_reachable or lines) else "No container history from Loki",
-    }
-    _LOKI_PAGE_CACHE[cache_key] = (now_ts, result)
+    escaped = str(container).replace("\\", "\\\\").replace('"', '\\"')
+    selector = "{" + f'container_name="{escaped}"' + "}"
+    result = _loki_history(
+        db,
+        service,
+        source="container_history",
+        selector=selector,
+        page=page,
+        page_size=page_size,
+        cursor=cursor,
+        log_path=container,
+        start=start,
+        end=end,
+    )
+    result["container_name"] = container
     return result
 
 
@@ -1275,56 +1539,58 @@ def service_diagnostics_analysis(
 
 
 def index_log_archives(db: Session, service: ServiceInstance) -> list[LogArchive]:
-    contract = json.loads(service.config_json or "{}")
-    log_paths = contract.get("log_paths", [])
+    log_paths = _configured_log_paths(service)
     existing = list(db.scalars(select(LogArchive).where(LogArchive.service_id == service.id)).all())
-    for archive in existing:
-        db.delete(archive)
-    db.commit()
-
-    discovered: dict[str, int] = {}
-    from pathlib import Path
+    existing_by_path = {os.path.normpath(str(item.path)): item for item in existing}
+    discovered: dict[str, tuple[int, int, str, str | None]] = {}
 
     for configured_path in log_paths:
         container_path = _container_path_for_host_path(service, configured_path)
         if container_path:
-            ok, output, _error = _run_container_command(
-                service,
-                ["find", container_path, "-maxdepth", "1", "-type", "f", "-printf", "%p\t%s\n"],
-            )
-            if ok:
-                for row in output.splitlines():
-                    raw_path, separator, raw_size = row.rpartition("\t")
-                    if not separator or not raw_path.startswith("/"):
-                        continue
-                    try:
-                        size = int(raw_size.strip())
-                    except ValueError:
-                        continue
-                    discovered[_host_path_for_container_path(service, raw_path.strip())] = size
-                continue
+            # A service volume is authoritative.  Never fall back to a host
+            # scan when the declared target cannot be enumerated: that would
+            # turn a remote command failure into a misleading empty archive
+            # index (and could expose an unrelated local path).
+            remote_archives, remote_error = _remote_archive_files(db, service, configured_path, container_path)
+            if remote_error:
+                raise RuntimeError(remote_error)
+            for host_path, size, line_count, reason, checksum in remote_archives:
+                discovered[os.path.normpath(host_path)] = (size, line_count, reason, checksum)
+            continue
 
         local_path = Path(configured_path)
         candidates = [local_path] if local_path.is_file() else list(local_path.glob("*")) if local_path.is_dir() else []
         for candidate in candidates:
-            if candidate.is_file():
+            if not _is_log_archive_name(candidate.name):
+                continue
+            # Symlinked paths are not archives owned by the configured log
+            # root; following one could expose arbitrary host content.
+            if candidate.is_file() and not candidate.is_symlink():
                 try:
-                    discovered[str(candidate)] = candidate.stat().st_size
+                    path = str(candidate.resolve(strict=True))
+                    size, line_count, checksum = _local_archive_stats(Path(path))
+                    discovered[os.path.normpath(path)] = (size, line_count, "measured on declared service target", checksum)
                 except OSError:
                     continue
 
     archives: list[LogArchive] = []
-    for path, size_bytes in sorted(discovered.items()):
-        archive = LogArchive(
-            service_id=service.id,
-            path=path,
-            size_bytes=size_bytes,
-            line_count=0,
-            readable="yes",
-            reason="measured on declared service target",
-        )
-        db.add(archive)
+    for path, (size_bytes, line_count, reason, checksum) in sorted(discovered.items()):
+        archive = existing_by_path.pop(path, None)
+        if archive is None:
+            archive = LogArchive(service_id=service.id, path=path)
+            db.add(archive)
+        archive.path = path
+        archive.size_bytes = size_bytes
+        archive.line_count = line_count
+        archive.readable = "yes"
+        archive.reason = reason
+        # The ORM model intentionally stays backward compatible.  Expose the
+        # measured checksum on the returned object and download metadata even
+        # though old databases do not have a checksum column.
+        archive.checksum_sha256 = checksum
         archives.append(archive)
+    for stale in existing_by_path.values():
+        db.delete(stale)
     db.commit()
     for archive in archives:
         db.refresh(archive)
@@ -1340,21 +1606,235 @@ def index_log_archives(db: Session, service: ServiceInstance) -> list[LogArchive
     return archives
 
 
+_MAX_REMOTE_ARCHIVE_ENTRIES = 1000
+_LOG_ARCHIVE_NAME_RE = re.compile(r"^.+\.log(?:\.\d+)?(?:\.gz)?$", re.IGNORECASE | re.UNICODE)
+
+
+def _is_log_archive_name(name: str) -> bool:
+    """Keep archive discovery scoped to ordinary and rotated log names."""
+
+    return bool(_LOG_ARCHIVE_NAME_RE.fullmatch(name))
+
+
+def _safe_remote_child_path(root: str, name: str) -> str:
+    """Join one directory entry without allowing path traversal or nesting."""
+
+    if not name or name in {".", ".."} or "/" in name or "\\" in name or "\x00" in name:
+        raise ValueError("remote archive entry contains an unsafe path component")
+    if any(ord(char) < 32 or ord(char) == 127 for char in name):
+        raise ValueError("remote archive entry contains control characters")
+    normalized_root = posixpath.normpath(root)
+    candidate = posixpath.normpath(posixpath.join(normalized_root, name))
+    if candidate == normalized_root or not candidate.startswith(normalized_root.rstrip("/") + "/"):
+        raise ValueError("remote archive entry escapes the configured log directory")
+    return candidate
+
+
+def _remote_command_number(
+    service: ServiceInstance,
+    args: list[str],
+    *,
+    label: str,
+) -> tuple[int | None, str | None]:
+    ok, output, error = _run_container_command(service, args)
+    if not ok:
+        return None, f"{label} command failed: {error or 'unknown container error'}"
+    value = output.strip().splitlines()[0].strip().split()[0] if output.strip() else ""
+    if not value.isdigit():
+        return None, f"{label} command returned invalid metadata"
+    return int(value), None
+
+
+def _remote_archive_metadata(
+    service: ServiceInstance,
+    container_path: str,
+    *,
+    compressed: bool,
+) -> tuple[int, int, str, str] | tuple[None, None, None, str]:
+    """Read bounded metadata with BusyBox/GNU-compatible commands."""
+
+    size: int | None = None
+    size_errors: list[str] = []
+    for args in (
+        ["stat", "-c", "%s", container_path],
+        ["stat", "-f", "%z", container_path],
+        ["wc", "-c", container_path],
+    ):
+        parsed, error = _remote_command_number(service, args, label="archive size")
+        if parsed is not None:
+            size = parsed
+            break
+        if error:
+            size_errors.append(error)
+    if size is None:
+        return None, None, None, "; ".join(size_errors)
+
+    ok, output, error = _run_container_command(service, ["sha256sum", container_path])
+    if not ok:
+        ok, output, error = _run_container_command(service, ["shasum", "-a", "256", container_path])
+    match = re.search(r"\b([0-9a-fA-F]{64})\b", output or "") if ok else None
+    if not match:
+        return None, None, None, f"archive checksum command failed: {error or 'invalid checksum output'}"
+
+    line_count = 0
+    reason = "remote target; compressed line count not measured" if compressed else "remote target"
+    if not compressed:
+        parsed, _line_error = _remote_command_number(service, ["wc", "-l", container_path], label="archive line count")
+        if parsed is not None:
+            line_count = parsed
+        else:
+            reason = "remote target; line count not measured"
+    return size, line_count, reason, match.group(1).lower()
+
+
+def _remote_archive_files(
+    db: Session,
+    service: ServiceInstance,
+    configured_path: str,
+    container_path: str,
+) -> tuple[list[tuple[str, int, int, str, str]], str | None]:
+    """Enumerate one declared container directory without GNU ``find``."""
+
+    root = posixpath.normpath(container_path)
+    root_symlink, _symlink_output, _symlink_error = _run_container_command(service, ["test", "-L", root])
+    if root_symlink:
+        return [], f"Declared log path is a symlink and cannot be indexed: {configured_path}"
+    is_file, _file_output, _file_error = _run_container_command(service, ["test", "-f", root])
+    if is_file:
+        entries = [posixpath.basename(root)]
+        directory = posixpath.dirname(root) or "/"
+    else:
+        is_dir, _dir_output, dir_error = _run_container_command(service, ["test", "-d", root])
+        if not is_dir:
+            return [], f"Unable to access declared log directory {configured_path}: {dir_error or 'not a directory'}"
+        ok, output, error = _run_container_command(service, ["ls", "-1A", root])
+        if not ok:
+            return [], f"Unable to enumerate declared log directory {configured_path}: {error or 'ls failed'}"
+        entries = [line.rstrip("\r") for line in output.splitlines() if line.rstrip("\r")]
+        directory = root
+    if len(entries) > _MAX_REMOTE_ARCHIVE_ENTRIES:
+        return [], f"Declared log directory {configured_path} exceeds the archive entry limit"
+
+    configured_norm = os.path.normpath(configured_path)
+    discovered: list[tuple[str, int, int, str, str]] = []
+    for name in entries:
+        try:
+            child = _safe_remote_child_path(directory, name)
+        except ValueError as exc:
+            return [], f"Unable to enumerate declared log directory {configured_path}: {exc}"
+        if not _is_log_archive_name(posixpath.basename(child)):
+            continue
+        is_regular, _output, _regular_error = _run_container_command(service, ["test", "-f", child])
+        if not is_regular:
+            # A directory or device is not an archive; retain the bounded
+            # enumeration contract and skip it without reading its contents.
+            continue
+        is_symlink, _output, _symlink_error = _run_container_command(service, ["test", "-L", child])
+        if is_symlink:
+            continue
+        host_path = os.path.normpath(_host_path_for_container_path(service, child))
+        if not (host_path == configured_norm or host_path.startswith(configured_norm.rstrip(os.sep) + os.sep)):
+            return [], f"Archive candidate escapes the configured log directory: {host_path}"
+        validated_path, path_error = _validated_service_log_path(db, service, host_path)
+        if path_error:
+            return [], f"Archive candidate is not allowed: {path_error}"
+        metadata = _remote_archive_metadata(service, child, compressed=child.lower().endswith(".gz"))
+        size, line_count, reason, checksum_or_error = metadata
+        if size is None or line_count is None or reason is None:
+            return [], f"Unable to read metadata for archive candidate {child}: {checksum_or_error}"
+        discovered.append((validated_path, size, line_count, reason, checksum_or_error))
+    return discovered, None
+
+
+def _local_archive_stats(path: Path) -> tuple[int, int, str]:
+    digest = hashlib.sha256()
+    line_count = 0
+    # The checksum covers the bytes delivered by download (including gzip
+    # framing), while line_count is measured after decompression when needed.
+    with path.open("rb") as source:
+        while True:
+            chunk = source.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    opener = gzip.open if path.name.lower().endswith(".gz") else open
+    with opener(path, "rb") as source:
+        last_byte = b""
+        while True:
+            chunk = source.read(1024 * 1024)
+            if not chunk:
+                break
+            line_count += chunk.count(b"\n")
+            last_byte = chunk[-1:]
+    if last_byte and last_byte != b"\n":
+        line_count += 1
+    return path.stat().st_size, line_count, digest.hexdigest()
+
+
 def backfill_service_logs(db: Session, service: ServiceInstance) -> dict[str, Any]:
     diagnostics = service_diagnostics(db, service)
     requirements = diagnostics["readiness"].get("backfill_requirements", {})
-    command = (
-        f"{_ansible_base_command(service.node, 'service_log_backfill.yml')} --extra-vars service={service.service_key}"
+    command = "diagnostics-backfill-unresolved"
+    if service.node is not None:
+        from ..discovery import resolve_connection_mode
+
+        if resolve_connection_mode(service.node) == "local":
+            labels = {
+                "service_name": service.name,
+                "service_key": service.service_key,
+                "container_name": service.container_name or service.service_key,
+                "source_type": "file",
+                "node_id": str(service.node_id),
+            }
+            import base64 as _b64
+
+            encoded_paths = _b64.b64encode(json.dumps(_configured_log_paths(service)).encode("utf-8")).decode("ascii")
+            encoded_labels = _b64.b64encode(json.dumps(labels).encode("utf-8")).decode("ascii")
+            script_path = settings.resolve(settings.ansible_dir) / "playbooks" / "service_log_backfill.py"
+            command = " ".join(
+                [
+                    "python3",
+                    shlex.quote(str(script_path)),
+                    "--loki_url",
+                    shlex.quote(settings.loki_write_url.rstrip("/")),
+                    "--log_paths_b64",
+                    shlex.quote(encoded_paths),
+                    "--labels_b64",
+                    shlex.quote(encoded_labels),
+                    "--allow_full_file",
+                    "true",
+                ]
+            )
+        else:
+            command = "remote diagnostics log backfill is not available in this runtime"
+    # Keep the worker command transient.  The generic job endpoint can then
+    # safely expose this persisted row without disclosing source paths, labels,
+    # or a remote URL embedded in the executable command.
+    job = create_job(
+        db,
+        action="log-backfill",
+        command=_DIAGNOSTICS_BACKFILL_COMMAND,
+        service_id=service.id,
+        node_id=service.node_id,
     )
-    job = create_job(db, action="log-backfill", command=command, service_id=service.id, node_id=service.node_id)
+    job._execution_command = command
+    job._output_sanitizer = _safe_backfill_job_text
     ready = bool(requirements.get("ready"))
-    output = f"Backfill not ready: {', '.join(requirements.get('missing', [])) or 'requirements incomplete'}."
+    missing = list(requirements.get("missing", []))
+    if service.node is None:
+        missing.append("node")
+    elif "remote diagnostics log backfill" in command:
+        missing.append("remote_backfill_runtime")
+    output = f"Backfill not ready: {', '.join(missing) or 'requirements incomplete'}."
+    ready = ready and not missing
     if ready:
         current_job = run_job_async(db, job, cwd=settings.project_root)
         summary = f"Log backfill job #{job.id} started for {service.container_name}."
     else:
-        current_job = finish_job(db, job, ok=False, output="", error=output)
+        current_job = _finish_backfill_job(db, job, ok=False, output="", error=output)
         summary = output
+    current_job = _sanitize_backfill_job_record(db, current_job)
+    job_payload = _serialize_backfill_job(current_job)
     record_event(
         db,
         category="diagnostics",
@@ -1362,13 +1842,20 @@ def backfill_service_logs(db: Session, service: ServiceInstance) -> dict[str, An
         message=f"Log backfill {'started' if ready else 'blocked'} for {service.name}",
         service_id=service.id,
         node_id=service.node_id,
-        metadata={"ready": ready, "missing": requirements.get("missing", [])},
+        metadata={
+            "ready": ready,
+            "missing": missing,
+            "job_id": job_payload.id,
+            "status": job_payload.status,
+        },
     )
     return {
         "service_id": service.id,
         "ready": ready,
+        "id": job_payload.id,
+        "status": job_payload.status,
         "requirements": requirements,
-        "job": current_job,
+        "job": job_payload,
         "summary": summary,
     }
 
@@ -1382,21 +1869,85 @@ def deploy_observability_stack(db: Session, node: Node) -> DeploymentJob:
     return run_job_async(db, job, cwd=settings.project_root)
 
 
-# Simple in-process page cache for Loki file-history (45s TTL, DDR D3)
-_LOKI_PAGE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
-_LOKI_PAGE_CACHE_TTL_S = 45.0
-
-
 def _service_log_path(db: Session, service: "ServiceInstance", log_path: str = "") -> str:
-    """Resolve a log file path from the request or service contract."""
+    """Resolve a log file path from the request or service contract.
+
+    This helper intentionally returns an empty string when a service has no
+    configured log path.  A synthetic ``/var/log/<service>/app.log`` path is
+    not evidence and caused false-positive diagnostics in local mode.
+    """
     if log_path:
-        return log_path
-    contract = json.loads(service.config_json or "{}")
+        return str(log_path)
+    try:
+        contract = json.loads(service.config_json or "{}")
+    except (TypeError, json.JSONDecodeError):
+        contract = {}
     paths = contract.get("log_paths") or []
     if paths:
-        return paths[0]
-    # Fall back to first target's container log convention
-    return f"/var/log/{service.service_key}/app.log"
+        return str(paths[0])
+    return ""
+
+
+def _configured_log_paths(service: "ServiceInstance") -> list[str]:
+    try:
+        contract = json.loads(service.config_json or "{}")
+    except (TypeError, json.JSONDecodeError):
+        return []
+    raw_paths = contract.get("log_paths") or []
+    if isinstance(raw_paths, str):
+        raw_paths = [raw_paths]
+    return [str(item).strip() for item in raw_paths if str(item).strip()]
+
+
+def _validated_service_log_path(
+    db: Session,
+    service: "ServiceInstance",
+    requested: str = "",
+) -> tuple[str, str | None]:
+    """Accept only a path declared by the selected service contract.
+
+    A configured directory may contain rotated files, while a configured file
+    is exact-match only.  Both lexical ``..`` traversal and symlink escapes
+    are rejected before any local/remote command is run.
+    """
+
+    configured = _configured_log_paths(service)
+    if not configured:
+        return "", "No file log paths are configured for this service"
+    candidate = str(requested or configured[0]).strip()
+    if not candidate or "\x00" in candidate:
+        return "", "Invalid log path"
+    candidate_path = Path(candidate)
+    if not candidate_path.is_absolute():
+        return "", "Log path must be absolute"
+    normalized_candidate = os.path.normpath(candidate)
+    if any(part == ".." for part in Path(candidate).parts):
+        return "", "Log path traversal is not allowed"
+    allowed = False
+    for raw_root in configured:
+        root = os.path.normpath(raw_root)
+        if normalized_candidate == root:
+            allowed = True
+            break
+        # A configured directory can be remote and therefore absent locally;
+        # use lexical containment as well as an on-disk directory check.
+        root_path = Path(root)
+        if normalized_candidate.startswith(root.rstrip(os.sep) + os.sep) and (root_path.is_dir() or not root_path.exists()):
+            allowed = True
+            break
+    if not allowed:
+        return "", "Log path is not configured for this service"
+    try:
+        resolved = Path(normalized_candidate).resolve(strict=False)
+        for raw_root in configured:
+            root_path = Path(os.path.normpath(raw_root)).resolve(strict=False)
+            if resolved == root_path or root_path in resolved.parents:
+                return str(resolved), None
+    except OSError:
+        return "", "Unable to validate the configured log path"
+    # A lexical child can still be a symlink outside the configured root.  Do
+    # not hand that path to a local reader or remote command.
+    return "", "Log path escapes the configured service root"
 
 
 def _service_volume_mappings(service: "ServiceInstance") -> list[tuple[str, str]]:
@@ -1460,7 +2011,10 @@ def _run_container_command(
     else:
         if not node.host:
             return False, "", "Remote node has no host address."
-        remote_command = " ".join(["docker", "exec", container, *args])
+        # The Ansible command module receives one free-form command string;
+        # quote every argument so Unicode, spaces, and path metacharacters do
+        # not change the target or the command being executed.
+        remote_command = " ".join(["docker", "exec", shlex.quote(container), *(shlex.quote(arg) for arg in args)])
         command = [
             "ansible",
             f"{node.host},",
@@ -1491,7 +2045,40 @@ def _run_container_command(
 
 def _archive_filename(archive: LogArchive) -> str:
     path = getattr(archive, "path", "") or ""
-    return path.rsplit("/", 1)[-1] if path else f"archive-{archive.id}.log"
+    raw = Path(str(path)).name if path else f"archive-{archive.id}.log"
+    # ZIP member names and Content-Disposition values must not contain a path
+    # component, control character, or an empty name.
+    safe = re.sub(r"[^\w.()@+\- ]", "_", raw, flags=re.UNICODE).strip(" .")
+    return safe or f"archive-{archive.id}.log"
+
+
+def _archive_checksum(path: Path) -> str | None:
+    try:
+        return _local_archive_stats(path)[2]
+    except (OSError, EOFError, gzip.BadGzipFile):
+        return None
+
+
+def _remote_archive_bytes(service: "ServiceInstance", container_path: str) -> tuple[bytes | None, str | None]:
+    """Fetch exact remote archive bytes through portable base64 transport."""
+
+    ok, encoded, error = _run_container_command(service, ["base64", container_path], timeout=60)
+    if not ok:
+        return None, error or "Remote archive read failed"
+    try:
+        return base64.b64decode("".join(encoded.split()).encode("ascii"), validate=True), None
+    except (ValueError, UnicodeEncodeError) as exc:
+        return None, f"Remote archive returned invalid base64: {exc}"
+
+
+def _archive_db_row(db: Session, service: "ServiceInstance", archive_id: int) -> tuple[LogArchive | None, str | None]:
+    archive = db.scalar(select(LogArchive).where(LogArchive.id == archive_id, LogArchive.service_id == service.id))
+    if archive is None:
+        return None, "Archive not found"
+    _, path_error = _validated_service_log_path(db, service, str(archive.path))
+    if path_error:
+        return None, f"Archive path is not allowed: {path_error}"
+    return archive, None
 
 
 def get_ingestion_stats(db: Session | None = None) -> dict:
@@ -1594,9 +2181,26 @@ def service_file_tail(db: Session, service: "ServiceInstance", log_path: str = "
     if not node:
         return {"lines": [], "source": "file_live", "error": "Service has no assigned node", "log_path": log_path or "", "node": "", "total_lines": 0}
 
-    log_path = _service_log_path(db, service, log_path)
-    safe_tail = max(1, min(int(tail_lines), 5000))
     node_label = getattr(node, "host", None) or getattr(node, "name", None) or str(node.id)
+    log_path, path_error = _validated_service_log_path(db, service, log_path)
+    if path_error:
+        return {
+            "lines": [], "source": "file_live", "error": path_error,
+            "log_path": log_path or str(log_path or ""), "node": node_label, "total_lines": 0,
+        }
+    selected_path = Path(log_path)
+    if selected_path.is_dir():
+        candidates = sorted(
+            (item for item in selected_path.glob("*.log*") if item.is_file() and not item.is_symlink()),
+            key=lambda item: item.stat().st_mtime,
+            reverse=True,
+        )
+        if candidates:
+            log_path = str(candidates[0].resolve())
+        else:
+            return {"lines": [], "source": "file_live", "error": "No log files are available under the configured path", "log_path": log_path, "node": node_label, "total_lines": 0}
+    safe_tail = max(1, min(int(tail_lines), 5000))
+    container_error = ""
 
     container_path = _container_path_for_host_path(service, log_path)
     if container_path:
@@ -1605,11 +2209,11 @@ def service_file_tail(db: Session, service: "ServiceInstance", log_path: str = "
             ["tail", "-n", str(safe_tail), container_path],
         )
         if ok:
-            raw_lines = [line for line in output.splitlines() if line.strip()]
+            raw_lines = output.splitlines()
             now = datetime.utcnow()
             lines = [
                 {
-                    "timestamp": (now - timedelta(seconds=(len(raw_lines) - index))).strftime("%Y-%m-%dT%H:%M:%S"),
+                    "timestamp": _timestamp_text(_parse_log_timestamp(message.split(" ", 1)[0]) or (now - timedelta(seconds=(len(raw_lines) - index)))),
                     "level": _detect_log_level(message),
                     "message": message,
                     "source": f"file:{log_path}",
@@ -1622,10 +2226,15 @@ def service_file_tail(db: Session, service: "ServiceInstance", log_path: str = "
                 "log_path": log_path,
                 "node": node_label,
                 "total_lines": len(lines),
+                "error": "Log file is empty" if not lines else None,
             }
 
-    # Real remote tail when not in local_mode
-    if not settings.local_mode and node.environment != "local":
+    from ..discovery import resolve_connection_mode
+
+    connection_mode = resolve_connection_mode(node)
+    # Real remote tail when not in local_mode.  A remote failure is terminal;
+    # never read a similarly named host file as a fallback.
+    if connection_mode != "local":
         try:
             import subprocess
 
@@ -1645,7 +2254,7 @@ def service_file_tail(db: Session, service: "ServiceInstance", log_path: str = "
             ]
             proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=str(settings.project_root))
             if proc.returncode == 0 and proc.stdout:
-                raw_lines = [ln for ln in proc.stdout.splitlines() if ln.strip() and not ln.startswith(inventory)]
+                raw_lines = [ln for ln in proc.stdout.splitlines() if not ln.startswith(inventory)]
                 lines = []
                 now = datetime.utcnow()
                 for i, msg in enumerate(raw_lines[-safe_tail:]):
@@ -1653,9 +2262,9 @@ def service_file_tail(db: Session, service: "ServiceInstance", log_path: str = "
                     if " | " in msg and msg.split(" | ", 1)[0].strip() in (inventory, "CHANGED", "SUCCESS"):
                         continue
                     if ">>" in msg:
-                        msg = msg.split(">>", 1)[-1].strip()
+                        msg = msg.split(">>", 1)[-1].lstrip()
                     lines.append({
-                        "timestamp": (now - timedelta(seconds=(len(raw_lines) - i))).strftime("%Y-%m-%dT%H:%M:%S"),
+                        "timestamp": _timestamp_text(_parse_log_timestamp(msg.split(" ", 1)[0]) or (now - timedelta(seconds=(len(raw_lines) - i)))),
                         "level": _detect_log_level(msg),
                         "message": msg,
                         "source": f"file:{log_path}",
@@ -1667,6 +2276,7 @@ def service_file_tail(db: Session, service: "ServiceInstance", log_path: str = "
                         "log_path": log_path,
                         "node": node_label,
                         "total_lines": len(lines),
+                        "error": None,
                     }
         except Exception as exc:
             return {
@@ -1678,9 +2288,13 @@ def service_file_tail(db: Session, service: "ServiceInstance", log_path: str = "
                 "error": f"SSH/Ansible tail failed: {exc}",
             }
 
-    # Local host: try real file tail if path exists
-    from pathlib import Path
-
+    # Local host: try real file tail if path exists.
+    if connection_mode != "local":
+        return {
+            "lines": [], "source": "file_live", "log_path": log_path,
+            "node": node_label, "total_lines": 0,
+            "error": container_error or "Log file not available on the declared remote node",
+        }
     path = Path(log_path)
     if path.is_file():
         try:
@@ -1691,9 +2305,9 @@ def service_file_tail(db: Session, service: "ServiceInstance", log_path: str = "
             now = datetime.utcnow()
             lines = []
             for i, msg in enumerate(selected):
-                msg = msg.rstrip("\n")
+                msg = msg.rstrip("\r\n")
                 lines.append({
-                    "timestamp": (now - timedelta(seconds=(len(selected) - i))).strftime("%Y-%m-%dT%H:%M:%S"),
+                    "timestamp": _timestamp_text(_parse_log_timestamp(msg.split(" ", 1)[0]) or (now - timedelta(seconds=(len(selected) - i)))),
                     "level": _detect_log_level(msg),
                     "message": msg,
                     "source": f"file:{log_path}",
@@ -1704,6 +2318,7 @@ def service_file_tail(db: Session, service: "ServiceInstance", log_path: str = "
                 "log_path": log_path,
                 "node": node_label,
                 "total_lines": len(lines),
+                "error": "Log file is empty" if not lines else None,
             }
         except Exception as exc:
             return {
@@ -1732,125 +2347,45 @@ def service_file_history(
     page: int = 1,
     page_size: int = 50,
     cursor: str = "",
+    start: str | int | float | None = None,
+    end: str | int | float | None = None,
 ) -> dict:
-    """Query Loki for historical file-based logs using file labels and cursor pagination."""
-    import base64
-    import time
+    """Query Loki for one configured file path with strict cursor semantics."""
 
-    try:
-        from ...settings import settings as _settings
-
-        loki_url = _settings.loki_base_url
-    except Exception:
-        loki_url = "http://localhost:9021"
-
-    log_path = _service_log_path(db, service, log_path)
-    cache_key = f"{service.id}:{log_path}:{page}:{page_size}:{cursor or ''}"
-    now_ts = time.time()
-    cached = _LOKI_PAGE_CACHE.get(cache_key)
-    if cached and (now_ts - cached[0]) < _LOKI_PAGE_CACHE_TTL_S:
-        return cached[1]
-
-    # Prune expired cache entries opportunistically
-    expired = [k for k, (ts, _) in _LOKI_PAGE_CACHE.items() if now_ts - ts >= _LOKI_PAGE_CACHE_TTL_S]
-    for k in expired:
-        _LOKI_PAGE_CACHE.pop(k, None)
-
-    basename = log_path.split("/")[-1]
-    selector = "{" + f'filename=~".*{escape_query_regex_literal(basename)}.*"' + "}"
-
-    lines: list[dict[str, Any]] = []
-    total_count = 0
-    next_cursor = None
-    previous_cursor = None
-    loki_reachable = False
-
-    try:
-        count_resp = requests.get(
-            f"{loki_url}/loki/api/v1/query",
-            params={"query": f"count_over_time({selector}[720h])"},
-            timeout=5,
+    resolved_path, path_error = _validated_service_log_path(db, service, log_path)
+    if path_error:
+        return {
+            "lines": [], "source": "file_history", "log_path": log_path,
+            "page": max(1, int(page or 1)), "page_size": max(1, min(int(page_size or 50), 1000)),
+            "total_count": 0, "total_pages": 0, "next_cursor": None,
+            "previous_cursor": None, "start": str(start) if start is not None else None,
+            "end": str(end) if end is not None else None, "error": path_error,
+        }
+    selected_path = Path(resolved_path)
+    if selected_path.is_dir():
+        candidates = sorted(
+            (item for item in selected_path.glob("*.log*") if item.is_file() and not item.is_symlink()),
+            key=lambda item: item.stat().st_mtime,
+            reverse=True,
         )
-        if count_resp.status_code == 200:
-            loki_reachable = True
-            result = count_resp.json().get("data", {}).get("result", [])
-            if result:
-                total_count = int(float(result[0].get("value", [0, 0])[1]))
-    except Exception:
-        pass
-
-    total_pages = max(1, (total_count + page_size - 1) // page_size) if total_count else 1
-
-    if loki_reachable:
-        try:
-            end_ns = str(int(time.time()) * 1_000_000_000)
-            direction = "older"
-            anchor_ns = end_ns
-            if cursor:
-                try:
-                    cursor_data = json.loads(base64.b64decode(cursor))
-                    direction = "newer" if cursor_data.get("direction") == "newer" else "older"
-                    anchor_ns = str(cursor_data.get("anchor_ts_ns", end_ns))
-                except Exception:
-                    direction = "older"
-                    anchor_ns = end_ns
-            params = {
-                "query": selector,
-                "limit": str(page_size),
-                "direction": "forward" if direction == "newer" else "backward",
-            }
-            params["start" if direction == "newer" else "end"] = anchor_ns
-
-            resp = requests.get(
-                f"{loki_url}/loki/api/v1/query_range",
-                params=params,
-                timeout=10,
-            )
-            if resp.status_code == 200:
-                streams = resp.json().get("data", {}).get("result", [])
-                timestamped_lines: list[tuple[int, dict[str, Any]]] = []
-                for stream in streams:
-                    for ts_ns, msg in stream.get("values", []):
-                        timestamped_lines.append((int(ts_ns), {
-                            "timestamp": datetime.utcfromtimestamp(int(ts_ns) / 1e9).strftime("%Y-%m-%dT%H:%M:%S"),
-                            "level": _detect_log_level(msg),
-                            "message": msg,
-                            "source": "file_history",
-                        }))
-                timestamped_lines.sort(key=lambda item: item[0])
-                lines = [item[1] for item in timestamped_lines]
-                if timestamped_lines:
-                    oldest_ns = timestamped_lines[0][0]
-                    newest_ns = timestamped_lines[-1][0]
-                    cursor_payload = {
-                        "anchor_ts_ns": oldest_ns - 1,
-                        "direction": "older",
-                        "page": page + 1,
-                    }
-                    next_cursor = base64.b64encode(json.dumps(cursor_payload).encode()).decode()
-                    previous_payload = {
-                        "anchor_ts_ns": newest_ns + 1,
-                        "direction": "newer",
-                        "page": max(1, page - 1),
-                    }
-                    previous_cursor = base64.b64encode(json.dumps(previous_payload).encode()).decode()
-        except Exception:
-            pass
-
-    payload = {
-        "lines": lines,
-        "source": "file_history",
-        "log_path": log_path,
-        "page": page,
-        "page_size": page_size,
-        "total_count": total_count,
-        "total_pages": total_pages,
-        "next_cursor": next_cursor,
-        "previous_cursor": previous_cursor,
-        "error": None if (loki_reachable or lines) else "No file history from Loki",
-    }
-    _LOKI_PAGE_CACHE[cache_key] = (now_ts, payload)
-    return payload
+        if candidates:
+            resolved_path = str(candidates[0].resolve())
+    # filename is used by the existing Alloy/Promtail labels.  Exact path is
+    # included when available so similarly named services cannot cross-match.
+    escaped = resolved_path.replace("\\", "\\\\").replace('"', '\\"')
+    selector = "{" + f'filename="{escaped}"' + "}"
+    return _loki_history(
+        db,
+        service,
+        source="file_history",
+        selector=selector,
+        page=page,
+        page_size=page_size,
+        cursor=cursor,
+        log_path=resolved_path,
+        start=start,
+        end=end,
+    )
 
 
 def _detect_log_level(message: str) -> str:
@@ -1867,32 +2402,37 @@ def _detect_log_level(message: str) -> str:
 
 def view_log_archive(db: Session, service: "ServiceInstance", archive_id: int, max_lines: int = 300) -> dict:
     """Preview the first N lines of a log archive file."""
-    from pathlib import Path
-
-    archive = db.scalar(
-        select(LogArchive).where(LogArchive.id == archive_id, LogArchive.service_id == service.id)
-    )
-    if not archive:
-        return {"archive_id": archive_id, "filename": "", "error": "Archive not found", "lines": [], "total_lines": 0, "truncated": False}
+    archive, archive_error = _archive_db_row(db, service, archive_id)
+    if archive is None:
+        return {"archive_id": archive_id, "filename": "", "error": archive_error, "lines": [], "total_lines": 0, "truncated": False}
 
     filename = _archive_filename(archive)
     path = Path(archive.path)
+    safe_max = max(1, min(int(max_lines or 300), 5000))
 
     # Prefer real file content when the path exists on disk
-    if path.is_file():
+    if path.is_file() and not path.is_symlink():
         try:
-            with path.open("r", errors="replace") as fh:
+            opener = gzip.open if filename.lower().endswith(".gz") else open
+            with opener(path, "rt", errors="replace") as fh:
                 lines = []
                 for i, line in enumerate(fh):
-                    if i >= max_lines:
+                    if i >= safe_max:
                         break
-                    lines.append(line.rstrip("\n"))
+                    lines.append(line.rstrip("\r\n"))
+            truncated = False
+            with opener(path, "rt", errors="replace") as fh:
+                for i, _ in enumerate(fh):
+                    if i >= safe_max:
+                        truncated = True
+                        break
             return {
                 "archive_id": archive_id,
                 "filename": filename,
                 "lines": lines,
                 "total_lines": len(lines),
-                "truncated": len(lines) >= max_lines,
+                "truncated": truncated,
+                "checksum_sha256": _archive_checksum(path),
             }
         except Exception as exc:
             return {
@@ -1906,17 +2446,22 @@ def view_log_archive(db: Session, service: "ServiceInstance", archive_id: int, m
 
     container_path = _container_path_for_host_path(service, archive.path)
     if container_path:
-        safe_max = max(1, min(int(max_lines), 5000))
-        ok, output, error = _run_container_command(service, ["head", "-n", str(safe_max + 1), container_path])
-        if ok:
-            all_lines = output.splitlines()
-            return {
-                "archive_id": archive_id,
-                "filename": filename,
-                "lines": all_lines[:safe_max],
-                "total_lines": len(all_lines[:safe_max]),
-                "truncated": len(all_lines) > safe_max,
-            }
+        remote_bytes, error = _remote_archive_bytes(service, container_path)
+        if remote_bytes is not None:
+            try:
+                decoded = gzip.decompress(remote_bytes) if filename.lower().endswith(".gz") else remote_bytes
+                text_content = decoded.decode("utf-8", errors="replace")
+                all_lines = text_content.splitlines()
+                return {
+                    "archive_id": archive_id,
+                    "filename": filename,
+                    "lines": all_lines[:safe_max],
+                    "total_lines": len(all_lines[:safe_max]),
+                    "truncated": len(all_lines) > safe_max,
+                    "checksum_sha256": hashlib.sha256(remote_bytes).hexdigest(),
+                }
+            except (OSError, EOFError, gzip.BadGzipFile) as exc:
+                error = f"Unable to decode remote archive: {exc}"
         return {
             "archive_id": archive_id,
             "filename": filename,
@@ -1938,29 +2483,26 @@ def view_log_archive(db: Session, service: "ServiceInstance", archive_id: int, m
 
 def download_log_archive(db: Session, service: "ServiceInstance", archive_id: int) -> dict:
     """Prepare a single log archive file for download (metadata + optional path)."""
-    from pathlib import Path
-
-    archive = db.scalar(
-        select(LogArchive).where(LogArchive.id == archive_id, LogArchive.service_id == service.id)
-    )
-    if not archive:
-        return {"error": "Archive not found", "ready": False}
+    archive, archive_error = _archive_db_row(db, service, archive_id)
+    if archive is None:
+        return {"error": archive_error, "ready": False}
 
     filename = _archive_filename(archive)
     path = Path(archive.path)
-    content_type = "application/gzip" if filename.endswith(".gz") else "text/plain"
-    if not path.is_file():
+    content_type = "application/gzip" if filename.lower().endswith(".gz") else "text/plain; charset=utf-8"
+    if not path.is_file() or path.is_symlink():
         container_path = _container_path_for_host_path(service, archive.path)
-        if container_path and not filename.endswith(".gz"):
-            ok, output, error = _run_container_command(service, ["cat", container_path], timeout=60)
-            if ok:
+        if container_path:
+            remote_bytes, error = _remote_archive_bytes(service, container_path)
+            if remote_bytes is not None:
                 return {
                     "archive_id": archive_id,
                     "filename": filename,
                     "path": None,
                     "content_type": content_type,
                     "ready": True,
-                    "content": output,
+                    "content": remote_bytes,
+                    "checksum_sha256": hashlib.sha256(remote_bytes).hexdigest(),
                 }
             return {
                 "archive_id": archive_id,
@@ -1980,6 +2522,13 @@ def download_log_archive(db: Session, service: "ServiceInstance", archive_id: in
             "error": f"Archive file not available on disk: {archive.path}",
             "content": None,
         }
+    checksum = _archive_checksum(path)
+    if checksum is None:
+        return {
+            "archive_id": archive_id, "filename": filename, "path": None,
+            "content_type": content_type, "ready": False,
+            "error": "Archive file could not be read", "content": None,
+        }
     return {
         "archive_id": archive_id,
         "filename": filename,
@@ -1987,50 +2536,59 @@ def download_log_archive(db: Session, service: "ServiceInstance", archive_id: in
         "content_type": content_type,
         "ready": True,
         "content": None,
+        "checksum_sha256": checksum,
     }
 
 
 def bulk_download_log_archives(db: Session, service: "ServiceInstance", archive_ids: list) -> dict:
     """Prepare multiple log archive files as a ZIP bundle for download."""
-    from pathlib import Path
-
-    archives = []
-    for aid in archive_ids:
-        archive = db.scalar(
-            select(LogArchive).where(LogArchive.id == aid, LogArchive.service_id == service.id)
-        )
-        if not archive:
-            continue
-        path = Path(archive.path)
-        if path.is_file():
-            archives.append({
-                "archive_id": aid,
-                "filename": _archive_filename(archive),
-                "path": str(path),
-                "content": None,
-            })
-            continue
-        container_path = _container_path_for_host_path(service, archive.path)
-        if container_path and not archive.path.endswith(".gz"):
-            ok, output, _error = _run_container_command(service, ["cat", container_path], timeout=60)
-            if ok:
-                archives.append({
-                    "archive_id": aid,
-                    "filename": _archive_filename(archive),
-                    "path": None,
-                    "content": output,
-                })
-
-    if not archives:
+    if not isinstance(archive_ids, list) or not archive_ids:
         return {
-            "error": "No readable archive files on disk for the selected ids",
+            "error": "Select at least one archive",
             "files": [],
             "file_count": 0,
             "ready": False,
             "zip_filename": "",
         }
+    unique_ids = list(dict.fromkeys(archive_ids))
+    archives = []
+    failures: list[str] = []
+    used_names: set[str] = set()
+    for aid in unique_ids:
+        item = download_log_archive(db, service, aid)
+        if not item.get("ready"):
+            failures.append(f"{aid}: {item.get('error') or 'unreadable'}")
+            continue
+        name = item.get("filename") or f"archive-{aid}.log"
+        stem, suffix = os.path.splitext(name)
+        candidate = name
+        index = 2
+        while candidate in used_names:
+            candidate = f"{stem}-{index}{suffix}"
+            index += 1
+        used_names.add(candidate)
+        archives.append({
+            "archive_id": aid,
+            "filename": candidate,
+            "path": item.get("path"),
+            "content": item.get("content"),
+            "checksum_sha256": item.get("checksum_sha256"),
+            "content_type": item.get("content_type"),
+        })
 
-    zip_filename = f"{service.name}_logs_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.zip"
+    if failures:
+        return {
+            "error": "Archive selection contains unreadable or unauthorized files: " + "; ".join(failures),
+            "files": archives,
+            "file_count": len(archives),
+            "ready": False,
+            "zip_filename": "",
+        }
+    if not archives:
+        return {"error": "No readable archive files for the selected ids", "files": [], "file_count": 0, "ready": False, "zip_filename": ""}
+
+    safe_service = re.sub(r"[^\w.()@+\- ]", "_", str(service.name or service.service_key), flags=re.UNICODE).strip(" .") or "service"
+    zip_filename = f"{safe_service}_logs_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}.zip"
     return {
         "zip_filename": zip_filename,
         "files": archives,
@@ -2059,6 +2617,17 @@ def service_log_analytics_chat(db: Session, service: "ServiceInstance", question
         analysis = {}
     live_logs_data = service_live_logs(db, service, tail_lines=min(100, max_logs))
     log_lines = live_logs_data.get("lines", []) or []
+
+    if not log_lines:
+        return {
+            "success": False,
+            "answer": "",
+            "evidence": [],
+            "chart_data": [],
+            "suggestions": ["Check live logs for errors", "Verify the selected service is running", "Retry after a new marker is emitted"],
+            "error": live_logs_data.get("error") or "No diagnostic log evidence is available for the selected service",
+            "provider": llm_status().get("provider") if is_llm_configured() else None,
+        }
 
     formatted_logs = []
     for line in log_lines[-max_logs:]:
@@ -2188,13 +2757,38 @@ def service_log_analytics_chat(db: Session, service: "ServiceInstance", question
         evidence = parsed.get("evidence") or []
         if not isinstance(evidence, list):
             evidence = []
+        actual_evidence: list[dict[str, Any]] = []
+        actual_by_message = {(str(item.get("t", "")), str(item.get("lvl", "")), str(item.get("msg", ""))): item for item in formatted_logs}
+        actual_by_message_short = {
+            (str(item.get("t", "")).replace("Z", "").split("T")[-1][:8], str(item.get("lvl", "")), str(item.get("msg", ""))): item
+            for item in formatted_logs
+        }
+        for candidate in evidence:
+            if not isinstance(candidate, dict):
+                continue
+            key = (str(candidate.get("t", "")), str(candidate.get("lvl", "")), str(candidate.get("msg", "")))
+            matched = actual_by_message.get(key) or actual_by_message_short.get(
+                (key[0].replace("Z", "").split("T")[-1][:8], key[1], key[2])
+            )
+            if matched is not None:
+                actual_evidence.append(dict(matched))
+        if not actual_evidence:
+            return {
+                "success": False,
+                "answer": "",
+                "evidence": [],
+                "chart_data": [],
+                "suggestions": ["Retry with a question about the selected service logs", "Inspect the raw log tail"],
+                "error": "LLM response contained no evidence grounded in the selected service logs",
+                "provider": llm_status().get("provider"),
+            }
         suggestions = parsed.get("suggestions") or []
         if not isinstance(suggestions, list):
             suggestions = []
         return {
             "success": True,
             "answer": parsed.get("answer") or "No response generated.",
-            "evidence": evidence[:8],
+            "evidence": actual_evidence[:8],
             "chart_data": chart,
             "suggestions": [str(s) for s in suggestions[:6]],
             "error": None,
