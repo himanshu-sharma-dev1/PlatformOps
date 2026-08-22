@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: platformops/postgres:1.0.0
     container_name: platformops_db
     restart: always
     environment:
@@ -18,14 +18,14 @@ services:
       retries: 5
 
   redis:
-    image: redis:7.2-alpine
+    image: platformops/redis:1.0.0
     container_name: platformops_redis
     restart: always
     networks:
       - platformops_network
 
   rabbitmq:
-    image: rabbitmq:3.13-management-alpine
+    image: platformops/rabbitmq:1.0.0
     container_name: platformops_rabbitmq
     restart: always
     environment:
@@ -41,6 +41,38 @@ services:
     ports:
       - "8025:8025"
       - "1025:1025"
+    networks:
+      - platformops_network
+
+  # Telemetry / Exporters
+  node_exporter:
+    image: platformops/node-exporter:1.0.0
+    container_name: platformops_node_exporter
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    networks:
+      - platformops_network
+
+  process_exporter:
+    image: platformops/process-exporter:1.0.0
+    container_name: platformops_process_exporter
+    restart: unless-stopped
+    ports:
+      - "9256:9256"
+    volumes:
+      - /proc:/host/proc:ro
+    networks:
+      - platformops_network
+
+  prometheus:
+    image: platformops/prometheus:1.0.0
+    container_name: platformops_prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     networks:
       - platformops_network
 
@@ -159,6 +191,7 @@ services:
       EMAIL_PORT: 1025
     volumes:
       - .:/app
+      - /home/ubuntu/Backup_Platform:/home/ubuntu/Backup_Platform
     depends_on:
       postgres:
         condition: service_healthy
