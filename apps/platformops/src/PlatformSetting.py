@@ -348,10 +348,8 @@ class PlatformSettings(metaclass=PlatformSettingsMeta):
 
     @classmethod
     def update_config(cls):
-        with open(CPLATFORM_CONFIG_PATH, "r") as file:
-            config_data = yaml.safe_load(file)
-        for key, value in config_data.items():
-            setattr(cls._instance, key, value)
+        cls._instance = None
+        return cls.get_config()
 
     @classmethod
     def update_config_data(cls, data):

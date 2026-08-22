@@ -6,60 +6,62 @@ services:
       RAM_GB: 4
       Storage_GB: 10
     SW_Info:
-      OS Type: "Linux"
-      Distribution Name: "Ubuntu"
-      Distribution Version: "22.04"
-      Docker Installed: "Yes"
-      NVIDIA Container Toolkit Installed: "No"
+      OS Type: Linux
+      Distribution Name: Ubuntu
+      Distribution Version: '22.04'
+      Docker Installed: 'Yes'
+      NVIDIA Container Toolkit Installed: 'No'
     Docker_Info:
       RabbitMQ:
-        Image_Name: "iktaraai/services:rabbitmq"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.2"
+        Image_Name: iktaraai/services:rabbitmq
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.2
         Int_Port: 5672
         Environment:
-          RABBITMQ_DEFAULT_USER: "admin"
-          RABBITMQ_DEFAULT_PASS: "admin"
+          RABBITMQ_DEFAULT_USER: admin
+          RABBITMQ_DEFAULT_PASS: admin
         Volumes:
-          - "/{{ machine_volume }}/iktara/rabbitmqLogs:/var/log/rabbitmq"
-          - "/{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro"
+        - /{{ machine_volume }}/iktara/rabbitmqLogs:/var/log/rabbitmq
+        - /{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
         Config_Files:
-          - src: "../../docker/rabbitmq/rabbitmq.conf"
-            dest: "/{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf"
-            mode: "0644"
+        - src: ../../docker/rabbitmq/rabbitmq.conf
+          dest: /{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf
+          mode: '0644'
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/rabbitmqLogs"
+            - /{{ machine_volume }}/iktara/rabbitmqLogs
             loki_labels:
-              service_name: "RabbitMQ"
-              service_type: "RabbitMQ"
-              source_type: "file"
+              service_name: RabbitMQ
+              service_type: RabbitMQ
+              source_type: file
       TrainingServer:
-        Image_Name: "iktaraai/services:dTrain"
-        Image_Ver_List: ["1.0.0","2.0.0"]
-        Int_IP_Addr: "180.75.0.12"
+        Image_Name: iktaraai/services:dTrain
+        Image_Ver_List:
+        - 1.0.0
+        - 2.0.0
+        Int_IP_Addr: 180.75.0.12
         Int_Port: 8000
         Volumes:
-          - "/{{ service_volume }}/iktara/trainingServer/logs:/iktara/dTrain/dTrain/logs"
-          - "/{{ machine_volume }}/iktara/Repository:/iktara/Repository"
-        Role: "Primary"
+        - /{{ service_volume }}/iktara/trainingServer/logs:/iktara/dTrain/dTrain/logs
+        - /{{ machine_volume }}/iktara/Repository:/iktara/Repository
+        Role: Primary
         env:
-          DJANGO_ENV_FILE: "/iktara/{{ service }}/platform/docker/{{ service }}/deployment.env"
+          DJANGO_ENV_FILE: /iktara/{{ service }}/platform/docker/{{ service }}/deployment.env
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/trainingServer/logs"
+            - /{{ service_volume }}/iktara/trainingServer/logs
             loki_labels:
-              service_name: "dTrain"
-              service_type: "TrainingServer"
-              source_type: "file"
+              service_name: dTrain
+              service_type: TrainingServer
+              source_type: file
           service_events:
             enabled: true
           live_logs:
@@ -71,303 +73,303 @@ services:
       RAM_GB: 4
       Storage_GB: 10
     SW_Info:
-      OS Type: "Linux"
-      Distribution Name: "Ubuntu"
-      Distribution Version: "22.04"
-      Docker Installed: "Yes"
-      NVIDIA Container Toolkit Installed: "No"
+      OS Type: Linux
+      Distribution Name: Ubuntu
+      Distribution Version: '22.04'
+      Docker Installed: 'Yes'
+      NVIDIA Container Toolkit Installed: 'No'
     Docker_Info:
       ANS:
-        Image_Name: "iktaraai/services:ANS"
-        Image_Ver_List: ["1.0.0","2.0.0"]
-        Command: "bash entrypoint_script.sh"
-        Int_IP_Addr: "180.75.0.11"
+        Image_Name: iktaraai/services:ANS
+        Image_Ver_List:
+        - 1.0.0
+        - 2.0.0
+        Command: bash entrypoint_script.sh
+        Int_IP_Addr: 180.75.0.11
         Int_Port: 8000
         Volumes:
-          - "/{{ machine_volume }}/iktara/Repository:/iktara/Repository"
-          - "/{{ service_volume }}/iktara/ans/logs:/iktara/airtel_taw/cTAW/logs"
-        Role: "Primary"
+        - /{{ machine_volume }}/iktara/Repository:/iktara/Repository
+        - /{{ service_volume }}/iktara/ans/logs:/iktara/airtel_taw/cTAW/logs
+        Role: Primary
         env:
-          DJANGO_ENV_FILE: "/iktara/{{ service }}/platform/docker/{{ service }}/deployment.env"
-        memory: "8g"
-        memory_swap: "8g"
+          DJANGO_ENV_FILE: /iktara/{{ service }}/platform/docker/{{ service }}/deployment.env
+        memory: 8g
+        memory_swap: 8g
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/ans/logs"
+            - /{{ service_volume }}/iktara/ans/logs
             loki_labels:
-              service_name: "ANS"
-              service_type: "ANS"
-              source_type: "file"
+              service_name: ANS
+              service_type: ANS
+              source_type: file
           service_events:
             enabled: true
           live_logs:
             enabled: true
       node-exporter:
-        Image_Name: "iktaraai/services:node-exporter"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.7"
+        Image_Name: iktaraai/services:node-exporter
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.7
         Int_Port: 9100
         Volumes:
-          - "/{{ machine_volume }}/iktara/nodeExporterLogs:/var/log/node-exporter"
+        - /{{ machine_volume }}/iktara/nodeExporterLogs:/var/log/node-exporter
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/nodeExporterLogs"
+            - /{{ machine_volume }}/iktara/nodeExporterLogs
             loki_labels:
-              service_name: "node-exporter"
-              service_type: "node-exporter"
-              source_type: "file"
+              service_name: node-exporter
+              service_type: node-exporter
+              source_type: file
       process-exporter:
-        Image_Name: "iktaraai/services:process-exporter"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.62"
+        Image_Name: iktaraai/services:process-exporter
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.62
         Int_Port: 9256
-        Network_Name: "cplatform_iktara_cPlatform"
-        Network_Subnet: "180.75.0.0/24"
+        Network_Name: cplatform_iktara_cPlatform
+        Network_Subnet: 180.75.0.0/24
         Default_Expose_Service: true
         Default_Host_Port: 9014
         Privileged: true
         Volumes:
-          - "/proc:/host/proc:ro"
-          - "/{{ machine_volume }}/iktara/processExporterLogs:/var/log/process-exporter"
-          - "/{{ machine_volume }}/iktara/processExporterConfig/process-exporter.yml:/etc/process-exporter/process-exporter.yml:ro"
+        - /proc:/host/proc:ro
+        - /{{ machine_volume }}/iktara/processExporterLogs:/var/log/process-exporter
+        - /{{ machine_volume }}/iktara/processExporterConfig/process-exporter.yml:/etc/process-exporter/process-exporter.yml:ro
         Config_Files:
-          - src: "../../docker/process-exporter/process-exporter.yml"
-            dest: "/{{ machine_volume }}/iktara/processExporterConfig/process-exporter.yml"
-            mode: "0644"
+        - src: ../../docker/process-exporter/process-exporter.yml
+          dest: /{{ machine_volume }}/iktara/processExporterConfig/process-exporter.yml
+          mode: '0644'
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/processExporterLogs"
+            - /{{ machine_volume }}/iktara/processExporterLogs
             loki_labels:
-              service_name: "process-exporter"
-              service_type: "process-exporter"
-              source_type: "file"
-      # Optional NOC metrics sidecar.  Prometheus scrapes Int_IP_Addr:9308;
-      # host publication is retained for the service-install contract.
+              service_name: process-exporter
+              service_type: process-exporter
+              source_type: file
       kafka-exporter:
-        Image_Name: "danielqsj/kafka-exporter:v1.8.0"
-        Image_Ver: "v1.8.0"
+        Image_Name: danielqsj/kafka-exporter:v1.8.0
+        Image_Ver: v1.8.0
         Image_Tag_Includes_Version: true
         Pull_Image: true
-        Int_IP_Addr: "180.75.0.63"
+        Int_IP_Addr: 180.75.0.63
         Int_Port: 9308
-        Network_Name: "cplatform_iktara_cPlatform"
-        Network_Subnet: "180.75.0.0/24"
+        Network_Name: cplatform_iktara_cPlatform
+        Network_Subnet: 180.75.0.0/24
         Default_Expose_Service: true
         Default_Host_Port: 9014
         Network_Aliases:
-          - "kafka-exporter"
+        - kafka-exporter
         Environment:
-          KAFKA_SERVER: "180.75.0.31:9092"
+          KAFKA_SERVER: 180.75.0.31:9092
         Volumes:
-          - "/{{ machine_volume }}/iktara/kafkaExporterLogs:/var/log/kafka-exporter"
+        - /{{ machine_volume }}/iktara/kafkaExporterLogs:/var/log/kafka-exporter
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/kafkaExporterLogs"
+            - /{{ machine_volume }}/iktara/kafkaExporterLogs
             loki_labels:
-              service_name: "kafka-exporter"
-              service_type: "kafka-exporter"
-              source_type: "file"
+              service_name: kafka-exporter
+              service_type: kafka-exporter
+              source_type: file
       dcgmExporter:
-        Image_Name: "iktaraai/services:dcgmExporter"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.14"
+        Image_Name: iktaraai/services:dcgmExporter
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.14
         capabilities:
-          - SYS_ADMIN
+        - SYS_ADMIN
         Int_Port: 9400
         Volumes:
-          - "/{{ machine_volume }}/iktara/dcgmExporterLogs:/var/log/dcgm-exporter"
+        - /{{ machine_volume }}/iktara/dcgmExporterLogs:/var/log/dcgm-exporter
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/dcgmExporterLogs"
+            - /{{ machine_volume }}/iktara/dcgmExporterLogs
             loki_labels:
-              service_name: "dcgmExporter"
-              service_type: "dcgmExporter"
-              source_type: "file"
+              service_name: dcgmExporter
+              service_type: dcgmExporter
+              source_type: file
       Prometheus:
-        Image_Name: "node-node1001-prometheus:committed"
-        Image_Ver: "committed"
+        Image_Name: node-node1001-prometheus:committed
+        Image_Ver: committed
         Image_Tag_Includes_Version: true
         Pull_Image: false
-        Int_IP_Addr: "180.75.0.13"
+        Int_IP_Addr: 180.75.0.13
         Int_Port: 9090
-        Network_Name: "cplatform_iktara_cPlatform"
-        Network_Subnet: "180.75.0.0/24"
+        Network_Name: cplatform_iktara_cPlatform
+        Network_Subnet: 180.75.0.0/24
         Default_Expose_Service: true
         Default_Host_Port: 9012
-        Command: "--config.file=/etc/prometheus/prometheus.yml --storage.tsdb.retention.time=30d"
+        Command: --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.retention.time=30d
         Volumes:
-          - "/{{ machine_volume }}/iktara/prometheusANSLogs:/var/log/prometheus"
-          - "/{{ service_volume }}/iktara/prometheusANSConfig/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+        - /{{ machine_volume }}/iktara/prometheusANSLogs:/var/log/prometheus
+        - /{{ service_volume }}/iktara/prometheusANSConfig/prometheus.yml:/etc/prometheus/prometheus.yml:ro
         Config_Files:
-          - src: "../../docker/prometheus/noc_prometheus.yml"
-            dest: "/{{ service_volume }}/iktara/prometheusANSConfig/prometheus.yml"
-            mode: "0644"
+        - src: ../../docker/prometheus/noc_prometheus.yml
+          dest: /{{ service_volume }}/iktara/prometheusANSConfig/prometheus.yml
+          mode: '0644'
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/prometheusANSLogs"
+            - /{{ machine_volume }}/iktara/prometheusANSLogs
             loki_labels:
-              service_name: "Prometheus"
-              service_type: "Prometheus"
-              source_type: "file"
+              service_name: Prometheus
+              service_type: Prometheus
+              source_type: file
       ClickHouse:
-        Image_Name: "iktaraai/services:clickhouse"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.9"
+        Image_Name: iktaraai/services:clickhouse
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.9
         Int_Port: 8123
         Volumes:
-          - "/{{ service_volume }}/iktara/clickHouseDB:/var/lib/clickhouse"
-          - "/{{ service_volume }}/iktara/clickHouseLogs:/var/log/clickhouse-server"
+        - /{{ service_volume }}/iktara/clickHouseDB:/var/lib/clickhouse
+        - /{{ service_volume }}/iktara/clickHouseLogs:/var/log/clickhouse-server
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/clickHouseLogs"
+            - /{{ service_volume }}/iktara/clickHouseLogs
             loki_labels:
-              service_name: "ClickHouse"
-              service_type: "ClickHouse"
-              source_type: "file"
+              service_name: ClickHouse
+              service_type: ClickHouse
+              source_type: file
       Kafka:
-        Image_Name: "bitnami/kafka:3.8.1"
-        Image_Ver: "3.8.1"
+        Image_Name: bitnami/kafka:3.8.1
+        Image_Ver: 3.8.1
         Image_Tag_Includes_Version: true
         Pull_Image: true
-        Int_IP_Addr: "180.75.0.31"
+        Int_IP_Addr: 180.75.0.31
         Int_Port: 9092
-        Network_Name: "cplatform_iktara_cPlatform"
-        Network_Subnet: "180.75.0.0/24"
+        Network_Name: cplatform_iktara_cPlatform
+        Network_Subnet: 180.75.0.0/24
         Default_Expose_Service: true
         Default_Host_Port: 9013
         Network_Aliases:
-          - "kafka"
+        - kafka
         Environment:
-          KAFKA_CFG_NODE_ID: "1"
-          KAFKA_CFG_PROCESS_ROLES: "broker,controller"
-          KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "1@180.75.0.31:9093"
-          KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT"
-          KAFKA_CFG_LISTENERS: "CONTROLLER://:9093,INTERNAL://:9092"
-          KAFKA_CFG_ADVERTISED_LISTENERS: "INTERNAL://180.75.0.31:9092"
-          KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
-          KAFKA_CFG_INTER_BROKER_LISTENER_NAME: "INTERNAL"
-          KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "false"
-          KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
-          KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
-          KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: "1"
-          ALLOW_PLAINTEXT_LISTENER: "yes"
-        Kafka_Bin: "/opt/bitnami/kafka/bin"
+          KAFKA_CFG_NODE_ID: '1'
+          KAFKA_CFG_PROCESS_ROLES: broker,controller
+          KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@180.75.0.31:9093
+          KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT
+          KAFKA_CFG_LISTENERS: CONTROLLER://:9093,INTERNAL://:9092
+          KAFKA_CFG_ADVERTISED_LISTENERS: INTERNAL://180.75.0.31:9092
+          KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_CFG_INTER_BROKER_LISTENER_NAME: INTERNAL
+          KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: 'false'
+          KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: '1'
+          KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: '1'
+          KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: '1'
+          ALLOW_PLAINTEXT_LISTENER: 'yes'
+        Kafka_Bin: /opt/bitnami/kafka/bin
         Topics:
-          - Name: "noc.alarm.raw.v1"
-            Partitions: 3
-            Replication_Factor: 1
-            Cleanup_Policy: "delete"
-            Retention_MS: 86400000
-            Value_Format: "raw-row-json"
-            Required_Headers:
-              - "stream_id"
-              - "cycle_id"
-              - "row_index"
-              - "content_type"
-              - "source"
-              - "source_file"
-          - Name: "noc.alarm.normalized.v1"
-            Partitions: 3
-            Replication_Factor: 1
-            Cleanup_Policy: "delete"
-            Retention_MS: 86400000
-            Value_Format: "normalized-alarm-json"
-          - Name: "noc.incident.candidate.v1"
-            Partitions: 3
-            Replication_Factor: 1
-            Cleanup_Policy: "delete"
-            Retention_MS: 86400000
-            Value_Format: "candidate-incident-json"
-          - Name: "noc.alarm.dlq.v1"
-            Partitions: 3
-            Replication_Factor: 1
-            Cleanup_Policy: "delete"
-            Retention_MS: 604800000
-            Value_Format: "dead-letter-json"
-          - Name: "noc.alarm.events.v2"
-            Partitions: 3
-            Replication_Factor: 1
-            Cleanup_Policy: "delete"
-            Retention_MS: 86400000
-            Value_Format: "canonical-event-envelope-v2-json"
+        - Name: noc.alarm.raw.v1
+          Partitions: 3
+          Replication_Factor: 1
+          Cleanup_Policy: delete
+          Retention_MS: 86400000
+          Value_Format: raw-row-json
+          Required_Headers:
+          - stream_id
+          - cycle_id
+          - row_index
+          - content_type
+          - source
+          - source_file
+        - Name: noc.alarm.normalized.v1
+          Partitions: 3
+          Replication_Factor: 1
+          Cleanup_Policy: delete
+          Retention_MS: 86400000
+          Value_Format: normalized-alarm-json
+        - Name: noc.incident.candidate.v1
+          Partitions: 3
+          Replication_Factor: 1
+          Cleanup_Policy: delete
+          Retention_MS: 86400000
+          Value_Format: candidate-incident-json
+        - Name: noc.alarm.dlq.v1
+          Partitions: 3
+          Replication_Factor: 1
+          Cleanup_Policy: delete
+          Retention_MS: 604800000
+          Value_Format: dead-letter-json
+        - Name: noc.alarm.events.v2
+          Partitions: 3
+          Replication_Factor: 1
+          Cleanup_Policy: delete
+          Retention_MS: 86400000
+          Value_Format: canonical-event-envelope-v2-json
         Volumes:
-          - "/{{ service_volume }}/iktara/kafka:/bitnami/kafka"
+        - /{{ service_volume }}/iktara/kafka:/bitnami/kafka
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/kafka/logs"
+            - /{{ service_volume }}/iktara/kafka/logs
             loki_labels:
-              service_name: "Kafka"
-              service_type: "Kafka"
-              source_type: "file"
+              service_name: Kafka
+              service_type: Kafka
+              source_type: file
       NiFi:
-        Image_Name: "node-node1001-nifi:committed"
-        Image_Ver: "committed"
+        Image_Name: node-node1001-nifi:committed
+        Image_Ver: committed
         Image_Tag_Includes_Version: true
         Pull_Image: false
-        Int_IP_Addr: "180.75.0.10"
+        Int_IP_Addr: 180.75.0.10
         Int_Port: 8883
-        Network_Name: "cplatform_iktara_cPlatform"
-        Network_Subnet: "180.75.0.0/24"
+        Network_Name: cplatform_iktara_cPlatform
+        Network_Subnet: 180.75.0.0/24
         Default_Expose_Service: true
         Default_Host_Port: 9001
         Volumes:
-          - "/{{ service_volume }}/iktara/nifiLogs:/opt/nifi/nifi-current/logs"
-          - "/{{ service_volume }}/iktara/nifi/templates:/opt/nifi/nifi-current/templates:ro"
-          - "/{{ service_volume }}/iktara/nifi/input:/opt/nifi/data/incoming"
+        - /{{ service_volume }}/iktara/nifiLogs:/opt/nifi/nifi-current/logs
+        - /{{ service_volume }}/iktara/nifi/templates:/opt/nifi/nifi-current/templates:ro
+        - /{{ service_volume }}/iktara/nifi/input:/opt/nifi/data/incoming
         Bootstrap_Files:
-          - src: "../../docker/Nifi/flows/noc_alarm_raw_v1.flow.json"
-            dest: "/{{ service_volume }}/iktara/nifi/templates/noc_alarm_raw_v1.flow.json"
-            mode: "0644"
-          - src: "../../docker/Nifi/scripts/bootstrap_noc_alarm_flow.py"
-            dest: "/{{ service_volume }}/iktara/nifi/templates/bootstrap_noc_alarm_flow.py"
-            mode: "0755"
-          - src: "../../docker/Nifi/flows/noc_alarm_http_to_agenticnoc_v1.flow.json"
-            dest: "/{{ service_volume }}/iktara/nifi/templates/noc_alarm_http_to_agenticnoc_v1.flow.json"
-            mode: "0644"
-          - src: "../../docker/Nifi/contracts/noc_alarm_mapped_v1.schema.json"
-            dest: "/{{ service_volume }}/iktara/nifi/templates/contracts/noc_alarm_mapped_v1.schema.json"
-            mode: "0644"
-          - src: "../../docker/Nifi/contracts/noc_alarm_mapped_v1.avsc"
-            dest: "/{{ service_volume }}/iktara/nifi/templates/contracts/noc_alarm_mapped_v1.avsc"
-            mode: "0644"
-          - src: "../../docker/Nifi/templates/noc_alarm_http_to_agenticnoc_v1.xml"
-            dest: "/{{ service_volume }}/iktara/nifi/templates/noc_alarm_http_to_agenticnoc_v1.xml"
-            mode: "0644"
-          - src: "../../docker/Nifi/scripts/bootstrap_noc_alarm_http_flow.py"
-            dest: "/{{ service_volume }}/iktara/nifi/templates/bootstrap_noc_alarm_http_flow.py"
-            mode: "0755"
+        - src: ../../docker/Nifi/flows/noc_alarm_raw_v1.flow.json
+          dest: /{{ service_volume }}/iktara/nifi/templates/noc_alarm_raw_v1.flow.json
+          mode: '0644'
+        - src: ../../docker/Nifi/scripts/bootstrap_noc_alarm_flow.py
+          dest: /{{ service_volume }}/iktara/nifi/templates/bootstrap_noc_alarm_flow.py
+          mode: '0755'
+        - src: ../../docker/Nifi/flows/noc_alarm_http_to_agenticnoc_v1.flow.json
+          dest: /{{ service_volume }}/iktara/nifi/templates/noc_alarm_http_to_agenticnoc_v1.flow.json
+          mode: '0644'
+        - src: ../../docker/Nifi/contracts/noc_alarm_mapped_v1.schema.json
+          dest: /{{ service_volume }}/iktara/nifi/templates/contracts/noc_alarm_mapped_v1.schema.json
+          mode: '0644'
+        - src: ../../docker/Nifi/contracts/noc_alarm_mapped_v1.avsc
+          dest: /{{ service_volume }}/iktara/nifi/templates/contracts/noc_alarm_mapped_v1.avsc
+          mode: '0644'
+        - src: ../../docker/Nifi/templates/noc_alarm_http_to_agenticnoc_v1.xml
+          dest: /{{ service_volume }}/iktara/nifi/templates/noc_alarm_http_to_agenticnoc_v1.xml
+          mode: '0644'
+        - src: ../../docker/Nifi/scripts/bootstrap_noc_alarm_http_flow.py
+          dest: /{{ service_volume }}/iktara/nifi/templates/bootstrap_noc_alarm_http_flow.py
+          mode: '0755'
         Bootstrap_Enabled_By_Default: false
         Observability:
           container_history:
@@ -375,63 +377,63 @@ services:
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/nifiLogs"
+            - /{{ service_volume }}/iktara/nifiLogs
             loki_labels:
-              service_name: "NiFi"
-              service_type: "NiFi"
-              source_type: "file"
+              service_name: NiFi
+              service_type: NiFi
+              source_type: file
       PostgreSQL:
-        Image_Name: "iktaraai/services:postgres"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.5"
+        Image_Name: iktaraai/services:postgres
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.5
         Int_Port: 5432
-        Command: >-
-          postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
-          -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c log_rotation_size=10MB
-          -c log_truncate_on_rotation=on -c log_min_messages=info -c log_connections=on -c log_disconnections=on
+        Command: postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
+          -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c
+          log_rotation_size=10MB -c log_truncate_on_rotation=on -c log_min_messages=info
+          -c log_connections=on -c log_disconnections=on
         Environment:
-          POSTGRES_USER: "postgres"
-          POSTGRES_PASSWORD: "password"
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
         Volumes:
-          - "/{{ machine_volume }}/iktara/postgresDB:/var/lib/postgresql/data"
-          - "/{{ machine_volume }}/iktara/postgresLogs:/var/log/postgresql"
+        - /{{ machine_volume }}/iktara/postgresDB:/var/lib/postgresql/data
+        - /{{ machine_volume }}/iktara/postgresLogs:/var/log/postgresql
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/postgresLogs"
+            - /{{ machine_volume }}/iktara/postgresLogs
             loki_labels:
-              service_name: "PostgreSQL"
-              service_type: "PostgreSQL"
-              source_type: "file"
+              service_name: PostgreSQL
+              service_type: PostgreSQL
+              source_type: file
       RabbitMQ:
-        Image_Name: "iktaraai/services:rabbitmq"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.2"
+        Image_Name: iktaraai/services:rabbitmq
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.2
         Int_Port: 5672
         Environment:
-          RABBITMQ_DEFAULT_USER: "admin"
-          RABBITMQ_DEFAULT_PASS: "admin"
+          RABBITMQ_DEFAULT_USER: admin
+          RABBITMQ_DEFAULT_PASS: admin
         Volumes:
-          - "/{{ machine_volume }}/iktara/rabbitmqLogs:/var/log/rabbitmq"
-          - "/{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro"
+        - /{{ machine_volume }}/iktara/rabbitmqLogs:/var/log/rabbitmq
+        - /{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
         Config_Files:
-          - src: "../../docker/rabbitmq/rabbitmq.conf"
-            dest: "/{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf"
-            mode: "0644"
+        - src: ../../docker/rabbitmq/rabbitmq.conf
+          dest: /{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf
+          mode: '0644'
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/rabbitmqLogs"
+            - /{{ machine_volume }}/iktara/rabbitmqLogs
             loki_labels:
-              service_name: "RabbitMQ"
-              service_type: "RabbitMQ"
-              source_type: "file"
+              service_name: RabbitMQ
+              service_type: RabbitMQ
+              source_type: file
   AgenticNOC:
     HW_Info:
       CPUs: 2
@@ -439,88 +441,81 @@ services:
       RAM_GB: 4
       Storage_GB: 20
     SW_Info:
-      OS Type: "Linux"
-      Distribution Name: "Ubuntu"
-      Distribution Version: "22.04"
-      Docker Installed: "Yes"
-      NVIDIA Container Toolkit Installed: "No"
+      OS Type: Linux
+      Distribution Name: Ubuntu
+      Distribution Version: '22.04'
+      Docker Installed: 'Yes'
+      NVIDIA Container Toolkit Installed: 'No'
     Docker_Info:
       AgenticNOC:
-        Image_Name: "agenticnoc:1.0.5"
-        Image_Ver_List: ["1.0.5"]
-        Image_Ver: "1.0.5"
+        Image_Name: agenticnoc:1.0.5
+        Image_Ver_List:
+        - 1.0.5
+        Image_Ver: 1.0.5
         Image_Tag_Includes_Version: true
         Pull_Image: false
-        Command: "all"
-        Deployment_Mode: "ORDINARY"
+        Command: all
+        Deployment_Mode: ORDINARY
         Config_Push_Required: true
-        Config_Push_Path: "/AgenticNOC/APIv1/UpdateService/"
+        Config_Push_Path: /AgenticNOC/APIv1/UpdateService/
         Health_Check:
           Enabled: true
-          Path: "/health/ready"
+          Path: /health/ready
           Timeout_Sec: 300
           Interval_Sec: 5
           Status_Code:
-            - 200
-        Int_IP_Addr: "180.75.0.7"
+          - 200
+        Int_IP_Addr: 180.75.0.7
         Int_Port: 8000
-        Network_Name: "cplatform_iktara_cPlatform"
-        Network_Subnet: "180.75.0.0/24"
+        Network_Name: cplatform_iktara_cPlatform
+        Network_Subnet: 180.75.0.0/24
         Default_Expose_Service: true
         Default_Host_Port: 9015
         Environment:
-          DJANGO_SETTINGS_MODULE: "agentic_noc.settings.local"
-          DJANGO_ALLOWED_HOSTS: "*"
-          # Supply AGENTICNOC_DB_PASSWORD through the deployment secret store.
-          DATABASE_URL: "postgresql://agenticnoc_app:${AGENTICNOC_DB_PASSWORD}@180.75.0.5:5432/agentic_noc"
-          KAFKA_BOOTSTRAP_SERVERS: "180.75.0.31:9092"
-          KAFKA_TOPIC_RAW_ALARMS: "noc.alarm.raw.v1"
-          KAFKA_TOPIC_NORMALIZED_ALARMS: "noc.alarm.normalized.v1"
-          KAFKA_TOPIC_CANDIDATE_INCIDENTS: "noc.incident.candidate.v1"
-          KAFKA_TOPIC_ALARM_DLQ: "noc.alarm.dlq.v1"
-          KAFKA_TOPIC_V2_EVENTS: "noc.alarm.events.v2"
-          NIFI_BASE_URL: "http://180.75.0.10:8883"
-          NIFI_GROUP_NAME: "noc-alarm-http-to-agenticnoc-v1"
-          AGENTICNOC_INGEST_URL: "http://180.75.0.7:8000/api/ingestion/v2/alarms/"
-          PROMETHEUS_BASE_URL: "http://180.75.0.13:9090"
-          PROMETHEUS_METRIC_QUERY: "agenticnoc_alarm_active"
-          # ClickHouse is the optional analytical evidence store for PM and
-          # configuration snapshots.  Keep it on the existing cPlatform
-          # network; alarm ingestion remains PostgreSQL-first when it is
-          # unavailable.
-          CLICKHOUSE_HOST: "180.75.0.9"
-          CLICKHOUSE_PORT: "8123"
-          CLICKHOUSE_USER: "default"
-          CLICKHOUSE_PASSWORD: ""
-          CLICKHOUSE_DATABASE: "agentic_noc"
-          CLICKHOUSE_CONFIG_TABLE: "agentic_noc_config"
-          CLICKHOUSE_PERFORMANCE_TABLE: "agentic_noc_performance"
-          AGENTICNOC_ROLE: "all"
-          AGENTICNOC_METRICS_BIND: "0.0.0.0"
-          AGENTICNOC_METRICS_PORT: "8000"
+          DJANGO_SETTINGS_MODULE: agentic_noc.settings.local
+          DJANGO_ALLOWED_HOSTS: '*'
+          DATABASE_URL: postgresql://agenticnoc_app:${AGENTICNOC_DB_PASSWORD}@180.75.0.5:5432/agentic_noc
+          KAFKA_BOOTSTRAP_SERVERS: 180.75.0.31:9092
+          KAFKA_TOPIC_RAW_ALARMS: noc.alarm.raw.v1
+          KAFKA_TOPIC_NORMALIZED_ALARMS: noc.alarm.normalized.v1
+          KAFKA_TOPIC_CANDIDATE_INCIDENTS: noc.incident.candidate.v1
+          KAFKA_TOPIC_ALARM_DLQ: noc.alarm.dlq.v1
+          KAFKA_TOPIC_V2_EVENTS: noc.alarm.events.v2
+          NIFI_BASE_URL: http://180.75.0.10:8883
+          NIFI_GROUP_NAME: noc-alarm-http-to-agenticnoc-v1
+          AGENTICNOC_INGEST_URL: http://180.75.0.7:8000/api/ingestion/v2/alarms/
+          PROMETHEUS_BASE_URL: http://180.75.0.13:9090
+          PROMETHEUS_METRIC_QUERY: agenticnoc_alarm_active
+          CLICKHOUSE_HOST: 180.75.0.9
+          CLICKHOUSE_PORT: '8123'
+          CLICKHOUSE_USER: default
+          CLICKHOUSE_PASSWORD: ''
+          CLICKHOUSE_DATABASE: agentic_noc
+          CLICKHOUSE_CONFIG_TABLE: agentic_noc_config
+          CLICKHOUSE_PERFORMANCE_TABLE: agentic_noc_performance
+          AGENTICNOC_ROLE: all
+          AGENTICNOC_METRICS_BIND: 0.0.0.0
+          AGENTICNOC_METRICS_PORT: '8000'
         Volumes:
-          # The node-scoped deployment file is copied by the service-install
-          # playbook.  Mount it read-only so the image can resolve secret
-          # placeholders without placing credentials in this catalog.
-          - "/{{ service_volume }}/iktara/Repository/{{ service }}/{{ version }}/deployment.env:/iktara/Repository/{{ service }}/{{ version }}/deployment.env:ro"
-          - "/{{ service_volume }}/iktara/agenticnoc/logs:/app/logs"
-          - "/{{ service_volume }}/iktara/agenticnoc/runtime:/tmp/agenticnoc"
+        - /{{ service_volume }}/iktara/Repository/{{ service }}/{{ version }}/deployment.env:/iktara/Repository/{{
+          service }}/{{ version }}/deployment.env:ro
+        - /{{ service_volume }}/iktara/agenticnoc/logs:/app/logs
+        - /{{ service_volume }}/iktara/agenticnoc/runtime:/tmp/agenticnoc
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/agenticnoc/logs"
+            - /{{ service_volume }}/iktara/agenticnoc/logs
             loki_labels:
-              service_name: "AgenticNOC"
-              service_type: "AgenticNOC"
-              source_type: "file"
+              service_name: AgenticNOC
+              service_type: AgenticNOC
+              source_type: file
           service_events:
             enabled: true
           live_logs:
             enabled: true
-
   RAG:
     HW_Info:
       CPUs: 2
@@ -528,221 +523,222 @@ services:
       RAM_GB: 4
       Storage_GB: 20
     SW_Info:
-      OS Type: "Linux"
-      Distribution Name: "Ubuntu"
-      Distribution Version: "22.04"
-      Docker Installed: "Yes"
-      NVIDIA Container Toolkit Installed: "No"
+      OS Type: Linux
+      Distribution Name: Ubuntu
+      Distribution Version: '22.04'
+      Docker Installed: 'Yes'
+      NVIDIA Container Toolkit Installed: 'No'
     Requires_Ollama: true
     Docker_Info:
       RAG:
-        Image_Name: "iktaraai/services:Rag"
-        Image_Ver_List: ["1.0.0","1.1.0","2.0.0","2.1.0"]
-        Int_IP_Addr: "180.75.0.16"
+        Image_Name: iktaraai/services:Rag
+        Image_Ver_List:
+        - 1.0.0
+        - 1.1.0
+        - 2.0.0
+        - 2.1.0
+        Int_IP_Addr: 180.75.0.16
         Int_Port: 8000
         Volumes:
-          - "/{{ machine_volume }}/iktara/Repository:/iktara/Repository"
-          - "/{{ service_volume }}/iktara/rag/logs:/iktara/Rag/Rag/logs"
-        Role: "Primary"
+        - /{{ machine_volume }}/iktara/Repository:/iktara/Repository
+        - /{{ service_volume }}/iktara/rag/logs:/iktara/Rag/Rag/logs
+        Role: Primary
         env:
-          DJANGO_ENV_FILE: "/iktara/{{ service }}/platform/docker/{{ service }}/deployment.env"
+          DJANGO_ENV_FILE: /iktara/{{ service }}/platform/docker/{{ service }}/deployment.env
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/rag/logs"
+            - /{{ service_volume }}/iktara/rag/logs
             loki_labels:
-              service_name: "RAG"
-              service_type: "RAG"
-              source_type: "file"
+              service_name: RAG
+              service_type: RAG
+              source_type: file
           service_events:
             enabled: true
           live_logs:
             enabled: true
-
-
       Milvus:
-        Image_Name: "iktaraai/services:milvus"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.22"
+        Image_Name: iktaraai/services:milvus
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.22
         Int_Port: 19530
         Environment:
-          ETCD_ENDPOINTS: "180.75.0.23:2379"
-          MINIO_ADDRESS: "minio:9000"
-          MILVUS_LOG_LEVEL: "debug"
+          ETCD_ENDPOINTS: 180.75.0.23:2379
+          MINIO_ADDRESS: minio:9000
+          MILVUS_LOG_LEVEL: debug
         Volumes:
-          - "/{{ service_volume }}/iktara/milvus/data:/var/lib/milvus"
-          - "/{{ service_volume }}/iktara/milvus/logs:/var/lib/milvus/logs"
-        Command: "milvus run standalone"
+        - /{{ service_volume }}/iktara/milvus/data:/var/lib/milvus
+        - /{{ service_volume }}/iktara/milvus/logs:/var/lib/milvus/logs
+        Command: milvus run standalone
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/milvus/logs"
+            - /{{ service_volume }}/iktara/milvus/logs
             loki_labels:
-              service_name: "Milvus"
-              service_type: "Milvus"
-              source_type: "file"
+              service_name: Milvus
+              service_type: Milvus
+              source_type: file
       etcd:
-        Image_Name: "iktaraai/services:etcd"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.23"
+        Image_Name: iktaraai/services:etcd
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.23
         Int_Port: 2379
-        Command: >
-          /usr/local/bin/etcd --name etcd0
-          --data-dir /etcd-data --listen-client-urls http://0.0.0.0:2379
-          --advertise-client-urls http://0.0.0.0:2379
-          --log-outputs /var/log/etcd/etcd.log
+        Command: '/usr/local/bin/etcd --name etcd0 --data-dir /etcd-data --listen-client-urls
+          http://0.0.0.0:2379 --advertise-client-urls http://0.0.0.0:2379 --log-outputs
+          /var/log/etcd/etcd.log
+
+          '
         Volumes:
-          - "/{{ service_volume }}/iktara/etcd:/etcd-data"
-          - "/{{ service_volume }}/iktara/etcdLogs:/var/log/etcd"
+        - /{{ service_volume }}/iktara/etcd:/etcd-data
+        - /{{ service_volume }}/iktara/etcdLogs:/var/log/etcd
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/etcdLogs"
+            - /{{ service_volume }}/iktara/etcdLogs
             loki_labels:
-              service_name: "etcd"
-              service_type: "etcd"
-              source_type: "file"
+              service_name: etcd
+              service_type: etcd
+              source_type: file
       minio:
-         Image_Name: "iktaraai/services:minio"
-         Image_Ver: "1.0.0"
-         Int_IP_Addr: "180.75.0.24"
-         Int_Port: 9000
-         Environment:
-           MINIO_ROOT_USER: "minioadmin"
-           MINIO_ROOT_PASSWORD: "minioadmin"
-         Command: "server /data"
-         Volumes:
-           - "/{{ service_volume }}/iktara/minio:/data"
-           - "/{{ service_volume }}/iktara/minioLogs:/var/log/minio"
-         Observability:
-           container_history:
-             enabled: true
-           file_logs:
-             enabled: true
-             paths:
-               - "/{{ service_volume }}/iktara/minioLogs"
-             loki_labels:
-               service_name: "minio"
-               service_type: "minio"
-               source_type: "file"
+        Image_Name: iktaraai/services:minio
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.24
+        Int_Port: 9000
+        Environment:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        Command: server /data
+        Volumes:
+        - /{{ service_volume }}/iktara/minio:/data
+        - /{{ service_volume }}/iktara/minioLogs:/var/log/minio
+        Observability:
+          container_history:
+            enabled: true
+          file_logs:
+            enabled: true
+            paths:
+            - /{{ service_volume }}/iktara/minioLogs
+            loki_labels:
+              service_name: minio
+              service_type: minio
+              source_type: file
       node-exporter:
-        Image_Name: "iktaraai/services:node-exporter"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.7"
+        Image_Name: iktaraai/services:node-exporter
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.7
         Int_Port: 9100
       dcgmExporter:
-        Image_Name: "iktaraai/services:dcgmExporter"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.14"
+        Image_Name: iktaraai/services:dcgmExporter
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.14
         capabilities:
-          - SYS_ADMIN
+        - SYS_ADMIN
         Int_Port: 9400
       Prometheus:
-        Image_Name: "iktaraai/services:rag_prometheus"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.13"
+        Image_Name: iktaraai/services:rag_prometheus
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.13
         Int_Port: 9090
         Volumes:
-          - "/{{ machine_volume }}/iktara/prometheusRAGLogs:/var/log/prometheus"
+        - /{{ machine_volume }}/iktara/prometheusRAGLogs:/var/log/prometheus
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/prometheusRAGLogs"
+            - /{{ machine_volume }}/iktara/prometheusRAGLogs
             loki_labels:
-              service_name: "Prometheus"
-              service_type: "Prometheus"
-              source_type: "file"
+              service_name: Prometheus
+              service_type: Prometheus
+              source_type: file
       PostgreSQL:
-        Image_Name: "iktaraai/services:postgres"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.5"
+        Image_Name: iktaraai/services:postgres
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.5
         Int_Port: 5432
-        Command: >-
-          postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
-          -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c log_rotation_size=10MB
-          -c log_truncate_on_rotation=on -c log_min_messages=info -c log_connections=on -c log_disconnections=on
+        Command: postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
+          -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c
+          log_rotation_size=10MB -c log_truncate_on_rotation=on -c log_min_messages=info
+          -c log_connections=on -c log_disconnections=on
         Environment:
-          POSTGRES_USER: "postgres"
-          POSTGRES_PASSWORD: "password"
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
         Volumes:
-          - "/{{ machine_volume }}/iktara/postgresDB:/var/lib/postgresql/data"
-          - "/{{ machine_volume }}/iktara/postgresLogs:/var/log/postgresql"
+        - /{{ machine_volume }}/iktara/postgresDB:/var/lib/postgresql/data
+        - /{{ machine_volume }}/iktara/postgresLogs:/var/log/postgresql
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/postgresLogs"
+            - /{{ machine_volume }}/iktara/postgresLogs
             loki_labels:
-              service_name: "PostgreSQL"
-              service_type: "PostgreSQL"
-              source_type: "file"
-        Role: "Secondary"
+              service_name: PostgreSQL
+              service_type: PostgreSQL
+              source_type: file
+        Role: Secondary
       redis:
-        Image_Name: "iktaraai/services:redis"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.15"
+        Image_Name: iktaraai/services:redis
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.15
         Int_Port: 6379
-        Command: "redis-server /usr/local/etc/redis/redis.conf"
+        Command: redis-server /usr/local/etc/redis/redis.conf
         Volumes:
-          - "/{{ machine_volume }}/iktara/redisDB:/data"
-          - "/{{ machine_volume }}/iktara/redisLogs:/var/log/redis"
-          - "/{{ machine_volume }}/iktara/redisConfig/redis.conf:/usr/local/etc/redis/redis.conf:ro"
+        - /{{ machine_volume }}/iktara/redisDB:/data
+        - /{{ machine_volume }}/iktara/redisLogs:/var/log/redis
+        - /{{ machine_volume }}/iktara/redisConfig/redis.conf:/usr/local/etc/redis/redis.conf:ro
         Config_Files:
-          - src: "../../docker/redis/redis.conf"
-            dest: "/{{ machine_volume }}/iktara/redisConfig/redis.conf"
-            mode: "0644"
+        - src: ../../docker/redis/redis.conf
+          dest: /{{ machine_volume }}/iktara/redisConfig/redis.conf
+          mode: '0644'
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/redisLogs"
+            - /{{ machine_volume }}/iktara/redisLogs
             loki_labels:
-              service_name: "redis"
-              service_type: "redis"
-              source_type: "file"
+              service_name: redis
+              service_type: redis
+              source_type: file
       RabbitMQ:
-        Image_Name: "iktaraai/services:rabbitmq"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.2"
+        Image_Name: iktaraai/services:rabbitmq
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.2
         Int_Port: 5672
         Environment:
-          RABBITMQ_DEFAULT_USER: "admin"
-          RABBITMQ_DEFAULT_PASS: "admin"
+          RABBITMQ_DEFAULT_USER: admin
+          RABBITMQ_DEFAULT_PASS: admin
         Volumes:
-          - "/{{ machine_volume }}/iktara/rabbitmqLogs:/var/log/rabbitmq"
-          - "/{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro"
+        - /{{ machine_volume }}/iktara/rabbitmqLogs:/var/log/rabbitmq
+        - /{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
         Config_Files:
-          - src: "../../docker/rabbitmq/rabbitmq.conf"
-            dest: "/{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf"
-            mode: "0644"
+        - src: ../../docker/rabbitmq/rabbitmq.conf
+          dest: /{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf
+          mode: '0644'
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/rabbitmqLogs"
+            - /{{ machine_volume }}/iktara/rabbitmqLogs
             loki_labels:
-              service_name: "RabbitMQ"
-              service_type: "RabbitMQ"
-              source_type: "file"
-
+              service_name: RabbitMQ
+              service_type: RabbitMQ
+              source_type: file
   Text2SQL:
     HW_Info:
       CPUs: 2
@@ -750,86 +746,86 @@ services:
       RAM_GB: 4
       Storage_GB: 20
     SW_Info:
-      OS Type: "Linux"
-      Distribution Name: "Ubuntu"
-      Distribution Version: "22.04"
-      Docker Installed: "Yes"
-      NVIDIA Container Toolkit Installed: "No"
+      OS Type: Linux
+      Distribution Name: Ubuntu
+      Distribution Version: '22.04'
+      Docker Installed: 'Yes'
+      NVIDIA Container Toolkit Installed: 'No'
     Docker_Info:
       Text2SQL:
-        Image_Name: "iktaraai/services:text2sql"
-        Image_Ver_List: ["1.0.0","2.0.0"]
-        Int_IP_Addr: "180.75.0.17"
+        Image_Name: iktaraai/services:text2sql
+        Image_Ver_List:
+        - 1.0.0
+        - 2.0.0
+        Int_IP_Addr: 180.75.0.17
         Int_Port: 9898
         Volumes:
-          - "/{{ service_volume }}/iktara/text2sql/logs:/iktara/text2sql/text2sql/logs"
-          - "/{{ machine_volume }}/iktara/Repository:/iktara/Repository"
-        Role: "Primary"
+        - /{{ service_volume }}/iktara/text2sql/logs:/iktara/text2sql/text2sql/logs
+        - /{{ machine_volume }}/iktara/Repository:/iktara/Repository
+        Role: Primary
         env:
-          DJANGO_ENV_FILE: "/iktara/{{ service }}/platform/docker/{{ service }}/deployment.env"
+          DJANGO_ENV_FILE: /iktara/{{ service }}/platform/docker/{{ service }}/deployment.env
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/text2sql/logs"
+            - /{{ service_volume }}/iktara/text2sql/logs
             loki_labels:
-              service_name: "Text2SQL"
-              service_type: "Text2SQL"
-              source_type: "file"
+              service_name: Text2SQL
+              service_type: Text2SQL
+              source_type: file
           service_events:
             enabled: true
           live_logs:
             enabled: true
-
       PostgreSQL:
-        Image_Name: "iktaraai/services:postgres"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.5"
+        Image_Name: iktaraai/services:postgres
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.5
         Int_Port: 5432
-        Command: >-
-          postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
-          -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c log_rotation_size=10MB
-          -c log_truncate_on_rotation=on -c log_min_messages=info -c log_connections=on -c log_disconnections=on
+        Command: postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
+          -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c
+          log_rotation_size=10MB -c log_truncate_on_rotation=on -c log_min_messages=info
+          -c log_connections=on -c log_disconnections=on
         Environment:
-          POSTGRES_USER: "postgres"
-          POSTGRES_PASSWORD: "password"
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
         Volumes:
-          - "/{{ machine_volume }}/iktara/postgresDB:/var/lib/postgresql/data"
-          - "/{{ machine_volume }}/iktara/postgresLogs:/var/log/postgresql"
+        - /{{ machine_volume }}/iktara/postgresDB:/var/lib/postgresql/data
+        - /{{ machine_volume }}/iktara/postgresLogs:/var/log/postgresql
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/postgresLogs"
+            - /{{ machine_volume }}/iktara/postgresLogs
             loki_labels:
-              service_name: "PostgreSQL"
-              service_type: "PostgreSQL"
-              source_type: "file"
+              service_name: PostgreSQL
+              service_type: PostgreSQL
+              source_type: file
       redis:
-        Image_Name: "iktaraai/services:redis"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.15"
+        Image_Name: iktaraai/services:redis
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.15
         Int_Port: 6379
-        Command: "redis-server --loglevel notice --logfile /var/log/redis/redis-server.log"
+        Command: redis-server --loglevel notice --logfile /var/log/redis/redis-server.log
         Volumes:
-          - "/{{ machine_volume }}/iktara/redisDB:/data"
-          - "/{{ machine_volume }}/iktara/redisLogs:/var/log/redis"
+        - /{{ machine_volume }}/iktara/redisDB:/data
+        - /{{ machine_volume }}/iktara/redisLogs:/var/log/redis
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/redisLogs"
+            - /{{ machine_volume }}/iktara/redisLogs
             loki_labels:
-              service_name: "redis"
-              service_type: "redis"
-              source_type: "file"
-
+              service_name: redis
+              service_type: redis
+              source_type: file
   ASR:
     HW_Info:
       CPUs: 2
@@ -837,66 +833,66 @@ services:
       RAM_GB: 4
       Storage_GB: 20
     SW_Info:
-      OS Type: "Linux"
-      Distribution Name: "Ubuntu"
-      Distribution Version: "22.04"
-      Docker Installed: "Yes"
-      NVIDIA Container Toolkit Installed: "No"
+      OS Type: Linux
+      Distribution Name: Ubuntu
+      Distribution Version: '22.04'
+      Docker Installed: 'Yes'
+      NVIDIA Container Toolkit Installed: 'No'
     Docker_Info:
       ASR:
-        Image_Name: "iktaraai/services:Asr"
-        Image_Ver_List: ["1.0.0","2.0.0"]
-        Int_IP_Addr: "180.75.0.19"
+        Image_Name: iktaraai/services:Asr
+        Image_Ver_List:
+        - 1.0.0
+        - 2.0.0
+        Int_IP_Addr: 180.75.0.19
         Int_Port: 8010
         Volumes:
-          - "/{{ machine_volume }}/iktara/Repository:/iktara/Repository"
-          - "/{{ service_volume }}/iktara/asr/logs:/iktara/Asr/Asr/logs"
-        Role: "Primary"
+        - /{{ machine_volume }}/iktara/Repository:/iktara/Repository
+        - /{{ service_volume }}/iktara/asr/logs:/iktara/Asr/Asr/logs
+        Role: Primary
         env:
-          DJANGO_ENV_FILE: "/iktara/{{ service }}/platform/docker/{{ service }}/deployment.env"
+          DJANGO_ENV_FILE: /iktara/{{ service }}/platform/docker/{{ service }}/deployment.env
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/asr/logs"
+            - /{{ service_volume }}/iktara/asr/logs
             loki_labels:
-              service_name: "ASR"
-              service_type: "ASR"
-              source_type: "file"
+              service_name: ASR
+              service_type: ASR
+              source_type: file
           service_events:
             enabled: true
           live_logs:
             enabled: true
-
       PostgreSQL:
-        Image_Name: "iktaraai/services:postgres"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.5"
+        Image_Name: iktaraai/services:postgres
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.5
         Int_Port: 5432
-        Command: >-
-          postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
-          -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c log_rotation_size=10MB
-          -c log_truncate_on_rotation=on -c log_min_messages=info -c log_connections=on -c log_disconnections=on
+        Command: postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
+          -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c
+          log_rotation_size=10MB -c log_truncate_on_rotation=on -c log_min_messages=info
+          -c log_connections=on -c log_disconnections=on
         Environment:
-          POSTGRES_USER: "postgres"
-          POSTGRES_PASSWORD: "password"
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
         Volumes:
-          - "/{{ machine_volume }}/iktara/postgresDB:/var/lib/postgresql/data"
-          - "/{{ machine_volume }}/iktara/postgresLogs:/var/log/postgresql"
+        - /{{ machine_volume }}/iktara/postgresDB:/var/lib/postgresql/data
+        - /{{ machine_volume }}/iktara/postgresLogs:/var/log/postgresql
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/postgresLogs"
+            - /{{ machine_volume }}/iktara/postgresLogs
             loki_labels:
-              service_name: "PostgreSQL"
-              service_type: "PostgreSQL"
-              source_type: "file"
-
+              service_name: PostgreSQL
+              service_type: PostgreSQL
+              source_type: file
   TTS:
     HW_Info:
       CPUs: 2
@@ -904,22 +900,24 @@ services:
       RAM_GB: 4
       Storage_GB: 20
     SW_Info:
-      OS Type: "Linux"
-      Distribution Name: "Ubuntu"
-      Distribution Version: "22.04"
-      Docker Installed: "Yes"
-      NVIDIA Container Toolkit Installed: "No"
+      OS Type: Linux
+      Distribution Name: Ubuntu
+      Distribution Version: '22.04'
+      Docker Installed: 'Yes'
+      NVIDIA Container Toolkit Installed: 'No'
     Docker_Info:
       TTS:
-        Image_Name: "iktaraai/services:tts"
-        Image_Ver_List: ["1.0.0","2.0.0"]
-        Int_IP_Addr: "180.75.0.20"
+        Image_Name: iktaraai/services:tts
+        Image_Ver_List:
+        - 1.0.0
+        - 2.0.0
+        Int_IP_Addr: 180.75.0.20
         Int_Port: 8050
         Volumes:
-          - "/{{ machine_volume }}/iktara/Repository:/iktara/Repository"
-        Role: "Primary"
+        - /{{ machine_volume }}/iktara/Repository:/iktara/Repository
+        Role: Primary
         env:
-          DJANGO_ENV_FILE: "/iktara/{{ service }}/platform/docker/{{ service }}/deployment.env"
+          DJANGO_ENV_FILE: /iktara/{{ service }}/platform/docker/{{ service }}/deployment.env
         Observability:
           container_history:
             enabled: true
@@ -929,34 +927,32 @@ services:
             enabled: true
           live_logs:
             enabled: true
-
       PostgreSQL:
-        Image_Name: "iktaraai/services:postgres"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.5"
+        Image_Name: iktaraai/services:postgres
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.5
         Int_Port: 5432
-        Command: >-
-          postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
-          -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c log_rotation_size=10MB
-          -c log_truncate_on_rotation=on -c log_min_messages=info -c log_connections=on -c log_disconnections=on
+        Command: postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
+          -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c
+          log_rotation_size=10MB -c log_truncate_on_rotation=on -c log_min_messages=info
+          -c log_connections=on -c log_disconnections=on
         Environment:
-          POSTGRES_USER: "postgres"
-          POSTGRES_PASSWORD: "password"
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
         Volumes:
-          - "/{{ machine_volume }}/iktara/postgresDB:/var/lib/postgresql/data"
-          - "/{{ machine_volume }}/iktara/postgresLogs:/var/log/postgresql"
+        - /{{ machine_volume }}/iktara/postgresDB:/var/lib/postgresql/data
+        - /{{ machine_volume }}/iktara/postgresLogs:/var/log/postgresql
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/postgresLogs"
+            - /{{ machine_volume }}/iktara/postgresLogs
             loki_labels:
-              service_name: "PostgreSQL"
-              service_type: "PostgreSQL"
-              source_type: "file"
-
+              service_name: PostgreSQL
+              service_type: PostgreSQL
+              source_type: file
   ConvCall:
     HW_Info:
       CPUs: 2
@@ -964,22 +960,24 @@ services:
       RAM_GB: 10
       Storage_GB: 20
     SW_Info:
-      OS Type: "Linux"
-      Distribution Name: "Ubuntu"
-      Distribution Version: "22.04"
-      Docker Installed: "Yes"
-      NVIDIA Container Toolkit Installed: "No"
+      OS Type: Linux
+      Distribution Name: Ubuntu
+      Distribution Version: '22.04'
+      Docker Installed: 'Yes'
+      NVIDIA Container Toolkit Installed: 'No'
     Docker_Info:
       ConvCall:
-        Image_Name: "iktaraai/services:convCall"
-        Image_Ver_List: ["1.0.0","2.0.0"]
-        Int_IP_Addr: "180.75.0.21"
+        Image_Name: iktaraai/services:convCall
+        Image_Ver_List:
+        - 1.0.0
+        - 2.0.0
+        Int_IP_Addr: 180.75.0.21
         Int_Port: 8030
         Volumes:
-          - "/{{ machine_volume }}/iktara/Repository:/iktara/Repository"
-        Role: "Primary"
+        - /{{ machine_volume }}/iktara/Repository:/iktara/Repository
+        Role: Primary
         env:
-          DJANGO_ENV_FILE: "/iktara/{{ service }}/platform/docker/{{ service }}/deployment.env"
+          DJANGO_ENV_FILE: /iktara/{{ service }}/platform/docker/{{ service }}/deployment.env
         Observability:
           container_history:
             enabled: true
@@ -989,34 +987,32 @@ services:
             enabled: true
           live_logs:
             enabled: true
-
       PostgreSQL:
-        Image_Name: "iktaraai/services:postgres"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.5"
+        Image_Name: iktaraai/services:postgres
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.5
         Int_Port: 5432
-        Command: >-
-          postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
-          -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c log_rotation_size=10MB
-          -c log_truncate_on_rotation=on -c log_min_messages=info -c log_connections=on -c log_disconnections=on
+        Command: postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
+          -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c
+          log_rotation_size=10MB -c log_truncate_on_rotation=on -c log_min_messages=info
+          -c log_connections=on -c log_disconnections=on
         Environment:
-          POSTGRES_USER: "postgres"
-          POSTGRES_PASSWORD: "password"
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
         Volumes:
-          - "/{{ machine_volume }}/iktara/postgresDB:/var/lib/postgresql/data"
-          - "/{{ machine_volume }}/iktara/postgresLogs:/var/log/postgresql"
+        - /{{ machine_volume }}/iktara/postgresDB:/var/lib/postgresql/data
+        - /{{ machine_volume }}/iktara/postgresLogs:/var/log/postgresql
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/postgresLogs"
+            - /{{ machine_volume }}/iktara/postgresLogs
             loki_labels:
-              service_name: "PostgreSQL"
-              service_type: "PostgreSQL"
-              source_type: "file"
-
+              service_name: PostgreSQL
+              service_type: PostgreSQL
+              source_type: file
   ConvForm:
     HW_Info:
       CPUs: 2
@@ -1024,112 +1020,112 @@ services:
       RAM_GB: 4
       Storage_GB: 20
     SW_Info:
-      OS Type: "Linux"
-      Distribution Name: "Ubuntu"
-      Distribution Version: "22.04"
-      Docker Installed: "Yes"
-      NVIDIA Container Toolkit Installed: "Yes"
+      OS Type: Linux
+      Distribution Name: Ubuntu
+      Distribution Version: '22.04'
+      Docker Installed: 'Yes'
+      NVIDIA Container Toolkit Installed: 'Yes'
     Docker_Info:
       ConvForm:
-        Image_Name: "iktaraai/services:convForm"
-        Image_Ver_List: [ "1.0.0","2.0.0"]
-        Int_IP_Addr: "180.75.0.3"
+        Image_Name: iktaraai/services:convForm
+        Image_Ver_List:
+        - 1.0.0
+        - 2.0.0
+        Int_IP_Addr: 180.75.0.3
         Int_Port: 8020
         Volumes:
-          - "/{{ service_volume }}/iktara/convForm/logs:/iktara/convForm/convForm/logs"
-          - "/{{ machine_volume }}/iktara/Repository:/iktara/Repository"
-        Role: "Primary"
+        - /{{ service_volume }}/iktara/convForm/logs:/iktara/convForm/convForm/logs
+        - /{{ machine_volume }}/iktara/Repository:/iktara/Repository
+        Role: Primary
         env:
-          DJANGO_ENV_FILE: "/iktara/{{ service }}/platform/docker/{{ service }}/deployment.env"
+          DJANGO_ENV_FILE: /iktara/{{ service }}/platform/docker/{{ service }}/deployment.env
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/convForm/logs"
+            - /{{ service_volume }}/iktara/convForm/logs
             loki_labels:
-              service_name: "ConvForm"
-              service_type: "ConvForm"
-              source_type: "file"
+              service_name: ConvForm
+              service_type: ConvForm
+              source_type: file
           service_events:
             enabled: true
           live_logs:
             enabled: true
-
       PostgreSQL:
-        Image_Name: "iktaraai/services:postgres"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.5"
+        Image_Name: iktaraai/services:postgres
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.5
         Int_Port: 5432
-        Command: >-
-          postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
-          -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c log_rotation_size=10MB
-          -c log_truncate_on_rotation=on -c log_min_messages=info -c log_connections=on -c log_disconnections=on
+        Command: postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
+          -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c
+          log_rotation_size=10MB -c log_truncate_on_rotation=on -c log_min_messages=info
+          -c log_connections=on -c log_disconnections=on
         Environment:
-          POSTGRES_USER: "postgres"
-          POSTGRES_PASSWORD: "password"
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
         Volumes:
-          - "/{{ machine_volume }}/iktara/postgresDB:/var/lib/postgresql/data"
-          - "/{{ machine_volume }}/iktara/postgresLogs:/var/log/postgresql"
+        - /{{ machine_volume }}/iktara/postgresDB:/var/lib/postgresql/data
+        - /{{ machine_volume }}/iktara/postgresLogs:/var/log/postgresql
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/postgresLogs"
+            - /{{ machine_volume }}/iktara/postgresLogs
             loki_labels:
-              service_name: "PostgreSQL"
-              service_type: "PostgreSQL"
-              source_type: "file"
+              service_name: PostgreSQL
+              service_type: PostgreSQL
+              source_type: file
       redis:
-        Image_Name: "iktaraai/services:redis"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.15"
+        Image_Name: iktaraai/services:redis
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.15
         Int_Port: 6379
-        Command: "redis-server --loglevel notice --logfile /var/log/redis/redis-server.log"
+        Command: redis-server --loglevel notice --logfile /var/log/redis/redis-server.log
         Volumes:
-          - "/{{ machine_volume }}/iktara/redisDB:/data"
-          - "/{{ machine_volume }}/iktara/redisLogs:/var/log/redis"
+        - /{{ machine_volume }}/iktara/redisDB:/data
+        - /{{ machine_volume }}/iktara/redisLogs:/var/log/redis
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/redisLogs"
+            - /{{ machine_volume }}/iktara/redisLogs
             loki_labels:
-              service_name: "redis"
-              service_type: "redis"
-              source_type: "file"
+              service_name: redis
+              service_type: redis
+              source_type: file
       RabbitMQ:
-        Image_Name: "iktaraai/services:rabbitmq"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.2"
+        Image_Name: iktaraai/services:rabbitmq
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.2
         Int_Port: 5672
         Environment:
-          RABBITMQ_DEFAULT_USER: "admin"
-          RABBITMQ_DEFAULT_PASS: "admin"
+          RABBITMQ_DEFAULT_USER: admin
+          RABBITMQ_DEFAULT_PASS: admin
         Volumes:
-          - "/{{ machine_volume }}/iktara/rabbitmqLogs:/var/log/rabbitmq"
-          - "/{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro"
+        - /{{ machine_volume }}/iktara/rabbitmqLogs:/var/log/rabbitmq
+        - /{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
         Config_Files:
-          - src: "../../docker/rabbitmq/rabbitmq.conf"
-            dest: "/{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf"
-            mode: "0644"
+        - src: ../../docker/rabbitmq/rabbitmq.conf
+          dest: /{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf
+          mode: '0644'
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/rabbitmqLogs"
+            - /{{ machine_volume }}/iktara/rabbitmqLogs
             loki_labels:
-              service_name: "RabbitMQ"
-              service_type: "RabbitMQ"
-              source_type: "file"
-
+              service_name: RabbitMQ
+              service_type: RabbitMQ
+              source_type: file
   InferenceServer:
     HW_Info:
       CPUs: 2
@@ -1137,66 +1133,66 @@ services:
       RAM_GB: 4
       Storage_GB: 20
     SW_Info:
-      OS Type: "Linux"
-      Distribution Name: "Ubuntu"
-      Distribution Version: "22.04"
-      Docker Installed: "Yes"
-      NVIDIA Container Toolkit Installed: "No"
+      OS Type: Linux
+      Distribution Name: Ubuntu
+      Distribution Version: '22.04'
+      Docker Installed: 'Yes'
+      NVIDIA Container Toolkit Installed: 'No'
     Docker_Info:
       InferenceServer:
-        Image_Name: "iktaraai/services:dInfer"
-        Image_Ver_List: [ "1.0.0", "2.0.0"]
-        Int_IP_Addr: "180.75.0.6"
+        Image_Name: iktaraai/services:dInfer
+        Image_Ver_List:
+        - 1.0.0
+        - 2.0.0
+        Int_IP_Addr: 180.75.0.6
         Int_Port: 7000
         Volumes:
-          - "/{{ service_volume }}/iktara/InferenceServer/logs:/iktara/dInfer/dInfer/logs"
-          - "/{{ machine_volume }}/iktara/Repository:/iktara/Repository"
-        Role: "Primary"
+        - /{{ service_volume }}/iktara/InferenceServer/logs:/iktara/dInfer/dInfer/logs
+        - /{{ machine_volume }}/iktara/Repository:/iktara/Repository
+        Role: Primary
         env:
-          DJANGO_ENV_FILE: "/iktara/{{ service }}/platform/docker/{{ service }}/deployment.env"
+          DJANGO_ENV_FILE: /iktara/{{ service }}/platform/docker/{{ service }}/deployment.env
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/InferenceServer/logs"
+            - /{{ service_volume }}/iktara/InferenceServer/logs
             loki_labels:
-              service_name: "dInfer"
-              service_type: "InferenceServer"
-              source_type: "file"
+              service_name: dInfer
+              service_type: InferenceServer
+              source_type: file
           service_events:
             enabled: true
           live_logs:
             enabled: true
-
       RabbitMQ:
-        Image_Name: "iktaraai/services:rabbitmq"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.2"
+        Image_Name: iktaraai/services:rabbitmq
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.2
         Int_Port: 5672
         Environment:
-          RABBITMQ_DEFAULT_USER: "admin"
-          RABBITMQ_DEFAULT_PASS: "admin"
+          RABBITMQ_DEFAULT_USER: admin
+          RABBITMQ_DEFAULT_PASS: admin
         Volumes:
-          - "/{{ machine_volume }}/iktara/rabbitmqLogs:/var/log/rabbitmq"
-          - "/{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro"
+        - /{{ machine_volume }}/iktara/rabbitmqLogs:/var/log/rabbitmq
+        - /{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
         Config_Files:
-          - src: "../../docker/rabbitmq/rabbitmq.conf"
-            dest: "/{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf"
-            mode: "0644"
+        - src: ../../docker/rabbitmq/rabbitmq.conf
+          dest: /{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf
+          mode: '0644'
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/rabbitmqLogs"
+            - /{{ machine_volume }}/iktara/rabbitmqLogs
             loki_labels:
-              service_name: "RabbitMQ"
-              service_type: "RabbitMQ"
-              source_type: "file"
-
+              service_name: RabbitMQ
+              service_type: RabbitMQ
+              source_type: file
   MCPServer:
     HW_Info:
       CPUs: 2
@@ -1204,63 +1200,63 @@ services:
       RAM_GB: 4
       Storage_GB: 10
     SW_Info:
-      OS Type: "Linux"
-      Distribution Name: "Ubuntu"
-      Distribution Version: "22.04"
-      Docker Installed: "Yes"
-      NVIDIA Container Toolkit Installed: "No"
+      OS Type: Linux
+      Distribution Name: Ubuntu
+      Distribution Version: '22.04'
+      Docker Installed: 'Yes'
+      NVIDIA Container Toolkit Installed: 'No'
     Docker_Info:
       MCPServer:
-        Image_Name: "iktaraai/services:mcpServer"
-        Image_Ver_List: [ "1.0.0", "2.0.0" ]
-        Int_IP_Addr: "180.75.0.8"
+        Image_Name: iktaraai/services:mcpServer
+        Image_Ver_List:
+        - 1.0.0
+        - 2.0.0
+        Int_IP_Addr: 180.75.0.8
         Int_Port: 9000
         Network_Aliases:
-          - "mcpserver"
-          - "node-node1001-mcpserver"
+        - mcpserver
+        - node-node1001-mcpserver
         Volumes:
-          - "/{{ service_volume }}/iktara/MCPServer/logs:/iktara/convForm/convForm/logs"
-          - "/{{ machine_volume }}/iktara/Repository:/iktara/Repository"
-        Role: "Primary"
+        - /{{ service_volume }}/iktara/MCPServer/logs:/iktara/convForm/convForm/logs
+        - /{{ machine_volume }}/iktara/Repository:/iktara/Repository
+        Role: Primary
         env:
-          DJANGO_ENV_FILE: "/iktara/{{ service }}/platform/docker/{{ service }}/deployment.env"
+          DJANGO_ENV_FILE: /iktara/{{ service }}/platform/docker/{{ service }}/deployment.env
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/MCPServer/logs"
+            - /{{ service_volume }}/iktara/MCPServer/logs
             loki_labels:
-              service_name: "MCPServer"
-              service_type: "MCPServer"
-              source_type: "file"
+              service_name: MCPServer
+              service_type: MCPServer
+              source_type: file
           service_events:
             enabled: true
           live_logs:
             enabled: true
-
     redis:
-      Image_Name: "iktaraai/services:redis"
-      Image_Ver: "1.0.0"
-      Int_IP_Addr: "180.75.0.15"
+      Image_Name: iktaraai/services:redis
+      Image_Ver: 1.0.0
+      Int_IP_Addr: 180.75.0.15
       Int_Port: 6379
-      Command: "redis-server --loglevel notice --logfile /var/log/redis/redis-server.log"
+      Command: redis-server --loglevel notice --logfile /var/log/redis/redis-server.log
       Volumes:
-        - "/{{ machine_volume }}/iktara/redisDB:/data"
-        - "/{{ machine_volume }}/iktara/redisLogs:/var/log/redis"
+      - /{{ machine_volume }}/iktara/redisDB:/data
+      - /{{ machine_volume }}/iktara/redisLogs:/var/log/redis
       Observability:
         container_history:
           enabled: true
         file_logs:
           enabled: true
           paths:
-            - "/{{ machine_volume }}/iktara/redisLogs"
+          - /{{ machine_volume }}/iktara/redisLogs
           loki_labels:
-            service_name: "redis"
-            service_type: "redis"
-            source_type: "file"
-
+            service_name: redis
+            service_type: redis
+            source_type: file
   McpProxy:
     HW_Info:
       CPUs: 2
@@ -1268,85 +1264,86 @@ services:
       RAM_GB: 4
       Storage_GB: 10
     SW_Info:
-      OS Type: "Linux"
-      Distribution Name: "Ubuntu"
-      Distribution Version: "22.04"
-      Docker Installed: "Yes"
-      NVIDIA Container Toolkit Installed: "No"
+      OS Type: Linux
+      Distribution Name: Ubuntu
+      Distribution Version: '22.04'
+      Docker Installed: 'Yes'
+      NVIDIA Container Toolkit Installed: 'No'
     Docker_Info:
       RabbitMQ:
-        Image_Name: "iktaraai/services:rabbitmq"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.2"
+        Image_Name: iktaraai/services:rabbitmq
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.2
         Int_Port: 5672
         Environment:
-          RABBITMQ_DEFAULT_USER: "admin"
-          RABBITMQ_DEFAULT_PASS: "admin"
+          RABBITMQ_DEFAULT_USER: admin
+          RABBITMQ_DEFAULT_PASS: admin
         Volumes:
-          - "/{{ machine_volume }}/iktara/rabbitmqLogs:/var/log/rabbitmq"
-          - "/{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro"
+        - /{{ machine_volume }}/iktara/rabbitmqLogs:/var/log/rabbitmq
+        - /{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
         Config_Files:
-          - src: "../../docker/rabbitmq/rabbitmq.conf"
-            dest: "/{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf"
-            mode: "0644"
+        - src: ../../docker/rabbitmq/rabbitmq.conf
+          dest: /{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf
+          mode: '0644'
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/rabbitmqLogs"
+            - /{{ machine_volume }}/iktara/rabbitmqLogs
             loki_labels:
-              service_name: "RabbitMQ"
-              service_type: "RabbitMQ"
-              source_type: "file"
+              service_name: RabbitMQ
+              service_type: RabbitMQ
+              source_type: file
       redis:
-        Image_Name: "iktaraai/services:redis"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.15"
+        Image_Name: iktaraai/services:redis
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.15
         Int_Port: 6379
-        Command: "redis-server --loglevel notice --logfile /var/log/redis/redis-server.log"
+        Command: redis-server --loglevel notice --logfile /var/log/redis/redis-server.log
         Volumes:
-          - "/{{ machine_volume }}/iktara/redisDB:/data"
-          - "/{{ machine_volume }}/iktara/redisLogs:/var/log/redis"
+        - /{{ machine_volume }}/iktara/redisDB:/data
+        - /{{ machine_volume }}/iktara/redisLogs:/var/log/redis
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/redisLogs"
+            - /{{ machine_volume }}/iktara/redisLogs
             loki_labels:
-              service_name: "redis"
-              service_type: "redis"
-              source_type: "file"
+              service_name: redis
+              service_type: redis
+              source_type: file
       McpProxy:
-        Image_Name: "iktaraai/services:mcpProxy"
-        Image_Ver_List: ["1.0.0","2.0.0"]
-        Int_IP_Addr: "180.75.0.40"
+        Image_Name: iktaraai/services:mcpProxy
+        Image_Ver_List:
+        - 1.0.0
+        - 2.0.0
+        Int_IP_Addr: 180.75.0.40
         Int_Port: 9005
         Volumes:
-          - "/{{ service_volume }}/iktara/mcpProxy/logs:/iktara/mcpProxy/mcpProxy/logs"
-          - "/{{ machine_volume }}/iktara/Repository:/iktara/Repository"
-        Role: "Primary"
+        - /{{ service_volume }}/iktara/mcpProxy/logs:/iktara/mcpProxy/mcpProxy/logs
+        - /{{ machine_volume }}/iktara/Repository:/iktara/Repository
+        Role: Primary
         env:
-          DJANGO_ENV_FILE: "/iktara/{{ service }}/platform/docker/{{ service }}/deployment.env"
+          DJANGO_ENV_FILE: /iktara/{{ service }}/platform/docker/{{ service }}/deployment.env
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/mcpProxy/logs"
+            - /{{ service_volume }}/iktara/mcpProxy/logs
             loki_labels:
-              service_name: "McpProxy"
-              service_type: "McpProxy"
-              source_type: "file"
+              service_name: McpProxy
+              service_type: McpProxy
+              source_type: file
           service_events:
             enabled: true
           live_logs:
             enabled: true
-
   Airflow:
     HW_Info:
       CPUs: 2
@@ -1354,52 +1351,53 @@ services:
       RAM_GB: 4
       Storage_GB: 10
     SW_Info:
-      OS Type: "Linux"
-      Distribution Name: "Ubuntu"
-      Distribution Version: "22.04"
-      Docker Installed: "Yes"
-      NVIDIA Container Toolkit Installed: "No"
+      OS Type: Linux
+      Distribution Name: Ubuntu
+      Distribution Version: '22.04'
+      Docker Installed: 'Yes'
+      NVIDIA Container Toolkit Installed: 'No'
     Docker_Info:
       Airflow:
-        Image_Name: "iktaraai/services:AirflowAPIServer"
-        Image_Ver_List: ["1.0.0"]
-        Image_Ver: "1.0.0"
-        Command: "api-server"
-        Int_IP_Addr: "180.75.0.26"
+        Image_Name: iktaraai/services:AirflowAPIServer
+        Image_Ver_List:
+        - 1.0.0
+        Image_Ver: 1.0.0
+        Command: api-server
+        Int_IP_Addr: 180.75.0.26
         Int_Port: 8080
         Network_Aliases:
-          - "airflow-apiserver"
+        - airflow-apiserver
         Config_Push_Required: false
-        Deployment_Mode: "INFRA_ONLY"
+        Deployment_Mode: INFRA_ONLY
         Health_Check:
           Enabled: true
-          Path: "/api/v2/monitor/health"
+          Path: /api/v2/monitor/health
           Timeout_Sec: 300
           Interval_Sec: 5
           Status_Code:
-            - 200
+          - 200
         Environment:
-          AIRFLOW__CORE__EXECUTOR: "CeleryExecutor"
-          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://airflow:airflow@postgres/airflow"
-          AIRFLOW__CELERY__RESULT_BACKEND: "db+postgresql://airflow:airflow@postgres/airflow"
-          AIRFLOW__CELERY__BROKER_URL: "redis://:@redis:6379/0"
-          AIRFLOW__API__WORKERS: "1"
-          AIRFLOW__CORE__AUTH_MANAGER: "airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager"
-          AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "admin:admin"
-          AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_PASSWORDS_FILE: "/opt/airflow/simple_auth_manager_passwords.json.generated"
-          AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-          AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow-apiserver:8080/execution/"
-          AIRFLOW__CORE__HOSTNAME_CALLABLE: "airflow.utils.net.get_host_ip_address"
-          AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: "8793"
-          AIRFLOW_UID: "1000"
+          AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+          AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+          AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+          AIRFLOW__API__WORKERS: '1'
+          AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
+          AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: admin:admin
+          AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_PASSWORDS_FILE: /opt/airflow/simple_auth_manager_passwords.json.generated
+          AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+          AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+          AIRFLOW__CORE__HOSTNAME_CALLABLE: airflow.utils.net.get_host_ip_address
+          AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: '8793'
+          AIRFLOW_UID: '1000'
         Volumes:
-          - "/opt/airflow/dags:/opt/airflow/dags"
-          - "/{{ service_volume }}/iktara/airflow/logs:/opt/airflow/logs"
-          - "/{{ service_volume }}/iktara/airflow/simple_auth_manager_passwords.json.generated:/opt/airflow/simple_auth_manager_passwords.json.generated"
+        - /opt/airflow/dags:/opt/airflow/dags
+        - /{{ service_volume }}/iktara/airflow/logs:/opt/airflow/logs
+        - /{{ service_volume }}/iktara/airflow/simple_auth_manager_passwords.json.generated:/opt/airflow/simple_auth_manager_passwords.json.generated
         Config_Files:
-          - src: "../../docker/airflow/simple_auth_manager_passwords.json.generated"
-            dest: "/{{ service_volume }}/iktara/airflow/simple_auth_manager_passwords.json.generated"
-            mode: "0644"
+        - src: ../../docker/airflow/simple_auth_manager_passwords.json.generated
+          dest: /{{ service_volume }}/iktara/airflow/simple_auth_manager_passwords.json.generated
+          mode: '0644'
         Observability:
           container_history:
             enabled: true
@@ -1409,239 +1407,229 @@ services:
             enabled: true
           live_logs:
             enabled: true
-
       Airflow-Scheduler:
-        Image_Name: "iktaraai/services:AirflowScheduler"
-        Image_Ver: "1.0.0"
-        Command: "scheduler"
-        Int_IP_Addr: "180.75.0.27"
+        Image_Name: iktaraai/services:AirflowScheduler
+        Image_Ver: 1.0.0
+        Command: scheduler
+        Int_IP_Addr: 180.75.0.27
         Int_Port: 8080
         Environment:
-          AIRFLOW__CORE__EXECUTOR: "CeleryExecutor"
-          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://airflow:airflow@postgres/airflow"
-          AIRFLOW__CELERY__RESULT_BACKEND: "db+postgresql://airflow:airflow@postgres/airflow"
-          AIRFLOW__CELERY__BROKER_URL: "redis://:@redis:6379/0"
-          AIRFLOW__CORE__AUTH_MANAGER: "airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager"
-          AIRFLOW__CORE__LOAD_EXAMPLES: "true"
-          AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow-apiserver:8080/execution/"
-          AIRFLOW__CORE__HOSTNAME_CALLABLE: "airflow.utils.net.get_host_ip_address"
-          AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: "8793"
-          AIRFLOW_UID: "1000"
+          AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+          AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+          AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+          AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
+          AIRFLOW__CORE__LOAD_EXAMPLES: 'true'
+          AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+          AIRFLOW__CORE__HOSTNAME_CALLABLE: airflow.utils.net.get_host_ip_address
+          AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: '8793'
+          AIRFLOW_UID: '1000'
         Volumes:
-          - "/opt/airflow/dags:/opt/airflow/dags"
-          - "/{{ service_volume }}/iktara/airflow/logs:/opt/airflow/logs"
+        - /opt/airflow/dags:/opt/airflow/dags
+        - /{{ service_volume }}/iktara/airflow/logs:/opt/airflow/logs
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/airflow/logs"
+            - /{{ service_volume }}/iktara/airflow/logs
             loki_labels:
-              service_name: "Airflow-Scheduler"
-              service_type: "Airflow-Scheduler"
-              source_type: "file"
+              service_name: Airflow-Scheduler
+              service_type: Airflow-Scheduler
+              source_type: file
           service_events:
             enabled: true
           live_logs:
             enabled: true
-
       Airflow-Worker:
-        Image_Name: "iktaraai/services:AirflowWorker"
-        Image_Ver: "1.0.0"
-        Command: "celery worker"
-        Int_IP_Addr: "180.75.0.28"
+        Image_Name: iktaraai/services:AirflowWorker
+        Image_Ver: 1.0.0
+        Command: celery worker
+        Int_IP_Addr: 180.75.0.28
         Int_Port: 8080
         Environment:
-          AIRFLOW__CORE__EXECUTOR: "CeleryExecutor"
-          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://airflow:airflow@postgres/airflow"
-          AIRFLOW__CELERY__RESULT_BACKEND: "db+postgresql://airflow:airflow@postgres/airflow"
-          AIRFLOW__CELERY__BROKER_URL: "redis://:@redis:6379/0"
-          AIRFLOW__CORE__AUTH_MANAGER: "airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager"
-          AIRFLOW__CORE__LOAD_EXAMPLES: "true"
-          AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow-apiserver:8080/execution/"
-          AIRFLOW__CORE__HOSTNAME_CALLABLE: "airflow.utils.net.get_host_ip_address"
-          AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: "8793"
-          AIRFLOW_UID: "1000"
+          AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+          AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+          AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+          AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
+          AIRFLOW__CORE__LOAD_EXAMPLES: 'true'
+          AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+          AIRFLOW__CORE__HOSTNAME_CALLABLE: airflow.utils.net.get_host_ip_address
+          AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: '8793'
+          AIRFLOW_UID: '1000'
         Volumes:
-          - "/opt/airflow/dags:/opt/airflow/dags"
-          - "/{{ service_volume }}/iktara/airflow/logs:/opt/airflow/logs"
+        - /opt/airflow/dags:/opt/airflow/dags
+        - /{{ service_volume }}/iktara/airflow/logs:/opt/airflow/logs
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/airflow/logs"
+            - /{{ service_volume }}/iktara/airflow/logs
             loki_labels:
-              service_name: "Airflow-Worker"
-              service_type: "Airflow-Worker"
-              source_type: "file"
+              service_name: Airflow-Worker
+              service_type: Airflow-Worker
+              source_type: file
           service_events:
             enabled: true
           live_logs:
             enabled: true
-
       Airflow-DagProcessor:
-        Image_Name: "iktaraai/services:AirflowDagProcessor"
-        Image_Ver: "1.0.0"
-        Command: "dag-processor"
-        Int_IP_Addr: "180.75.0.29"
+        Image_Name: iktaraai/services:AirflowDagProcessor
+        Image_Ver: 1.0.0
+        Command: dag-processor
+        Int_IP_Addr: 180.75.0.29
         Int_Port: 8080
         Environment:
-          AIRFLOW__CORE__EXECUTOR: "CeleryExecutor"
-          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://airflow:airflow@postgres/airflow"
-          AIRFLOW__CELERY__RESULT_BACKEND: "db+postgresql://airflow:airflow@postgres/airflow"
-          AIRFLOW__CELERY__BROKER_URL: "redis://:@redis:6379/0"
-          AIRFLOW__CORE__AUTH_MANAGER: "airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager"
-          AIRFLOW__CORE__LOAD_EXAMPLES: "true"
-          AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow-apiserver:8080/execution/"
-          AIRFLOW__CORE__HOSTNAME_CALLABLE: "airflow.utils.net.get_host_ip_address"
-          AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: "8793"
-          AIRFLOW_UID: "1000"
+          AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+          AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+          AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+          AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
+          AIRFLOW__CORE__LOAD_EXAMPLES: 'true'
+          AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+          AIRFLOW__CORE__HOSTNAME_CALLABLE: airflow.utils.net.get_host_ip_address
+          AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: '8793'
+          AIRFLOW_UID: '1000'
         Volumes:
-          - "/opt/airflow/dags:/opt/airflow/dags"
-          - "/{{ service_volume }}/iktara/airflow/logs:/opt/airflow/logs"
+        - /opt/airflow/dags:/opt/airflow/dags
+        - /{{ service_volume }}/iktara/airflow/logs:/opt/airflow/logs
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/airflow/logs"
+            - /{{ service_volume }}/iktara/airflow/logs
             loki_labels:
-              service_name: "Airflow-DagProcessor"
-              service_type: "Airflow-DagProcessor"
-              source_type: "file"
+              service_name: Airflow-DagProcessor
+              service_type: Airflow-DagProcessor
+              source_type: file
           service_events:
             enabled: true
           live_logs:
             enabled: true
-
       Airflow-Triggerer:
-        Image_Name: "iktaraai/services:AirflowTriggerer"
-        Image_Ver: "1.0.0"
-        Command: "triggerer"
-        Int_IP_Addr: "180.75.0.30"
+        Image_Name: iktaraai/services:AirflowTriggerer
+        Image_Ver: 1.0.0
+        Command: triggerer
+        Int_IP_Addr: 180.75.0.30
         Int_Port: 8080
         Environment:
-          AIRFLOW__CORE__EXECUTOR: "CeleryExecutor"
-          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://airflow:airflow@postgres/airflow"
-          AIRFLOW__CELERY__RESULT_BACKEND: "db+postgresql://airflow:airflow@postgres/airflow"
-          AIRFLOW__CELERY__BROKER_URL: "redis://:@redis:6379/0"
-          AIRFLOW__CORE__AUTH_MANAGER: "airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager"
-          AIRFLOW__CORE__LOAD_EXAMPLES: "true"
-          AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow-apiserver:8080/execution/"
-          AIRFLOW__CORE__HOSTNAME_CALLABLE: "airflow.utils.net.get_host_ip_address"
-          AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: "8793"
-          AIRFLOW_UID: "1000"
+          AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+          AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+          AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+          AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
+          AIRFLOW__CORE__LOAD_EXAMPLES: 'true'
+          AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+          AIRFLOW__CORE__HOSTNAME_CALLABLE: airflow.utils.net.get_host_ip_address
+          AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: '8793'
+          AIRFLOW_UID: '1000'
         Volumes:
-          - "/opt/airflow/dags:/opt/airflow/dags"
-          - "/{{ service_volume }}/iktara/airflow/logs:/opt/airflow/logs"
+        - /opt/airflow/dags:/opt/airflow/dags
+        - /{{ service_volume }}/iktara/airflow/logs:/opt/airflow/logs
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/airflow/logs"
+            - /{{ service_volume }}/iktara/airflow/logs
             loki_labels:
-              service_name: "Airflow-Triggerer"
-              service_type: "Airflow-Triggerer"
-              source_type: "file"
+              service_name: Airflow-Triggerer
+              service_type: Airflow-Triggerer
+              source_type: file
           service_events:
             enabled: true
           live_logs:
             enabled: true
-
       AirflowInit:
-        Image_Name: "iktaraai/services:airflow-init"
-        Image_Ver: "1.0.0"
-        Command: "version"
-        Int_IP_Addr: "180.75.0.83"
+        Image_Name: iktaraai/services:airflow-init
+        Image_Ver: 1.0.0
+        Command: version
+        Int_IP_Addr: 180.75.0.83
         Int_Port: 8080
-        Restart_Policy: "no"
+        Restart_Policy: 'no'
         Run_Once: true
         Environment:
-          AIRFLOW__CORE__EXECUTOR: "CeleryExecutor"
-          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://airflow:airflow@postgres/airflow"
-          AIRFLOW__CELERY__RESULT_BACKEND: "db+postgresql://airflow:airflow@postgres/airflow"
-          AIRFLOW__CELERY__BROKER_URL: "redis://:@redis:6379/0"
-          AIRFLOW__CORE__LOAD_EXAMPLES: "true"
-          AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow-apiserver:8080/execution/"
-          AIRFLOW__CORE__HOSTNAME_CALLABLE: "airflow.utils.net.get_host_ip_address"
-          AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: "8793"
-          AIRFLOW_UID: "1000"
-          _AIRFLOW_DB_MIGRATE: "true"
-          _AIRFLOW_WWW_USER_CREATE: "true"
-          _AIRFLOW_WWW_USER_USERNAME: "admin"
-          _AIRFLOW_WWW_USER_PASSWORD: "admin"
+          AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+          AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+          AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+          AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+          AIRFLOW__CORE__LOAD_EXAMPLES: 'true'
+          AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+          AIRFLOW__CORE__HOSTNAME_CALLABLE: airflow.utils.net.get_host_ip_address
+          AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: '8793'
+          AIRFLOW_UID: '1000'
+          _AIRFLOW_DB_MIGRATE: 'true'
+          _AIRFLOW_WWW_USER_CREATE: 'true'
+          _AIRFLOW_WWW_USER_USERNAME: admin
+          _AIRFLOW_WWW_USER_PASSWORD: admin
         Volumes:
-          - "/opt/airflow/dags:/opt/airflow/dags"
-          - "/{{ service_volume }}/iktara/airflow/logs:/opt/airflow/logs"
-
-        # Dependencies
-
+        - /opt/airflow/dags:/opt/airflow/dags
+        - /{{ service_volume }}/iktara/airflow/logs:/opt/airflow/logs
       PostgreSQL:
-        Image_Name: "iktaraai/services:Postgres-13.0.0"
-        Image_Ver: "1.0.0"
+        Image_Name: iktaraai/services:Postgres-13.0.0
+        Image_Ver: 1.0.0
         Image_Tag_Includes_Version: true
-        Int_IP_Addr: "180.75.0.81"
+        Int_IP_Addr: 180.75.0.81
         Int_Port: 5432
         Network_Aliases:
-          - "postgres"
-        Command: >-
-          postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
-          -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c log_rotation_size=10MB
-          -c log_truncate_on_rotation=on -c log_min_messages=info -c log_connections=on -c log_disconnections=on
+        - postgres
+        Command: postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
+          -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c
+          log_rotation_size=10MB -c log_truncate_on_rotation=on -c log_min_messages=info
+          -c log_connections=on -c log_disconnections=on
         Environment:
-          POSTGRES_USER: "airflow"
-          POSTGRES_PASSWORD: "airflow"
-          POSTGRES_DB: "airflow"
+          POSTGRES_USER: airflow
+          POSTGRES_PASSWORD: airflow
+          POSTGRES_DB: airflow
         Volumes:
-          - "/{{ service_volume }}/iktara/airflow/postgresDB:/var/lib/postgresql/data"
-          - "/{{ service_volume }}/iktara/airflow/postgresLogs:/var/log/postgresql"
+        - /{{ service_volume }}/iktara/airflow/postgresDB:/var/lib/postgresql/data
+        - /{{ service_volume }}/iktara/airflow/postgresLogs:/var/log/postgresql
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/airflow/postgresLogs"
+            - /{{ service_volume }}/iktara/airflow/postgresLogs
             loki_labels:
-              service_name: "PostgreSQL"
-              service_type: "PostgreSQL"
-              source_type: "file"
-
+              service_name: PostgreSQL
+              service_type: PostgreSQL
+              source_type: file
       redis:
-        Image_Name: "iktaraai/services:Redis-7.2.0"
-        Image_Ver: "1.0.0"
+        Image_Name: iktaraai/services:Redis-7.2.0
+        Image_Ver: 1.0.0
         Image_Tag_Includes_Version: true
-        Int_IP_Addr: "180.75.0.82"
+        Int_IP_Addr: 180.75.0.82
         Int_Port: 6379
         Network_Aliases:
-          - "redis"
-        Command: "redis-server /usr/local/etc/redis/redis.conf"
+        - redis
+        Command: redis-server /usr/local/etc/redis/redis.conf
         Volumes:
-          - "/{{ service_volume }}/iktara/airflow/redisDB:/data"
-          - "/{{ service_volume }}/iktara/airflow/redisLogs:/var/log/redis"
-          - "/{{ service_volume }}/iktara/airflow/redisConfig/redis.conf:/usr/local/etc/redis/redis.conf:ro"
+        - /{{ service_volume }}/iktara/airflow/redisDB:/data
+        - /{{ service_volume }}/iktara/airflow/redisLogs:/var/log/redis
+        - /{{ service_volume }}/iktara/airflow/redisConfig/redis.conf:/usr/local/etc/redis/redis.conf:ro
         Config_Files:
-          - src: "../../docker/redis/redis.conf"
-            dest: "/{{ service_volume }}/iktara/airflow/redisConfig/redis.conf"
-            mode: "0644"
+        - src: ../../docker/redis/redis.conf
+          dest: /{{ service_volume }}/iktara/airflow/redisConfig/redis.conf
+          mode: '0644'
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/airflow/redisLogs"
+            - /{{ service_volume }}/iktara/airflow/redisLogs
             loki_labels:
-              service_name: "redis"
-              service_type: "redis"
-              source_type: "file"
-
+              service_name: redis
+              service_type: redis
+              source_type: file
   optionCopilot:
     HW_Info:
       CPUs: 2
@@ -1649,137 +1637,134 @@ services:
       RAM_GB: 4
       Storage_GB: 10
     SW_Info:
-      OS Type: "Linux"
-      Distribution Name: "Ubuntu"
-      Distribution Version: "22.04"
-      Docker Installed: "Yes"
-      NVIDIA Container Toolkit Installed: "No"
+      OS Type: Linux
+      Distribution Name: Ubuntu
+      Distribution Version: '22.04'
+      Docker Installed: 'Yes'
+      NVIDIA Container Toolkit Installed: 'No'
     Docker_Info:
       PostgreSQL:
-        Image_Name: "iktaraai/services:postgres"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.5"
+        Image_Name: iktaraai/services:postgres
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.5
         Int_Port: 5432
-        Command: >-
-          postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
-          -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c log_rotation_size=10MB
-          -c log_truncate_on_rotation=on -c log_min_messages=info -c log_connections=on -c log_disconnections=on
+        Command: postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
+          -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c
+          log_rotation_size=10MB -c log_truncate_on_rotation=on -c log_min_messages=info
+          -c log_connections=on -c log_disconnections=on
         Environment:
-          POSTGRES_USER: "postgres"
-          POSTGRES_PASSWORD: "password"
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
         Volumes:
-          - "/{{ machine_volume }}/iktara/postgresDB:/var/lib/postgresql/data"
-          - "/{{ machine_volume }}/iktara/postgresLogs:/var/log/postgresql"
+        - /{{ machine_volume }}/iktara/postgresDB:/var/lib/postgresql/data
+        - /{{ machine_volume }}/iktara/postgresLogs:/var/log/postgresql
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/postgresLogs"
+            - /{{ machine_volume }}/iktara/postgresLogs
             loki_labels:
-              service_name: "PostgreSQL"
-              service_type: "PostgreSQL"
-              source_type: "file"
-
+              service_name: PostgreSQL
+              service_type: PostgreSQL
+              source_type: file
       RabbitMQ:
-        Image_Name: "iktaraai/services:rabbitmq"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.2"
+        Image_Name: iktaraai/services:rabbitmq
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.2
         Int_Port: 5672
         Environment:
-          RABBITMQ_DEFAULT_USER: "admin"
-          RABBITMQ_DEFAULT_PASS: "admin"
+          RABBITMQ_DEFAULT_USER: admin
+          RABBITMQ_DEFAULT_PASS: admin
         Volumes:
-          - "/{{ machine_volume }}/iktara/rabbitmqLogs:/var/log/rabbitmq"
-          - "/{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro"
+        - /{{ machine_volume }}/iktara/rabbitmqLogs:/var/log/rabbitmq
+        - /{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
         Config_Files:
-          - src: "../../docker/rabbitmq/rabbitmq.conf"
-            dest: "/{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf"
-            mode: "0644"
+        - src: ../../docker/rabbitmq/rabbitmq.conf
+          dest: /{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf
+          mode: '0644'
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/rabbitmqLogs"
+            - /{{ machine_volume }}/iktara/rabbitmqLogs
             loki_labels:
-              service_name: "RabbitMQ"
-              service_type: "RabbitMQ"
-              source_type: "file"
-
+              service_name: RabbitMQ
+              service_type: RabbitMQ
+              source_type: file
       redis:
-        Image_Name: "iktaraai/services:redis"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.15"
+        Image_Name: iktaraai/services:redis
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.15
         Int_Port: 6379
-        Command: "redis-server --loglevel notice --logfile /var/log/redis/redis-server.log"
+        Command: redis-server --loglevel notice --logfile /var/log/redis/redis-server.log
         Volumes:
-          - "/{{ machine_volume }}/iktara/redisDB:/data"
-          - "/{{ machine_volume }}/iktara/redisLogs:/var/log/redis"
+        - /{{ machine_volume }}/iktara/redisDB:/data
+        - /{{ machine_volume }}/iktara/redisLogs:/var/log/redis
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ machine_volume }}/iktara/redisLogs"
+            - /{{ machine_volume }}/iktara/redisLogs
             loki_labels:
-              service_name: "redis"
-              service_type: "redis"
-              source_type: "file"
-
+              service_name: redis
+              service_type: redis
+              source_type: file
       ClickHouse:
-        Image_Name: "iktaraai/services:clickhouse"
-        Image_Ver: "1.0.0"
-        Int_IP_Addr: "180.75.0.9"
+        Image_Name: iktaraai/services:clickhouse
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.9
         Int_Port: 8123
         Environment:
-          CLICKHOUSE_DB: "fintrady"
+          CLICKHOUSE_DB: fintrady
         Volumes:
-          - "/{{ service_volume }}/iktara/clickHouseDB:/var/lib/clickhouse"
-          - "/{{ service_volume }}/iktara/clickHouseLogs:/var/log/clickhouse-server"
+        - /{{ service_volume }}/iktara/clickHouseDB:/var/lib/clickhouse
+        - /{{ service_volume }}/iktara/clickHouseLogs:/var/log/clickhouse-server
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/clickHouseLogs"
+            - /{{ service_volume }}/iktara/clickHouseLogs
             loki_labels:
-              service_name: "ClickHouse"
-              service_type: "ClickHouse"
-              source_type: "file"
-
+              service_name: ClickHouse
+              service_type: ClickHouse
+              source_type: file
       optionCopilot:
-        Image_Name: "iktaraai/services:optionCopilot"
-        Image_Ver_List: [ "1.0.0","2.0.0" ]
-        Int_IP_Addr: "180.75.0.32"
+        Image_Name: iktaraai/services:optionCopilot
+        Image_Ver_List:
+        - 1.0.0
+        - 2.0.0
+        Int_IP_Addr: 180.75.0.32
         Int_Port: 8000
         Volumes:
-          - "/{{ service_volume }}/iktara/optionCopilot/logs:/iktara/optionCopilot/optionCopilot/logs"
-          - "/{{ service_volume }}/iktara/optionCopilot/logs:/fintrady/optionCopilot/optionCopilot/logs"
-          - "/{{ machine_volume }}/iktara/Repository:/iktara/Repository"
-        Role: "Primary"
+        - /{{ service_volume }}/iktara/optionCopilot/logs:/iktara/optionCopilot/optionCopilot/logs
+        - /{{ service_volume }}/iktara/optionCopilot/logs:/fintrady/optionCopilot/optionCopilot/logs
+        - /{{ machine_volume }}/iktara/Repository:/iktara/Repository
+        Role: Primary
         env:
-          DJANGO_ENV_FILE: "/iktara/cPlatform/platform/docker/optionCopilot/deployment.env"
+          DJANGO_ENV_FILE: /iktara/cPlatform/platform/docker/optionCopilot/deployment.env
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/optionCopilot/logs"
+            - /{{ service_volume }}/iktara/optionCopilot/logs
             loki_labels:
-              service_name: "optionCopilot"
-              service_type: "optionCopilot"
-              source_type: "file"
+              service_name: optionCopilot
+              service_type: optionCopilot
+              source_type: file
           service_events:
             enabled: true
           live_logs:
             enabled: true
-
   McpGateway:
     HW_Info:
       CPUs: 2
@@ -1787,20 +1772,22 @@ services:
       RAM_GB: 4
       Storage_GB: 10
     SW_Info:
-      OS Type: "Linux"
-      Distribution Name: "Ubuntu"
-      Distribution Version: "22.04"
-      Docker Installed: "Yes"
-      NVIDIA Container Toolkit Installed: "No"
+      OS Type: Linux
+      Distribution Name: Ubuntu
+      Distribution Version: '22.04'
+      Docker Installed: 'Yes'
+      NVIDIA Container Toolkit Installed: 'No'
     Docker_Info:
       McpGateway:
-        Image_Name: "iktaraai/services:McpGateway"
-        Image_Ver_List: [ "1.0.0", "2.0.0" ]
-        Int_IP_Addr: "180.75.0.26"
+        Image_Name: iktaraai/services:McpGateway
+        Image_Ver_List:
+        - 1.0.0
+        - 2.0.0
+        Int_IP_Addr: 180.75.0.26
         Int_Port: 9000
-        Role: "Primary"
+        Role: Primary
         env:
-          DJANGO_ENV_FILE: "/iktara/{{ service }}/platform/docker/{{ service }}/deployment.env"
+          DJANGO_ENV_FILE: /iktara/{{ service }}/platform/docker/{{ service }}/deployment.env
         Observability:
           container_history:
             enabled: true
@@ -1810,130 +1797,121 @@ services:
             enabled: true
           live_logs:
             enabled: true
-
     redis:
-      Image_Name: "iktaraai/services:redis"
-      Image_Ver: "1.0.0"
-      Int_IP_Addr: "180.75.0.15"
+      Image_Name: iktaraai/services:redis
+      Image_Ver: 1.0.0
+      Int_IP_Addr: 180.75.0.15
       Int_Port: 6379
-      Command: "redis-server --loglevel notice --logfile /var/log/redis/redis-server.log"
+      Command: redis-server --loglevel notice --logfile /var/log/redis/redis-server.log
       Volumes:
-        - "/{{ machine_volume }}/iktara/redisDB:/data"
-        - "/{{ machine_volume }}/iktara/redisLogs:/var/log/redis"
+      - /{{ machine_volume }}/iktara/redisDB:/data
+      - /{{ machine_volume }}/iktara/redisLogs:/var/log/redis
       Observability:
         container_history:
           enabled: true
         file_logs:
           enabled: true
           paths:
-            - "/{{ machine_volume }}/iktara/redisLogs"
+          - /{{ machine_volume }}/iktara/redisLogs
           loki_labels:
-            service_name: "redis"
-            service_type: "redis"
-            source_type: "file"
-
+            service_name: redis
+            service_type: redis
+            source_type: file
     RabbitMQ:
-      Image_Name: "iktaraai/services:rabbitmq"
-      Image_Ver: "1.0.0"
-      Int_IP_Addr: "180.75.0.2"
+      Image_Name: iktaraai/services:rabbitmq
+      Image_Ver: 1.0.0
+      Int_IP_Addr: 180.75.0.2
       Int_Port: 5672
       Environment:
-        RABBITMQ_DEFAULT_USER: "admin"
-        RABBITMQ_DEFAULT_PASS: "admin"
+        RABBITMQ_DEFAULT_USER: admin
+        RABBITMQ_DEFAULT_PASS: admin
       Volumes:
-        - "/{{ machine_volume }}/iktara/rabbitmqLogs:/var/log/rabbitmq"
-        - "/{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro"
+      - /{{ machine_volume }}/iktara/rabbitmqLogs:/var/log/rabbitmq
+      - /{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
       Config_Files:
-        - src: "../../docker/rabbitmq/rabbitmq.conf"
-          dest: "/{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf"
-          mode: "0644"
+      - src: ../../docker/rabbitmq/rabbitmq.conf
+        dest: /{{ machine_volume }}/iktara/rabbitmqConfig/rabbitmq.conf
+        mode: '0644'
       Observability:
         container_history:
           enabled: true
         file_logs:
           enabled: true
           paths:
-            - "/{{ machine_volume }}/iktara/rabbitmqLogs"
+          - /{{ machine_volume }}/iktara/rabbitmqLogs
           loki_labels:
-            service_name: "RabbitMQ"
-            service_type: "RabbitMQ"
-            source_type: "file"
-
+            service_name: RabbitMQ
+            service_type: RabbitMQ
+            source_type: file
     PostgreSQL:
-      Image_Name: "iktaraai/services:postgres"
-      Image_Ver: "1.0.0"
-      Int_IP_Addr: "180.75.0.5"
+      Image_Name: iktaraai/services:postgres
+      Image_Ver: 1.0.0
+      Int_IP_Addr: 180.75.0.5
       Int_Port: 5432
-      Command: >-
-        postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
+      Command: postgres -c logging_collector=on -c log_destination=stderr -c log_directory=/var/log/postgresql
         -c log_filename=postgresql-%Y-%m-%d_%H%M%S.log -c log_rotation_age=1d -c log_rotation_size=10MB
-        -c log_truncate_on_rotation=on -c log_min_messages=info -c log_connections=on -c log_disconnections=on
+        -c log_truncate_on_rotation=on -c log_min_messages=info -c log_connections=on
+        -c log_disconnections=on
       Environment:
-        POSTGRES_USER: "postgres"
-        POSTGRES_PASSWORD: "password"
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: password
       Volumes:
-        - "/{{ machine_volume }}/iktara/postgresDB:/var/lib/postgresql/data"
-        - "/{{ machine_volume }}/iktara/postgresLogs:/var/log/postgresql"
+      - /{{ machine_volume }}/iktara/postgresDB:/var/lib/postgresql/data
+      - /{{ machine_volume }}/iktara/postgresLogs:/var/log/postgresql
       Observability:
         container_history:
           enabled: true
         file_logs:
           enabled: true
           paths:
-            - "/{{ machine_volume }}/iktara/postgresLogs"
+          - /{{ machine_volume }}/iktara/postgresLogs
           loki_labels:
-            service_name: "PostgreSQL"
-            service_type: "PostgreSQL"
-            source_type: "file"
-
+            service_name: PostgreSQL
+            service_type: PostgreSQL
+            source_type: file
   AirtelChurn:
-      HW_Info:
-        CPUs: 2
-        GPUs: 0
-        RAM_GB: 4
-        Storage_GB: 10
-
-      SW_Info:
-        OS Type: "Linux"
-        Distribution Name: "Ubuntu"
-        Distribution Version: "22.04"
-        Docker Installed: "Yes"
-        NVIDIA Container Toolkit Installed: "No"
-
-      Docker_Info:
-        AirtelChurn:
-          Image_Name: "iktaraai/services:airtel-churn"
-          Image_Ver_List: ["1.0.0","2.0.0"]
-          Int_IP_Addr: "180.75.0.20"
-          Int_Port: 8000
-
-          Volumes:
-            - "/{{ machine_volume }}/iktara/Repository:/iktara/Repository"
-            - "/{{ service_volume }}/iktara/airtelChurn/logs:/iktara/airtelChurn/logs"
-
-          Role: "Primary"
-
-          env:
-            DJANGO_ENV_FILE: "/iktara/{{ service }}/platform/docker/{{ service }}/deployment.env"
-          Observability:
-            container_history:
-              enabled: true
-            file_logs:
-              enabled: true
-              paths:
-                - "/{{ service_volume }}/iktara/airtelChurn/logs"
-              loki_labels:
-                service_name: "AirtelChurn"
-                service_type: "AirtelChurn"
-                source_type: "file"
-            service_events:
-              enabled: true
-            live_logs:
-              enabled: true
-
-          memory: "4g"
-          memory_swap: "4g"
-
+    HW_Info:
+      CPUs: 2
+      GPUs: 0
+      RAM_GB: 4
+      Storage_GB: 10
+    SW_Info:
+      OS Type: Linux
+      Distribution Name: Ubuntu
+      Distribution Version: '22.04'
+      Docker Installed: 'Yes'
+      NVIDIA Container Toolkit Installed: 'No'
+    Docker_Info:
+      AirtelChurn:
+        Image_Name: iktaraai/services:airtel-churn
+        Image_Ver_List:
+        - 1.0.0
+        - 2.0.0
+        Int_IP_Addr: 180.75.0.20
+        Int_Port: 8000
+        Volumes:
+        - /{{ machine_volume }}/iktara/Repository:/iktara/Repository
+        - /{{ service_volume }}/iktara/airtelChurn/logs:/iktara/airtelChurn/logs
+        Role: Primary
+        env:
+          DJANGO_ENV_FILE: /iktara/{{ service }}/platform/docker/{{ service }}/deployment.env
+        Observability:
+          container_history:
+            enabled: true
+          file_logs:
+            enabled: true
+            paths:
+            - /{{ service_volume }}/iktara/airtelChurn/logs
+            loki_labels:
+              service_name: AirtelChurn
+              service_type: AirtelChurn
+              source_type: file
+          service_events:
+            enabled: true
+          live_logs:
+            enabled: true
+        memory: 4g
+        memory_swap: 4g
   Text2CLK:
     HW_Info:
       CPUs: 2
@@ -1941,37 +1919,80 @@ services:
       RAM_GB: 4
       Storage_GB: 10
     SW_Info:
-      OS Type: "Linux"
-      Distribution Name: "Ubuntu"
-      Distribution Version: "22.04"
-      Docker Installed: "Yes"
-      NVIDIA Container Toolkit Installed: "No"
+      OS Type: Linux
+      Distribution Name: Ubuntu
+      Distribution Version: '22.04'
+      Docker Installed: 'Yes'
+      NVIDIA Container Toolkit Installed: 'No'
     Docker_Info:
       Text2CLK:
-        Image_Name: "iktaraai/services:text2clk"
-        Image_Ver_List: ["1.0.0","2.0.0"]
-        Int_IP_Addr: "180.75.0.18"
+        Image_Name: iktaraai/services:text2clk
+        Image_Ver_List:
+        - 1.0.0
+        - 2.0.0
+        Int_IP_Addr: 180.75.0.18
         Int_Port: 9002
         Network_Aliases:
-          - "text2clk"
+        - text2clk
         Volumes:
-          - "/{{ service_volume }}/iktara/text2clk/logs:/iktara/text2clk/text2clk/logs"
-          - "/{{ machine_volume }}/iktara/Repository:/iktara/Repository"
-        Role: "Primary"
+        - /{{ service_volume }}/iktara/text2clk/logs:/iktara/text2clk/text2clk/logs
+        - /{{ machine_volume }}/iktara/Repository:/iktara/Repository
+        Role: Primary
         env:
-          DJANGO_ENV_FILE: "/iktara/{{ service }}/platform/docker/{{ service }}/deployment.env"
+          DJANGO_ENV_FILE: /iktara/{{ service }}/platform/docker/{{ service }}/deployment.env
         Observability:
           container_history:
             enabled: true
           file_logs:
             enabled: true
             paths:
-              - "/{{ service_volume }}/iktara/text2clk/logs"
+            - /{{ service_volume }}/iktara/text2clk/logs
             loki_labels:
-              service_name: "Text2CLK"
-              service_type: "Text2CLK"
-              source_type: "file"
+              service_name: Text2CLK
+              service_type: Text2CLK
+              source_type: file
           service_events:
             enabled: true
+          live_logs:
+            enabled: true
+  PlatformOpsTest:
+    HW_Info:
+      CPUs: 2
+      GPUs: 0
+      RAM_GB: 4
+      Storage_GB: 10
+    SW_Info:
+      OS Type: Linux
+      Distribution Name: Ubuntu
+      Distribution Version: '22.04'
+      Docker Installed: 'Yes'
+      NVIDIA Container Toolkit Installed: 'No'
+    Docker_Info:
+      PlatformOpsTest:
+        Image_Name: platformops/test-service
+        Image_Ver: 1.0.0
+        Int_IP_Addr: 180.75.0.30
+        Int_Port: 6379
+        Network_Name: platformops_network
+        Default_Expose_Service: true
+        Default_Host_Port: 9030
+        Volumes:
+        - /{{ service_volume }}/platformops/testServiceLogs:/var/log/test-service
+        - /{{ service_volume }}/platformops/testServiceConfig/test_service.conf:/etc/test_service.conf
+        Config_Files:
+        - src: ../../docker/redis/redis.conf
+          dest: /{{ service_volume }}/platformops/testServiceConfig/test_service.conf
+          mode: '0644'
+        Observability:
+          container_history:
+            enabled: true
+          file_logs:
+            enabled: true
+            paths:
+            - /{{ service_volume }}/platformops/testServiceLogs
+            loki_labels:
+              service_name: PlatformOpsTest
+              service_type: PlatformOpsTest
+              source_type: file
           live_logs:
             enabled: true

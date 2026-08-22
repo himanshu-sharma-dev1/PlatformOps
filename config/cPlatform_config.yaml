@@ -21,9 +21,9 @@ CPLATFORM_CONFIG:
     Could you try rewording it or provide a little more detail?
   intents: []
   llm:
-    llm_host: ''
+    llm_host: 172.236.115.95
     llm_model: llama3.1
-    llm_port: ''
+    llm_port: '9003'
   llm_params:
     format: json
     keep_alive: -1
@@ -35,7 +35,7 @@ CPLATFORM_CONFIG:
     mail_agent: ''
     mail_host: ''
     mail_password: ''
-    mail_port: 34
+    mail_port: 0
     mail_use_tls: true
     mail_username: ''
   mcp:
@@ -59,23 +59,23 @@ CPLATFORM_CONFIG:
   repo:
     master_auth_type: Password
     master_host: 216.48.189.217
-    master_password: ''
-    master_path: /home/ubuntu/Backup_Platform/platformops/Repository
+    master_password: DDRPVP@ecjkt457
+    master_path: 500/iktara/Repository
     master_pem_file_name: null
     master_pem_file_text: null
     master_username: root
     repo_role: Primary
     repo_sync: LOCAL
   service:
-    cplatform_url: ''
-    deploy_status: NOT DEPLOYED
+    cplatform_url: http://iktaratech.com
+    deploy_status: null
     gpu_flag: Disable
-    mcp_url: ''
+    mcp_url: null
     service_install: MANUAL
     service_ip: 216.48.189.217
     service_port: 80
     service_version: 2.0.0
-    text2sql_url: ''
+    text2sql_url: null
     time_zone: Asia/Kolkata
   widget:
     report_queue: platformops_dataflow

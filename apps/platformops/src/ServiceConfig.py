@@ -62,6 +62,8 @@ INFRA_SERVICE_VERSIONS = {
     "InfraPrometheus": "1.0.0",
     "InfraPrometheusANS": "1.0.0",
     "InfraPrometheusRAG": "1.0.0",
+    "PlatformOpsTest": "1.0.0",
+    "InfraPlatformOpsTest": "1.0.0",
 }
 
 INFRASTRUCTURE_SERVICE_CATALOG = {
@@ -221,9 +223,18 @@ INFRASTRUCTURE_SERVICE_CATALOG = {
         "category": "monitor",
         "catalog_visible": False,
     },
+    "InfraPlatformOpsTest": {
+        "display_name": "PlatformOps Test Service",
+        "source_service": "PlatformOpsTest",
+        "source_role": "PlatformOpsTest",
+        "container_slug": "platformops-test-service",
+        "category": "service",
+    },
 }
 
 INFRASTRUCTURE_CONFIG_PATHS = {
+    "PlatformOpsTest": "/etc/test_service.conf",
+    "InfraPlatformOpsTest": "/etc/test_service.conf",
     "Text2CLK": "/iktara/text2clk/text2clk/config/text2clkConfig.yaml",
     "MCPServer": "/iktara/mcpServer/mcpServer/config/toolRegistry.yaml",
     "Postgres": "/var/lib/postgresql/data/postgresql.conf",
@@ -1316,7 +1327,7 @@ def _send_service_config_api(service_name, service_port):
         config_push_path = f"/{config_push_path}"
     service_url = f"http://{host}:{port}{config_push_path}"
     try:
-        response = requests.post(url=service_url, json=req_data, timeout=30, verify=False)
+        response = requests.post(url=service_url, json=req_data, timeout=5, verify=False)
         app_logger.debug(f"Service Config API Response for {service_name}: {response.status_code} - {response.text}")
     except requests.RequestException as e:
         app_logger.error(f"Failed to send config to {service_name} at {service_url}: {e}")
