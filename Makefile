@@ -12,13 +12,12 @@ PLATFORMOPS_ISOLATED_IMAGE ?= platformops:isolated
 ISOLATED_MAILPIT_PROFILE = $(if $(filter 1 true yes,$(PLATFORMOPS_ENABLE_MAILPIT)),--profile mailpit,)
 ISOLATED_GLITCHTIP_PROFILE = $(if $(filter 1 true yes,$(PLATFORMOPS_ENABLE_GLITCHTIP)),--profile glitchtip,)
 
-.PHONY: help api seed web compose-up compose-down check compile unit build docker-build \
+.PHONY: help api web compose-up compose-down check compile unit build docker-build \
 	isolated-verify isolated-up isolated-down lint format clean
 
 help:
 	@echo "Available targets:"
 	@echo "  api              - Run the FastAPI backend with hot-reload"
-	@echo "  seed             - Explicitly seed the selected local database (mutating)"
 	@echo "  web              - Run the React frontend in dev mode"
 	@echo "  compose-up/down  - Legacy local stack controls (9002; preserve live use)"
 	@echo "  compile          - Compile Python sources without running the application"

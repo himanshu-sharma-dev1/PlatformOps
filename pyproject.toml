@@ -10,8 +10,8 @@ authors = [
 ]
 
 [project.urls]
-Repository = "https://github.com/himanshusharma/PlatformOps"
-Documentation = "https://github.com/himanshusharma/PlatformOps/tree/main/docs"
+Repository = "https://github.com/himanshu-sharma-dev1/PlatformOps"
+Documentation = "https://github.com/himanshu-sharma-dev1/PlatformOps/tree/main/docs"
 
 [tool.mypy]
 python_version = "3.12"
@@ -24,3 +24,38 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "platformops.*"
 disallow_untyped_defs = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort (import ordering)
+    "UP",   # pyupgrade (modern Python syntax)
+    "B",    # flake8-bugbear (common bugs)
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults (FastAPI Depends)
+    "SIM108", # use ternary operator (readability preference)
+    "UP042",   # Class inherits from both str and Enum
+    "TCH001", # Move application import into a type-checking block
+    "TCH002", # Move third-party import into a type-checking block
+    "TCH003", # Move standard library import into a type-checking block
+]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["T201"]  # allow print() in scripts
+
+[tool.ruff.lint.isort]
+known-first-party = ["platformops"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
