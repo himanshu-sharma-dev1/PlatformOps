@@ -25,7 +25,6 @@ DOCKERIGNORE_PATH = ROOT / ".dockerignore"
 E2E_PATH = ROOT / "scripts/run_e2e_tests.py"
 CLUSTER_SMOKE_PATH = ROOT / "scripts/cluster_api_smoke.py"
 LIVE_API_SMOKE_PATH = ROOT / "scripts/test_live_api.py"
-FRONTEND_SPLITTER_PATH = ROOT / "scripts/split_frontend_main.py"
 FRONTEND_CLIENT_PATH = ROOT / "apps/web/src/api/client.ts"
 ISOLATED_CONFIG_DIR = ROOT / "ops/compose/isolated"
 
@@ -242,7 +241,6 @@ def verify_smoke_guards() -> None:
             fail(f"{label} must send bearer authentication for protected requests")
 
     frontend_sources = (
-        (FRONTEND_SPLITTER_PATH, "Generated frontend splitter"),
         (FRONTEND_CLIENT_PATH, "Frontend API client"),
     )
     for path, label in frontend_sources:

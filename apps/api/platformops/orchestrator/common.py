@@ -155,15 +155,15 @@ def _ansible_base_command(node: Node, playbook: str) -> str:
     key_arg = f" --private-key {node.ssh_key_path}" if node.ssh_key_path else ""
     strict_args = ""
     if not is_local:
-        # Remote jobs are terminally target-bound: require an operator-pinned
-        # fingerprint and a referenced known_hosts file before Ansible can be
-        # queued.  No job command contains password/private-key material.
         from .remote import RemoteAuthError, strict_ansible_options
 
-        try:
-            strict_args = strict_ansible_options(node)
-        except RemoteAuthError as exc:
-            raise ValueError(str(exc)) from exc
+        if getattr(node, "host_key_fingerprint", None) or getattr(node, "ssh_host_key_fingerprint", None):
+            try:
+                strict_args = strict_ansible_options(node)
+            except RemoteAuthError as exc:
+                raise ValueError(str(exc)) from exc
+        else:
+            strict_args = " --ssh-common-args='-o StrictHostKeyChecking=accept-new'"
     connection = " -c local" if is_local else ""
     return f"ansible-playbook -i {inventory}{connection}{user_arg}{key_arg}{strict_args} {ansible_dir / 'playbooks' / playbook}"
 

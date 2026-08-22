@@ -29,9 +29,17 @@ _SECRET_KEY_PARTS = (
 _AUTH_MODE_KEYS = {"auth", "repo_auth", "registry_auth", "auth_mode", "auth_type"}
 _PEM_MARKER = re.compile(r"-----BEGIN(?: [A-Z0-9]+)? PRIVATE KEY-----")
 _CREDENTIAL_TEXT = re.compile(
-    r"(?i)\b(password|passwd|token|secret|private[_ -]?key|credential|authorization|bearer|api[_ -]?key)\b"
-    r"\s*([:=])\s*([^\s,;]+)"
+    r"(?ix)"
+    r"(?P<key>password|passwd|token|secret|private[_ -]?key|credential|authorization|api[_ -]?key)"
+    r"\s*(?P<separator>[:=])\s*(?:(?:bearer)\s+)?[^\s,;]+"
+    r"|(?P<scheme>bearer)\s+[^\s,;]+"
 )
+
+
+def _redact_credential_match(match: re.Match[str]) -> str:
+    key = match.group("key") or match.group("scheme") or "credential"
+    separator = match.group("separator") or " "
+    return f"{key}{separator}[REDACTED]"
 
 
 def is_secret_key(key: object) -> bool:
@@ -53,7 +61,9 @@ def redact_secrets(value: Any, *, key_hint: str | None = None) -> Any:
     if key_hint and is_secret_key(key_hint):
         return "***"
     if isinstance(value, str):
-        return "***" if _PEM_MARKER.search(value) else value
+        if _PEM_MARKER.search(value):
+            return "***"
+        return _CREDENTIAL_TEXT.sub(_redact_credential_match, value)
     if isinstance(value, dict):
         return {str(key): redact_secrets(item, key_hint=str(key)) for key, item in value.items()}
     if isinstance(value, list):
@@ -83,5 +93,5 @@ def redact_text(value: str | None, *, secrets: tuple[str, ...] = ()) -> str:
     for secret in secrets:
         if secret:
             output = output.replace(secret, "***")
-    output = _CREDENTIAL_TEXT.sub(r"\1\2[REDACTED]", output)
+    output = _CREDENTIAL_TEXT.sub(_redact_credential_match, output)
     return "***" if _PEM_MARKER.search(output) else output
