@@ -56,17 +56,22 @@ def monitoring_health(payload: MonitoringServiceRequest, db: Session = Depends(g
     error_count = sum(1 for i in issues if i.get("level") in ("error", "fatal"))
     warning_count = sum(1 for i in issues if i.get("level") == "warning")
 
+    # Direct container/PING evidence owns service health.  GlitchTip is a
+    # separate integration dimension: an unconfigured or unreachable external
+    # API must not hide a real Redis failure or turn a healthy Redis target
+    # into a fabricated "unknown" state.
     health = "ok"
     if not running or error_count:
         health = "error"
     elif warning_count:
         health = "warn"
-    if isinstance(issues_result, dict) and issues_result.get("availability") != "available":
-        health = "unavailable"
+    probe_availability = "available" if probe.get("status") == "ok" else ("error" if probe.get("status") == "error" else "degraded")
+    issues_available = isinstance(issues_result, dict) and issues_result.get("availability") == "available"
+    combined_availability = probe_availability if not issues_available else "available"
 
     return {
         "success": True,
-        "availability": issues_result.get("availability") if issues_result.get("availability") != "available" else ("available" if probe.get("status") == "ok" else "degraded"),
+        "availability": combined_availability,
         "source": "docker+glitchtip",
         "checked_at": probe.get("checked_at"),
         "error": (issues_result.get("error") if isinstance(issues_result, dict) else None) or probe.get("error"),

@@ -34,15 +34,18 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 def init_db() -> None:
     settings.resolve(settings.runtime_dir).mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(bind=engine)
-    _migrate_sqlite_schema()
+    _migrate_schema()
 
 
-def _migrate_sqlite_schema() -> None:
-    """Add columns introduced after initial create_all for existing SQLite volumes."""
-    url = _database_url()
-    if not url.startswith("sqlite:///"):
-        return
-    from sqlalchemy import text
+def _migrate_schema() -> None:
+    """Apply additive compatibility columns on SQLite and PostgreSQL.
+
+    ``create_all`` only handles fresh databases.  Production Postgres volumes
+    can outlive the ORM model, so every additive column is checked through the
+    dialect-neutral SQLAlchemy inspector before issuing ``ALTER TABLE``.  No
+    values are backfilled for credential fields; their defaults are empty.
+    """
+    from sqlalchemy import inspect, text
 
     migrations: list[tuple[str, str, str]] = [
         ("clusters", "description", "ALTER TABLE clusters ADD COLUMN description TEXT DEFAULT ''"),
@@ -84,19 +87,24 @@ def _migrate_sqlite_schema() -> None:
         ("user_info", "permissions", "ALTER TABLE user_info ADD COLUMN permissions TEXT DEFAULT '[]'"),
     ]
     with engine.begin() as conn:
+        inspector = inspect(conn)
+        table_columns = {
+            table: {str(item["name"]) for item in inspector.get_columns(table)}
+            for table in inspector.get_table_names()
+        }
         for table, column, ddl in migrations:
-            try:
-                rows = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
-                existing = {r[1] for r in rows}
-                if column not in existing:
-                    conn.execute(text(ddl))
-            except Exception:
-                pass
+            existing = table_columns.get(table)
+            if existing is None or column in existing:
+                continue
+            conn.execute(text(ddl))
+            # SQLAlchemy's Inspector caches metadata; update the local view so
+            # the same startup pass remains idempotent after an ALTER.
+            existing.add(column)
         # A few pre-migration development databases used the shorter aliases
         # from the editor.  Preserve those values when the canonical columns
         # are introduced alongside them.
         try:
-            cluster_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(clusters)"))}
+            cluster_columns = table_columns.get("clusters", set())
             if "type" in cluster_columns and "cluster_type" in cluster_columns:
                 conn.execute(
                     text(
@@ -108,7 +116,7 @@ def _migrate_sqlite_schema() -> None:
         except Exception:
             pass
         try:
-            node_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(nodes)"))}
+            node_columns = table_columns.get("nodes", set())
             aliases = {
                 "az": "availability_zone",
                 "monitoring_port": "monitor_port",
