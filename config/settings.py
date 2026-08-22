@@ -19,8 +19,8 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 sys.path.insert(0, str(BASE_DIR / "apps"))
-sys.path.insert(0, str(BASE_DIR / "packages"))
 sys.path.insert(0, str(BASE_DIR / "apps" / "platformops"))
+sys.path.insert(0, str(BASE_DIR / "apps" / "platformops" / "lib"))
 
 temp_path = os.path.join(BASE_DIR, 'config')
 NEW_BASE_DIR = BASE_DIR
@@ -196,7 +196,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "static"),
-    os.path.join(NEW_BASE_DIR, "CutilJS")
 ]
 # Where static files will be collected
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
@@ -218,8 +217,10 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 1024 * 1024 * 1024
 PASSWORD_RESET_TIMEOUT = 300
 
 CSRF_TRUSTED_ORIGINS = [
-    'https://iktaratech.co',
-    'https://www.iktaratech.co',
+    'http://localhost:9020',
+    'http://127.0.0.1:9020',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
 ]
 
 

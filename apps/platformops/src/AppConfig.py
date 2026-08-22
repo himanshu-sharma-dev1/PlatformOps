@@ -1,5 +1,5 @@
 ''''*******************************************************************************************************************
-* Copyright         : Iktara Data Sciences
+* Copyright         : PlatformOps
 * File Name         : Appconfig.py
 * Description       : Functions related to Application Configuration
 *

@@ -1,5 +1,5 @@
 '''*******************************************************************************************************************
-* Copyright         : Iktara Data Sciences
+* Copyright         : PlatformOps
 * File Name         : ServiceConfig.py
 * Description       : Functions related to Service feature
 *
@@ -26,7 +26,7 @@ from celery import shared_task
 # Module Models & Constants
 from cPlatformIO.models import Service, ApplicationInfo, Node
 from cPlatform.AppLogging import app_logger
-from cPlatformIO.src import serviceInstall, NodeConfig, Cutilinit, PlatformConfig, McpclInit
+from cPlatformIO.src import serviceInstall, NodeConfig, Cutilinit, PlatformConfig
 from cPlatformIO.src.serviceEvent import service_event_add_request
 from cPlatformIO.src.PlatformSetting import PlatformSettings
 from CommonUtils.logs import LogMgr
@@ -1216,11 +1216,8 @@ def _update_orchestrator_config(request_info):
     LogMgr.commonutils_update_logger_level('cplatform_server', request_info['service_debug'])
     LogMgr.commonutils_update_logger_level('cplatform_celery', request_info['service_debug'])
 
-    # Update CommonUtils Config
+    # Update Inlined Utils Config
     ret, msg = Cutilinit.update_commonutils_config()
-
-    # Update MCPClient Config
-    ret, msg = McpclInit.update_mcpclient_config()
 
     return ret, msg
 

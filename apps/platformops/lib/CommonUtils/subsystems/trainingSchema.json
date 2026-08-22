@@ -1,0 +1,219 @@
+{
+  "$id": "TBD1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Interface Definition between orchestrator and Training Subsystem",
+  "training_add_req_message_schema": {
+    "title": "Training Request Message Schema",
+    "description": "Training request Message Schema",
+    "type": "object",
+    "required": [
+      "request_type",
+      "model_id",
+      "model_info",
+      "algo_list",
+      "training_server_info"
+    ],
+    "properties": {
+      "model_id": {
+        "description": "A unique identifier for a training model",
+        "type": "string"
+      },
+      "request_type": {
+        "description": "A request type of model",
+        "type": "string"
+      },
+      "model_info": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/model_info"
+        }
+      },
+      "training_server_info": {
+        "type": "object",
+        "properties": {
+          "workload_mgr": {
+            "type": "boolean"
+          },
+          "server_info": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/server_info"
+            }
+          }
+        }
+      },
+      "algo_list": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/algo_info"
+        },
+        "description": "Algo list"
+      },
+      "additionalProperties": false
+    },
+    "$defs": {
+      "algo_info": {
+        "type": "object",
+        "required": [
+          "algo_id",
+          "algo_category",
+          "algo_type",
+          "preprocess_type",
+          "algo_config"
+        ],
+        "properties": {
+          "algo_id": {
+            "type": "string"
+          },
+          "algo_category": {
+            "type": "string"
+          },
+          "algo_type": {
+            "type": "string"
+          },
+          "preprocess_type": {
+            "type": "string"
+          },
+          "algo_config": {
+            "type": "string"
+          }
+        }
+      },
+      "server_info": {
+        "type": "object",
+        "properties": {
+          "training_server": {
+            "type": "string"
+          },
+          "num_cpu": {
+            "type": "integer"
+          },
+          "num_gpu":    {
+            "type": "integer"
+          }
+        }
+      },
+      "model_info": {
+        "type": "object",
+        "properties": {
+          "sub_dir": {
+            "type": "string"
+          },
+          "file_list": {
+            "type": "array"
+          },
+          "file_type":    {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+    "training_add_resp_message_schema": {
+      "title": "Training Response Message Schema",
+      "description": "Training Response Message Schema",
+      "type": "object",
+      "required": [
+        "model_id",
+        "model_error",
+        "model_status"
+      ],
+      "properties": {
+        "model_id": {
+          "type": "string"
+        },
+        "model_error": {
+          "type": "string"
+        },
+        "model_status": {
+          "type": "string"
+        },
+        "additionalProperties": false
+      }
+    },
+    "training_update_ind_message_schema": {
+      "title": "Training Update Indication Message Schema",
+      "description": "Training Update Indication Message Schema",
+      "type": "object",
+      "required": [
+        "model_id",
+        "model_info",
+        "algo_list"
+      ],
+      "properties": {
+        "model_id": {
+          "description": "A unique identifier for a training model",
+          "type": "string"
+        },
+        "model_info": {
+          "type": "object",
+          "required": [
+            "model_status"
+          ],
+          "model_status": {
+            "type": "string"
+          },
+          "model_error": {
+            "type": "string"
+          },
+          "total_model_time_sec": {
+            "type": "number"
+          }
+        },
+        "algo_list": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/algo_info"
+          },
+          "description": "Algo list Response"
+        }
+      },
+      "$defs": {
+        "algo_info": {
+          "type": "object",
+          "required": [
+            "algo_id",
+            "algo_time_sec",
+            "algo_status"
+          ],
+          "properties": {
+            "algo_id": {
+              "type": "string"
+            },
+            "algo_time_sec": {
+              "type": "number"
+            },
+            "algo_status": {
+              "type": "string"
+            },
+            "algo_metrics": {
+            "type": "object",
+            "description": "Metrics for the algorithm. Can contain dynamic key-value pairs.",
+            "additionalProperties": {
+              "type": "number"
+            }
+          }
+          }
+        }
+      }
+    },
+    "training_del_req_message_schema": {
+      "title": "Training Del Req Message Schema",
+      "description": "Training Del Req Message Schema",
+      "type": "object",
+      "required": [
+        "model_id"
+      ],
+      "properties": {
+        "model_id": {
+          "type": "string"
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+
+
+
+
+

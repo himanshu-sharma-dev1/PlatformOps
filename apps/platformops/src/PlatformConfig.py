@@ -1,5 +1,5 @@
 ''''*******************************************************************************************************************
-* Copyright         : Iktara Data Sciences
+* Copyright         : PlatformOps
 * File Name         : CommonConfig.py
 * Description       : Functions related to platform config
 *

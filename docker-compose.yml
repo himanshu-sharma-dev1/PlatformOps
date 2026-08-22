@@ -132,7 +132,7 @@ services:
       - "9020:8000"
     command: gunicorn --bind 0.0.0.0:8000 --workers 2 --timeout 120 config.wsgi:application
     environment:
-      PYTHONPATH: /app:/app/apps:/app/packages
+      PYTHONPATH: /app:/app/apps:/app/apps/platformops:/app/apps/platformops/lib
       DJANGO_SETTINGS_MODULE: config.settings
       DJANGO_ENV_FILE: /app/config/local.env
       DIAGNOSTICS_ENV_FILE: /app/config/diagnostics.env

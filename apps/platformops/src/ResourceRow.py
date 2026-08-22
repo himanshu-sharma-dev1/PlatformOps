@@ -1,5 +1,5 @@
 ''''*******************************************************************************************************************
-* Copyright         : Iktara Data Sciences
+* Copyright         : PlatformOps
 * File Name         : ResourceRow.py
 * Description       : Functions related to Model Resource Allocation
 *

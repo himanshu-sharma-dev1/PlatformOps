@@ -14,52 +14,27 @@ from django.http import JsonResponse, HttpResponse, FileResponse
 from django.core.cache import cache
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth import authenticate
-from MCPClient.src import mcpWidget
 from django.views.decorators.http import require_http_methods
-from django.core.serializers.json import DjangoJSONEncoder
-import dspy
-import traceback
-from typing import Any
-from .models import InviteToken, Cluster, Node
-# Common Util Functions
+from django.contrib.auth import authenticate
+from .models import InviteToken, Cluster, Node, Service, UserInfo
 from CommonUtils.auth.AuthMgr import admin_only
 from CommonUtils.dformSchema import getSchema
 from CommonUtils.restapi.RestApiMgr import commonutils_restapi_request_decode
-from CommonUtils.subsystems.inferenceEnc import cutil_inference_get
 from CommonUtils.stats import MachineStats, ServiceStats
-# Module Models & Constants
+
 from cPlatformIO.src import (
     AppConfig, ClusterConfig, UserMgmnt, ServiceConfig, NodeConfig,
-    serviceEvent, NodeEvent, Cutilinit, McpclInit, ServiceDiagnostics,
+    serviceEvent, NodeEvent, Cutilinit, ServiceDiagnostics,
     systemMonitoring
 )
 
 from cPlatform import ServiceMonitoring
 from cPlatform.AppLogging import app_logger
-
 from cPlatformIO.src.PlatformSetting import PlatformSettings
 from django.utils import timezone
 from datetime import timedelta
 from django.contrib.auth.models import User
-from .models import UserInfo
 import yaml
-from cPlatformIO.models import Cluster, Node, Service, ModelInfo
-from cPlatformIO.models import DataflowStreamConfig
-from cPlatformIO.src.demo_control_plane import (
-    ContractValidationError,
-    build_stream_contract,
-    kafka_catalog,
-)
-from cPlatformIO.src.noc_runtime import (
-    NocRuntimeError,
-    apply_action as noc_apply_action,
-    runtime_for as noc_runtime_for,
-    save_runtime as noc_save_runtime,
-    snapshot_for as noc_snapshot_for,
-)
-# Cutilinit.update_commonutils_config()
-# McpclInit.update_mcpclient_config()
 # Base directory
 BASE_DIR = settings.NEW_BASE_DIR
 

@@ -27,7 +27,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css">
 	<script src="https://kit.fontawesome.com/64d58efce2.js" crossorigin="anonymous"></script>
 	{% load static %}
-	<link rel="shortcut icon" type="image/png" href="{% static 'Iktara/favicon.png' %}"/>
+	<link rel="shortcut icon" type="image/png" href="{% static 'PlatformOps/favicon.png' %}"/>
 	<title>Sign in & Sign up Form</title>
     <style>
 * {
@@ -344,7 +344,7 @@ form.sign-in-form {
 			<div class="signin-signup">
 				<form method="post" class="form-group">
 					  {% csrf_token %}
-					<img src="{% static 'Iktara/iktara-logo.png' %}" class="mentis mb-4">
+					<img src="{% static 'PlatformOps/iktara-logo.png' %}" class="mentis mb-4">
 					<div class="input-field">
 						<i class="fas bi bi-person-fill"></i>
 						   {{ form.username }}

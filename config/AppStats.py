@@ -1,5 +1,5 @@
 ''''*******************************************************************************************************************
-* Copyright         : Iktara Data Sciences
+* Copyright         : PlatformOps
 * File Name         : AppStats.py
 * Description       : Functions related to statistics and counters
 *

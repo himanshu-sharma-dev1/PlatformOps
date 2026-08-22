@@ -867,18 +867,18 @@ function loadServiceGlitchTipIframe(forceReload = false){
         return
     }
     if(status){
-        status.textContent = 'Loading Iktara Observability...'
+        status.textContent = 'Loading PlatformOps Observability...'
     }
     frame.onload = function(){
         const statusEl = document.getElementById('service-glitchtip-status')
         if(statusEl){
-            statusEl.textContent = 'Iktara Observability loaded.'
+            statusEl.textContent = 'PlatformOps Observability loaded.'
         }
     }
     frame.onerror = function(){
         const statusEl = document.getElementById('service-glitchtip-status')
         if(statusEl){
-            statusEl.textContent = 'Unable to load Iktara Observability iframe.'
+            statusEl.textContent = 'Unable to load PlatformOps Observability iframe.'
         }
     }
     if(forceReload || !serviceGlitchTipLoaded || frame.src !== serviceGlitchTipUrl){

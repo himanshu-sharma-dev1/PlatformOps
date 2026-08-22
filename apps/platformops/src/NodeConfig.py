@@ -1,5 +1,5 @@
 '''*******************************************************************************************************************
-* Copyright         : Iktara Data Sciences
+* Copyright         : PlatformOps
 * File Name         : NodeConfig.py
 * Description       : Functions related to Node feature
 *

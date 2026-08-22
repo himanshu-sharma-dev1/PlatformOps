@@ -1,5 +1,5 @@
 ''''*******************************************************************************************************************
-* Copyright         : Iktara Data Sciences
+* Copyright         : PlatformOps
 * File Name         : UserMgmnt.py
 * Description       : Functions related to  User Mgmt
 *
@@ -363,7 +363,7 @@ def service_user_invite(name, user_email, phone, role, permissions, invited_by):
 
 
     # Send email
-    mail_subject = f"You're invited to join YantrAI"
+    mail_subject = f"You're invited to join PlatformOps"
     mail_body = get_template('PlatformIO/email_invite.html').render({
         "invite_link": invite_link,
         "user_name": name,
@@ -437,7 +437,7 @@ def service_user_resend_invite_bulk(emails, invited_by):
             "role":        user.user_role,
             "expires_in":  "30 days",
         })
-        ret, msg = cutil_send_email("You're invited to join YantrAI", mail_body, [user_email])
+        ret, msg = cutil_send_email("You're invited to join PlatformOps", mail_body, [user_email])
         if ret:
             sent_count += 1
     return sent_count, skipped_count
@@ -456,7 +456,7 @@ def service_revoke_and_delete_pending(user_email, invited_by):
             mail_config['mail_username'], mail_config['mail_password'],
             mail_config['mail_host'], mail_config['mail_port'], mail_config['mail_use_tls'],
         )
-        cutil_send_email("Your YantrAI invitation has been revoked", mail_body, [user_email])
+        cutil_send_email("Your PlatformOps invitation has been revoked", mail_body, [user_email])
     except Exception as e:
         print(f"Email failed: {e}")
 
@@ -495,7 +495,7 @@ def user_delete_request(user_email, initiated_by):
             mail_config['mail_username'], mail_config['mail_password'],
             mail_config['mail_host'], mail_config['mail_port'], mail_config['mail_use_tls'],
         )
-        cutil_send_email("Your YantrAI account has been deleted", mail_body, [user_email])
+        cutil_send_email("Your PlatformOps account has been deleted", mail_body, [user_email])
         print("email sent!")
     except Exception as e:
         print(f"Email failed: {e}")

@@ -1,5 +1,5 @@
 '''*******************************************************************************************************************
-* Copyright         : Iktara Data Sciences
+* Copyright         : PlatformOps
 * File Name         : serviceEvent.py
 * Description       : Functions related to Service Events
 *

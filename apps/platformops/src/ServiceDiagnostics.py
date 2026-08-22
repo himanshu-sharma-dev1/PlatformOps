@@ -3246,7 +3246,7 @@ def service_log_analytics_chat(service_id, question, window="current", diagnosti
     
     if _is_llm_configured():
         system_prompt = (
-            "You are Iktara Log Analyst, an advanced operations AI diagnostics chatbot. "
+            "You are PlatformOps Log Analyst, an advanced operations AI diagnostics chatbot. "
             "Return strict JSON ONLY matching the requested schema. "
             "You are in a multi-turn conversation. You must focus entirely on answering the user's LATEST question located at the end of the prompt under the 'QUESTION:' block. "
             "Ignore any previous questions or instructions in the chat history; they are for reference only. "

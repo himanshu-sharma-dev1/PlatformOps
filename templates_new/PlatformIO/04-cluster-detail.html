@@ -6,7 +6,7 @@
 <meta charset="UTF-8">
 {% load static %}
 <link rel="stylesheet" type="text/css" href="{% static 'css/clusterDetail.css' %}">
-<title>Iktara · {{cluster_info.1.cluster_name}} / Nodes</title>
+<title>PlatformOps · {{cluster_info.1.cluster_name}} / Nodes</title>
 <style>
 /* CSS copied from cluster.css to style the cluster edit drawer steps and controls */
 #editClusterDrawer .section-head-sm {
@@ -940,7 +940,7 @@
         </div>
         <div class="field">
           <label>Image source</label>
-          <select class="select"><option>Iktara golden AMI</option><option>Cloud default</option></select>
+          <select class="select"><option>PlatformOps golden AMI</option><option>Cloud default</option></select>
         </div>
       </div>
 
@@ -1851,7 +1851,7 @@
 <script>
   (function(){
     try {
-      var storedTheme = localStorage.getItem('iktara-theme');
+      var storedTheme = localStorage.getItem('platformops-theme');
       var preferredTheme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       document.documentElement.setAttribute('data-theme', storedTheme || preferredTheme);
     } catch (themeErr) {
@@ -2845,7 +2845,7 @@
       <div class="auth-pane" data-auth-pane="oauth">
         <div class="field">
           <p style="font-size:12px; color:var(--ink-3); padding:var(--s-3); background:var(--bg-sunken); border-radius:var(--r-md); line-height:1.55;">
-            Connect via OAuth app. Click <strong>Authorize</strong> below to grant the Iktara GitHub App access to the selected org. Tokens are managed by GitHub and rotated automatically.
+            Connect via OAuth app. Click <strong>Authorize</strong> below to grant the PlatformOps GitHub App access to the selected org. Tokens are managed by GitHub and rotated automatically.
           </p>
           <button class="btn btn-secondary" type="button" style="margin-top:var(--s-2);">Authorize GitHub App →</button>
         </div>

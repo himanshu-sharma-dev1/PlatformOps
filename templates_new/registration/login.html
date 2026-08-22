@@ -5,7 +5,7 @@
 {% load static %}
 <link rel="stylesheet" type="text/css" href="{% static 'css/ds.css' %}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sign in · YantrAI</title>
+<title>Sign in · PlatformOps</title>
 
 <!-- THEME INIT — must run synchronously before ds.css to prevent flash -->
 
@@ -595,7 +595,7 @@ body{
     <div class="brand-center">
       <div class="brand-top">
           <div class="brand-mark">Y</div>
-          <div class="brand-name">Yantr<em>AI</em></div>
+          <div class="brand-name">Platform<em>Ops</em></div>
       </div>
       <div class="brand-eyebrow"><span class="eb-line"></span>The AI Platform</div>
 
@@ -883,7 +883,7 @@ body{
 <script>
 (function(){
   try{
-    var t = localStorage.getItem('iktara-theme');
+    var t = localStorage.getItem('platformops-theme');
     if(t !== 'light' && t !== 'dark'){
       t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }

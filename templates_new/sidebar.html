@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="shortcut icon" type="image/png" href="{% static 'yantrFavicon.png' %}"/>
+<link rel="shortcut icon" type="image/png" href="{% static 'platformops/favicon.png' %}"/>
 <style>
 .sb-user{
 position:relative;
@@ -451,7 +451,7 @@ color:var(--white);
 <script>
     (function(){
       try{
-        var t = localStorage.getItem('iktara-theme');
+        var t = localStorage.getItem('platformops-theme');
         if(t !== 'light' && t !== 'dark'){
           t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }

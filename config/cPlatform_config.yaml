@@ -111,8 +111,8 @@ CPLATFORM_CONFIG:
     guardrail_dspy_flag: false
     guardrail_flag: false
     intent_flag: false
-    log_file_name: airtelChurn_server
-    platform_id: airtel-churn
+    log_file_name: platformops_server
+    platform_id: platformops
     tool_access: external
     tools_config_path: tools.json
     use_gateway_tools: false
@@ -122,8 +122,8 @@ CPLATFORM_CONFIG:
   repo:
     master_auth_type: Password
     master_host: 216.48.189.217
-    master_password: DDRPVP@ecjkt457
-    master_path: /home/ubuntu/Backup_Platform/iktara/Repository
+    master_password: ''
+    master_path: /home/ubuntu/Backup_Platform/platformops/Repository
     master_pem_file_name: null
     master_pem_file_text: null
     master_username: root
@@ -141,9 +141,9 @@ CPLATFORM_CONFIG:
     text2sql_url: ''
     time_zone: Asia/Kolkata
   widget:
-    report_queue: cPlatform_dataflow
+    report_queue: platformops_dataflow
     report_url: ''
-    template_name: airtelTaw/dChatEmail.html
+    template_name: email_invite.html
 DATAFLOW_CONFIG:
   AviatAlarm:
     file_types:

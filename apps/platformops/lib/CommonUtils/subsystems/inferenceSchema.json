@@ -1,0 +1,573 @@
+{
+  "$id": "TBD2",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Interface Definition between orchestrator and Inference Subsystem",
+  "inference_request_schema": {
+    "title": "Inference Request Message Schema",
+    "description": "Schema for Model Inference requests",
+    "type": "object",
+    "required": [
+      "model_id",
+      "inference_data"],
+    "properties": {
+      "model_id": {
+        "description": "A unique identifier of the trained model",
+        "type": "string"
+      },
+      "inference_data": {
+        "description": "input data for inference",
+        "type": "object",
+        "properties": {
+          "Structure_Data": {
+            "title": "JSON Structure Data",
+            "description": "Structured JSON data ",
+            "type": "object",
+            "required": [
+              "json_info"],
+            "properties": {
+              "json_info": {
+                "type": "string"
+              }
+            }
+          },
+          "Image_Data": {
+            "title": "Single Image Inference Request",
+            "description": "Schema for Single Image Inference Request",
+            "type": "object",
+            "required": [
+              "image",
+              "use_gpu"],
+            "properties": {
+              "use_gpu": {
+                "type": "string"},
+              "image": {
+                "type": "string",
+                "format": "byte"
+              }
+            }
+          }
+        }
+      }
+    },
+    "additionalProperties": false
+  },
+  "inference_response_schema": {
+    "title": "Inference Response Message Schema",
+    "description": "Inference Response Message Schema",
+    "required": [
+      "model_id",
+      "status",
+      "error_code",
+      "rating",
+      "algo_result"
+    ],
+    "properties": {
+      "model_id": {
+        "description": "A unique identifier of the trained model",
+        "type": "string"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "Success",
+          "Failure"
+        ]
+      },
+      "error_code": {
+        "type": "string"
+      },
+      "rating": {
+        "type": "number"
+      },
+      "algo_result": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "algo_id",
+            "algo_status",
+            "algo_error",
+            "inference_result"
+          ],
+          "properties": {
+            "algo_id": {
+              "type": "string"
+            },
+            "algo_status": {
+              "type": "string"
+            },
+            "algo_error": {
+              "type": "string"
+            },
+            "inference_result": {
+              "type": "object",
+              "properties": {
+                "Structure_Data": {
+                  "title": "JSON Encoded Structure Data ",
+                  "description": "JSON Encoded Structure Data",
+                  "type": "object",
+                  "required": [
+                    "algo_score"
+                  ],
+                  "properties": {
+                    "algo_score": {
+                      "type": "number"
+                    },
+                    "additional_info": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "DocumentAI_Data": {
+                  "title": "DocumentAI Inference Request",
+                  "description": "Schema for DocumentAI Inference Request",
+                  "type": "object",
+                  "required": [
+                    "query_response"
+                  ],
+                  "properties": {
+                    "query_response": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "NLPSummary_Data": {
+                  "title": "NLP_Summary Inference Request",
+                  "description": "Schema for NLP_Summary Inference Request",
+                  "type": "object",
+                  "required": [
+                    "doc_response",
+                    "level"
+                  ],
+                  "properties": {
+                    "doc_response": {
+                      "type": "string",
+                      "format": "byte"
+                    }
+                  }
+                },
+                "Image_Data": {
+                  "title": "Single Image Inference Response",
+                  "description": "Schema for Single Image Inference Response",
+                  "type": "object",
+                  "required": [
+                    "request_response"
+                  ],
+                  "properties": {
+                    "request_response": {
+                      "type": "object",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "predictions"
+                        ],
+                        "properties": {
+                          "predictions": {
+                            "type": "array"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "inference_batch_request_schema": {
+    "title": "Inference Request Batch Schema",
+    "description": "Inference Request Batch Schema",
+    "required": [
+      "run_id",
+      "model_id",
+      "algo_category",
+      "algo_type",
+      "use_gpu",
+      "dataset_info",
+      "batch_size"
+    ],
+    "properties": {
+      "run_id": {
+        "type": "string"
+      },
+      "model_id": {
+        "description": "A unique identifier of the trained model",
+        "type": "string"
+      },
+      "algo_category": {
+        "type": "string"
+      },
+      "algo_type": {
+        "type": "string"
+      },
+      "use_gpu": {
+        "type": "string"
+      },
+      "dataset_info": {
+        "type": "object",
+        "properties": {
+          "kaggle": {
+            "type": "object",
+            "required": [
+              "dataset"
+            ],
+            "properties": {
+              "dataset": {
+                "type": "string"
+              },
+              "user_name": {
+                "type": "string"
+              },
+              "password": {
+                "type": "string"
+              }
+            }
+          },
+          "minio": {
+            "type": "object",
+            "required": [
+              "endpoint",
+              "access_key",
+              "secret_key",
+              "bucket",
+              "folder"
+            ],
+            "properties": {
+              "endpoint": {
+                "type": "string"
+              },
+              "access_key": {
+                "type": "string"
+              },
+              "secret_key": {
+                "type": "string"
+              },
+              "bucket": {
+                "type": "string"
+              },
+              "folder": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "batch_size": {
+        "type": "string"
+      },
+      "additionalProperties": false
+    }
+  },
+  "inference_batch_response_schema": {
+    "title": "Inference Response Batch Schema",
+    "description": "Inference Response Batch Schema",
+    "required": [
+      "model_id",
+      "status",
+      "error_code",
+      "current_progress"
+    ],
+    "properties": {
+      "model_id": {
+        "description": "A unique identifier of the trained model",
+        "type": "string"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "Success",
+          "Failure"
+        ]
+      },
+      "error_code": {
+        "type": "string"
+      },
+      "current_progress": {
+        "type": "string"
+      }
+    }
+  },
+  "inference_status_request_schema": {
+    "title": "Inference Request Batch Status Schema",
+    "description": "Inference Request Batch Status Schema",
+    "required": [
+      "model_id"
+    ],
+    "properties": {
+      "model_id": {
+        "description": "A unique identifier of the trained model",
+        "type": "string"
+      }
+    }
+  },
+  "inference_status_response_schema": {
+    "title": "Inference Response Batch Status Schema",
+    "description": "Inference Response Batch Status Schema",
+    "required": [
+      "model_id",
+      "batch_info"
+    ],
+    "properties": {
+      "model_id": {
+        "description": "A unique identifier of the trained model",
+        "type": "string"
+      },
+      "batch_info": {
+        "type": "object",
+        "items": {
+          "type": "object",
+          "required": [
+            "batch_status",
+            "current_progress"
+          ],
+          "properties": {
+            "batch_status": {
+              "type": "string"
+            },
+            "current_progress": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "inference_log_request_schema": {
+    "title": "Inference Request Batch Status Schema",
+    "description": "Inference Request Batch Status Schema",
+    "required": [
+      "run_id"
+    ],
+    "properties": {
+      "run_id": {
+        "description": "A unique identifier of the trained model",
+        "type": "string"
+      }
+    }
+  },
+  "inference_log_response_schema": {
+    "title": "Inference Response Batch Status Schema",
+    "description": "Inference Response Batch Status Schema",
+    "required": [
+      "logs"
+    ],
+    "properties": {
+      "logs": {
+        "description": "A unique identifier of the trained model",
+        "type": "object"
+      }
+    }
+  },
+  "inference_batch_update_schema": {
+    "title": "Inference Response Batch Update Status",
+    "description": "Inference Response Batch Update Status",
+    "required": [
+      "model_id",
+      "status",
+      "inference_status",
+      "predictions"
+    ],
+    "properties": {
+      "model_id": {
+        "description": "A unique identifier of the trained model",
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      },
+      "inference_status": {
+        "type": "string"
+      },
+      "predictions": {
+        "type": "string"
+      }
+    }
+  },
+  "inference_load_model_schema": {
+    "title": "Inference Load Model Schema",
+    "description": "Schema for validating a model with its algorithm list",
+    "type": "object",
+    "required": ["model_id", "algo_list"],
+    "properties": {
+      "model_id": {
+        "type": "string",
+        "description": "Model ID to which these algorithms belong"
+      },
+      "algo_list": {
+        "type": "array",
+        "description": "List of algorithms for this model",
+        "items": {
+          "type": "object",
+          "required": [
+            "algo_id",
+            "algo_weight",
+            "algo_type",
+            "algo_category",
+            "algo_config"
+          ],
+          "properties": {
+            "algo_id": {
+              "type": "string",
+              "description": "Unique identifier for the algorithm"
+            },
+            "algo_weight": {
+              "type": "string",
+              "description": "Relative weight of the algorithm in ensemble"
+            },
+            "algo_type": {
+              "type": "string",
+              "description": "Type of the algorithm (e.g., LGM, NN, XGBOOST)"
+            },
+            "algo_category": {
+              "type": "string",
+              "description": "Category of the algorithm (e.g., Supervised)"
+            },
+            "algo_config": {
+              "type": "string",
+              "description": "Algorithm-specific configuration stored as JSON string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "additionalProperties": false
+  },
+  "inference_remove_model_schema": {
+    "title": "Inference Delete Model Message Schema",
+    "description": "Schema for deleting a model",
+    "type": "object",
+    "required": ["model_id"],
+    "properties": {
+      "model_id": {
+        "type": "string",
+        "description": "Model ID to which this algorithm belongs"
+      }
+    },
+    "additionalProperties": false
+  },
+  "inference_update_model_schema": {
+    "title": "Inference Update Model Schema",
+    "description": "Schema for validating a model with its algorithm list",
+    "type": "object",
+    "required": ["model_id", "algo_list"],
+    "properties": {
+      "model_id": {
+        "type": "string",
+        "description": "Model ID to which these algorithms belong"
+      },
+      "algo_list": {
+        "type": "array",
+        "description": "List of algorithms for this model",
+        "items": {
+          "type": "object",
+          "required": [
+            "algo_id",
+            "algo_weight",
+            "algo_type",
+            "algo_category",
+            "algo_config"
+          ],
+          "properties": {
+            "algo_id": {
+              "type": "string",
+              "description": "Unique identifier for the algorithm"
+            },
+            "algo_weight": {
+              "type": "string",
+              "description": "Relative weight of the algorithm in ensemble"
+            },
+            "algo_type": {
+              "type": "string",
+              "description": "Type of the algorithm (e.g., LGM, NN, XGBOOST)"
+            },
+            "algo_category": {
+              "type": "string",
+              "description": "Category of the algorithm (e.g., Supervised)"
+            },
+            "algo_config": {
+              "type": "string",
+              "description": "Algorithm-specific configuration stored as JSON string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "additionalProperties": false
+  },
+  "inference_db_pull_schema": {
+    "title": "DB Pull Inference Message Schema",
+    "description": "Schema for triggering database pull inference jobs",
+    "type": "object",
+    "required": [
+      "job_id",
+      "model_id",
+      "model_infer_name",
+      "chunk_size",
+      "cplatform_url",
+      "source_type"
+    ],
+    "properties": {
+      "job_id": { "type": "string", "description": "Unique job identifier" },
+      "model_id": { "type": "string", "description": "Model identifier" },
+      "model_infer_name": { "type": "string", "description": "Inference model name" },
+      "profile_column": {
+        "type": ["object", "string"],
+        "description": "Service-specific filtering parameters",
+        "additionalProperties": true
+      },
+      "source_type": {
+        "type": "string",
+        "enum": ["db_pull", "local_file"],
+        "description": "Where inference data comes from"
+      },
+      "chunk_size": { "type": "integer", "minimum": 1 },
+      "cplatform_url": { "type": "string" },
+      "source_config": {
+        "type": "object",
+        "properties": {
+          "host": { "type": "string" },
+          "port": { "type": "string" },
+          "username": { "type": "string" },
+          "password": { "type": "string" },
+          "database": { "type": "string" }
+        },
+        "additionalProperties": true
+      },
+      "dest_config": {
+        "type": "object",
+        "properties": {
+          "host": { "type": "string" },
+          "port": { "type": "string" },
+          "username": { "type": "string" },
+          "password": { "type": "string" },
+          "database": { "type": "string" }
+        },
+        "additionalProperties": true
+      },
+      "local_file_path": {
+        "type": "string",
+        "description": "Full path to a local CSV/Parquet file used as inference input"
+      },
+      "eval_data_path": {
+        "type": "string",
+        "description": "Full path to a local CSV file used as Evaluate input"
+      },
+      "threshold": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1,
+        "description": "Optional churn-probability decision threshold override for this run; falls back to the model's saved threshold if omitted"
+      }
+    },
+    "additionalProperties": false
+  }
+}
+
+

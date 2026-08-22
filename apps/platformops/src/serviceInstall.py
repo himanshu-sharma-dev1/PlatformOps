@@ -1,5 +1,5 @@
 '''*******************************************************************************************************************
-* Copyright         : Iktara Data Sciences
+* Copyright         : PlatformOps
 * File Name         : serviceInstall.py
 * Description       : Functions related to Run and delete Ansible playbook and check system info
 *

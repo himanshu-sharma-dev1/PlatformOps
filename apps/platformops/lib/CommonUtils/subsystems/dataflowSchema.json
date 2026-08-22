@@ -1,0 +1,338 @@
+{
+  "$id": "TBD3",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Dataflow",
+  "dataflow_log_api": {
+    "title": "Dataflow Process Request Message Schema",
+    "description": "Dataflow Process Request Message Schema",
+    "type": "object",
+    "required": [
+      "dataflow_id",
+      "log_status",
+      "msg",
+      "date",
+      "time",
+      "log_info"
+    ],
+    "properties": {
+      "dataflow_id": {
+        "type": "string"
+      },
+      "log_status": {
+        "type": "string",
+        "enum": ["Success", "Failure", "Started"]
+      },
+      "msg":{
+        "type": "string"
+      },
+      "date": {
+        "type": "string"
+      },
+      "time": {
+        "type": "string"
+      },
+      "log_info":{
+        "type":"string"
+      }
+    }
+  },
+  "dataflow_common_resp_message_schema": {
+  "title": " Dataflow Common Response Schema",
+  "description": "Schema for the response of the Dataflow Operations",
+  "type": "object",
+  "required": [
+    "status",
+    "msg"
+  ],
+  "properties": {
+    "status": {
+      "description": " status indicating the result of the request",
+      "type": "string",
+      "enum": ["success", "failure"]
+    },
+    "msg": {
+      "description": "A message describing the outcome of the validation process",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+},
+  "dataflow_process_req_api": {
+    "title": "Dataflow Process Multi Request Message Schema",
+    "description": "Dataflow Process Multi Request Message Schema",
+    "type": "object",
+    "required": [
+      "dataflow_id",
+      "dataflow_type",
+      "dataflow_handling",
+      "download_list"
+    ],
+    "properties": {
+      "dataflow_id": {
+        "description": "A unique identifier for particular dataflow request",
+        "type": "string"
+      },
+      "dataflow_handling": {
+        "type": "string"
+      },
+      "dataflow_type": {
+        "description": "A unique identifier for particular dataflow request",
+        "type": "string"
+      },
+      "download_list": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": [
+            "sub_dir",
+            "file_list"
+          ],
+          "properties": {
+            "sub_dir": {
+              "type": "string"
+            },
+            "file_list": {
+              "type": "array",
+              "minItems": 0,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "dataflow_add_req_api":{
+    "title": "Dataflow Add Multi Request Message Schema",
+      "description": "Dataflow Process Multi Request Message Schema",
+      "type": "object",
+      "required": [
+        "dataflow_id",
+        "credentials",
+        "conn_type",
+        "dataflow_type",
+        "start_date",
+        "start_time",
+        "time_zone",
+        "periodicity",
+        "file_list"
+        ],
+      "properties": {
+        "dataflow_id": {
+            "description": "A unique identifier for particular dataflow request",
+            "type": "string"
+          },
+        "dataflow_type": {
+            "description": "A unique identifier for particular dataflow request",
+            "type": "string"
+          },
+        "credentials": {
+              "type": "object"
+            },
+        "conn_type": {
+              "type": "string"
+            },
+        "start_date": {
+              "type": "string"
+            },
+        "start_time": {
+              "type": "string"
+            },
+        "time_zone": {
+              "type": "string"
+            },
+        "periodicity": {
+              "type": "string"
+            },
+        "file_list": {
+            "type": "object",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "remote_path",
+                "filename"
+              ],
+              "properties": {
+                "remote_path": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                }
+              }
+            }
+        },
+        "additionalProperties": false
+      }
+
+  },
+  "dataflow_edit_req_api": {
+    "title": "Multi Dataflow Edit Message Schema",
+      "description": "Multi Dataflow Edit Message Schema",
+      "type": "object",
+      "required": [
+      "dataflow_id",
+      "credentials",
+      "conn_type",
+      "dataflow_type",
+      "start_date",
+      "start_time",
+      "time_zone",
+      "periodicity",
+      "file_list",
+      "dataflow_status"
+      ],
+      "properties": {
+        "dataflow_id": {
+            "description": "A unique identifier for particular dataflow request",
+            "type": "string"
+          },
+        "dataflow_type": {
+            "description": "A unique identifier for particular dataflow request",
+            "type": "string"
+          },
+        "credentials": {
+              "type": "object"
+            },
+        "conn_type": {
+              "type": "string"
+            },
+        "dataflow_status": {
+          "type": "string"
+        },
+        "start_date": {
+              "type": "string"
+            },
+        "start_time": {
+              "type": "string"
+            },
+        "time_zone": {
+              "type": "string"
+            },
+        "periodicity": {
+              "type": "string"
+            },
+        "file_list": {
+            "type": "object",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "remote_path",
+                "filename"
+              ],
+              "properties": {
+                "remote_path": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                }
+              }
+            }
+        }
+
+      }
+  },
+  "dataflow_delete_req_api": {
+      "title": "Multi Dataflow Delete Message Schema",
+      "description": "Multi Dataflow Delete Message Schema",
+      "type": "object",
+      "required": [
+        "dataflow_id",
+        "dataflow_type",
+        "conn_type"
+      ],
+      "properties": {
+
+        "dataflow_id": {
+          "type": "string"
+        },
+        "dataflow_type": {
+            "type": "string"
+          },
+        "conn_type":{
+            "type": "string"
+      },
+        "additionalProperties": false
+      }
+  },
+  "dataflow_rerun_req_api": {
+      "title": "Multi Dataflow Batch Rerun Request Message Schema",
+      "description": "Multi Dataflow Batch Rerun Request Message Schema",
+      "type": "object",
+      "required": [
+        "dataflow_id",
+        "dataflow_type",
+        "credentials",
+        "periodicity",
+        "time_zone",
+        "file_list"
+      ],
+      "properties": {
+
+        "dataflow_id": {
+          "type": "string"
+        },
+        "dataflow_type": {
+            "type": "string"
+          },
+        "conn_type":{
+            "type": "string"
+        },
+        "credentials": {
+            "type": "object"
+          },
+         "eval_date":{
+            "type": "string"
+        },
+        "eval_dates":{
+            "type": "array",
+            "items": { "type": "string" }
+        },
+        "periodicity": {
+            "type": "string"
+          },
+        "time_zone":{
+            "type": "string"
+        },
+        "description":{
+            "type": ["string", "null"]
+        },
+        "scheduled_date":{
+            "type": ["string", "null"]
+        },
+        "scheduled_time":{
+            "type": ["string", "null"]
+        },
+        "file_list": {
+            "type": "object",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "remote_path",
+                "filename"
+              ],
+              "properties": {
+                "remote_path": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                }
+              }
+            }
+        }
+      }
+    }
+}
+
+
+
+
+

@@ -2288,7 +2288,7 @@ body.terminal-active .topbar {
                   <div class="chat-head">
                     <div class="ttl">
                       <div class="ai-pip">Y</div>
-                      Iktara Log Analyst
+                      PlatformOps Log Analyst
                     </div>
                     <div class="scope" id="chat-scope-label">PROD // api-gateway</div>
                   </div>
@@ -2301,7 +2301,7 @@ body.terminal-active .topbar {
                         <span class="ts" id="chat-welcome-ts">12:00</span>
                       </div>
                       <div class="msg-body">
-                        <p>Hello! I am Iktara Log Analyst, your advanced operations assistant. I can inspect active logs, trace errors, analyze cluster events, and summarize system state to diagnose incidents.</p>
+                        <p>Hello! I am PlatformOps Log Analyst, your advanced operations assistant. I can inspect active logs, trace errors, analyze cluster events, and summarize system state to diagnose incidents.</p>
                         <p>Ask a question about this service's status or choose one of the starter queries on the right to begin.</p>
                       </div>
                     </div>
@@ -2421,7 +2421,7 @@ body.terminal-active .topbar {
      JavaScript logic
      ========================================== -->
 <script>
-  window.IKTARA_SESSION = {
+  window.PLATFORMOPS_SESSION = {
     lastVisited: {
       cluster_name: "{{ session_last_visited.cluster_name|default:''|escapejs }}",
       node_name:    "{{ session_last_visited.node_name|default:''|escapejs }}",
@@ -2906,7 +2906,7 @@ document.addEventListener("DOMContentLoaded", function () {
   } else {
     // fallback to session last visited — setTimeout ensures listeners are wired first
     setTimeout(function() {
-      const sv = (window.IKTARA_SESSION || {}).lastVisited || {};
+      const sv = (window.PLATFORMOPS_SESSION || {}).lastVisited || {};
       if (sv.cluster_name && sv.node_name && sv.service_name) {
         const match = Array.from(document.querySelectorAll('.nv-service')).find(el => {
           const inCluster = el.closest('.nv-cluster');
@@ -3049,7 +3049,7 @@ function initWorkspaceTabs() {
 
 let diagnosticsWorkspaceCache = {};
 try {
-  const cached = localStorage.getItem('cplatform_diagnostics_cache');
+  const cached = localStorage.getItem('platformops_diagnostics_cache');
   if (cached) {
     diagnosticsWorkspaceCache = JSON.parse(cached);
   }
@@ -3113,7 +3113,7 @@ function saveActiveWorkspaceToCache(serviceId) {
         delete diagnosticsWorkspaceCache[oldestKey];
       }
     }
-    localStorage.setItem('cplatform_diagnostics_cache', JSON.stringify(diagnosticsWorkspaceCache));
+    localStorage.setItem('platformops_diagnostics_cache', JSON.stringify(diagnosticsWorkspaceCache));
   } catch (e) {
     console.warn("Unable to save diagnostics workspace cache to localStorage:", e);
   }
@@ -4671,7 +4671,7 @@ function resetChatWindow() {
         <span class="ts">${now}</span>
       </div>
       <div class="msg-body">
-        <p>Hello! I am Iktara Log Analyst, your advanced operations assistant. I can inspect active logs, trace errors, analyze cluster events, and summarize system state to diagnose incidents.</p>
+        <p>Hello! I am PlatformOps Log Analyst, your advanced operations assistant. I can inspect active logs, trace errors, analyze cluster events, and summarize system state to diagnose incidents.</p>
         <p>Ask a question about this service's status or choose one of the starter queries on the right to begin.</p>
       </div>
     </div>
