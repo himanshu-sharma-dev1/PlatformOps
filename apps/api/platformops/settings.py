@@ -45,15 +45,16 @@ class Settings(BaseSettings):
     # LLM — mirrors cPlatform CPLATFORM_LLM_* / CPLATFORM_GROQ_*
     llm_provider: str = "mistral"  # groq | mistral | local
     llm_url: str = ""  # override endpoint (mistral/local); empty = provider default
-    llm_model: str = "mistral-medium-2508"
-    llm_api_key: str = ""  # primary key for active provider (or mistral fallback)
-    mistral_api_key: str = ""  # optional explicit Mistral key
+    llm_model: str = "mistral-small-2506"
+    llm_api_key: str = ""  # non-Mistral providers only
+    # Mistral credentials intentionally have no BaseSettings field: they are
+    # injected at runtime and resolved directly by orchestrator.llm.
     groq_api_key: str = ""  # cPlatform CPLATFORM_GROQ_API_KEY
     groq_model: str = "llama-3.1-8b-instant"
     llm_max_logs: int = 80
     llm_max_tail_logs: int = 30
     llm_num_ctx: int = 16384
-    llm_timeout: int = 120
+    llm_timeout: int = 60
     # Multiuser bootstrap (seeded when user table is empty)
     bootstrap_admin_email: str = "admin"
     bootstrap_admin_password: str = "admin"

@@ -347,6 +347,10 @@ export function createInventoryEditorActions(s: any) {
         ssh_user: "ubuntu",
         ssh_key_path: "",
         ssh_private_key: "",
+        ssh_password: "",
+        ssh_secret_ref: "",
+        host_key_fingerprint: "",
+        known_hosts_ref: "",
         environment: "local",
         volume_root: "/tmp/platformops",
         docker_network: "platformops_prod_network",
@@ -401,6 +405,10 @@ export function createInventoryEditorActions(s: any) {
         ssh_user: node.ssh_user,
         ssh_key_path: node.ssh_key_path ?? "",
         ssh_private_key: "",
+        ssh_password: "",
+        ssh_secret_ref: node.ssh_secret_ref ?? "",
+        host_key_fingerprint: node.host_key_fingerprint ?? "",
+        known_hosts_ref: node.known_hosts_ref ?? "",
         environment: node.environment,
         volume_root: node.volume_root,
         docker_network: node.docker_network || "platformops_prod_network",
@@ -455,6 +463,10 @@ export function createInventoryEditorActions(s: any) {
               ssh_user: draft.ssh_user.trim() || "ubuntu",
               ssh_key_path: draft.ssh_key_path.trim(),
               ssh_private_key: draft.ssh_private_key.trim() || void 0,
+              ssh_password: draft.ssh_password?.trim() || void 0,
+              ssh_secret_ref: draft.ssh_secret_ref?.trim() || "",
+              host_key_fingerprint: draft.host_key_fingerprint?.trim() || "",
+              known_hosts_ref: draft.known_hosts_ref?.trim() || "",
               environment: draft.environment.trim() || "local",
               provider: draft.provider || "dc",
               region: draft.region || "local",
@@ -467,6 +479,18 @@ export function createInventoryEditorActions(s: any) {
               facts,
             })
           });
+          if (draft.ssh_private_key?.trim() || draft.ssh_password?.trim()) {
+            const probe = await api(`/api/nodes/${created.id}/connection/probe`, {
+              method: "POST",
+              body: JSON.stringify({
+                ssh_private_key: draft.ssh_private_key?.trim() || void 0,
+                ssh_password: draft.ssh_password?.trim() || void 0,
+              }),
+            });
+            if (!probe?.ssh_ok) {
+              s.showToast?.(probe?.detail || "Remote credential probe failed; node remains unavailable.", "err");
+            }
+          }
           s.setNodeEditor((current) => ({ ...current, visible: false, error: "" }));
           s.setSelectedNode(created);
           s.showToast?.(`Created node ${created.name}`, "ok") || s.setNotice(`Created node ${created.name}`);
@@ -483,6 +507,10 @@ export function createInventoryEditorActions(s: any) {
             ssh_user: draft.ssh_user.trim() || "ubuntu",
             ssh_key_path: draft.ssh_key_path.trim(),
             ssh_private_key: draft.ssh_private_key.trim() || void 0,
+            ssh_password: draft.ssh_password?.trim() || void 0,
+            ssh_secret_ref: draft.ssh_secret_ref?.trim() || "",
+            host_key_fingerprint: draft.host_key_fingerprint?.trim() || "",
+            known_hosts_ref: draft.known_hosts_ref?.trim() || "",
             environment: draft.environment.trim() || "local",
             provider: draft.provider || "dc",
             region: draft.region || "local",
@@ -496,6 +524,18 @@ export function createInventoryEditorActions(s: any) {
             facts,
           })
         });
+        if (draft.ssh_private_key?.trim() || draft.ssh_password?.trim()) {
+          const probe = await api(`/api/nodes/${updated.id}/connection/probe`, {
+            method: "POST",
+            body: JSON.stringify({
+              ssh_private_key: draft.ssh_private_key?.trim() || void 0,
+              ssh_password: draft.ssh_password?.trim() || void 0,
+            }),
+          });
+          if (!probe?.ssh_ok) {
+            s.showToast?.(probe?.detail || "Remote credential probe failed; node remains unavailable.", "err");
+          }
+        }
         s.setNodeEditor((current) => ({ ...current, visible: false, error: "" }));
         s.setSelectedNode(updated);
         s.showToast?.(`Updated node ${updated.name}`, "ok") || s.setNotice(`Updated node ${updated.name}`);

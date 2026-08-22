@@ -26,6 +26,7 @@ from ...models import (
 )
 from ...settings import settings
 from ...tasks import run_job_async
+from ..remote import RemoteAuthError, run_ssh, strict_known_hosts_path
 from ..common import (
     RUNNING_STATUSES,
     _ansible_base_command,
@@ -85,6 +86,37 @@ _IDENTITY_OVERRIDE_KEYS = {
     "container_name",
 }
 
+_INLINE_SECRET_KEYS = {
+    "password",
+    "passwd",
+    "private_key",
+    "ssh_private_key",
+    "secret",
+    "token",
+    "api_key",
+    "authorization",
+}
+
+
+def _reject_inline_secret_material(value: Any, *, path: str = "contract_overrides") -> None:
+    """Reject credential material before it can enter service config_json."""
+
+    if isinstance(value, dict):
+        for key, child in value.items():
+            normalized = str(key).strip().casefold().replace("-", "_")
+            if normalized in _INLINE_SECRET_KEYS or (
+                normalized.endswith("_password")
+                or normalized.endswith("_private_key")
+                or normalized.endswith("_token")
+            ):
+                raise ValueError(
+                    f"{path}.{key} cannot contain inline secret material; use a secret reference"
+                )
+            _reject_inline_secret_material(child, path=f"{path}.{key}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            _reject_inline_secret_material(child, path=f"{path}[{index}]")
+
 
 def _canonical_service_key(value: Any) -> str:
     key = str(value or "").strip()
@@ -112,6 +144,7 @@ def _validate_service_overrides(overrides: dict[str, Any] | None) -> dict[str, A
         return {}
     if not isinstance(overrides, dict):
         raise ValueError("contract_overrides must be an object")
+    _reject_inline_secret_material(overrides)
     protected = sorted(_IDENTITY_OVERRIDE_KEYS.intersection(overrides))
     if protected:
         raise ValueError(f"contract_overrides cannot change identity fields: {', '.join(protected)}")
@@ -1211,13 +1244,19 @@ def topology(db: Session) -> dict[str, Any]:
 
 
 def generate_inventory(node: Node) -> str:
-    if node.environment == "local":
+    if _node_uses_local_docker(node):
         return "[platformops]\nlocalhost ansible_connection=local\n"
 
     key_part = f" ansible_ssh_private_key_file={node.ssh_key_path}" if node.ssh_key_path else ""
+    known_hosts_path = strict_known_hosts_path(node)
+    ssh_common_args = (
+        " -o StrictHostKeyChecking=yes"
+        f" -o UserKnownHostsFile={known_hosts_path}"
+    )
     return (
         "[platformops]\n"
-        f"{node.name} ansible_host={node.host} ansible_user={node.ssh_user}{key_part}\n\n"
+        f"{node.name} ansible_host={node.host} ansible_user={node.ssh_user}{key_part}"
+        f" ansible_ssh_common_args='{ssh_common_args.strip()}'\n\n"
         "[platformops:vars]\n"
         f"platformops_volume_root={node.volume_root}\n"
         f"platformops_docker_network={node.docker_network}\n"
@@ -1740,8 +1779,12 @@ def check_port_and_name_availability(
             live_ports = sorted(live)
             if int(port) in live:
                 collisions.append(f"Host port {port} is currently published by a running container on the node.")
-        except Exception:
+        except Exception as exc:
             live_checked = False
+            # An unprobed remote target is not safe to treat as available:
+            # otherwise a race can submit a colliding host port after an SSH
+            # auth/fingerprint failure.
+            collisions.append(f"Live host-port check unavailable: {str(exc)[:180]}")
 
     return {
         "available": len(collisions) == 0,
@@ -1765,38 +1808,15 @@ def _docker_inspect_local(container_name: str) -> tuple[dict[str, Any] | None, s
 
 def _docker_inspect_remote(node: Node, container_name: str) -> tuple[dict[str, Any] | None, str | None]:
     """docker inspect over SSH for true remote nodes."""
-    import subprocess
     if not container_name:
         return None, "empty container name"
     host = (node.host or "").strip()
-    user = (node.ssh_user or "ubuntu").strip()
-    key = (node.ssh_key_path or "").strip()
     if not host:
         return None, "missing host"
-    # A remote node must be queried remotely.  Local Docker may represent a
-    # different host and is never a valid fallback for an SSH target.
-    if key:
-        from pathlib import Path
-
-        if not Path(key).is_file():
-            return None, f"remote SSH key not found in control plane: {key}"
     # Quote container name for remote shell
     safe_name = container_name.replace("'", "'\"'\"'")
-    cmd = [
-        "ssh",
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        "StrictHostKeyChecking=no",
-        "-o",
-        "ConnectTimeout=8",
-    ]
-    if key:
-        cmd.extend(["-i", key])
-    cmd.append(f"{user}@{host}")
-    cmd.append(f"docker inspect '{safe_name}'")
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        proc = run_ssh(node, f"docker inspect '{safe_name}'", timeout=8)
         out = proc.stdout or ""
         err = (proc.stderr or "").strip()
         if proc.returncode != 0:
@@ -1810,6 +1830,8 @@ def _docker_inspect_remote(node: Node, container_name: str) -> tuple[dict[str, A
         return None, "empty inspect payload"
     except FileNotFoundError:
         return None, "ssh client not available on control plane"
+    except RemoteAuthError as exc:
+        return None, str(exc)
     except json.JSONDecodeError:
         return None, "invalid inspect JSON from remote"
     except Exception as exc:
@@ -1939,30 +1961,12 @@ def _verify_service_runtime(
                     ping_ok, output, ping_error = exec_container(service.container_name, ["redis-cli", "ping"])
                 else:
                     import shlex
-                    import subprocess
-
-                    host = (node.host or "").strip()
-                    user = (node.ssh_user or "ubuntu").strip()
-                    key = (node.ssh_key_path or "").strip()
-                    cmd = [
-                        "ssh",
-                        "-o",
-                        "BatchMode=yes",
-                        "-o",
-                        "StrictHostKeyChecking=no",
-                        "-o",
-                        "ConnectTimeout=8",
-                    ]
-                    if key:
-                        cmd.extend(["-i", key])
-                    cmd.extend([f"{user}@{host}", f"docker exec {shlex.quote(service.container_name)} redis-cli ping"])
                     try:
                         remaining = max(0.1, deadline - time.monotonic())
-                        proc = subprocess.run(
-                            cmd,
-                            capture_output=True,
-                            text=True,
-                            timeout=min(8.0, remaining),
+                        proc = run_ssh(
+                            node,
+                            f"docker exec {shlex.quote(service.container_name)} redis-cli ping",
+                            timeout=max(1, min(8, int(remaining))),
                         )
                         ping_ok = proc.returncode == 0 and "PONG" in (proc.stdout or "")
                         output = proc.stdout or ""
@@ -2173,7 +2177,6 @@ def get_node_services_live_status(db: Session, node_id: int, *, force_ssh: bool 
 def _live_host_ports_for_node(node: Node | None) -> set[int]:
     """Parse published host ports from docker ps (local or remote)."""
     import re
-    import subprocess
 
     ports: set[int] = set()
     if node is None:
@@ -2191,15 +2194,7 @@ def _live_host_ports_for_node(node: Node | None) -> set[int]:
                 for port in (container.get("ports") or [])
             )
         else:
-            host = (node.host or "").strip()
-            user = (node.ssh_user or "ubuntu").strip()
-            key = (node.ssh_key_path or "").strip()
-            cmd = ["ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=8"]
-            if key:
-                cmd.extend(["-i", key])
-            cmd.append(f"{user}@{host}")
-            cmd.append("docker ps --format '{{.Ports}}'")
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            proc = run_ssh(node, "docker ps --format '{{.Ports}}'", timeout=8)
             text = proc.stdout or ""
         # Match 0.0.0.0:8080-> or :::8080-> or 127.0.0.1:5432->
         for match in re.finditer(r"(?:0\.0\.0\.0|127\.0\.0\.1|\[::\]|::):(\d+)->", text):
@@ -2212,6 +2207,8 @@ def _live_host_ports_for_node(node: Node | None) -> set[int]:
                 ports.add(int(match.group(1)))
             except ValueError:
                 continue
+    except RemoteAuthError:
+        raise
     except Exception:
         return ports
     return ports

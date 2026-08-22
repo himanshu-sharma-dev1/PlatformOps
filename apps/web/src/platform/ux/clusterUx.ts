@@ -986,6 +986,8 @@ export function buildNodeReviewRows(draft: {
   ssh_user?: string;
   ssh_key_path?: string;
   ssh_private_key?: string;
+  ssh_secret_ref?: string;
+  host_key_fingerprint?: string;
   cpu_cores?: number | string;
   memory_gb?: number | string;
   storage_gb?: number | string;
@@ -998,8 +1000,9 @@ export function buildNodeReviewRows(draft: {
 } | null | undefined, opts?: { isEdit?: boolean }): Array<{ id: string; label: string; value: string }> {
   const d = draft || {};
   const key =
+    d.ssh_secret_ref ||
     d.ssh_key_path ||
-    (d.ssh_private_key ? "(pasted PEM)" : opts?.isEdit ? "(keep existing)" : "—");
+    (d.ssh_private_key ? "(one-shot PEM)" : opts?.isEdit ? "(keep existing reference)" : "—");
   const instanceBits: string[] = [];
   if (d.cpu_cores != null && d.cpu_cores !== "") instanceBits.push(`${d.cpu_cores} vCPU`);
   if (d.memory_gb != null && d.memory_gb !== "") instanceBits.push(`${d.memory_gb} GB`);
@@ -1012,7 +1015,8 @@ export function buildNodeReviewRows(draft: {
     { id: "rvGpu", label: "GPU", value: d.gpu && d.gpu !== "None" ? String(d.gpu) : "none" },
     { id: "rvOs", label: "OS", value: String(d.os || "—") },
     { id: "rvUsername", label: "SSH user", value: String(d.ssh_user || "—") },
-    { id: "rvAuthType", label: "Auth", value: String(key) },
+    { id: "rvAuthType", label: "Auth reference", value: String(key) },
+    { id: "rvHostFingerprint", label: "Host fingerprint", value: String(d.host_key_fingerprint || "—") },
     { id: "rvNodeVolume", label: "Volume root", value: String(d.volume_root || "—") },
     { id: "rvDns", label: "Docker network", value: String(d.docker_network || "—") },
     { id: "rvPorts", label: "Ingress ports", value: String(d.ingress_ports || "—") },

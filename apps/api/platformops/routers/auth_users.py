@@ -33,6 +33,13 @@ def api_llm_status() -> dict:
 def api_login(payload: LoginRequest, db: Session = Depends(get_db)) -> dict:
     ok, msg, data = user_mgmt.login(db, payload.email, payload.password)
     if not ok or not data:
+        record_event(
+            db,
+            category="auth",
+            level="warning",
+            message="User sign-in failed",
+            metadata={"actor": payload.email.strip().lower(), "action": "login", "outcome": "failure"},
+        )
         raise HTTPException(status_code=401, detail=msg)
     record_event(
         db,
@@ -92,6 +99,13 @@ def api_invite_preview(token: str, db: Session = Depends(get_db)) -> dict:
 def api_invite_accept(token: str, payload: InviteAcceptRequest, db: Session = Depends(get_db)) -> dict:
     ok, msg, data = user_mgmt.accept_invite(db, token, payload.password, payload.full_name)
     if not ok or not data:
+        record_event(
+            db,
+            category="users",
+            level="warning",
+            message="Invitation acceptance failed",
+            metadata={"action": "invite_accept", "outcome": "failure", "reason": msg},
+        )
         raise HTTPException(status_code=400, detail=msg)
     record_event(
         db,
@@ -127,6 +141,13 @@ def api_create_user(
         permissions=payload.permissions,
     )
     if not ok or not data:
+        record_event(
+            db,
+            category="users",
+            level="warning",
+            message="User creation failed",
+            metadata={"actor": admin.user_email, "action": "create", "outcome": "failure", "reason": msg},
+        )
         raise HTTPException(status_code=400, detail=msg)
     record_event(
         db,
@@ -160,6 +181,13 @@ def api_update_user(
         permissions=payload.permissions,
     )
     if not ok or not data:
+        record_event(
+            db,
+            category="users",
+            level="warning",
+            message="User update failed",
+            metadata={"actor": admin.user_email, "target_id": user_id, "action": "update", "outcome": "failure", "reason": msg},
+        )
         raise HTTPException(status_code=400, detail=msg)
     record_event(
         db,
@@ -181,6 +209,13 @@ def api_update_user(
 def api_delete_user(user_id: str, admin=Depends(require_admin), db: Session = Depends(get_db)) -> dict:
     ok, msg = user_mgmt.delete_user(db, user_id, initiated_by=admin.user_email)
     if not ok:
+        record_event(
+            db,
+            category="users",
+            level="warning",
+            message="User deletion failed",
+            metadata={"actor": admin.user_email, "target_id": user_id, "action": "delete", "outcome": "failure", "reason": msg},
+        )
         raise HTTPException(status_code=400, detail=msg)
     record_event(
         db,
@@ -212,6 +247,13 @@ def api_invite_user(
         invited_by=admin.user_email,
     )
     if not ok or not data:
+        record_event(
+            db,
+            category="users",
+            level="warning",
+            message="Invitation creation failed",
+            metadata={"actor": admin.user_email, "target": payload.user_email.strip().lower(), "action": "invite", "outcome": "failure", "reason": msg},
+        )
         raise HTTPException(status_code=400, detail=msg)
     record_event(
         db,
@@ -257,6 +299,13 @@ def api_revoke_invite(
 ) -> dict:
     ok, msg = user_mgmt.revoke_pending(db, payload.user_email)
     if not ok:
+        record_event(
+            db,
+            category="users",
+            level="warning",
+            message="Invitation revoke failed",
+            metadata={"actor": admin.user_email, "target": payload.user_email.strip().lower(), "action": "invite_revoke", "outcome": "failure", "reason": msg},
+        )
         raise HTTPException(status_code=400, detail=msg)
     record_event(
         db,

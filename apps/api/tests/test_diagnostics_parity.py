@@ -198,6 +198,38 @@ def test_loki_history_has_stable_bidirectional_cursors_and_rejects_mismatch(monk
     assert "cursor" in mismatch["error"].lower()
 
 
+def test_loki_cursor_preserves_distinct_equal_timestamp_lines(monkeypatch: pytest.MonkeyPatch, db: Session):
+    service = _service(db)
+    records = [("100", f"same-ts-marker-{index}") for index in range(5)]
+
+    class Response:
+        status_code = 200
+
+        def __init__(self, payload: dict[str, Any]):
+            self.payload = payload
+
+        def json(self):
+            return self.payload
+
+    def fake_get(url, *, params, **_kwargs):
+        if "/query_range" not in url:
+            return Response({"data": {"result": [{"value": ["0", "5"]}]}})
+        start = int(params.get("start", "0"))
+        end = int(params.get("end", "999"))
+        values = [(ts, msg) for ts, msg in records if start <= int(ts) <= end]
+        return Response({"data": {"result": [{"stream": {}, "values": values}]}})
+
+    monkeypatch.setattr(impl.requests, "get", fake_get)
+    seen: list[str] = []
+    cursor = ""
+    for page in range(1, 4):
+        result = impl.service_container_history(db, service, page=page, page_size=2, cursor=cursor)
+        seen.extend(line["message"] for line in result["lines"])
+        cursor = result.get("next_cursor") or ""
+    assert sorted(seen) == sorted(msg for _ts, msg in records)
+    assert len(seen) == len(set(seen)) == 5
+
+
 def test_loki_previous_cursor_uses_forward_direction_and_exact_selector(
     monkeypatch: pytest.MonkeyPatch, db: Session
 ):
@@ -676,7 +708,7 @@ def test_backfill_route_serializes_safe_job_and_supports_terminal_poll(
     assert all(item.get("job_id") for item in metadata)
 
 
-def test_chat_unconfigured_is_explicit_and_never_generated(monkeypatch: pytest.MonkeyPatch, db: Session):
+def test_chat_unconfigured_uses_grounded_legacy_fallback(monkeypatch: pytest.MonkeyPatch, db: Session):
     service = _service(db)
     line = {"timestamp": "2025-01-01T00:00:01Z", "level": "INFO", "message": "marker-normal", "source": "container_stdout"}
     monkeypatch.setattr(impl, "service_diagnostics", lambda *_args, **_kwargs: {"readiness": {}})
@@ -684,6 +716,89 @@ def test_chat_unconfigured_is_explicit_and_never_generated(monkeypatch: pytest.M
     monkeypatch.setattr(impl, "service_live_logs", lambda *_args, **_kwargs: {"lines": [line], "error": None})
     monkeypatch.setattr("platformops.orchestrator.llm.is_llm_configured", lambda: False)
     result = impl.service_log_analytics_chat(db, service, "Analyze marker-normal")
-    assert result["success"] is False
-    assert result["answer"] == ""
-    assert "not configured" in result["error"].lower()
+    assert result["success"] is True
+    assert "deterministic regex scanning" in result["answer"]
+    assert result["evidence"] == [{"t": "00:00:01", "lvl": "INFO", "msg": "marker-normal"}]
+    assert len(result["chart_data"]) == 20
+    assert result["suggestions"] == [
+        "Are there any unusual resource spikes?",
+        "Summarise recent warnings",
+        "Show events timeline for this service",
+    ]
+    assert result["provider"] is None
+    assert result["_audit_mode"] == "deterministic_fallback"
+
+
+def test_chat_configured_response_is_strict_and_grounded(monkeypatch: pytest.MonkeyPatch, db: Session):
+    service = _service(db)
+    line = {"timestamp": "2025-01-01T00:00:01Z", "level": "WARN", "message": "run=canonical marker-warning", "source": "container_stdout"}
+    monkeypatch.setattr(impl, "service_diagnostics", lambda *_args, **_kwargs: {"readiness": {}})
+    monkeypatch.setattr(impl, "service_diagnostics_analysis", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(impl, "service_live_logs", lambda *_args, **_kwargs: {"lines": [line], "error": None})
+    monkeypatch.setattr("platformops.orchestrator.monitoring.impl.query_monitoring_issues", lambda *_args, **_kwargs: {"issues": []})
+    monkeypatch.setattr("platformops.orchestrator.llm.is_llm_configured", lambda: True)
+    monkeypatch.setattr(
+        "platformops.orchestrator.llm.execute_llm_request",
+        lambda *_args, **_kwargs: json.dumps({
+            "answer": "The canonical warning is present.",
+            "evidence": [{"t": "00:00:01", "lvl": "WARN", "msg": "run=canonical marker-warning"}],
+            "chart_data": list(range(10)),
+            "suggestions": ["Inspect the warning", "Check Redis health", "Review the time window"],
+        }),
+    )
+    result = impl.service_log_analytics_chat(db, service, "Analyze run=canonical")
+    assert result["success"] is True
+    assert result["provider"] == "mistral"
+    assert result["evidence"] == [{"t": "2025-01-01T00:00:01Z", "lvl": "WARN", "msg": "run=canonical marker-warning"}]
+    assert result["_audit_mode"] == "configured_provider"
+
+
+@pytest.mark.parametrize(
+    "provider_content",
+    [
+        None,
+        "not-json",
+        json.dumps({"answer": "", "evidence": [], "chart_data": list(range(10)), "suggestions": ["a", "b", "c"]}),
+        json.dumps({"answer": "cross-service claim", "evidence": [{"t": "00:00:01", "lvl": "ERR", "msg": "other-service-marker"}], "chart_data": list(range(10)), "suggestions": ["a", "b", "c"]}),
+    ],
+)
+def test_chat_provider_failures_use_legacy_fallback(
+    monkeypatch: pytest.MonkeyPatch, db: Session, provider_content: str | None,
+):
+    service = _service(db)
+    line = {"timestamp": "2025-01-01T00:00:01Z", "level": "WARN", "message": "run=canonical marker-warning", "source": "container_stdout"}
+    monkeypatch.setattr(impl, "service_diagnostics", lambda *_args, **_kwargs: {"readiness": {}})
+    monkeypatch.setattr(impl, "service_diagnostics_analysis", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(impl, "service_live_logs", lambda *_args, **_kwargs: {"lines": [line], "error": None})
+    monkeypatch.setattr("platformops.orchestrator.monitoring.impl.query_monitoring_issues", lambda *_args, **_kwargs: {"issues": []})
+    monkeypatch.setattr("platformops.orchestrator.llm.is_llm_configured", lambda: True)
+    monkeypatch.setattr("platformops.orchestrator.llm.execute_llm_request", lambda *_args, **_kwargs: provider_content)
+    result = impl.service_log_analytics_chat(db, service, "Analyze run=canonical")
+    assert result["success"] is True
+    assert result["provider"] is None
+    assert result["_audit_mode"] == "deterministic_fallback"
+    assert result["evidence"] == [{"t": "00:00:01", "lvl": "WARN", "msg": "run=canonical marker-warning"}]
+    assert "other-service-marker" not in json.dumps(result)
+
+
+def test_chat_rejects_provider_secret_reflection(monkeypatch: pytest.MonkeyPatch, db: Session):
+    service = _service(db)
+    secret = "synthetic-runtime-secret-marker"
+    line = {"timestamp": "2025-01-01T00:00:01Z", "level": "INFO", "message": "run=canonical safe-marker", "source": "container_stdout"}
+    monkeypatch.setenv("PLATFORMOPS_MISTRAL_API_KEY", secret)
+    monkeypatch.setattr(impl, "service_diagnostics", lambda *_args, **_kwargs: {"readiness": {}})
+    monkeypatch.setattr(impl, "service_diagnostics_analysis", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(impl, "service_live_logs", lambda *_args, **_kwargs: {"lines": [line], "error": None})
+    monkeypatch.setattr("platformops.orchestrator.monitoring.impl.query_monitoring_issues", lambda *_args, **_kwargs: {"issues": []})
+    monkeypatch.setattr(
+        "platformops.orchestrator.llm.execute_llm_request",
+        lambda *_args, **_kwargs: json.dumps({
+            "answer": f"reflected {secret}",
+            "evidence": [{"t": "00:00:01", "lvl": "INFO", "msg": "run=canonical safe-marker"}],
+            "chart_data": list(range(10)),
+            "suggestions": ["a", "b", "c"],
+        }),
+    )
+    result = impl.service_log_analytics_chat(db, service, "Analyze run=canonical")
+    assert result["_audit_mode"] == "deterministic_fallback"
+    assert secret not in json.dumps(result)

@@ -10,8 +10,10 @@ import re
 import shlex
 import shutil
 import tempfile
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any
 
 import yaml
@@ -33,6 +35,41 @@ from .common import _deep_merge_dict, record_event
 
 _REDIS_SERVICE_KEYS = {"redis-core", "airflow-redis"}
 _REDIS_REPEATABLE_DIRECTIVES = {"save", "rename-command", "include", "user"}
+
+
+def _runtime_config_path(service: ServiceInstance) -> str:
+    """Return the path inside the managed runtime, never a host bind source."""
+
+    contract = _merged_service_contract(service)
+    return str(contract.get("runtime_config_path") or contract.get("config_path") or "").strip()
+
+
+def _config_target_identity(service: ServiceInstance) -> dict[str, Any]:
+    """Expose the exact source/target identity used by config operations."""
+
+    from .discovery import resolve_connection_mode
+
+    node = service.node
+    return {
+        "service_id": service.id,
+        "service_key": service.service_key,
+        "service_name": service.name,
+        "node_id": service.node_id,
+        "node_name": node.name if node is not None else "",
+        "node_host": node.host if node is not None else "",
+        "connection_mode": resolve_connection_mode(node) if node is not None else "unknown",
+        "container_name": service.container_name or "",
+        "runtime_config_path": _runtime_config_path(service),
+    }
+
+
+def _safe_runtime_path(path: str) -> bool:
+    candidate = str(path or "").strip()
+    return bool(
+        candidate.startswith("/")
+        and "\x00" not in candidate
+        and all(part not in {"", ".."} for part in PurePosixPath(candidate).parts[1:])
+    )
 
 
 def _config_format(service: ServiceInstance | None) -> str:
@@ -185,7 +222,7 @@ def get_config_timeline_page(
     if created_before_dt is not None:
         statement = statement.where(OperationalEvent.created_at <= created_before_dt)
 
-    base_events = list(db.scalars(statement.order_by(OperationalEvent.created_at.desc())).all())
+    base_events = list(db.scalars(statement.order_by(OperationalEvent.created_at.desc(), OperationalEvent.id.desc())).all())
     enriched: list[dict[str, Any]] = []
     actions: set[str] = set()
     actors: set[str] = set()
@@ -248,6 +285,7 @@ def get_config_snapshot_detail(db: Session, snapshot: ConfigSnapshot) -> dict[st
         "source": snapshot.source,
         "created_at": snapshot.created_at,
         "content": snapshot.content,
+        "content_hash": hashlib.sha256((snapshot.content or "").encode("utf-8")).hexdigest(),
     }
 
 
@@ -295,10 +333,9 @@ def compare_config_snapshots(
 
 def _read_remote_config_content(service: ServiceInstance) -> tuple[str | None, str | None]:
     """Read the declared runtime file from the service's node, never the API host."""
-    contract = _merged_service_contract(service)
-    runtime_path = str(contract.get("runtime_config_path") or contract.get("config_path") or "")
-    if not runtime_path.startswith("/"):
-        return None, "No absolute runtime_config_path is defined for this service."
+    runtime_path = _runtime_config_path(service)
+    if not _safe_runtime_path(runtime_path):
+        return None, "Runtime config path must be an absolute, normalized path."
     container = (service.container_name or "").strip()
     node = service.node
     if not container or node is None:
@@ -458,12 +495,15 @@ def config_capabilities_for_service(service: ServiceInstance) -> dict[str, Any]:
     contract = _merged_service_contract(service)
     config_files = contract.get("config_files") or []
     kind = contract.get("kind", service.kind)
-    config_path = (
-        config_files[0]
-        if config_files
-        else (contract.get("runtime_config_path") or contract.get("config_path") or "")
+    # ``config_files`` commonly contains the host-side bind source.  The
+    # cPlatform contract exposes the in-container destination to operators and
+    # all runtime reads/writes must use that exact target instead.
+    config_path = contract.get("runtime_config_path") or contract.get("config_path") or ""
+    if not config_path and config_files:
+        config_path = config_files[0]
+    has_config_surface = bool(
+        _safe_runtime_path(str(config_path)) and service.container_name and service.node is not None
     )
-    has_config_surface = bool(config_path and service.container_name and service.node is not None)
     restart_required = kind in {"infrastructure", "helper"} or service.service_key.startswith("dtrain")
     disabled_reason = ""
     if not has_config_surface:
@@ -477,6 +517,11 @@ def config_capabilities_for_service(service: ServiceInstance) -> dict[str, Any]:
         "config_path": config_path,
         "disabled_reason": disabled_reason,
         "requires_become_for_files": kind == "infrastructure" or bool(contract.get("requires_become", False)),
+        # cPlatform has no peer-sync action. Keep this native convenience
+        # available to direct callers/tests, but do not advertise it as parity.
+        "peer_sync_enabled": False,
+        "peer_sync_reason": "No direct cPlatform peer-sync counterpart was identified.",
+        "target_identity": _config_target_identity(service),
     }
 
 
@@ -488,9 +533,9 @@ def prepare_config_runtime_target(service: ServiceInstance) -> tuple[bool, str]:
     if service.node is None or resolve_connection_mode(service.node) != "local":
         return True, "remote target is prepared by Ansible on its own host"
     contract = _merged_service_contract(service)
-    runtime_path = str(contract.get("runtime_config_path") or contract.get("config_path") or "")
-    if not runtime_path.startswith("/"):
-        return False, "No absolute runtime config path is defined."
+    runtime_path = _runtime_config_path(service)
+    if not _safe_runtime_path(runtime_path):
+        return False, "Runtime config path must be an absolute, normalized path."
     source_path = ""
     for volume in contract.get("volumes") or []:
         parts = str(volume).split(":")
@@ -522,8 +567,19 @@ def config_workspace(db: Session, service: ServiceInstance, *, source: str = "li
     active_checkpoint = snapshots[0] if snapshots else None
     live_content, live_error = _read_remote_config_content(service)
     content = live_content if live_content is not None else current_config(service)
-    content_source = "live" if live_content is not None else "runtime_unavailable"
-    message = "Loaded live service config." if live_content is not None else f"Runtime read failed: {live_error}"
+    contract = _merged_service_contract(service)
+    content_source = "live" if live_content is not None else (
+        "database_fallback" if contract.get("rendered_config_content") else "runtime_unavailable"
+    )
+    message = (
+        "Loaded live service config."
+        if live_content is not None
+        else (
+            "Runtime unavailable; loaded the last verified persisted config."
+            if content_source == "database_fallback"
+            else f"Runtime read failed: {live_error}"
+        )
+    )
     if source == "latest_snapshot":
         latest = snapshots[0] if snapshots else None
         if latest is not None:
@@ -531,8 +587,8 @@ def config_workspace(db: Session, service: ServiceInstance, *, source: str = "li
             content_source = "latest_snapshot"
             message = f"Loaded checkpoint {latest.name} (v{latest.version})."
         else:
-            content_source = "live_fallback"
-            message = "No snapshots found; fell back to live config."
+            content_source = "live_fallback" if live_content is not None else content_source
+            message = "No snapshots found; fell back to live config." if live_content is not None else message
     elif source != "live":
         raise ValueError("Invalid config source. Use 'live' or 'latest_snapshot'.")
 
@@ -564,27 +620,45 @@ def config_workspace(db: Session, service: ServiceInstance, *, source: str = "li
         "snapshot_count": len(snapshots),
         "active_checkpoint": active_checkpoint,
         "drift_state": drift_state,
-        "config_source_label": "Latest checkpoint" if content_source == "latest_snapshot" else ("Live config" if content_source == "live" else "Runtime unavailable"),
+        "config_source_label": (
+            "Latest checkpoint"
+            if content_source == "latest_snapshot"
+            else "Live config"
+            if content_source in {"live", "live_fallback"}
+            else "Database fallback"
+            if content_source == "database_fallback"
+            else "Runtime unavailable"
+        ),
         "config_path": cfg_path,
         "file_label": f"{service.container_name}/{Path(str(cfg_path)).name}",
         "content_hash": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+        "live_content_hash": hashlib.sha256(live_content.encode("utf-8")).hexdigest() if live_content is not None else "",
         "config_format": _config_format(service),
         "live_read_ok": live_content is not None,
         "live_read_error": live_error or "",
         "config_capabilities": capabilities,
+        "target_identity": _config_target_identity(service),
+        "source_state": {
+            "requested": source,
+            "content_source": content_source,
+            "live_read_ok": live_content is not None,
+            "live_read_error": live_error or "",
+            "live_content_hash": hashlib.sha256(live_content.encode("utf-8")).hexdigest() if live_content is not None else "",
+        },
         "runtime_target": {
             "container_name": service.container_name,
             "service_name": service.name,
             "service_key": service.service_key,
-            "node_name": service.node.name,
+            "node_name": service.node.name if service.node is not None else "",
         },
         "peers": [
             {
                 "service_id": peer.id,
                 "service_name": peer.name,
-                "node_name": peer.node.name,
+                "node_name": peer.node.name if peer.node is not None else "",
                 "node_id": peer.node_id,
-                "node_host": peer.node.host,
+                "node_host": peer.node.host if peer.node is not None else "",
+                "status": peer.status,
             }
             for peer in peers
         ],
@@ -598,7 +672,51 @@ def _migration_artifacts_dir(service_id: int) -> Path:
 
 
 def _migration_artifact_path(service_id: int, artifact_id: str) -> Path:
-    return _migration_artifacts_dir(service_id) / f"{artifact_id}.json"
+    safe_id = str(artifact_id or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,159}", safe_id):
+        raise ValueError("Migration artifact id contains unsafe characters.")
+    return _migration_artifacts_dir(service_id) / f"{safe_id}.json"
+
+
+def _migration_diff_ops(old: Any, new: Any, path: str = "") -> list[dict[str, Any]]:
+    """Build the deterministic operation list exposed by legacy migration UI."""
+
+    if type(old) is not type(new):
+        return [{
+            "op": "type_change",
+            "path": path,
+            "old_type": type(old).__name__,
+            "new_type": type(new).__name__,
+            "value": copy.deepcopy(new),
+        }]
+    if isinstance(old, dict):
+        operations: list[dict[str, Any]] = []
+        old_keys, new_keys = set(old), set(new)
+        for key in sorted(old_keys - new_keys, key=str):
+            key_path = f"{path}.{key}" if path else str(key)
+            operations.append({"op": "remove", "path": key_path, "old": copy.deepcopy(old[key])})
+        for key in sorted(new_keys - old_keys, key=str):
+            key_path = f"{path}.{key}" if path else str(key)
+            operations.append({"op": "add", "path": key_path, "value": copy.deepcopy(new[key])})
+        for key in sorted(old_keys & new_keys, key=str):
+            key_path = f"{path}.{key}" if path else str(key)
+            operations.extend(_migration_diff_ops(old[key], new[key], key_path))
+        return operations
+    if isinstance(old, list):
+        if old != new:
+            return [{"op": "replace", "path": path, "old": copy.deepcopy(old), "value": copy.deepcopy(new)}]
+        return []
+    if old != new:
+        return [{"op": "replace", "path": path, "old": copy.deepcopy(old), "value": copy.deepcopy(new)}]
+    return []
+
+
+def _migration_snapshot_payload(db: Session, snapshot: ConfigSnapshot) -> dict[str, Any]:
+    payload = get_config_snapshot_detail(db, snapshot)
+    created_at = payload.get("created_at")
+    if isinstance(created_at, datetime):
+        payload["created_at"] = created_at.isoformat()
+    return payload
 
 
 def prepare_config_migration(
@@ -627,7 +745,10 @@ def prepare_config_migration(
         else yaml.safe_dump(merged, sort_keys=False)
     )
     compare = compare_config_snapshots(db, service, left_snapshot=left_snapshot, right_snapshot=right_snapshot)
-    artifact_id = f"{int(datetime.utcnow().timestamp())}-{left_snapshot.id}-{right_snapshot.id}"
+    artifact_id = f"{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}-{left_snapshot.id}-{right_snapshot.id}-{uuid.uuid4().hex[:8]}"
+    migration_ops = _migration_diff_ops(left_data, right_data)
+    live_content, _live_error = _read_remote_config_content(service)
+    workspace_hash = hashlib.sha256(live_content.encode("utf-8")).hexdigest() if live_content is not None else ""
     artifact_payload = {
         "artifact_id": artifact_id,
         "service_id": service.id,
@@ -637,16 +758,51 @@ def prepare_config_migration(
         "right_snapshot_name": right_snapshot.name,
         "final_yaml": merged_yaml,
         "differences": compare["differences"],
+        "selected_configs": {
+            "selected_1": {
+                "snapshot": _migration_snapshot_payload(db, left_snapshot),
+                "config_dict": left_data,
+            },
+            "selected_2": {
+                "snapshot": _migration_snapshot_payload(db, right_snapshot),
+                "config_dict": right_data,
+            },
+        },
+        "ranked_configs": {
+            "rank_1": {
+                "snapshot": _migration_snapshot_payload(db, right_snapshot),
+                "config_dict": right_data,
+            },
+            "rank_2": {
+                "snapshot": _migration_snapshot_payload(db, left_snapshot),
+                "config_dict": left_data,
+            },
+        },
+        "config_rank_1": right_data,
+        "config_rank_2": left_data,
+        "migration_ops": migration_ops,
+        "migrated_config": copy.deepcopy(right_data),
+        "final_merged_config": merged,
+        "target_content_hash": hashlib.sha256(right_snapshot.content.encode("utf-8")).hexdigest(),
+        "workspace_content_hash": workspace_hash,
+        "target_identity": _config_target_identity(service),
     }
     _migration_artifact_path(service.id, artifact_id).write_text(
-        json.dumps(artifact_payload, indent=2), encoding="utf-8"
+        json.dumps(artifact_payload, indent=2, default=str), encoding="utf-8"
     )
     validation = validate_config(merged_yaml, service=service)
     record_event(
         db, category="config", level="info",
         message=f"Prepared config migration artifact {artifact_id} for {service.name}",
         service_id=service.id, node_id=service.node_id,
-        metadata={"action": "migration_prepared", "artifact_id": artifact_id},
+        metadata={
+            "action": "migration_prepared",
+            "artifact_id": artifact_id,
+            "source_snapshot_id": left_snapshot.id,
+            "target_snapshot_id": right_snapshot.id,
+            "workspace_content_hash": workspace_hash,
+            "target": _config_target_identity(service),
+        },
     )
     return {
         "artifact_id": artifact_id,
@@ -657,14 +813,39 @@ def prepare_config_migration(
         "final_content": merged_yaml,
         "validation": validation,
         "summary": compare["summary"],
+        "selected_configs": artifact_payload["selected_configs"],
+        "ranked_configs": artifact_payload["ranked_configs"],
+        "config_rank_1": right_data,
+        "config_rank_2": left_data,
+        "migration_ops": migration_ops,
+        "migrated_config": copy.deepcopy(right_data),
+        "final_merged_config": merged,
+        "migration_artifact": {
+            "id": artifact_id,
+            "checksum_sha256": hashlib.sha256(merged_yaml.encode("utf-8")).hexdigest(),
+            "target_content_hash": artifact_payload["target_content_hash"],
+            "workspace_content_hash": workspace_hash,
+            "target_identity": artifact_payload["target_identity"],
+        },
     }
 
 
 def _load_migration_artifact(service_id: int, artifact_id: str) -> dict[str, Any]:
-    path = _migration_artifact_path(service_id, artifact_id)
+    try:
+        path = _migration_artifact_path(service_id, artifact_id)
+    except ValueError as exc:
+        raise ValueError(str(exc)) from exc
     if not path.exists():
         raise ValueError("Migration artifact not found.")
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        artifact = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("Migration artifact is unreadable.") from exc
+    if not isinstance(artifact, dict) or str(artifact.get("artifact_id") or "") != str(artifact_id):
+        raise ValueError("Migration artifact metadata is invalid.")
+    if int(artifact.get("service_id") or 0) != int(service_id):
+        raise ValueError("Migration artifact belongs to another service.")
+    return artifact
 
 
 def apply_config_direct(
@@ -674,13 +855,63 @@ def apply_config_direct(
     content: str,
     apply_mode: str,
     requested_by: str = "platform-operator",
+    expected_content_hash: str = "",
+    operation: str = "apply",
 ) -> dict[str, Any]:
     _require_config_capability(service, "apply_enabled")
     validation = validate_config(content, service=service)
     if not validation["ok"]:
         raise ValueError(validation["message"])
-    before = create_config_snapshot(db, service, source="pre-apply", requested_by=requested_by)
-    job = apply_config(db, service, content=content, apply_mode=apply_mode, requested_by=requested_by)
+    expected_hash = str(expected_content_hash or "").strip().lower()
+    if expected_hash:
+        if not re.fullmatch(r"[0-9a-f]{64}", expected_hash):
+            raise ValueError("expected_content_hash must be a SHA-256 hex digest.")
+        live_content, live_error = _read_remote_config_content(service)
+        if live_content is None:
+            raise ValueError(f"Cannot verify stale target before apply: {live_error or 'runtime config unavailable'}")
+        actual_hash = hashlib.sha256(live_content.encode("utf-8")).hexdigest()
+        if actual_hash != expected_hash:
+            message = (
+                "Stale config target: live content changed since the workspace was loaded. "
+                f"expected={expected_hash} actual={actual_hash}"
+            )
+            record_event(
+                db,
+                category="config",
+                level="warning",
+                message=f"Configuration {operation} rejected for {service.name}",
+                service_id=service.id,
+                node_id=service.node_id,
+                metadata={
+                    "action": f"{operation}_stale",
+                    "actor": requested_by,
+                    "expected_content_hash": expected_hash,
+                    "actual_content_hash": actual_hash,
+                    "target": _config_target_identity(service),
+                },
+            )
+            raise ValueError(message)
+    try:
+        before = create_config_snapshot(db, service, source="pre-apply", requested_by=requested_by)
+    except ValueError as exc:
+        record_event(
+            db,
+            category="config",
+            level="error",
+            message=f"Configuration {operation} could not capture rollback snapshot for {service.name}",
+            service_id=service.id,
+            node_id=service.node_id,
+            metadata={"action": f"{operation}_failed", "actor": requested_by, "stage": "pre_snapshot", "error": str(exc), "target": _config_target_identity(service)},
+        )
+        raise
+    job = apply_config(
+        db,
+        service,
+        content=content,
+        apply_mode=apply_mode,
+        requested_by=requested_by,
+        operation=operation,
+    )
     after = None
     if job.status == "success":
         db.refresh(service)
@@ -691,7 +922,18 @@ def apply_config_direct(
             requested_by=requested_by,
             content_override=content,
         )
-    return {"job": job, "before_snapshot": before, "after_snapshot": after}
+    capabilities = config_capabilities_for_service(service)
+    requested_mode = apply_mode.strip().lower()
+    effective_mode = "restart" if capabilities.get("restart_required") and requested_mode == "reload" else requested_mode
+    return {
+        "job": job,
+        "before_snapshot": before,
+        "after_snapshot": after,
+        "requested_apply_mode": requested_mode,
+        "effective_apply_mode": effective_mode,
+        "target_identity": _config_target_identity(service),
+        "content_hash": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+    }
 
 
 def apply_config_migration(
@@ -702,10 +944,21 @@ def apply_config_migration(
     edited_yaml: str = "",
     apply_mode: str = "reload",
     requested_by: str = "platform-operator",
+    expected_content_hash: str = "",
 ) -> dict[str, Any]:
     artifact = _load_migration_artifact(service.id, artifact_id)
+    artifact_target_hash = str(artifact.get("workspace_content_hash") or "").strip().lower()
+    expected_hash = str(expected_content_hash or artifact_target_hash).strip().lower()
     final_yaml = edited_yaml.strip() or str(artifact.get("final_yaml") or "")
-    result = apply_config_direct(db, service, content=final_yaml, apply_mode=apply_mode, requested_by=requested_by)
+    result = apply_config_direct(
+        db,
+        service,
+        content=final_yaml,
+        apply_mode=apply_mode,
+        requested_by=requested_by,
+        expected_content_hash=expected_hash,
+        operation="migration_apply",
+    )
     if result["job"].status == "success":
         artifact["applied_at"] = datetime.utcnow().isoformat() + "Z"
         artifact["backup_snapshot_id"] = result["before_snapshot"].id
@@ -720,6 +973,10 @@ def apply_config_migration(
         "resolved_config_path": artifact.get("resolved_config_path", ""),
         "apply_mode": apply_mode,
         "applied_content": final_yaml,
+        "requested_apply_mode": result.get("requested_apply_mode"),
+        "effective_apply_mode": result.get("effective_apply_mode"),
+        "target_identity": result.get("target_identity") or _config_target_identity(service),
+        "content_hash": result.get("content_hash") or hashlib.sha256(final_yaml.encode("utf-8")).hexdigest(),
     }
 
 
@@ -730,6 +987,7 @@ def restore_config_migration(
     artifact_id: str,
     apply_mode: str = "reload",
     requested_by: str = "platform-operator",
+    expected_content_hash: str = "",
 ) -> dict[str, Any]:
     artifact = _load_migration_artifact(service.id, artifact_id)
     backup_snapshot_id = int(artifact.get("backup_snapshot_id") or 0)
@@ -742,6 +1000,8 @@ def restore_config_migration(
         content=backup_snapshot.content,
         apply_mode=apply_mode,
         requested_by=requested_by,
+        expected_content_hash=expected_content_hash,
+        operation="migration_restore",
     )
     return {
         "artifact_id": artifact_id,
@@ -751,6 +1011,10 @@ def restore_config_migration(
         "backup_snapshot_id": backup_snapshot.id,
         "resolved_config_path": artifact.get("resolved_config_path", ""),
         "applied_content": backup_snapshot.content,
+        "requested_apply_mode": result.get("requested_apply_mode"),
+        "effective_apply_mode": result.get("effective_apply_mode"),
+        "target_identity": result.get("target_identity") or _config_target_identity(service),
+        "content_hash": result.get("content_hash") or hashlib.sha256(backup_snapshot.content.encode("utf-8")).hexdigest(),
     }
 
 
@@ -770,8 +1034,12 @@ def sync_peer_config(
     if peer.id == service.id:
         raise ValueError("Cannot sync configuration to the service itself.")
 
-    # Get active configuration content from source service
-    content = current_config(service)
+    # Peer sync is a native convenience, not a legacy parity action. If a
+    # caller opts into it, require an exact live source file; never copy a
+    # synthetic/database fallback into another target.
+    content, source_error = _read_remote_config_content(service)
+    if content is None:
+        raise ValueError(f"Peer sync requires a readable live source config: {source_error or 'runtime unavailable'}")
 
     # Apply it to the peer service
     result = apply_config_direct(db, peer, content=content, apply_mode=apply_mode, requested_by=requested_by)
@@ -781,6 +1049,9 @@ def sync_peer_config(
         "job": result["job"],
         "before_snapshot": result["before_snapshot"],
         "after_snapshot": result["after_snapshot"],
+        "source_content_hash": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+        "target_identity": _config_target_identity(peer),
+        "parity_status": "native-only-disabled",
     }
 
 
@@ -803,7 +1074,11 @@ def list_config_snapshots_page(
         statement = statement.where(ConfigSnapshot.name.ilike(f"%{trimmed_search}%"))
     total = db.scalar(select(func.count()).select_from(statement.subquery())) or 0
     items = list(
-        db.scalars(statement.order_by(ConfigSnapshot.created_at.desc()).offset(safe_offset).limit(safe_limit)).all()
+        db.scalars(
+            statement.order_by(ConfigSnapshot.version.desc(), ConfigSnapshot.id.desc())
+            .offset(safe_offset)
+            .limit(safe_limit)
+        ).all()
     )
     return {
         "service_id": service.id,
@@ -837,6 +1112,8 @@ def create_config_snapshot(
     requested_name = (name or f"v{version}-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}").strip()
     if not requested_name:
         raise ValueError("Snapshot name cannot be empty.")
+    if len(requested_name) > 160 or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,158}[A-Za-z0-9]", requested_name):
+        raise ValueError("Snapshot name may only contain letters, numbers, spaces, dots, underscores, and hyphens.")
     existing_names = {
         item[0].casefold()
         for item in db.execute(select(ConfigSnapshot.name).where(ConfigSnapshot.service_id == service.id)).all()
@@ -874,6 +1151,8 @@ def create_config_snapshot(
             "snapshot_id": snapshot.id,
             "version": snapshot.version,
             "source": snapshot.source,
+            "content_hash": hashlib.sha256(snapshot.content.encode("utf-8")).hexdigest(),
+            "target": _config_target_identity(service),
         },
     )
     return snapshot
@@ -889,6 +1168,8 @@ def rename_config_snapshot(
     target_name = name.strip()
     if not target_name:
         raise ValueError("Snapshot name cannot be empty.")
+    if len(target_name) > 160 or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,158}[A-Za-z0-9]", target_name):
+        raise ValueError("Snapshot name may only contain letters, numbers, spaces, dots, underscores, and hyphens.")
     existing_conflict = db.scalar(
         select(ConfigSnapshot)
         .where(
@@ -917,12 +1198,20 @@ def rename_config_snapshot(
             "old_name": old_name,
             "new_name": snapshot.name,
             "version": snapshot.version,
+            "content_hash": hashlib.sha256(snapshot.content.encode("utf-8")).hexdigest(),
         },
     )
     return snapshot
 
 
-def restore_config_snapshot(db: Session, service: ServiceInstance, snapshot: ConfigSnapshot) -> DeploymentJob:
+def restore_config_snapshot(
+    db: Session,
+    service: ServiceInstance,
+    snapshot: ConfigSnapshot,
+    *,
+    requested_by: str = "platform-operator",
+    expected_content_hash: str = "",
+) -> DeploymentJob:
     _require_config_capability(service, "restore_enabled")
     if snapshot.service_id != service.id:
         raise ValueError("Config snapshot does not belong to the selected service.")
@@ -948,7 +1237,9 @@ def restore_config_snapshot(db: Session, service: ServiceInstance, snapshot: Con
         service,
         content=snapshot_content,
         apply_mode="restart",
-        requested_by="platform-operator",
+        requested_by=requested_by,
+        expected_content_hash=expected_content_hash,
+        operation="restore",
     )
     job = result["job"]
     if job.status == "success":
@@ -965,6 +1256,8 @@ def restore_config_snapshot(db: Session, service: ServiceInstance, snapshot: Con
 
 
 def validate_config(content: str, service: ServiceInstance | None = None) -> dict[str, Any]:
+    if len(str(content or "").encode("utf-8")) > 1_048_576:
+        return {"ok": False, "message": "Config content exceeds the 1 MiB editor limit."}
     if _config_format(service) == "redis":
         _parsed, errors = _parse_redis_config(content)
         if errors:
@@ -1198,6 +1491,14 @@ def _remote_restart_container(node: Any, container: str, *, timeout: int = 30) -
     return restarted, restart_error
 
 
+def _remote_reload_container(node: Any, container: str) -> tuple[bool, str]:
+    """Reload only the selected remote container; never fall back locally."""
+
+    command = f"docker exec {shlex.quote(container)} kill -HUP 1"
+    reloaded, output, reload_error = _ansible_ad_hoc(node, "shell", command)
+    return reloaded, reload_error or (output.strip() if not reloaded else "")
+
+
 def _redis_memory_bytes(value: str) -> int | None:
     match = re.fullmatch(r"(\d+)([kKmMgGtT])?[bB]?", value.strip())
     if not match:
@@ -1257,12 +1558,17 @@ def apply_config(
     content: str,
     apply_mode: str,
     requested_by: str = "platform-operator",
+    operation: str = "apply",
 ) -> DeploymentJob:
     _require_config_capability(service, "apply_enabled")
     validation = validate_config(content, service=service)
     service_id = int(service.id)
     node_id = int(service.node_id) if service.node_id else None
     normalized_mode = apply_mode.strip().lower()
+    capabilities = config_capabilities_for_service(service)
+    requested_mode = normalized_mode
+    if capabilities.get("restart_required") and normalized_mode == "reload":
+        normalized_mode = "restart"
     if normalized_mode not in {"reload", "restart"}:
         validation = {"ok": False, "message": "apply_mode must be 'reload' or 'restart'."}
     job = create_job(
@@ -1277,21 +1583,22 @@ def apply_config(
             db, category="config", level="error",
             message=f"Configuration apply rejected for {service.name}",
             service_id=service_id, node_id=node_id,
-            metadata={"action": "apply_failed", "actor": requested_by, "apply_mode": normalized_mode, "error": validation["message"]},
+            metadata={"action": f"{operation}_failed", "actor": requested_by, "apply_mode": normalized_mode, "requested_apply_mode": requested_mode, "error": validation["message"]},
         )
         return finish_job(db, job, ok=False, error=validation["message"])
     contract = _merged_service_contract(service)
-    runtime_path = str(contract.get("runtime_config_path") or contract.get("config_path") or "")
+    runtime_path = _runtime_config_path(service)
     container = (service.container_name or "").strip()
     from .discovery import resolve_connection_mode
 
     mode = resolve_connection_mode(service.node)
     if mode == "local":
-        from .docker_runtime import exec_container, restart_container, write_container_file
+        from .docker_runtime import exec_container, reload_container, restart_container, write_container_file
 
         exec_runtime = exec_container
         write_runtime = write_container_file
         restart_runtime = restart_container
+        reload_runtime = reload_container
 
         def read_runtime(target_container: str, target_path: str) -> tuple[bool, str, str]:
             return exec_container(target_container, ["cat", target_path])
@@ -1307,6 +1614,9 @@ def apply_config(
         def restart_runtime(target_container: str, *, timeout: int = 30) -> tuple[bool, str]:
             return _remote_restart_container(node, target_container, timeout=timeout)
 
+        def reload_runtime(target_container: str) -> tuple[bool, str]:
+            return _remote_reload_container(node, target_container)
+
         def read_runtime(target_container: str, target_path: str) -> tuple[bool, str, str]:
             remote_content, remote_error = _remote_read_container_file(node, target_container, target_path)
             return (True, remote_content, "") if remote_content is not None else (False, "", remote_error or "remote read failed")
@@ -1314,7 +1624,7 @@ def apply_config(
     read_ok, previous_content, read_error = read_runtime(container, runtime_path)
     if not read_ok:
         error = f"Unable to capture rollback bytes before apply: {read_error or previous_content.strip()}"
-        record_event(db, category="config", level="error", message=f"Configuration apply failed for {service.name}", service_id=service_id, node_id=node_id, metadata={"action": "apply_failed", "actor": requested_by, "stage": "pre_read", "error": error})
+        record_event(db, category="config", level="error", message=f"Configuration {operation} failed for {service.name}", service_id=service_id, node_id=node_id, metadata={"action": f"{operation}_failed", "actor": requested_by, "stage": "pre_read", "error": error, "target": _config_target_identity(service)})
         return finish_job(db, job, ok=False, error=error)
 
     wrote = False
@@ -1331,9 +1641,11 @@ def apply_config(
         else:
             checks.append("runtime_bytes=verified")
     if not error:
-        restarted, restart_error = restart_runtime(container)
-        if not restarted:
-            error = f"Runtime {normalized_mode} check failed: {restart_error}"
+        lifecycle_ok, lifecycle_error = (
+            restart_runtime(container) if normalized_mode == "restart" else reload_runtime(container)
+        )
+        if not lifecycle_ok:
+            error = f"Runtime {normalized_mode} check failed: {lifecycle_error}"
         else:
             checks.append(f"{normalized_mode}=verified")
     if not error and _config_format(service) == "redis":
@@ -1374,9 +1686,36 @@ def apply_config(
         rollback_details = "verified" if rollback_ok else f"failed:{rollback_error or 'rollback verification mismatch'}"
         error = f"{error}; rollback={rollback_details}"
     if error:
-        record_event(db, category="config", level="error", message=f"Configuration apply failed for {service.name}", service_id=service_id, node_id=node_id, metadata={"action": "apply_failed", "actor": requested_by, "stage_checks": checks, "rollback": rollback_details, "error": error})
+        record_event(db, category="config", level="error", message=f"Configuration {operation} failed for {service.name}", service_id=service_id, node_id=node_id, metadata={"action": f"{operation}_failed", "actor": requested_by, "stage_checks": checks, "rollback": rollback_details, "error": error, "target": _config_target_identity(service)})
         return finish_job(db, job, ok=False, error=error, output=";".join(checks))
 
-    _persist_verified_config(db, service, content)
-    record_event(db, category="config", level="info", message=f"Applied verified configuration change to {service.name} ({normalized_mode})", service_id=service_id, node_id=node_id, metadata={"action": "applied", "actor": requested_by, "checks": checks, "runtime_path": runtime_path})
+    try:
+        _persist_verified_config(db, service, content)
+    except Exception as exc:
+        rollback_ok, rollback_error = write_runtime(container, runtime_path, previous_content)
+        rollback_restart_ok, rollback_restart_error = (
+            restart_runtime(container) if rollback_ok else (False, "rollback write failed")
+        )
+        rollback_read_ok, rollback_content, rollback_read_error = (
+            read_runtime(container, runtime_path) if rollback_ok else (False, "", "rollback write failed")
+        )
+        verified = rollback_ok and rollback_restart_ok and rollback_read_ok and rollback_content == previous_content
+        detail = (
+            "verified"
+            if verified
+            else f"failed:{rollback_error or rollback_restart_error or rollback_read_error or 'rollback verification mismatch'}"
+        )
+        error = f"Persisted config state update failed: {exc}; rollback={detail}"
+        record_event(
+            db,
+            category="config",
+            level="error",
+            message=f"Configuration {operation} failed for {service.name}",
+            service_id=service_id,
+            node_id=node_id,
+            metadata={"action": f"{operation}_failed", "actor": requested_by, "stage": "persist", "rollback": detail, "error": str(exc), "target": _config_target_identity(service)},
+        )
+        return finish_job(db, job, ok=False, error=error, output=";".join(checks))
+    event_action = "applied" if operation == "apply" else f"{operation}_succeeded"
+    record_event(db, category="config", level="info", message=f"Applied verified configuration change to {service.name} ({normalized_mode})", service_id=service_id, node_id=node_id, metadata={"action": event_action, "actor": requested_by, "checks": checks, "runtime_path": runtime_path, "target": _config_target_identity(service), "requested_apply_mode": requested_mode})
     return finish_job(db, job, ok=True, output=";".join(checks))

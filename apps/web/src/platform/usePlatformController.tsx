@@ -202,34 +202,14 @@ export function usePlatformController(): PlatformApi {
         if (!cancelled) s.setLlmStatus({ configured: false });
       }
       const hash = window.location.hash || "";
-      const inviteMatch = hash.match(/#\/invite\/([^/?#]+)/);
+      // Support both the native hash link and cPlatform's direct
+      // ``/invite/accept/<token>/`` URL.  The latter is important when a user
+      // opens a delivered email in a fresh browser with no existing session.
+      const inviteMatch = hash.match(/#\/invite\/([^/?#]+)/)
+        || window.location.pathname.match(/\/invite\/accept\/([^/?#]+)\/?$/);
       if (inviteMatch) {
         const tokenInv = inviteMatch[1];
-        try {
-          const preview = await api(`/api/auth/invite/${tokenInv}`);
-          if (!cancelled) {
-            s.setInviteAccept({
-              token: tokenInv,
-              fullName: preview?.invite?.user_name || "",
-              password: "",
-              confirmPassword: "",
-              agreed: false,
-              busy: false,
-              error: "",
-              preview,
-            });
-            s.setAuthReady(true);
-          }
-        } catch (e) {
-          if (!cancelled) {
-            s.setInviteAccept({
-              token: tokenInv,
-              preview: { state: "error", invite: null },
-              error: e?.message || "Unable to load invitation",
-            });
-            s.setAuthReady(true);
-          }
-        }
+        await s.loadInvitePreview(tokenInv);
         return;
       }
       const token = getAuthToken();

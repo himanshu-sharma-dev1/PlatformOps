@@ -72,6 +72,8 @@ export function createDiagnosticsActions(s: any) {
         page: String(page),
         page_size: String(s.historyPageSize || 100)
       });
+      if (s.historyStart) params2.set("start", new Date(s.historyStart).toISOString());
+      if (s.historyEnd) params2.set("end", new Date(s.historyEnd).toISOString());
       const hasCursor = options && Object.prototype.hasOwnProperty.call(options, "cursor");
       const cursor = hasCursor ? options.cursor : s.historyCursor;
       if (cursor !== undefined && cursor !== null && cursor !== "") params2.set("cursor", String(cursor));
@@ -461,7 +463,8 @@ export function createDiagnosticsActions(s: any) {
             evidence: result.evidence || [],
             chart_data: result.chart_data || [],
             suggestions: result.suggestions || [],
-            error: result.error || "request failed"
+            error: result.error || "request failed",
+            analyst_source: result.provider || "deterministic fallback"
           }
         ]);
       } else {
@@ -473,7 +476,8 @@ export function createDiagnosticsActions(s: any) {
             timestamp: (/* @__PURE__ */ new Date()).toLocaleTimeString(),
             evidence: result.evidence || [],
             chart_data: result.chart_data || [],
-            suggestions: result.suggestions || []
+            suggestions: result.suggestions || [],
+            analyst_source: result.provider || "deterministic fallback"
           }
         ]);
       }

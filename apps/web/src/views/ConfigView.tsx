@@ -19,16 +19,23 @@ export function ConfigView() {
   const compareSnapshotLeft = p.compareSnapshotLeft;
   const compareSnapshotRight = p.compareSnapshotRight;
   const config = p.config;
+  const configLoading = p.configLoading;
+  const configError = p.configError;
   const configApplyMode = p.configApplyMode;
   const configEditMode = p.configEditMode;
   const configSource = p.configSource;
   const configTab = p.configTab;
   const configTimelinePage = p.configTimelinePage;
+  const configTimelineAction = p.configTimelineAction;
+  const configTimelineActor = p.configTimelineActor;
+  const configTimelineSearch = p.configTimelineSearch;
   const detectConfigDrift = p.detectConfigDrift;
   const drift = p.drift;
   const formatLocalTimestamp = p.formatLocalTimestamp;
   const getConfigStrategy = p.getConfigStrategy;
   const loadConfig = p.loadConfig;
+  const loadConfigTimeline = p.loadConfigTimeline;
+  const loadConfigSnapshots = p.loadConfigSnapshots;
   const migrationApplyResult = p.migrationApplyResult;
   const migrationArtifactId = p.migrationArtifactId;
   const migrationContent = p.migrationContent;
@@ -49,6 +56,9 @@ export function ConfigView() {
   const setConfigApplyMode = p.setConfigApplyMode;
   const setConfigEditMode = p.setConfigEditMode;
   const setConfigTab = p.setConfigTab;
+  const setConfigTimelineAction = p.setConfigTimelineAction;
+  const setConfigTimelineActor = p.setConfigTimelineActor;
+  const setConfigTimelineSearch = p.setConfigTimelineSearch;
   const setMigrationContent = p.setMigrationContent;
   const setNotice = p.setNotice;
   const setSelectedSnapshotPreview = p.setSelectedSnapshotPreview;
@@ -58,6 +68,7 @@ export function ConfigView() {
   const syncPeerConfig = p.syncPeerConfig;
   const validateMigrationYaml = p.validateMigrationYaml;
   const viewSnapshot = p.viewSnapshot;
+  const configInSync = Boolean(config && (/in[ -]sync|matches active checkpoint/i.test(String(config.drift_state || ""))));
 
 
   // Config Manager with side-by-side tree and diff navigator (08-config-manager.html reference)
@@ -109,18 +120,31 @@ export function ConfigView() {
                 )}
               </div>
               <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
-                <button className="btn btn-secondary btn-sm" disabled={!config?.config_capabilities?.snapshot_enabled || !config?.live_read_ok} onClick={captureSnapshot}>Capture snapshot</button>
-                <button className="btn btn-secondary btn-sm" onClick={detectConfigDrift}>Detect drift</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => selectedService && loadConfig(selectedService, "live")}>Refresh live</button>
+                <button className="btn btn-secondary btn-sm" disabled={configLoading || !config?.config_capabilities?.snapshot_enabled || !config?.live_read_ok} onClick={captureSnapshot}>Capture snapshot</button>
+                <button className="btn btn-secondary btn-sm" disabled={configLoading || !config} onClick={detectConfigDrift}>Detect drift</button>
+                <button className="btn btn-secondary btn-sm" disabled={configLoading} onClick={() => selectedService && loadConfig(selectedService, "live")}>Refresh live</button>
                 <button type="button" className={`btn btn-sm ${configEditMode ? "btn-primary" : "btn-secondary"}`} onClick={() => setConfigEditMode((v) => !v)}>{configEditMode ? "Editing" : "Edit mode"}</button>
                 <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
                   <small style={{ color: "var(--ink-4)" }}>Apply:</small>
                   <button type="button" className={`btn btn-xs ${configApplyMode === "reload" ? "btn-primary" : "btn-secondary"}`} onClick={() => setConfigApplyMode("reload")}>Reload</button>
                   <button type="button" className={`btn btn-xs ${configApplyMode === "restart" ? "btn-primary" : "btn-secondary"}`} onClick={() => setConfigApplyMode("restart")}>Restart</button>
                 </div>
-                <button className="btn btn-primary btn-sm" disabled={!config?.config_capabilities?.apply_enabled} onClick={applyCurrentConfig}>Apply config</button>
+                <button className="btn btn-primary btn-sm" disabled={configLoading || !config?.config_capabilities?.apply_enabled || !config?.live_read_ok} onClick={applyCurrentConfig}>Apply config</button>
               </div>
             </div>
+
+            {configLoading && (
+              <div className="notice notice-info" role="status">Loading live configuration and checkpoints…</div>
+            )}
+            {!configLoading && configError && (
+              <div className="notice notice-error" role="alert">
+                <strong>Config load failed.</strong> {configError}
+                <button className="btn btn-secondary btn-xs" style={{ marginLeft: "0.75rem" }} onClick={() => loadConfig(selectedService, configSource)}>Retry</button>
+              </div>
+            )}
+            {!configLoading && !config && !configError && (
+              <div className="notice notice-warning" role="status">No configuration workspace is available for this service yet. Refresh to retry the target read.</div>
+            )}
 
             {/* Workspaces tabs */}
             <div className="cluster-tabs">
@@ -142,7 +166,7 @@ export function ConfigView() {
                     background: "rgba(234, 179, 8, 0.08)",
                     fontSize: "0.85rem",
                   }}>
-                    <strong>{config?.live_read_ok ? "Checkpoint content" : "Runtime config unavailable"}</strong>
+                    <strong>{config?.live_read_ok ? "Checkpoint content" : config?.content_source === "database_fallback" ? "Persisted config fallback" : "Runtime config unavailable"}</strong>
                     <div style={{ color: "var(--ink-3)", marginTop: 4 }}>
                       Showing <code>{config?.config_source_label || config?.content_source}</code>.
                       {!config?.live_read_ok && config?.live_read_error ? ` ${config.live_read_error}` : ""}
@@ -156,20 +180,20 @@ export function ConfigView() {
                     justifyContent: "space-between",
                     alignItems: "center",
                     padding: "0.75rem 1rem",
-                    background: config.drift_state === "in_sync" ? "rgba(16, 185, 129, 0.06)" : "rgba(239, 68, 68, 0.06)",
-                    border: config.drift_state === "in_sync" ? "1px solid rgba(16, 185, 129, 0.15)" : "1px solid rgba(239, 68, 68, 0.15)",
+                    background: configInSync ? "rgba(16, 185, 129, 0.06)" : "rgba(239, 68, 68, 0.06)",
+                    border: configInSync ? "1px solid rgba(16, 185, 129, 0.15)" : "1px solid rgba(239, 68, 68, 0.15)",
                     borderRadius: "10px",
                     fontSize: "0.85rem",
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                      <span style={{ color: config.drift_state === "in_sync" ? "#34d399" : "#f87171" }}>●</span>
+                      <span style={{ color: configInSync ? "#34d399" : "#f87171" }}>●</span>
                       <span>
                         Active Checkpoint: <strong>v{config.active_checkpoint.version}</strong> · {config.active_checkpoint.name}
                       </span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                      <span className={`pill ${config.drift_state === "in_sync" ? "pill-ok" : "pill-error"}`}>
-                        {config.drift_state === "in_sync" ? "In Sync" : "Drifted"}
+                      <span className={`pill ${configInSync ? "pill-ok" : "pill-error"}`}>
+                        {configInSync ? "In Sync" : "Drifted"}
                       </span>
                       <button className="btn btn-secondary btn-xs" onClick={() => config.active_checkpoint && viewSnapshot(config.active_checkpoint.id)}>
                         View Active
@@ -233,13 +257,18 @@ export function ConfigView() {
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
                   <button 
                     className="btn btn-secondary btn-sm" 
+                    disabled={configLoading || !config}
                     onClick={async () => {
                       if (!selectedService || !config) return;
-                      const validation = await api<{ ok: boolean; message: string }>(`/api/services/${selectedService.id}/config/validate`, {
-                        method: "POST",
-                        body: JSON.stringify({ content: config.content }),
-                      });
-                      setNotice(validation.message);
+                      try {
+                        const validation = await api<{ ok: boolean; message: string }>(`/api/services/${selectedService.id}/config/validate`, {
+                          method: "POST",
+                          body: JSON.stringify({ content: config.content }),
+                        });
+                        setNotice(validation.message);
+                      } catch (error) {
+                        setNotice(`Validation failed: ${error instanceof Error ? error.message : String(error)}`);
+                      }
                     }}
                   >
                     Validate {config?.config_format === "redis" ? "Redis Syntax" : "YAML Syntax"}
@@ -266,6 +295,19 @@ export function ConfigView() {
                     onChange={(e) => setCheckpointSearch(e.target.value)}
                     style={{ maxWidth: "240px", fontSize: "0.8rem", padding: "0.35rem 0.65rem", background: "rgba(255,255,255,0.04)" }}
                   />
+                </div>
+
+                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+                  <select value={configTimelineAction} onChange={(e) => setConfigTimelineAction(e.target.value)} aria-label="Timeline action filter">
+                    <option value="all">All actions</option>
+                    {(configTimelinePage?.available_actions ?? []).filter((value) => value !== "all").map((value) => <option key={value} value={value}>{value}</option>)}
+                  </select>
+                  <select value={configTimelineActor} onChange={(e) => setConfigTimelineActor(e.target.value)} aria-label="Timeline actor filter">
+                    <option value="all">All actors</option>
+                    {(configTimelinePage?.available_actors ?? []).filter((value) => value !== "all").map((value) => <option key={value} value={value}>{value}</option>)}
+                  </select>
+                  <input className="input" value={configTimelineSearch} onChange={(e) => setConfigTimelineSearch(e.target.value)} placeholder="Search timeline…" aria-label="Timeline search" style={{ maxWidth: "220px" }} />
+                  <button className="btn btn-secondary btn-xs" disabled={!selectedService || configLoading} onClick={() => selectedService && loadConfigTimeline(selectedService.id, { offset: 0 })}>Apply filters</button>
                 </div>
 
                 {/* Active Snapshot Preview Card */}
@@ -377,6 +419,12 @@ export function ConfigView() {
                   )}
                 </div>
 
+                {snapshotPage?.has_more && selectedService && (
+                  <div style={{ display: "flex", justifyContent: "center" }}>
+                    <button className="btn btn-secondary btn-sm" disabled={configLoading} onClick={() => loadConfigSnapshots(selectedService, { offset: snapshotPage.offset + snapshotPage.items.length, append: true })}>Load more checkpoints</button>
+                  </div>
+                )}
+
                 {/* Configuration Event Log (Timeline Events) */}
                 {configTimelinePage && configTimelinePage.items.length > 0 && (
                   <div style={{ marginTop: "1.5rem", borderTop: "1px solid var(--line)", paddingTop: "1.5rem" }}>
@@ -390,6 +438,14 @@ export function ConfigView() {
                         </article>
                       ))}
                     </div>
+                  </div>
+                )}
+                {configTimelinePage && configTimelinePage.items.length === 0 && (
+                  <div style={{ color: "var(--ink-4)", fontStyle: "italic", textAlign: "center", padding: "1.5rem" }}>No configuration events match the selected filters.</div>
+                )}
+                {configTimelinePage?.has_more && selectedService && (
+                  <div style={{ display: "flex", justifyContent: "center" }}>
+                    <button className="btn btn-secondary btn-sm" disabled={configLoading} onClick={() => loadConfigTimeline(selectedService.id, { offset: configTimelinePage.offset + configTimelinePage.items.length, append: true })}>Load more timeline events</button>
                   </div>
                 )}
               </div>
@@ -529,7 +585,7 @@ export function ConfigView() {
                     <small style={{ color: "var(--ink-4)" }}>Peer nodes sharing the same type</small>
                   </div>
                   <p style={{ color: "var(--ink-3)", fontSize: "0.85rem", marginBottom: "1rem" }}>
-                    The following sibling node instances in the cluster run the same service type. You can deploy the current validated configuration to peer nodes in a controlled sequence.
+                    The following sibling node instances run the same service type. Peer synchronization is shown for context only because cPlatform has no direct peer-sync action; migration/apply remains target-scoped.
                   </p>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.75rem" }}>
                     {(config?.peers ?? []).map((peer) => (
@@ -548,12 +604,13 @@ export function ConfigView() {
                             service_id: {peer.service_id} · Status: {peer.status}
                           </div>
                         </div>
-                        <button 
-                          className="btn btn-secondary btn-sm" 
-                          onClick={() => syncPeerConfig(peer.service_id, peer.node_name)}
-                        >
-                          Sync validated config
-                        </button>
+                        {config?.config_capabilities?.peer_sync_enabled ? (
+                          <button className="btn btn-secondary btn-sm" onClick={() => syncPeerConfig(peer.service_id, peer.node_name)}>
+                            Sync validated config
+                          </button>
+                        ) : (
+                          <span className="pill pill-secondary" title={config?.config_capabilities?.peer_sync_reason || "Native-only action"}>Native-only · unavailable</span>
+                        )}
                       </div>
                     ))}
                     {(config?.peers ?? []).length === 0 && (

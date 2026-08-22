@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { useState } from "react";
 export function useConfigState() {
+  const [configLoading, setConfigLoading] = useState(false as any);
+  const [configError, setConfigError] = useState("" as any);
   const [configTimelinePage, setConfigTimelinePage] = useState(null as any);
   const [configTimelineAction, setConfigTimelineAction] = useState("all" as any);
   const [configTimelineActor, setConfigTimelineActor] = useState("all" as any);
@@ -29,6 +31,8 @@ export function useConfigState() {
   const [compareSnapshotLeft, setCompareSnapshotLeft] = useState(null as any);
   const [compareSnapshotRight, setCompareSnapshotRight] = useState(null as any);
   return {
+    configLoading, setConfigLoading,
+    configError, setConfigError,
     configTimelinePage, setConfigTimelinePage,
     configTimelineAction, setConfigTimelineAction,
     configTimelineActor, setConfigTimelineActor,

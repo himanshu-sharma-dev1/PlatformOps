@@ -153,8 +153,19 @@ def _ansible_base_command(node: Node, playbook: str) -> str:
     inventory = "localhost," if is_local else f"{node.host},"
     user_arg = "" if is_local else f" -u {node.ssh_user}"
     key_arg = f" --private-key {node.ssh_key_path}" if node.ssh_key_path else ""
+    strict_args = ""
+    if not is_local:
+        # Remote jobs are terminally target-bound: require an operator-pinned
+        # fingerprint and a referenced known_hosts file before Ansible can be
+        # queued.  No job command contains password/private-key material.
+        from .remote import RemoteAuthError, strict_ansible_options
+
+        try:
+            strict_args = strict_ansible_options(node)
+        except RemoteAuthError as exc:
+            raise ValueError(str(exc)) from exc
     connection = " -c local" if is_local else ""
-    return f"ansible-playbook -i {inventory}{connection}{user_arg}{key_arg} {ansible_dir / 'playbooks' / playbook}"
+    return f"ansible-playbook -i {inventory}{connection}{user_arg}{key_arg}{strict_args} {ansible_dir / 'playbooks' / playbook}"
 
 
 def record_event(

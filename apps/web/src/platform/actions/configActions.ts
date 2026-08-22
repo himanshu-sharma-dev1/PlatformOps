@@ -1,6 +1,12 @@
 // @ts-nocheck
 import { api, getAuthToken, setAuthToken } from "../../api/client";
 export function createConfigActions(s: any) {
+  let configLoadGeneration = 0;
+  const isCurrentConfigRequest = (serviceId: number, generation?: number) => (
+    s.selectedService?.id === serviceId
+    && (generation === undefined || generation === configLoadGeneration)
+  );
+  const errorMessage = (error: any) => error instanceof Error ? error.message : String(error);
   return {
   async loadConfigTimeline(serviceId, options) {
     const nextOffset = options?.offset ?? 0;
@@ -14,6 +20,7 @@ export function createConfigActions(s: any) {
       created_before: s.configTimelineCreatedBefore.trim()
     });
     const next = await api(`/api/services/${serviceId}/config/timeline?${params.toString()}`);
+    if (!isCurrentConfigRequest(serviceId, options?.generation)) return;
     if (options?.append && s.configTimelinePage) {
       s.setConfigTimelinePage({
         ...next,
@@ -42,6 +49,7 @@ export function createConfigActions(s: any) {
       search: nextSearch
     });
     const next = await api(`/api/services/${service.id}/config/snapshots?${params.toString()}`);
+    if (!isCurrentConfigRequest(service.id, options?.generation)) return;
     if (options?.append && s.snapshotPage) {
       s.setSnapshotPage({
         ...next,
@@ -53,38 +61,64 @@ export function createConfigActions(s: any) {
   },
 
   async loadConfig(service, source = s.configSource) {
+    const generation = ++configLoadGeneration;
     s.setSelectedService(service);
-    await s.loadServiceCapabilities(service.id);
-    await s.loadServiceSummary(service.id);
-    await s.loadServiceReleaseTimeline(service.id);
-    await s.loadServiceMetrics(service.id);
-    const [next] = await Promise.all([
-      api(`/api/services/${service.id}/config?source=${source}`),
-      s.loadConfigTimeline(service.id, { offset: 0, silent: true })
-    ]);
-    s.setConfig(next);
-    s.setConfigSource(source);
-    await s.loadConfigSnapshots(service, { offset: 0 });
-    s.setSnapshotCompare(null);
-    s.setNotice(next.message || `Loaded ${source} config for ${service.name}`);
+    s.setConfigLoading?.(true);
+    s.setConfigError?.("");
+    // Clear target-scoped state immediately; an older request must not leave
+    // another service's editor/checkpoints visible during a slow load.
+    s.setConfig?.(null);
+    s.setSnapshotPage?.(null);
+    s.setConfigTimelinePage?.(null);
+    s.setSelectedSnapshotPreview?.(null);
+    s.setSnapshotCompare?.(null);
+    try {
+      await s.loadServiceCapabilities(service.id);
+      await s.loadServiceSummary(service.id);
+      await s.loadServiceReleaseTimeline(service.id);
+      await s.loadServiceMetrics(service.id);
+      if (!isCurrentConfigRequest(service.id, generation)) return;
+      const [next] = await Promise.all([
+        api(`/api/services/${service.id}/config?source=${encodeURIComponent(source)}`),
+        s.loadConfigTimeline(service.id, { offset: 0, silent: true, generation })
+      ]);
+      if (!isCurrentConfigRequest(service.id, generation)) return;
+      s.setConfig(next);
+      s.setConfigSource(source);
+      await s.loadConfigSnapshots(service, { offset: 0, generation });
+      if (!isCurrentConfigRequest(service.id, generation)) return;
+      s.setSnapshotCompare(null);
+      s.setNotice(next.message || `Loaded ${source} config for ${service.name}`);
+    } catch (error) {
+      if (!isCurrentConfigRequest(service.id, generation)) return;
+      const message = errorMessage(error);
+      s.setConfigError?.(message);
+      s.setNotice(`Config load failed: ${message}`);
+    } finally {
+      if (isCurrentConfigRequest(service.id, generation)) s.setConfigLoading?.(false);
+    }
   },
 
   async viewSnapshot(snapshotId) {
+    const serviceId = s.selectedService?.id;
+    if (!serviceId) return;
     try {
-      const snapDetail = await api(`/api/services/${s.selectedService.id}/config/snapshots/${snapshotId}`);
+      const snapDetail = await api(`/api/services/${serviceId}/config/snapshots/${snapshotId}`);
+      if (!isCurrentConfigRequest(serviceId)) return;
       s.setSelectedSnapshotPreview(snapDetail);
       s.setNotice(`Loaded snapshot v${snapDetail.version}`);
     } catch (err) {
       console.error(err);
-      s.setNotice("Failed to load snapshot preview");
+      if (isCurrentConfigRequest(serviceId)) s.setNotice(`Failed to load snapshot preview: ${errorMessage(err)}`);
     }
   },
 
   async syncPeerConfig(peerServiceId, peerName) {
-    if (!s.selectedService) return;
+    const serviceId = s.selectedService?.id;
+    if (!serviceId) return;
     try {
       s.setNotice(`Syncing validated config to peer ${peerName}...`);
-      const result = await api(`/api/services/${s.selectedService.id}/config/sync-peer`, {
+      const result = await api(`/api/services/${serviceId}/config/sync-peer`, {
         method: "POST",
         body: JSON.stringify({
           peer_id: peerServiceId,
@@ -92,6 +126,7 @@ export function createConfigActions(s: any) {
           requested_by: "platform-operator"
         })
       });
+      if (!isCurrentConfigRequest(serviceId)) return;
       s.setJob(result.job);
       const checkpoint = result.after_snapshot
         ? `checkpoint v${result.before_snapshot.version} -> v${result.after_snapshot.version}`
@@ -105,10 +140,12 @@ export function createConfigActions(s: any) {
   },
 
   async compareSelectedSnapshots() {
-    if (!s.selectedService || !s.compareSnapshotLeft || !s.compareSnapshotRight) return;
+    const serviceId = s.selectedService?.id;
+    if (!serviceId || !s.compareSnapshotLeft || !s.compareSnapshotRight) return;
     const next = await api(
-      `/api/services/${s.selectedService.id}/config/compare?left_snapshot_id=${s.compareSnapshotLeft}&right_snapshot_id=${s.compareSnapshotRight}`
+      `/api/services/${serviceId}/config/compare?left_snapshot_id=${s.compareSnapshotLeft}&right_snapshot_id=${s.compareSnapshotRight}`
     );
+    if (!isCurrentConfigRequest(serviceId)) return;
     s.setSnapshotCompare(next);
     s.setNotice(next.summary);
   },
@@ -123,57 +160,72 @@ export function createConfigActions(s: any) {
     const next = await api(
       `/api/services/${service.id}/config/compare?left_snapshot_id=${leftSnapshotId}&right_snapshot_id=${rightSnapshotId}`
     );
+    if (!isCurrentConfigRequest(service.id)) return;
     s.setSnapshotCompare(next);
     s.setNotice(next.summary);
   },
 
   async detectConfigDrift() {
-    if (!s.selectedService) return;
-    const report = await api(`/api/services/${s.selectedService.id}/config/drift`, {
+    const serviceId = s.selectedService?.id;
+    if (!serviceId) return;
+    const report = await api(`/api/services/${serviceId}/config/drift`, {
       method: "POST"
     });
+    if (!isCurrentConfigRequest(serviceId)) return;
     s.setDrift(report);
     s.setNotice(`Drift status: ${report.status}`);
     await s.refresh();
   },
 
   async captureSnapshot() {
-    if (!s.selectedService) return;
-    await api(`/api/services/${s.selectedService.id}/config/snapshots`, {
+    const service = s.selectedService;
+    if (!service) return;
+    await api(`/api/services/${service.id}/config/snapshots`, {
       method: "POST",
       body: JSON.stringify({ source: "ui-capture", requested_by: "platform-operator" })
     });
-    await s.loadConfig(s.selectedService, s.configSource);
+    if (!isCurrentConfigRequest(service.id)) return;
+    await s.loadConfig(service, s.configSource);
     s.setNotice("Captured configuration snapshot");
   },
 
   async applyCurrentConfig() {
-    if (!s.selectedService || !s.config) return;
-    const result = await api(`/api/services/${s.selectedService.id}/config/direct-apply`, {
+    const service = s.selectedService;
+    const workspace = s.config;
+    if (!service || !workspace) return;
+    const result = await api(`/api/services/${service.id}/config/direct-apply`, {
       method: "POST",
-      body: JSON.stringify({ content: s.config.content, apply_mode: s.configApplyMode })
+      body: JSON.stringify({
+        content: workspace.content,
+        apply_mode: s.configApplyMode,
+        expected_content_hash: workspace.live_content_hash || workspace.content_hash || "",
+        requested_by: "platform-operator",
+      })
     });
+    if (!isCurrentConfigRequest(service.id)) return;
     s.setJob(result.job);
     const checkpoint = result.after_snapshot
       ? `checkpoint v${result.before_snapshot.version} -> v${result.after_snapshot.version}`
       : `pre-apply checkpoint v${result.before_snapshot.version}; no post-apply checkpoint was created`;
     s.setNotice(`Config apply (${s.configApplyMode}) ${result.job.status}: ${checkpoint}${result.job.error ? ` (${result.job.error})` : ""}`);
-    await s.loadConfig(s.selectedService, s.configSource);
+    await s.loadConfig(service, s.configSource);
     await s.refresh();
   },
 
   async prepareConfigMigration() {
-    if (!s.selectedService || !s.compareSnapshotLeft || !s.compareSnapshotRight) {
+    const service = s.selectedService;
+    if (!service || !s.compareSnapshotLeft || !s.compareSnapshotRight) {
       s.setNotice("Choose baseline and target snapshots before preparing migration.");
       return;
     }
-    const prepared = await api(`/api/services/${s.selectedService.id}/config/migration/prepare`, {
+    const prepared = await api(`/api/services/${service.id}/config/migration/prepare`, {
       method: "POST",
       body: JSON.stringify({
         left_snapshot_id: s.compareSnapshotLeft,
         right_snapshot_id: s.compareSnapshotRight
       })
     });
+    if (!isCurrentConfigRequest(service.id)) return;
     s.setMigrationArtifactId(prepared.artifact_id);
     s.setMigrationContent(prepared.final_content);
     s.setMigrationValidation(prepared.validation.message);
@@ -182,51 +234,66 @@ export function createConfigActions(s: any) {
   },
 
   async validateMigrationYaml() {
-    if (!s.selectedService || !s.migrationContent.trim()) {
+    const serviceId = s.selectedService?.id;
+    if (!serviceId || !s.migrationContent.trim()) {
       s.setMigrationValidation("Prepare or paste migration config first.");
       return;
     }
-    const validation = await api(`/api/services/${s.selectedService.id}/config/validate`, {
-      method: "POST",
-      body: JSON.stringify({ content: s.migrationContent })
-    });
-    s.setMigrationValidation(validation.message);
-    s.setNotice(validation.message);
+    try {
+      const validation = await api(`/api/services/${serviceId}/config/validate`, {
+        method: "POST",
+        body: JSON.stringify({ content: s.migrationContent })
+      });
+      if (!isCurrentConfigRequest(serviceId)) return;
+      s.setMigrationValidation(validation.message);
+      s.setNotice(validation.message);
+    } catch (error) {
+      if (isCurrentConfigRequest(serviceId)) {
+        const message = `Validation failed: ${errorMessage(error)}`;
+        s.setMigrationValidation(message);
+        s.setNotice(message);
+      }
+    }
   },
 
   async applyPreparedMigration() {
-    if (!s.selectedService || !s.migrationArtifactId) {
+    const service = s.selectedService;
+    if (!service || !s.migrationArtifactId) {
       s.setNotice("Prepare a migration artifact first.");
       return;
     }
-    const result = await api(`/api/services/${s.selectedService.id}/config/migration/apply`, {
+    const result = await api(`/api/services/${service.id}/config/migration/apply`, {
       method: "POST",
       body: JSON.stringify({
         artifact_id: s.migrationArtifactId,
         edited_yaml: s.migrationContent,
-        apply_mode: s.configApplyMode
+        apply_mode: s.configApplyMode,
+        expected_content_hash: s.config?.live_content_hash || s.config?.content_hash || "",
       })
     });
+    if (!isCurrentConfigRequest(service.id)) return;
     s.setMigrationApplyResult(result);
     s.setJob(result.job);
     s.setNotice(`Migration apply ${result.job.status}`);
-    await s.loadConfig(s.selectedService, s.configSource);
+    await s.loadConfig(service, s.configSource);
     await s.refresh();
   },
 
   async restorePreparedMigration() {
-    if (!s.selectedService || !s.migrationArtifactId) {
+    const service = s.selectedService;
+    if (!service || !s.migrationArtifactId) {
       s.setNotice("No migration artifact has a backup checkpoint yet.");
       return;
     }
-    const result = await api(`/api/services/${s.selectedService.id}/config/migration/restore`, {
+    const result = await api(`/api/services/${service.id}/config/migration/restore`, {
       method: "POST",
-      body: JSON.stringify({ artifact_id: s.migrationArtifactId, apply_mode: s.configApplyMode })
+      body: JSON.stringify({ artifact_id: s.migrationArtifactId, apply_mode: s.configApplyMode, expected_content_hash: s.config?.live_content_hash || s.config?.content_hash || "" })
     });
+    if (!isCurrentConfigRequest(service.id)) return;
     s.setMigrationApplyResult(result);
     s.setJob(result.job);
     s.setNotice(`Migration restore ${result.job.status}`);
-    await s.loadConfig(s.selectedService, s.configSource);
+    await s.loadConfig(service, s.configSource);
     await s.refresh();
   },
 
@@ -256,8 +323,13 @@ export function createConfigActions(s: any) {
     try {
       await api(`/api/services/${s.selectedService.id}/config/snapshots/${s.renameModal.snapshotId}/rename`, {
         method: "POST",
-        body: JSON.stringify({ name: trimmed, requested_by: "platform-operator" })
+        body: JSON.stringify({
+          name: trimmed,
+          requested_by: "platform-operator",
+          expected_version: (s.snapshotPage?.items ?? []).find((item) => item.id === s.renameModal.snapshotId)?.version ?? null,
+        })
       });
+      if (!isCurrentConfigRequest(s.selectedService.id)) return;
       s.setRenameModal({ visible: false, snapshotId: 0, value: "", error: "" });
       await s.loadConfig(s.selectedService, s.configSource);
       s.setNotice(`Renamed snapshot to ${trimmed}`);
@@ -270,14 +342,20 @@ export function createConfigActions(s: any) {
   },
 
   async restoreSnapshot(snapshotId) {
-    if (!s.selectedService) return;
-    const nextJob = await api(`/api/services/${s.selectedService.id}/config/snapshots/${snapshotId}/restore`, {
-      method: "POST"
+    const service = s.selectedService;
+    if (!service) return;
+    const nextJob = await api(`/api/services/${service.id}/config/snapshots/${snapshotId}/restore`, {
+      method: "POST",
+      body: JSON.stringify({
+        requested_by: "platform-operator",
+        expected_content_hash: s.config?.live_content_hash || s.config?.content_hash || "",
+      })
     });
+    if (!isCurrentConfigRequest(service.id)) return;
     s.setJob(nextJob);
     s.setNotice(`Snapshot restore ${nextJob.status}`);
-    await s.loadConfigTimeline(s.selectedService.id, { offset: 0, silent: true });
-    await s.loadConfigSnapshots(s.selectedService, { offset: 0 });
+    await s.loadConfigTimeline(service.id, { offset: 0, silent: true });
+    await s.loadConfigSnapshots(service, { offset: 0 });
     await s.refresh();
   },
 

@@ -372,6 +372,23 @@ def restart_container(container_name: str, *, timeout: int = 30) -> tuple[bool, 
             _close(client)
 
 
+def reload_container(container_name: str) -> tuple[bool, str]:
+    """Ask PID 1 to reload its configuration and verify the container is alive."""
+
+    if not container_name:
+        return False, "empty container name"
+    ok, output, error = exec_container(container_name, ["kill", "-HUP", "1"])
+    if not ok:
+        return False, error or output.strip() or "container reload failed"
+    attrs, inspect_error = inspect_container(container_name)
+    if inspect_error:
+        return False, inspect_error
+    state = (attrs or {}).get("State") or {}
+    if state.get("Running") is False or state.get("Status") not in {None, "running"}:
+        return False, f"container state after reload is {state.get('Status') or 'unknown'}"
+    return True, ""
+
+
 def list_containers(*, all_containers: bool = True) -> tuple[list[dict[str, Any]], str | None]:
     """List local-engine containers in the shape used by discovery."""
 

@@ -120,9 +120,14 @@ def _is_local_docker_host(node: Node) -> bool:
     return resolve_connection_mode(node) == "local"
 
 
-def _probe_node_ssh_docker(node: Node) -> dict[str, Any]:
+def _probe_node_ssh_docker(
+    node: Node,
+    *,
+    ephemeral_key: str | None = None,
+    ephemeral_password: str | None = None,
+) -> dict[str, Any]:
     """Real connectivity probe: local docker path or remote SSH. Never invents success."""
-    import subprocess
+    from .remote import RemoteAuthError, run_ssh
 
     result: dict[str, Any] = {
         "ssh_ok": None,
@@ -147,36 +152,18 @@ def _probe_node_ssh_docker(node: Node) -> dict[str, Any]:
         return result
 
     host = (node.host or "").strip()
-    user = (node.ssh_user or "ubuntu").strip()
-    key = (node.ssh_key_path or "").strip()
     if not host:
         result["ssh_ok"] = False
         result["detail"] = "missing host"
         return result
-    # A remote node must never be represented by the control plane's local
-    # Docker daemon when its SSH credential is unavailable.
-    from pathlib import Path
-
-    if key and not Path(key).is_file():
-        result["ssh_ok"] = False
-        result["docker_ok"] = False
-        result["detail"] = f"ssh key not found in control plane: {key}"
-        return result
-    cmd = [
-        "ssh",
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        "StrictHostKeyChecking=no",
-        "-o",
-        "ConnectTimeout=8",
-    ]
-    if key:
-        cmd.extend(["-i", key])
-    cmd.append(f"{user}@{host}")
-    cmd.append("echo SSH_OK; docker info --format '{{.ServerVersion}}' 2>/dev/null || echo DOCKER_MISSING")
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
+        proc = run_ssh(
+            node,
+            "echo SSH_OK; docker info --format '{{.ServerVersion}}' 2>/dev/null || echo DOCKER_MISSING",
+            ephemeral_key=ephemeral_key,
+            ephemeral_password=ephemeral_password,
+            timeout=8,
+        )
         out = (proc.stdout or "") + (proc.stderr or "")
         result["ssh_ok"] = proc.returncode == 0 and "SSH_OK" in out
         result["docker_ok"] = "DOCKER_MISSING" not in out and proc.returncode == 0 and bool(out.strip())
@@ -189,10 +176,29 @@ def _probe_node_ssh_docker(node: Node) -> dict[str, Any]:
     except FileNotFoundError:
         result["ssh_ok"] = False
         result["detail"] = "ssh client not available on control plane"
+    except RemoteAuthError as exc:
+        result["ssh_ok"] = False
+        result["docker_ok"] = False
+        result["detail"] = str(exc)
     except Exception as exc:
         result["ssh_ok"] = False
         result["detail"] = str(exc)[:200]
     return result
+
+
+def probe_node_connection(
+    node: Node,
+    *,
+    ephemeral_key: str | None = None,
+    ephemeral_password: str | None = None,
+) -> dict[str, Any]:
+    """Probe a node with request-scoped auth, returning no credential material."""
+
+    return _probe_node_ssh_docker(
+        node,
+        ephemeral_key=ephemeral_key,
+        ephemeral_password=ephemeral_password,
+    )
 
 
 def cleanup_node_inventory(
@@ -497,8 +503,10 @@ def get_node_connection_report(db: Session, node_id: int) -> dict[str, Any]:
     probe = _probe_node_ssh_docker(node)
 
     recommendations: list[str] = []
-    if node.environment != "local" and not (node.ssh_key_path or "").strip() and not _is_local_docker_host(node):
-        recommendations.append("Configure an SSH private key path before validating remote connectivity.")
+    if node.environment != "local" and not (
+        (node.ssh_key_path or "").strip() or (getattr(node, "ssh_secret_ref", "") or "").strip()
+    ) and not _is_local_docker_host(node):
+        recommendations.append("Configure an SSH secret reference before validating remote connectivity.")
     if node.environment != "local" and node.host in {"localhost", "127.0.0.1"} and not _is_local_docker_host(node):
         recommendations.append("Set a remote host/IP for this non-local node.")
     if probe.get("ssh_ok") is False:
@@ -535,6 +543,9 @@ def get_node_connection_report(db: Session, node_id: int) -> dict[str, Any]:
         "host": node.host,
         "ssh_user": node.ssh_user,
         "ssh_key_path": node.ssh_key_path,
+        "ssh_secret_ref": getattr(node, "ssh_secret_ref", "") or "",
+        "host_key_fingerprint": getattr(node, "host_key_fingerprint", "") or "",
+        "known_hosts_ref": getattr(node, "known_hosts_ref", "") or "",
         "environment": node.environment,
         "status": node.status,
         "connection_state": connection_state,
@@ -602,9 +613,13 @@ def get_node_onboarding_report(db: Session, node_id: int) -> dict[str, Any]:
     push_check(
         "ssh-key",
         "SSH private key",
-        "pass" if (is_local or (node.ssh_key_path or "").strip()) else "fail",
-        "SSH key path configured." if (node.ssh_key_path or "").strip() else "No SSH key path configured.",
-        "Attach an SSH key path for remote nodes (for example ~/.ssh/<key>.pem).",
+        "pass"
+        if (is_local or (node.ssh_key_path or "").strip() or (getattr(node, "ssh_secret_ref", "") or "").strip())
+        else "fail",
+        "SSH secret reference configured."
+        if ((node.ssh_key_path or "").strip() or (getattr(node, "ssh_secret_ref", "") or "").strip())
+        else "No SSH secret reference configured.",
+        "Attach an operator-managed SSH secret reference for remote nodes.",
         "high" if not is_local else "low",
     )
 
@@ -686,7 +701,9 @@ def get_node_onboarding_report(db: Session, node_id: int) -> dict[str, Any]:
 
     suggested_actions: list[str] = []
     needs_remote_profile = node.environment != "local" and (
-        not remote_host_ok or not (node.ssh_key_path or "").strip() or not (node.ssh_user or "").strip()
+        not remote_host_ok
+        or not ((node.ssh_key_path or "").strip() or (getattr(node, "ssh_secret_ref", "") or "").strip())
+        or not (node.ssh_user or "").strip()
     )
     if needs_remote_profile:
         suggested_actions.append(

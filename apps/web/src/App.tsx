@@ -244,7 +244,8 @@ function InviteBridge() {
     p.setInviteAccept(null);
     // The invitation token is a one-time credential. Replace the hash rather
     // than assigning an empty hash, which leaves a misleading `/#` route.
-    window.history.replaceState(null, document.title, `${window.location.pathname}${window.location.search}`);
+    const cleanPath = window.location.pathname.replace(/\/invite\/accept\/[^/]+\/?$/, "") || "/";
+    window.history.replaceState(null, document.title, `${cleanPath}${window.location.search}`);
   };
   return (
     <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: "2rem" }}>
@@ -253,6 +254,11 @@ function InviteBridge() {
         {state !== "valid" ? (
           <>
             <p>{stateMessages[state] || stateMessages.invalid}</p>
+            {state === "error" ? (
+              <button className="btn btn-secondary" onClick={() => p.loadInvitePreview?.(invite.token)} disabled={Boolean(invite.previewBusy)}>
+                {invite.previewBusy ? "Retrying…" : "Try again"}
+              </button>
+            ) : null}
             <button className="btn btn-primary" onClick={leaveInviteRoute}>Go to sign in</button>
           </>
         ) : (

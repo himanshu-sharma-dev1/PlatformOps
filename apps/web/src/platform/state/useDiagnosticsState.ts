@@ -26,6 +26,8 @@ export function useDiagnosticsState() {
   const [historyCursor, setHistoryCursor] = useState("" as any);
   const [historyPreviousCursor, setHistoryPreviousCursor] = useState("" as any);
   const [historyTotalPages, setHistoryTotalPages] = useState(0 as any);
+  const [historyStart, setHistoryStart] = useState("" as any);
+  const [historyEnd, setHistoryEnd] = useState("" as any);
   const [diagTab, setDiagTab] = useState("summary" as any);
   const [selectedArchive, setSelectedArchive] = useState(null as any);
   return {
@@ -54,6 +56,8 @@ export function useDiagnosticsState() {
     historyCursor, setHistoryCursor,
     historyPreviousCursor, setHistoryPreviousCursor,
     historyTotalPages, setHistoryTotalPages,
+    historyStart, setHistoryStart,
+    historyEnd, setHistoryEnd,
     diagTab, setDiagTab,
     selectedArchive, setSelectedArchive,
   };

@@ -13,6 +13,7 @@ from email.message import EmailMessage
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..models import AuthSession, InviteToken, UserInfo
@@ -20,6 +21,7 @@ from ..settings import settings
 
 ROLES = ("System_Admin", "Operational", "Management")
 STATUSES = ("active", "pending", "disabled")
+INVITE_TTL = timedelta(days=30)
 
 
 def _validate_identity(user_email: str, user_number: str | None = None) -> tuple[bool, str]:
@@ -39,13 +41,21 @@ def _send_invite_email(*, recipient: str, recipient_name: str, token: str) -> tu
         return False, "SMTP is not configured"
     invite_url = f"{settings.public_base_url.rstrip('/')}/#/invite/{token}"
     message = EmailMessage()
-    message["Subject"] = "PlatformOps invitation"
+    # Keep the subject and the important body semantics in parity with the
+    # legacy ``email_invite.html`` template.  The hash route is intentional:
+    # the acceptance UI is a client-side route, while the API preview remains
+    # public and token-specific.
+    message["Subject"] = "You're invited to join YantrAI"
     message["From"] = settings.smtp_from
     message["To"] = recipient
     message.set_content(
-        f"Hello {recipient_name or recipient},\n\n"
-        f"You have been invited to PlatformOps. Activate your account here:\n{invite_url}\n\n"
-        "If you did not expect this invitation, ignore this message."
+        f"You've Been Invited by YantrAI!\n\n"
+        f"Hi {recipient_name or recipient},\n\n"
+        "You have been invited to join YantrAI.\n"
+        "Click the link below to accept your invitation and set up your account.\n\n"
+        f"{invite_url}\n\n"
+        "This invitation link expires in 30 days.\n\n"
+        "If you weren't expecting this invitation, you can safely ignore this email."
     )
     try:
         with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as client:
@@ -340,7 +350,9 @@ def invite_user(
         return False, validation_message, None
     if role not in ROLES:
         return False, "Failure, Invalid Role Provided.", None
-    existing = get_user_by_email(db, email)
+    # Serialize concurrent invites for the same identity.  The unique email
+    # constraint is still the final guard for a race that starts with no row.
+    existing = db.scalar(select(UserInfo).where(UserInfo.user_email == email).with_for_update())
     if existing and existing.status == "active":
         return False, "Active user already exists for this email.", None
     if existing and existing.status not in {"pending", "active"}:
@@ -375,7 +387,11 @@ def invite_user(
             session_info="{}",
         )
         db.add(existing)
-        db.flush()
+        try:
+            db.flush()
+        except IntegrityError:
+            db.rollback()
+            return False, "User email already exists.", None
 
     if permissions is not None:
         existing.permissions = json.dumps(invite_permissions)
@@ -396,7 +412,11 @@ def invite_user(
         is_revoked=0,
     )
     db.add(invite)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return False, "User email already exists.", None
     db.refresh(existing)
     delivered, delivery_message = _send_invite_email(
         recipient=email,
@@ -459,12 +479,11 @@ def get_invite(db: Session, token: str) -> dict[str, Any]:
     if invite.is_used:
         return {"state": "used", "invite": None}
     age = datetime.utcnow() - (invite.created_at or datetime.utcnow())
-    if age > timedelta(days=30):
+    if age > INVITE_TTL:
         return {"state": "expired", "invite": None}
     return {
         "state": "valid",
         "invite": {
-            "token": invite.token,
             "user_name": invite.user_name,
             "user_email": invite.user_email,
             "user_role": invite.user_role,
@@ -493,7 +512,7 @@ def accept_invite(
     if invite.is_used:
         return False, "Invite is used.", None
     age = datetime.utcnow() - (invite.created_at or datetime.utcnow())
-    if age > timedelta(days=30):
+    if age > INVITE_TTL:
         return False, "Invite is expired.", None
     if not (full_name or "").strip() or not password:
         return False, "Name and password are required.", None

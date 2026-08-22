@@ -618,8 +618,13 @@ def diagnostics_chat(
         message=f"AI log chat for {service.name}",
         service_id=service.id,
         node_id=service.node_id,
-        metadata={"window": payload.window, "question_len": len(payload.question)},
+        metadata={
+            "window": payload.window,
+            "question_len": len(payload.question),
+            "analyst_mode": result.get("_audit_mode", "deterministic_fallback"),
+        },
     )
+    result.pop("_audit_mode", None)
     return result
 
 
@@ -742,6 +747,8 @@ def rename_snapshot(
     snapshot = _get_snapshot(db, snapshot_id)
     if snapshot.service_id != service_id:
         raise HTTPException(status_code=404, detail="Config snapshot not found for service")
+    if payload.expected_version is not None and snapshot.version != payload.expected_version:
+        raise HTTPException(status_code=409, detail="Stale snapshot version; reload the checkpoint list before renaming.")
     try:
         return rename_config_snapshot(db, snapshot, name=payload.name, requested_by=payload.requested_by)
     except ValueError as exc:
@@ -749,13 +756,25 @@ def rename_snapshot(
 
 
 @router.post("/api/services/{service_id}/config/snapshots/{snapshot_id}/restore", response_model=JobOut)
-def restore_snapshot(service_id: int, snapshot_id: int, db: Session = Depends(get_db)) -> DeploymentJob:
+def restore_snapshot(
+    service_id: int,
+    snapshot_id: int,
+    payload: ConfigSnapshotRestore | None = Body(default=None),
+    db: Session = Depends(get_db),
+) -> DeploymentJob:
     service = _get_service(db, service_id)
     snapshot = _get_snapshot(db, snapshot_id)
     try:
-        return restore_config_snapshot(db, service, snapshot)
+        return restore_config_snapshot(
+            db,
+            service,
+            snapshot,
+            requested_by=payload.requested_by if payload else "platform-operator",
+            expected_content_hash=payload.expected_content_hash if payload else "",
+        )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        status = 409 if "Stale config target" in str(exc) else 400
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
 
 
 @router.post("/api/services/{service_id}/config/validate", response_model=ConfigValidateOut)
@@ -773,9 +792,12 @@ def apply_config_endpoint(service_id: int, payload: ConfigApply, db: Session = D
             _get_service(db, service_id),
             content=payload.content,
             apply_mode=payload.apply_mode,
+            requested_by=payload.requested_by,
+            expected_content_hash=payload.expected_content_hash,
         )["job"]
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        status = 409 if "Stale config target" in str(exc) else 400
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
 
 
 @router.post("/api/services/{service_id}/config/direct-apply", response_model=ConfigDirectApplyOut)
@@ -786,9 +808,12 @@ def apply_config_direct_endpoint(service_id: int, payload: ConfigApply, db: Sess
             _get_service(db, service_id),
             content=payload.content,
             apply_mode=payload.apply_mode,
+            requested_by=payload.requested_by,
+            expected_content_hash=payload.expected_content_hash,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        status = 409 if "Stale config target" in str(exc) else 400
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
 
 
 @router.post("/api/services/{service_id}/config/migration/prepare", response_model=ConfigMigrationPrepareOut)
@@ -803,7 +828,8 @@ def prepare_config_migration_endpoint(
     try:
         return prepare_config_migration(db, service, left_snapshot=left_snapshot, right_snapshot=right_snapshot)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        status = 409 if "Stale config target" in str(exc) else 400
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
 
 
 @router.post("/api/services/{service_id}/config/migration/apply", response_model=ConfigMigrationApplyOut)
@@ -819,9 +845,11 @@ def apply_config_migration_endpoint(
             artifact_id=payload.artifact_id,
             edited_yaml=payload.edited_yaml,
             apply_mode=payload.apply_mode,
+            expected_content_hash=payload.expected_content_hash,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        status = 409 if "Stale config target" in str(exc) else 400
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
 
 
 @router.post("/api/services/{service_id}/config/migration/restore", response_model=ConfigMigrationApplyOut)
@@ -836,9 +864,11 @@ def restore_config_migration_endpoint(
             _get_service(db, service_id),
             artifact_id=payload.artifact_id,
             apply_mode=payload.apply_mode,
+            expected_content_hash=payload.expected_content_hash,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        status = 409 if "Stale config target" in str(exc) else 400
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
 
 
 @router.post("/api/services/{service_id}/config/sync-peer", response_model=ConfigSyncPeerOut)

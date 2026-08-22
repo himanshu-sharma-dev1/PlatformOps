@@ -3,6 +3,23 @@ import React from "react";
 import { GlassCard } from "../components/GlassCard";
 import { usePlatform } from "../platform/usePlatform";
 
+const ANALYST_TAGS = new Set(["P", "H4", "UL", "OL", "LI", "STRONG", "EM", "B", "I", "CODE", "SPAN", "BR"]);
+
+function sanitizeAnalystHtml(value: string): string {
+  if (typeof DOMParser === "undefined") return "";
+  const document = new DOMParser().parseFromString(value || "", "text/html");
+  for (const element of Array.from(document.body.querySelectorAll("*"))) {
+    if (!ANALYST_TAGS.has(element.tagName)) {
+      element.replaceWith(...Array.from(element.childNodes));
+      continue;
+    }
+    const cited = element.tagName === "SPAN" && element.classList.contains("cited");
+    for (const attribute of Array.from(element.attributes)) element.removeAttribute(attribute.name);
+    if (cited) element.setAttribute("class", "cited");
+  }
+  return document.body.innerHTML;
+}
+
 /** LogAnalystChat — Phase 1 extracted page JSX. */
 export function LogAnalystChat() {
   const p = usePlatform() as any;
@@ -302,7 +319,7 @@ export function LogAnalystChat() {
                   {msg.error && !msg.text ? (
                     <span style={{ color: "var(--err)" }}>{msg.error}</span>
                   ) : (
-                    <div dangerouslySetInnerHTML={{ __html: (msg.text || "").replace(/\n/g, "<br/>") }} />
+                    <div dangerouslySetInnerHTML={{ __html: sanitizeAnalystHtml((msg.text || "").replace(/\n/g, "<br/>")) }} />
                   )}
                   {msg.error && msg.text ? (
                     <div style={{ marginTop: 8, fontSize: "0.75rem", color: "var(--err)" }}>{msg.error}</div>
@@ -335,7 +352,7 @@ export function LogAnalystChat() {
                   )}
                 </div>
                 <span style={{ fontSize: "0.68rem", color: "var(--ink-4)", marginTop: "4px" }}>
-                  {msg.timestamp}
+                  {msg.timestamp}{msg.analyst_source ? ` · ${msg.analyst_source}` : ""}
                 </span>
               </div>
               {isUser && (
@@ -349,7 +366,7 @@ export function LogAnalystChat() {
       {/* Suggestion Chips — dynamic from last LLM reply when available */}
       <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", padding: "0.25rem 0", alignItems: "center" }}>
         <span className="pill" style={{ fontSize: "0.7rem" }}>
-          {llmStatus?.configured ? `LLM ${llmStatus.provider || ""}` : "LLM not configured"}
+          {llmStatus?.configured ? `LLM ${llmStatus.provider || ""}` : "Deterministic analyst fallback"}
         </span>
         {(
           (analyticsMessages.slice().reverse().find((m) => m.sender === "assistant" && m.suggestions && m.suggestions.length)?.suggestions)

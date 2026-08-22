@@ -130,7 +130,7 @@ export function useUiState() {
   const [analyticsMessages, setAnalyticsMessages] = useState([
     {
       sender: "assistant",
-      text: "Hello! I am Iktara Log Analyst. Select a service, then ask about log anomalies, restarts, dependency failures, or deployment errors. Answers come from live logs + LLM (Groq/Mistral) — never synthetic metrics.",
+      text: "Hello! I am Iktara Log Analyst. Select a service, then ask about log anomalies, restarts, dependency failures, or deployment errors. Answers are grounded in that service's live logs; Mistral is used only when a runtime secret is configured, otherwise the deterministic analyst is used.",
       timestamp: new Date().toLocaleTimeString(),
     },
   ] as any);

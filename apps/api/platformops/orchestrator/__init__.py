@@ -60,6 +60,7 @@ from .diagnostics import (
 from .discovery import (
     discover_infrastructure,
 )
+from .remote import RemoteAuthError, RemoteCommand, run_ssh, ssh_command, strict_ansible_options
 from .monitoring import (
     _metric_series,
     _normalize_metric_window,
@@ -91,6 +92,7 @@ from .monitoring import (
 from .node import (
     cleanup_node_inventory,
     get_node_connection_report,
+    probe_node_connection,
     get_node_job_history,
     get_node_onboarding_report,
     get_node_summary,
@@ -200,11 +202,17 @@ __all__ = [
     "get_node_job_history",
     "get_node_summary",
     "get_node_connection_report",
+    "probe_node_connection",
     "get_node_onboarding_report",
     "remediate_node_onboarding",
     "launch_node_vm",
     "teardown_node_vm",
     "discover_infrastructure",
+    "RemoteAuthError",
+    "RemoteCommand",
+    "run_ssh",
+    "ssh_command",
+    "strict_ansible_options",
     "create_service_instance",
     "update_service_instance",
     "get_service_live_status",

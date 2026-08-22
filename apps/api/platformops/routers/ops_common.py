@@ -99,6 +99,7 @@ from ..orchestrator import (
     get_monitoring_performance,
     get_monitoring_uptime_list,
     get_node_connection_report,
+    probe_node_connection,
     get_node_job_history,
     get_node_onboarding_report,
     get_node_summary,
@@ -202,6 +203,7 @@ from ..schemas import (
     ConfigSnapshotOut,
     ConfigSnapshotPageOut,
     ConfigSnapshotRename,
+    ConfigSnapshotRestore,
     ConfigSyncPeer,
     ConfigSyncPeerOut,
     ConfigTimelinePageOut,
@@ -252,6 +254,8 @@ from ..schemas import (
     MaintenanceWindowOut,
     MonitoringCheckOut,
     NodeConnectionOut,
+    NodeConnectionProbeRequest,
+    NodeConnectionProbeOut,
     NodeInventoryCleanupIn,
     NodeInventoryCleanupOut,
     NodeCreate,
@@ -377,20 +381,3 @@ def _mask_cluster(cluster: Cluster) -> ClusterOut:
     """Build a response-safe cluster without mutating the ORM identity."""
 
     return ClusterOut.model_validate(cluster)
-
-
-def _save_ssh_private_key(node_id: int, private_key_content: str) -> str:
-    import os
-    import stat
-
-    from ..settings import settings
-
-    keys_dir = settings.resolve(settings.runtime_dir) / "ssh_keys"
-    keys_dir.mkdir(parents=True, exist_ok=True)
-    key_file = keys_dir / f"node_{node_id}.pem"
-
-    content = private_key_content.strip() + "\n"
-    key_file.write_text(content, encoding="utf-8")
-
-    os.chmod(key_file, stat.S_IRUSR | stat.S_IWUSR)
-    return str(key_file)

@@ -88,6 +88,12 @@ class Node(Base):
     region: Mapped[str] = mapped_column(String(120), default="local")
     availability_zone: Mapped[str] = mapped_column(String(120), default="")
     auth_mode: Mapped[str] = mapped_column(String(40), default="ssh_key")
+    # Remote auth is reference-only.  Secret material is supplied for one
+    # operation or resolved by the remote adapter from an operator-managed
+    # env/file reference; it is never persisted in this row.
+    ssh_secret_ref: Mapped[str] = mapped_column(String(512), default="")
+    host_key_fingerprint: Mapped[str] = mapped_column(String(160), default="")
+    known_hosts_ref: Mapped[str] = mapped_column(String(512), default="")
     monitor_port: Mapped[int] = mapped_column(Integer, default=9100)
     ingress_ports: Mapped[str] = mapped_column(String(512), default="")
     cloud_id: Mapped[str] = mapped_column(String(255), default="")

@@ -32,6 +32,10 @@ export function DiagnosticsView() {
   const historyPreviousCursor = p.historyPreviousCursor;
   const historyCursor = p.historyCursor;
   const historyTotalPages = p.historyTotalPages;
+  const historyStart = p.historyStart;
+  const historyEnd = p.historyEnd;
+  const setHistoryStart = p.setHistoryStart;
+  const setHistoryEnd = p.setHistoryEnd;
   const ingestionStats = p.ingestionStats;
   const loadDiagnostics = p.loadDiagnostics;
   const loadDiagnosticsLive = p.loadDiagnosticsLive;
@@ -356,6 +360,8 @@ export function DiagnosticsView() {
                     <button type="button" className="btn btn-secondary btn-xs" onClick={() => setDiagnosticsLive((prev) => prev ? { ...prev, lines: [] } : prev)}>Clear</button>
                     {(diagLogSource === "container_history" || diagLogSource === "file_history") && (
                       <>
+                        <input className="input" type="datetime-local" aria-label="History start" value={historyStart} onChange={(e) => { setHistoryStart(e.target.value); setHistoryCursor(""); setHistoryPreviousCursor?.(""); }} />
+                        <input className="input" type="datetime-local" aria-label="History end" value={historyEnd} onChange={(e) => { setHistoryEnd(e.target.value); setHistoryCursor(""); setHistoryPreviousCursor?.(""); }} />
                         <button type="button" className="btn btn-secondary btn-xs" disabled={historyPage <= 1 && !historyPreviousCursor} onClick={async () => {
                           const p = Math.max(1, historyPage - 1);
                           setHistoryPage(p);

@@ -54,23 +54,6 @@ def list_nodes(cluster_id: int | None = None, db: Session = Depends(get_db)) -> 
     return list(db.scalars(statement).all())
 
 
-def _save_ssh_private_key(node_id: int, private_key_content: str) -> str:
-    import os
-    import stat
-
-    from ..settings import settings
-
-    keys_dir = settings.resolve(settings.runtime_dir) / "ssh_keys"
-    keys_dir.mkdir(parents=True, exist_ok=True)
-    key_file = keys_dir / f"node_{node_id}.pem"
-
-    content = private_key_content.strip() + "\n"
-    key_file.write_text(content, encoding="utf-8")
-
-    os.chmod(key_file, stat.S_IRUSR | stat.S_IWUSR)
-    return str(key_file)
-
-
 def _facts_json_from_payload(facts: dict | None) -> str:
     import json as _json
 
@@ -117,10 +100,18 @@ def create_node(payload: NodeCreate, db: Session = Depends(get_db)) -> Node:
         raise HTTPException(status_code=409, detail="Node name already exists in this cluster")
     if not str(payload.host or "").strip():
         raise HTTPException(status_code=422, detail="Node host is required")
+    # Private key/password fields are one-shot transport only.  They are
+    # intentionally removed before constructing the ORM row; operators must
+    # provide a reference (or an approved mounted key path) for later jobs.
     private_key = payload.ssh_private_key
+    ephemeral_password = payload.ssh_password
     node_data = payload.model_dump(
         exclude={
             "ssh_private_key",
+            "ssh_password",
+            "secret_ref",
+            "ssh_host_key_fingerprint",
+            "ssh_known_hosts_ref",
             "facts",
             "az",
             "monitoring_port",
@@ -129,6 +120,12 @@ def create_node(payload: NodeCreate, db: Session = Depends(get_db)) -> Node:
             "ami_id",
         }
     )
+    if payload.secret_ref and not payload.ssh_secret_ref:
+        node_data["ssh_secret_ref"] = payload.secret_ref
+    if payload.ssh_host_key_fingerprint and not payload.host_key_fingerprint:
+        node_data["host_key_fingerprint"] = payload.ssh_host_key_fingerprint
+    if payload.ssh_known_hosts_ref and not payload.known_hosts_ref:
+        node_data["known_hosts_ref"] = payload.ssh_known_hosts_ref
     node_data["name"] = node_name
     node_data["host"] = str(node_data.get("host") or "").strip()
     node_data["ssh_user"] = str(node_data.get("ssh_user") or "ubuntu").strip() or "ubuntu"
@@ -146,12 +143,22 @@ def create_node(payload: NodeCreate, db: Session = Depends(get_db)) -> Node:
         node_data["region"] = cluster.region
     if node_data.get("provider") == "dc" and str(node_data.get("environment") or "").lower() in {"aws", "gcp"}:
         node_data["provider"] = str(node_data["environment"]).lower()
-    if node_data.get("auth_mode") == "ssh_key" and not (payload.ssh_key_path or private_key):
+    if node_data.get("auth_mode") == "ssh_key" and not (
+        node_data.get("ssh_key_path") or node_data.get("ssh_secret_ref") or private_key
+    ):
         node_data["auth_mode"] = "none"
+    from ..security import redact_secrets
+
+    facts = redact_secrets(dict(payload.facts or {}))
+    if not isinstance(facts, dict):
+        facts = {}
+    if ephemeral_password and not node_data.get("ssh_secret_ref"):
+        # Keep only the fact that transport was requested; never record the
+        # password itself or infer a reusable credential from it.
+        facts["ephemeral_auth"] = "password"
     node_data["ingress_ports"] = _normalize_ingress_ports(node_data.get("ingress_ports"))
     if not node_data.get("docker_network"):
         node_data["docker_network"] = "platformops_prod_network"
-    facts = dict(payload.facts or {})
     # connection_mode: auto|local|ssh (stored in facts; no hardcoded hosts)
     if "connection_mode" not in facts:
         facts["connection_mode"] = "auto"
@@ -163,11 +170,9 @@ def create_node(payload: NodeCreate, db: Session = Depends(get_db)) -> Node:
     db.commit()
     db.refresh(node)
 
-    if private_key:
-        key_path = _save_ssh_private_key(node.id, private_key)
-        node.ssh_key_path = key_path
-        db.commit()
-        db.refresh(node)
+    # ``private_key`` is deliberately not written to runtime_dir or the DB.
+    # One-shot callers can pass it to the strict remote adapter from an
+    # operation endpoint; this create route only registers inventory.
 
     record_event(
         db,
@@ -265,10 +270,40 @@ def update_node(node_id: int, payload: NodeUpdate, db: Session = Depends(get_db)
         updates["provider"] = str(updates["environment"]).lower()
 
     private_key = updates.pop("ssh_private_key", None)
+    ephemeral_password = updates.pop("ssh_password", None)
+    secret_ref = updates.pop("secret_ref", None)
+    ssh_host_key_fingerprint = updates.pop("ssh_host_key_fingerprint", None)
+    ssh_known_hosts_ref = updates.pop("ssh_known_hosts_ref", None)
+    if secret_ref is not None and "ssh_secret_ref" not in updates:
+        updates["ssh_secret_ref"] = secret_ref
+    if ssh_host_key_fingerprint is not None and "host_key_fingerprint" not in updates:
+        updates["host_key_fingerprint"] = ssh_host_key_fingerprint
+    if ssh_known_hosts_ref is not None and "known_hosts_ref" not in updates:
+        updates["known_hosts_ref"] = ssh_known_hosts_ref
+    # Blank credential fields mean "retain existing" in the cPlatform editor;
+    # clearing a reference requires an explicit lifecycle action, never an
+    # accidental empty form submission.
+    for secret_field in ("ssh_secret_ref", "ssh_key_path"):
+        if updates.get(secret_field) in ("", "***"):
+            updates.pop(secret_field, None)
     facts = updates.pop("facts", None)
-    if private_key is not None:
-        key_path = _save_ssh_private_key(node.id, private_key)
-        node.ssh_key_path = key_path
+    # Never persist request-scoped key/password material.  A caller may use
+    # these values for a one-shot probe, but subsequent jobs require the
+    # persisted secret reference and host-key fingerprint.
+    if private_key is not None or ephemeral_password is not None:
+        import json as _json
+
+        try:
+            current = _json.loads(node.facts_json or "{}")
+        except Exception:
+            current = {}
+        if not isinstance(current, dict):
+            current = {}
+        if private_key is not None:
+            current["ephemeral_auth"] = "key"
+        elif ephemeral_password is not None:
+            current["ephemeral_auth"] = "password"
+        node.facts_json = _json.dumps(current)
     if facts is not None:
         import json as _json
 
@@ -278,7 +313,10 @@ def update_node(node_id: int, payload: NodeUpdate, db: Session = Depends(get_db)
             current = {}
         if not isinstance(current, dict):
             current = {}
-        current.update(facts)
+        from ..security import redact_secrets
+
+        safe_facts = redact_secrets(facts)
+        current.update(safe_facts if isinstance(safe_facts, dict) else {})
         node.facts_json = _json.dumps(current)
 
     for key, value in updates.items():
@@ -291,14 +329,24 @@ def update_node(node_id: int, payload: NodeUpdate, db: Session = Depends(get_db)
         level="info",
         message=f"Updated node '{node.name}'",
         node_id=node.id,
-        metadata={"node_id": node.id, "updates": payload.model_dump(exclude_none=True)},
+        metadata={
+            "node_id": node.id,
+            "updates": {
+                key: value
+                for key, value in payload.model_dump(exclude_none=True).items()
+                if key not in {"ssh_private_key", "ssh_password"}
+            },
+        },
     )
     return node
 
 
 @router.post("/api/nodes/{node_id}/validate", response_model=JobOut)
 def validate_node_endpoint(node_id: int, db: Session = Depends(get_db)) -> DeploymentJob:
-    return validate_node(db, _get_node(db, node_id))
+    try:
+        return validate_node(db, _get_node(db, node_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.delete("/api/nodes/{node_id}")
@@ -435,6 +483,32 @@ def get_node_connection_endpoint(node_id: int, db: Session = Depends(get_db)) ->
         return get_node_connection_report(db, node_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/api/nodes/{node_id}/connection/probe", response_model=NodeConnectionProbeOut)
+def probe_node_connection_endpoint(
+    node_id: int,
+    payload: NodeConnectionProbeRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Probe using request-scoped key/password material only.
+
+    The route deliberately does not update the node, emit an event containing
+    payload fields, or return command output that could contain a credential.
+    Reusable jobs still require the node's reference-only credential and
+    fingerprint fields.
+    """
+
+    node = _get_node(db, node_id)
+    result = probe_node_connection(
+        node,
+        ephemeral_key=payload.ssh_private_key,
+        ephemeral_password=payload.ssh_password,
+    )
+    from ..security import redact_text
+
+    result["detail"] = redact_text(str(result.get("detail") or ""))[:200]
+    return result
 
 
 @router.get("/api/nodes/{node_id}/jobs", response_model=NodeJobHistoryOut)

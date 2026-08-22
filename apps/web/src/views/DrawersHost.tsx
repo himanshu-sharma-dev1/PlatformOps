@@ -711,11 +711,28 @@ export function DrawersHost() {
                     <input type="text" className="input" value={draft.ssh_user || ""} onChange={(e) => setDraft({ ssh_user: e.target.value })} />
                   </div>
                   <div className="field">
-                    <label>SSH private key path</label>
-                    <input type="text" className="input" placeholder="e.g. /home/ubuntu/NODE1001.pem" value={draft.ssh_key_path || ""} onChange={(e) => setDraft({ ssh_key_path: e.target.value })} />
+                    <label>SSH secret reference</label>
+                    <input type="text" className="input" placeholder="env://PLATFORMOPS_NODE_KEY" value={draft.ssh_secret_ref || ""} onChange={(e) => setDraft({ ssh_secret_ref: e.target.value })} />
+                    <div className="hint">Use an operator-managed env:// or file:// reference. Secret material is never stored.</div>
                   </div>
                   <div className="field">
-                    <label>Or paste PEM private key</label>
+                    <label>Mounted key path (optional)</label>
+                    <input type="text" className="input" placeholder="/run/secrets/node-key" value={draft.ssh_key_path || ""} onChange={(e) => setDraft({ ssh_key_path: e.target.value })} />
+                  </div>
+                  <div className="field">
+                    <label>Host key SHA256 fingerprint</label>
+                    <input type="text" className="input" placeholder="SHA256:…" value={draft.host_key_fingerprint || ""} onChange={(e) => setDraft({ host_key_fingerprint: e.target.value })} />
+                  </div>
+                  <div className="field">
+                    <label>Known-hosts file reference</label>
+                    <input type="text" className="input" placeholder="file:///run/secrets/known_hosts" value={draft.known_hosts_ref || ""} onChange={(e) => setDraft({ known_hosts_ref: e.target.value })} />
+                  </div>
+                  <div className="field">
+                    <label>One-shot SSH password (optional)</label>
+                    <input type="password" className="input" autoComplete="new-password" value={draft.ssh_password || ""} onChange={(e) => setDraft({ ssh_password: e.target.value })} />
+                  </div>
+                  <div className="field">
+                    <label>One-shot PEM private key (optional)</label>
                     <textarea
                       className="input"
                       style={{ minHeight: 90, fontFamily: "var(--mono)", fontSize: "0.75rem" }}
@@ -723,7 +740,7 @@ export function DrawersHost() {
                       onChange={(e) => setDraft({ ssh_private_key: e.target.value })}
                       placeholder="-----BEGIN RSA PRIVATE KEY-----"
                     />
-                    {isEdit ? <div className="hint">Leave PEM blank to keep the stored key.</div> : null}
+                    <div className="hint">Used only for this request; it is discarded and never persisted. Prefer a secret reference for later jobs.</div>
                   </div>
                 </div>
               )}

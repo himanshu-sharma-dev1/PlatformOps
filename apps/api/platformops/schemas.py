@@ -122,8 +122,17 @@ class NodeCreate(BaseModel):
     name: str
     host: str = "localhost"
     ssh_user: str = "ubuntu"
+    # ``ssh_private_key``/``ssh_password`` are request-scoped only.  They are
+    # accepted for one-shot onboarding and must never be persisted by a route.
     ssh_key_path: str = ""
     ssh_private_key: str | None = None
+    ssh_password: str | None = None
+    ssh_secret_ref: str = ""
+    secret_ref: str = ""
+    host_key_fingerprint: str = ""
+    ssh_host_key_fingerprint: str = ""
+    known_hosts_ref: str = ""
+    ssh_known_hosts_ref: str = ""
     environment: str = "local"
     provider: str = "dc"
     region: str = "local"
@@ -153,6 +162,13 @@ class NodeUpdate(BaseModel):
     ssh_user: str | None = None
     ssh_key_path: str | None = None
     ssh_private_key: str | None = None
+    ssh_password: str | None = None
+    ssh_secret_ref: str | None = None
+    secret_ref: str | None = None
+    host_key_fingerprint: str | None = None
+    ssh_host_key_fingerprint: str | None = None
+    known_hosts_ref: str | None = None
+    ssh_known_hosts_ref: str | None = None
     environment: str | None = None
     provider: str | None = None
     region: str | None = None
@@ -183,6 +199,9 @@ class NodeOut(BaseModel):
     host: str
     ssh_user: str
     ssh_key_path: str
+    ssh_secret_ref: str = ""
+    host_key_fingerprint: str = ""
+    known_hosts_ref: str = ""
     environment: str
     provider: str = "dc"
     region: str = "local"
@@ -437,6 +456,8 @@ class NodeJobHistoryOut(BaseModel):
 class ConfigApply(BaseModel):
     content: str
     apply_mode: str = "reload"
+    requested_by: str = "platform-operator"
+    expected_content_hash: str = ""
 
     @field_validator("apply_mode")
     @classmethod
@@ -462,6 +483,12 @@ class ConfigSnapshotCreate(BaseModel):
 class ConfigSnapshotRename(BaseModel):
     name: str
     requested_by: str = "platform-operator"
+    expected_version: int | None = None
+
+
+class ConfigSnapshotRestore(BaseModel):
+    expected_content_hash: str = ""
+    requested_by: str = "platform-operator"
 
 
 class ConfigValidateOut(BaseModel):
@@ -476,6 +503,7 @@ class ConfigSnapshotOut(BaseModel):
     name: str
     source: str
     created_at: datetime
+    content_hash: str = ""
 
     model_config = {"from_attributes": True}
 
@@ -524,18 +552,25 @@ class ConfigWorkspaceOut(BaseModel):
     config_path: str = ""
     file_label: str = ""
     content_hash: str = ""
+    live_content_hash: str = ""
     config_format: str = "yaml"
     live_read_ok: bool = False
     live_read_error: str = ""
     config_capabilities: dict[str, Any] = Field(default_factory=dict)
     runtime_target: dict[str, Any] = Field(default_factory=dict)
     peers: list[dict[str, Any]] = Field(default_factory=list)
+    target_identity: dict[str, Any] = Field(default_factory=dict)
+    source_state: dict[str, Any] = Field(default_factory=dict)
 
 
 class ConfigDirectApplyOut(BaseModel):
     job: JobOut
     before_snapshot: ConfigSnapshotOut
     after_snapshot: ConfigSnapshotOut | None = None
+    requested_apply_mode: str = ""
+    effective_apply_mode: str = ""
+    target_identity: dict[str, Any] = Field(default_factory=dict)
+    content_hash: str = ""
 
 
 class ConfigMigrationPrepareRequest(BaseModel):
@@ -552,17 +587,27 @@ class ConfigMigrationPrepareOut(BaseModel):
     final_content: str
     validation: ConfigValidateOut
     summary: str
+    selected_configs: dict[str, Any] = Field(default_factory=dict)
+    ranked_configs: dict[str, Any] = Field(default_factory=dict)
+    config_rank_1: dict[str, Any] = Field(default_factory=dict)
+    config_rank_2: dict[str, Any] = Field(default_factory=dict)
+    migration_ops: list[dict[str, Any]] = Field(default_factory=list)
+    migrated_config: dict[str, Any] = Field(default_factory=dict)
+    final_merged_config: dict[str, Any] = Field(default_factory=dict)
+    migration_artifact: dict[str, Any] = Field(default_factory=dict)
 
 
 class ConfigMigrationApplyRequest(BaseModel):
     artifact_id: str
     edited_yaml: str = ""
     apply_mode: str = "reload"
+    expected_content_hash: str = ""
 
 
 class ConfigMigrationRestoreRequest(BaseModel):
     artifact_id: str
     apply_mode: str = "reload"
+    expected_content_hash: str = ""
 
 
 class ConfigMigrationApplyOut(BaseModel):
@@ -573,6 +618,10 @@ class ConfigMigrationApplyOut(BaseModel):
     resolved_config_path: str = ""
     apply_mode: str | None = None
     applied_content: str
+    requested_apply_mode: str | None = None
+    effective_apply_mode: str | None = None
+    target_identity: dict[str, Any] = Field(default_factory=dict)
+    content_hash: str = ""
 
 
 class ConfigPeerSnapshotOut(BaseModel):
@@ -589,6 +638,9 @@ class ConfigSyncPeerOut(BaseModel):
     job: JobOut
     before_snapshot: ConfigPeerSnapshotOut
     after_snapshot: ConfigPeerSnapshotOut | None = None
+    source_content_hash: str = ""
+    target_identity: dict[str, Any] = Field(default_factory=dict)
+    parity_status: str = "native-only-disabled"
 
 
 class ConfigTimelineEventOut(BaseModel):
@@ -1612,6 +1664,9 @@ class NodeConnectionOut(BaseModel):
     host: str
     ssh_user: str
     ssh_key_path: str
+    ssh_secret_ref: str = ""
+    host_key_fingerprint: str = ""
+    known_hosts_ref: str = ""
     environment: str
     status: str
     connection_state: str
@@ -1628,6 +1683,21 @@ class NodeConnectionOut(BaseModel):
     def _mask_fact_values(cls, value: Any) -> dict[str, Any]:
         masked = redact_secrets(value if isinstance(value, dict) else {})
         return masked if isinstance(masked, dict) else {}
+
+
+class NodeConnectionProbeRequest(BaseModel):
+    """One-shot remote credentials; never persisted or returned."""
+
+    ssh_private_key: str | None = None
+    ssh_password: str | None = None
+
+
+class NodeConnectionProbeOut(BaseModel):
+    ssh_ok: bool | None = None
+    docker_ok: bool | None = None
+    connection_mode: str
+    probed_at: str
+    detail: str = ""
 
 
 class NodeOnboardingCheckOut(BaseModel):

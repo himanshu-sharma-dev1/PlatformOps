@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 from functools import lru_cache
 from typing import Any
 
@@ -17,6 +16,7 @@ from ..models import Node, ServiceInstance
 from ..settings import settings
 from .common import _ansible_base_command, record_event
 from .ids import allocate_service_external_id
+from .remote import RemoteAuthError, run_ssh
 
 
 @lru_cache(maxsize=4)
@@ -385,37 +385,20 @@ def _docker_ps_remote(node: Node) -> tuple[list[dict[str, Any]], str | None]:
     """Run discovery on the configured SSH target; never inspect local Docker."""
 
     inventory = (node.host or "").strip()
-    user = (node.ssh_user or "ubuntu").strip()
-    key = (node.ssh_key_path or "").strip()
     if not inventory:
         return [], "remote discovery requires a node host"
-    if key:
-        from pathlib import Path
-
-        if not Path(key).is_file():
-            return [], f"remote SSH key not found in control plane: {key}"
-    cmd = [
-        "ssh",
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        "StrictHostKeyChecking=no",
-        "-o",
-        "ConnectTimeout=10",
-    ]
-    if key:
-        cmd.extend(["-i", key])
-    cmd.append(f"{user}@{inventory}")
-    cmd.append(
+    remote_command = (
         "docker ps -a --format "
         "'{\"id\":\"{{.ID}}\",\"names\":\"{{.Names}}\",\"image\":\"{{.Image}}\","
         "\"ports\":\"{{.Ports}}\",\"status\":\"{{.Status}}\",\"networks\":\"{{.Networks}}\","
         "\"labels\":\"{{.Labels}}\"}'"
     )
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        proc = run_ssh(node, remote_command, timeout=10)
     except FileNotFoundError:
         return [], "ssh client not available on control plane"
+    except RemoteAuthError as exc:
+        return [], str(exc)
     except Exception as exc:
         return [], str(exc)[:500]
     if proc.returncode != 0:
