@@ -120,6 +120,7 @@ services:
       - ../../apps/api:/app/apps/api
       - ../../catalog:/app/catalog
       - ../../ops/ansible:/app/ops/ansible
+      - ../../apps/web/dist:/app/dist
     depends_on:
       postgres:
         condition: service_healthy

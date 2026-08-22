@@ -2,8 +2,9 @@
 import { api, getAuthToken, setAuthToken } from "../../api/client";
 export function createConfigActions(s: any) {
   let configLoadGeneration = 0;
+  let activeConfigServiceId: number | null = null;
   const isCurrentConfigRequest = (serviceId: number, generation?: number) => (
-    s.selectedService?.id === serviceId
+    (activeConfigServiceId === serviceId || s.selectedService?.id === serviceId)
     && (generation === undefined || generation === configLoadGeneration)
   );
   const errorMessage = (error: any) => error instanceof Error ? error.message : String(error);
@@ -11,13 +12,13 @@ export function createConfigActions(s: any) {
   async loadConfigTimeline(serviceId, options) {
     const nextOffset = options?.offset ?? 0;
     const params = new URLSearchParams({
-      limit: String(s.configTimelineLimit),
+      limit: String(s.configTimelineLimit || 10),
       offset: String(nextOffset),
-      action: s.configTimelineAction,
-      actor: s.configTimelineActor,
-      search: s.configTimelineSearch.trim(),
-      created_after: s.configTimelineCreatedAfter.trim(),
-      created_before: s.configTimelineCreatedBefore.trim()
+      action: String(s.configTimelineAction || "all"),
+      actor: String(s.configTimelineActor || "all"),
+      search: String(s.configTimelineSearch || "").trim(),
+      created_after: String(s.configTimelineCreatedAfter || "").trim(),
+      created_before: String(s.configTimelineCreatedBefore || "").trim()
     });
     const next = await api(`/api/services/${serviceId}/config/timeline?${params.toString()}`);
     if (!isCurrentConfigRequest(serviceId, options?.generation)) return;
@@ -38,15 +39,16 @@ export function createConfigActions(s: any) {
   },
 
   async loadConfigSnapshots(service, options) {
+    if (!service) return;
     const nextOffset = options?.offset ?? 0;
-    const nextSource = options?.source ?? s.snapshotSourceFilter;
-    const nextSearch = options?.search ?? s.snapshotSearch;
-    const nextLimit = options?.limit ?? s.snapshotLimit;
+    const nextSource = options?.source ?? s.snapshotSourceFilter ?? "all";
+    const nextSearch = options?.search ?? s.snapshotSearch ?? "";
+    const nextLimit = options?.limit ?? s.snapshotLimit ?? 20;
     const params = new URLSearchParams({
       offset: String(nextOffset),
       limit: String(nextLimit),
-      source: nextSource,
-      search: nextSearch
+      source: String(nextSource),
+      search: String(nextSearch)
     });
     const next = await api(`/api/services/${service.id}/config/snapshots?${params.toString()}`);
     if (!isCurrentConfigRequest(service.id, options?.generation)) return;
@@ -61,7 +63,9 @@ export function createConfigActions(s: any) {
   },
 
   async loadConfig(service, source = s.configSource) {
+    if (!service) return;
     const generation = ++configLoadGeneration;
+    activeConfigServiceId = service.id;
     s.setSelectedService(service);
     s.setConfigLoading?.(true);
     s.setConfigError?.("");
@@ -73,22 +77,24 @@ export function createConfigActions(s: any) {
     s.setSelectedSnapshotPreview?.(null);
     s.setSnapshotCompare?.(null);
     try {
-      await s.loadServiceCapabilities(service.id);
-      await s.loadServiceSummary(service.id);
-      await s.loadServiceReleaseTimeline(service.id);
-      await s.loadServiceMetrics(service.id);
+      await Promise.allSettled([
+        s.loadServiceCapabilities?.(service.id),
+        s.loadServiceSummary?.(service.id),
+        s.loadServiceReleaseTimeline?.(service.id),
+        s.loadServiceMetrics?.(service.id),
+      ]);
       if (!isCurrentConfigRequest(service.id, generation)) return;
       const [next] = await Promise.all([
-        api(`/api/services/${service.id}/config?source=${encodeURIComponent(source)}`),
+        api(`/api/services/${service.id}/config?source=${encodeURIComponent(source || "live")}`),
         s.loadConfigTimeline(service.id, { offset: 0, silent: true, generation })
       ]);
       if (!isCurrentConfigRequest(service.id, generation)) return;
       s.setConfig(next);
-      s.setConfigSource(source);
+      s.setConfigSource(source || "live");
       await s.loadConfigSnapshots(service, { offset: 0, generation });
       if (!isCurrentConfigRequest(service.id, generation)) return;
       s.setSnapshotCompare(null);
-      s.setNotice(next.message || `Loaded ${source} config for ${service.name}`);
+      s.setNotice(next?.message || `Loaded ${source || "live"} config for ${service.name}`);
     } catch (error) {
       if (!isCurrentConfigRequest(service.id, generation)) return;
       const message = errorMessage(error);
