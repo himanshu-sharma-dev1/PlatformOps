@@ -956,15 +956,15 @@ if (visitNode) {
 
       // Populate Workspace metadata metrics
       $('#meta-service-id').textContent = sInfo.service_id;
-      $('#meta-service-type').textContent = sInfo.service_type + ' (' + (sInfo.service_version || 'N/A') + ')';
-      $('#meta-node-name').textContent = sInfo.node_name;
+      $('#meta-service-type').textContent = sInfo.service_type + ' (' + (sInfo.service_version || 'N/A') + ') [' + (data.format || 'yaml').toUpperCase() + ']';
+      $('#meta-node-name').textContent = (data.runtime_target && data.runtime_target.container_name) ? (sInfo.node_name + ' / ' + data.runtime_target.container_name) : sInfo.node_name;
       $('#meta-total-checkpoints').textContent = data.snapshot_count || data.snapshots.length;
       $('#tabs-checkpoint-count').textContent = data.snapshot_count || data.snapshots.length;
-      $('#meta-config-source').textContent = data.config_source_label || 'Latest checkpoint';
+      $('#meta-config-source').textContent = (data.config_source_label || 'Latest checkpoint') + (data.content_hash ? ' (' + data.content_hash.slice(0, 8) + ')' : '');
 
       // Context file paths labels
-      $('#editor-file-path').textContent = data.config_path || '/etc/config.yaml';
-      $('#editor-file-title').textContent = data.file_label || 'config.yaml';
+      $('#editor-file-path').textContent = data.config_path || (data.config_capabilities ? data.config_capabilities.config_path : '') || '/etc/config.yaml';
+      $('#editor-file-title').textContent = (data.file_label || 'config') + ' [' + (data.format || 'yaml').toUpperCase() + ']';
       applyConfigCapabilities(data.config_capabilities || {});
 
       // Active Checkpoint Callout Setup
@@ -2018,8 +2018,20 @@ if (visitNode) {
     captureCheckpoint(e.currentTarget, "Capturing current configuration backup snapshot...");
   });
 
-  $('#ws-refresh-live-btn').addEventListener('click', (e) => {
-    captureCheckpoint(e.currentTarget, "Capturing a checkpoint from the live running container...");
+  $('#ws-refresh-live-btn').addEventListener('click', async (e) => {
+    if (!currentServiceId) return;
+    const btn = e.currentTarget;
+    setBtnLoading(btn, true, 'Refreshing...');
+    showToast("Refreshing live configuration from container...", "ok");
+    try {
+      await selectService(currentServiceId);
+      setBtnLoading(btn, false);
+      showToast("Live container configuration reloaded", "ok");
+    } catch (err) {
+      setBtnLoading(btn, false);
+      console.error(err);
+      showToast("Failed to refresh live configuration", "err");
+    }
   });
 
   $('#view-active-snap-btn').addEventListener('click', () => {

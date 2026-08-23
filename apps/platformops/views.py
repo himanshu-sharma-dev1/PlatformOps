@@ -2,6 +2,8 @@ import os
 import json
 import requests
 import jsonschema
+from pathlib import Path
+from datetime import date, datetime
 # from django.contrib.auth import login
 from django.views import View
 from django.conf import settings
@@ -766,8 +768,14 @@ def cPlatformIO_cluster_view(request):
 @csrf_exempt
 @login_required
 def cPlatformIO_user_view(request):
+    is_admin = request.user.is_superuser or request.user.is_staff or UserInfo.objects.filter(user_email=str(request.user), user_role='System_Admin').exists()
+
     if request.method == "POST":
         app_logger.info(f'cPlatformIO_user_view, request={request.POST}')
+        if not is_admin:
+            messages.error(request, 'Permission denied: only System_Admin can manage users and invitations.')
+            return redirect('PlatformIOUsers')
+
         user_action = request.POST.get('user-action')
         if user_action == 'add':
             msg = UserMgmnt.user_add_request(request.POST.get('user_name'), request.POST.get('user_email'),
@@ -782,19 +790,16 @@ def cPlatformIO_user_view(request):
                                               )
             messages.success(request, msg)
         elif user_action == 'delete':
-            # UserMgmnt.service_user_delete(request.POST.get('user_email'))
-            # msg = UserMgmnt.user_delete_request(request.POST.get('user_id'))
-            UserMgmnt.user_delete_request(request.POST.get('user_email'),initiated_by=str(request.user))
-            # messages.success(request, msg)
+            UserMgmnt.user_delete_request(request.POST.get('user_email'), initiated_by=str(request.user))
             messages.success(request, 'User deleted successfully')
         elif user_action == 'revoke_invite':
             email = request.POST.get('user_email')
             UserMgmnt.service_revoke_and_delete_pending(email, invited_by=str(request.user))
             messages.success(request, 'Invitation revoked')
         elif user_action == 'invite_user':
-            UserMgmnt.service_user_invite(request.POST.get('user_name'),request.POST.get('user_email'),
-                                              request.POST.get('user_number'),request.POST.get('user_role'),
-                                              request.POST.getlist('permissions'),invited_by=str(request.user),)
+            UserMgmnt.service_user_invite(request.POST.get('user_name'), request.POST.get('user_email'),
+                                          request.POST.get('user_number'), request.POST.get('user_role'),
+                                          request.POST.getlist('permissions'), invited_by=str(request.user))
             messages.success(request, 'Invitation sent successfully')
         elif user_action == 'resend_invite':
             user_email_value = request.POST.getlist('user_email')
@@ -802,12 +807,12 @@ def cPlatformIO_user_view(request):
             sent_count, skipped_count = UserMgmnt.service_user_resend_invite_bulk(
                 emails, invited_by=str(request.user))
             if skipped_count > 0:
-                messages.success(request,f'Invitation resent to {sent_count} pending user(s); {skipped_count} user(s) were not pending and skipped.')
+                messages.success(request, f'Invitation resent to {sent_count} pending user(s); {skipped_count} user(s) were not pending and skipped.')
             else:
                 messages.success(request, f'Invitation resent successfully to {sent_count} pending user(s).')
         return redirect('PlatformIOUsers')
 
-    if request.user.is_staff:
+    if is_admin:
         user_data = UserMgmnt.user_get_info(None)
     else:
         user_data = UserMgmnt.user_get_info(str(request.user))
@@ -820,15 +825,18 @@ def cPlatformIO_user_view(request):
     pending_users = sum(1 for u in user_data if u['status'] == 'pending')
     disabled_users = sum(1 for u in user_data if u['status'] == 'disabled')
     admin_users = sum(1 for u in user_data if u['user_role'] == 'System_Admin')
-    highest_login_count = max([u['login_count'] for u in user_data],default=1)
+    highest_login_count = max([u['login_count'] for u in user_data], default=1)
     for user in user_data:
-        user['activity_percent'] = round((user['login_count'] / highest_login_count) * 100,1) if highest_login_count else 0
-    cplatform_url = PlatformSettings.cplatform_url
+        user['activity_percent'] = round((user['login_count'] / highest_login_count) * 100, 1) if highest_login_count else 0
+
+    from cPlatformIO.src import PlatformPath
+    platformops_url = PlatformPath.get_public_url(request)
     try:
         current_user_info = UserInfo.objects.get(user_email=str(request.user))
         current_user_role = current_user_info.user_role
     except UserInfo.DoesNotExist:
-        current_user_role = ''
+        current_user_role = 'System_Admin' if request.user.is_superuser else 'Operational'
+
     context = {
         'user_data': user_data,
         'user_schema': json.dumps(user_schema),
@@ -837,8 +845,10 @@ def cPlatformIO_user_view(request):
         'pending_users': pending_users,
         'disabled_users': disabled_users,
         'admin_users': admin_users,
-        'cplatform_url': cplatform_url,
+        'platformops_url': platformops_url,
+        'cplatform_url': platformops_url,
         'current_user_role': current_user_role,
+        'is_admin': is_admin,
         'current_page': 'Identity / Users'
     }
     return render(request, 'PlatformIO/01-users.html', context)
@@ -1703,32 +1713,67 @@ def accept_invite_view(request, token):
         if not full_name or not password:
             return JsonResponse({'status': 'err', 'msg': 'Name and password are required'})
 
-        # Create the Django user
-        user = User.objects.create_user(
-            username   = invite.user_email,
-            email      = invite.user_email,
-            password   = password,
-            first_name = full_name.split()[0],
-            last_name  = ' '.join(full_name.split()[1:]),
-        )
+        # Create or update the Django auth user
+        user = User.objects.filter(username=invite.user_email).first()
+        first_name = full_name.split()[0] if full_name else ''
+        last_name = ' '.join(full_name.split()[1:]) if full_name and len(full_name.split()) > 1 else ''
 
-        # Mark invite as used
+        if not user:
+            user = User.objects.create_user(
+                username=invite.user_email,
+                email=invite.user_email,
+                password=password,
+                first_name=first_name,
+                last_name=last_name,
+            )
+        else:
+            user.set_password(password)
+            if first_name:
+                user.first_name = first_name
+            if last_name:
+                user.last_name = last_name
+            user.save()
+
+        # Assign user to group based on role
+        if invite.user_role == 'System_Admin':
+            user.is_staff = True
+            user.is_superuser = True
+            user.save()
+            admin_group, _ = Group.objects.get_or_create(name='Admin')
+            admin_group.user_set.add(user)
+        else:
+            primary_group, _ = Group.objects.get_or_create(name='PrimaryUsers')
+            primary_group.user_set.add(user)
+
         # Mark invite as used
         invite.is_used = True
         invite.save()
 
-        # Activate the UserInfo record
-        UserInfo.objects.filter(user_email=invite.user_email).update(status='active')
-        #
-        # # Log them in
-        # login(request, user)
+        # Activate and synchronize UserInfo record
+        user_info = UserInfo.objects.filter(user_email=invite.user_email).first()
+        if user_info:
+            user_info.user_name = full_name or user_info.user_name
+            user_info.user_role = invite.user_role or user_info.user_role
+            user_info.status = 'active'
+            user_info.save()
+        else:
+            UserMgmnt._create_userinfo_instance(
+                full_name or invite.user_name or invite.user_email,
+                invite.user_email,
+                invite.user_role or 'Operational',
+                invite.user_number or '',
+                status='active'
+            )
 
         return JsonResponse({'status': 'ok'})
-    cplatform_url = PlatformSettings.cplatform_url
+
+    from cPlatformIO.src import PlatformPath
+    platformops_url = PlatformPath.get_public_url(request)
     return render(request, 'PlatformIO/01a-invite-accept.html', {
         'state':  state,
         'invite': invite,
-        'cplatform_url' : cplatform_url
+        'platformops_url': platformops_url,
+        'cplatform_url': platformops_url,
     })
 
 
@@ -1759,119 +1804,80 @@ def cPlatformIO_config_manager_view(request):
         service_instance = Service.objects.get(service_id=service_id)
 
         if user_action == 'get_service_workspace':
-            runtime_target = ServiceConfig.service_get_runtime_config_target(service_instance)
-            config_capabilities = runtime_target.get("config_capabilities", {})
-            # Fetch config store snapshots
-            store_info = ServiceConfig.service_get_config_store(service_id)
-            snapshots = store_info.get("snapshots", [])
+            from cPlatformIO.src.ConfigEngine import ConfigEngine
+            contract = ConfigEngine.get_service_config_contract(service_instance)
+            caps = ConfigEngine.get_service_capabilities(service_instance)
+            target = ConfigEngine.get_service_runtime_target(service_instance)
+            snapshots = ConfigEngine.get_snapshots_list(service_instance)
 
-            # Load active/current config cleanly (READ-ONLY)
-            current_config = ""
-            has_loaded = False
-            config_source = "empty"
-            config_source_label = "No config found"
+            live_res = ConfigEngine.read_live(service_instance)
+            current_config = live_res.get("content", "")
+            config_source = live_res.get("source", "empty")
+            config_source_label = live_res.get("source_label", "Live Runtime")
+            content_hash = live_res.get("content_hash", "")
+            config_format = target.get("format", "raw")
+            config_path = target.get("config_path", "")
 
-            # 1. Try to read from latest snapshot if it exists
-            if snapshots:
-                latest_snap = snapshots[0]
-                ok, msg, content = ServiceConfig.service_get_snapshot_content(
-                    service_id, latest_snap["version"], latest_snap["timestamp"]
-                )
-                if ok:
-                    current_config = content
-                    has_loaded = True
-                    config_source = "latest_checkpoint"
-                    config_source_label = f"Latest checkpoint v{latest_snap.get('version', '-')}"
-
-            # 2. Fallback: load current DB config dict representation
-            if not has_loaded:
-                db_config = getattr(service_instance, "service_config", {})
-                if db_config:
-                    current_config = yaml.dump(db_config, default_flow_style=False)
-                    config_source = "database_fallback"
-                    config_source_label = "Database fallback"
-                else:
-                    current_config = "# No configuration found. Save a checkpoint or edit to start.\n"
-
-            # Calculate dynamic metrics/context
             snapshot_count = len(snapshots)
             active_checkpoint = snapshots[0] if snapshots else None
-            last_sync = active_checkpoint.get("display_date", "Never") if active_checkpoint else "Never"
-            from cPlatformIO.src import PlatformPath
-            node_volume = PlatformPath.get_node_volume(service_instance)
-            service_name = runtime_target.get("config_service_name") or service_instance.service_type or service_instance.service_name or service_instance.service_id
-            config_path = config_capabilities.get("config_path") or PlatformPath.get_service_config_path(service_instance.service_type)
-            file_label = f"{runtime_target.get('container_name') or service_name}/{os.path.basename(config_path)}"
+            last_sync = active_checkpoint.get("timestamp", "Never") if active_checkpoint else "Never"
+            file_label = f"{target['container_name']}/{os.path.basename(config_path)}" if config_path else target["container_name"]
 
-            # This comparison is workspace/editor content against the active checkpoint.
-            # A separate live-container read is required before calling this true runtime drift.
             drift_state = "Editor matches active checkpoint"
             if active_checkpoint:
-                ok, msg, snap_content = ServiceConfig.service_get_snapshot_content(
-                    service_id, active_checkpoint["version"], active_checkpoint["timestamp"]
-                )
-                if ok and snap_content.strip() != current_config.strip():
+                ok_s, _, snap_content = ConfigEngine.get_snapshot_content(service_instance, snapshot_id=active_checkpoint.get("snapshot_id"))
+                if ok_s and snap_content.strip() != current_config.strip():
                     drift_state = "Editor differs from active checkpoint"
             elif snapshot_count > 0:
                 drift_state = "Editor differs from checkpoint history"
             else:
                 drift_state = "No checkpoint captured yet"
 
-            # Get peer nodes of the same type in this cluster
-            cluster = service_instance.Node.Cluster
-            peers = Service.objects.filter(Node__Cluster=cluster, service_type=service_instance.service_type).exclude(service_id=service_id)
-            peer_list = []
-            for peer in peers:
-                peer_list.append({
-                    "service_id": peer.service_id,
-                    "service_name": peer.service_name,
-                    "node_name": peer.Node.node_name,
-                    "node_ip": peer.Node.node_ip,
-                })
-
-            db_config = getattr(service_instance, "service_config", {})
-            if db_config:
-                database_fallback_config = yaml.dump(db_config, default_flow_style=False)
-            else:
-                database_fallback_config = "# No database configuration fallback found.\n"
+            cluster = service_instance.Node.Cluster if getattr(service_instance, "Node", None) else None
+            peers = Service.objects.filter(Node__Cluster=cluster, service_type=service_instance.service_type).exclude(service_id=service_id) if cluster else []
+            peer_list = [{"service_id": p.service_id, "service_name": p.service_name, "node_name": p.Node.node_name, "node_ip": p.Node.node_ip} for p in peers]
 
             return JsonResponse({
                 "success": True,
                 "snapshots": snapshots,
                 "current_config": current_config,
-                "database_fallback_config": database_fallback_config,
+                "content_hash": content_hash,
                 "peers": peer_list,
                 "drift_state": drift_state,
                 "last_sync": last_sync,
-                "last_modified": last_modified,
+                "last_modified": last_sync,
                 "snapshot_count": snapshot_count,
                 "config_source": config_source,
                 "config_source_label": config_source_label,
                 "config_path": config_path,
                 "file_label": file_label,
-                "runtime_target": runtime_target,
-                "config_capabilities": config_capabilities,
+                "format": config_format,
+                "runtime_target": target,
+                "config_capabilities": caps,
+                "config_contract": contract,
                 "active_checkpoint": active_checkpoint,
                 "service_info": {
                     "service_id": service_instance.service_id,
                     "service_name": service_instance.service_name,
                     "service_type": service_instance.service_type,
                     "service_version": service_instance.service_version,
-                    "node_name": service_instance.Node.node_name,
-                    "cluster_name": cluster.cluster_name,
+                    "node_name": service_instance.Node.node_name if service_instance.Node else "N/A",
+                    "cluster_name": cluster.cluster_name if cluster else "N/A",
                 }
             })
 
         elif user_action == 'create_checkpoint':
-            ret, msg, snapshot_path = ServiceConfig.service_run_config_checkpoint(service_id)
-            if not ret:
-                return JsonResponse({"success": False, "error": msg})
+            from cPlatformIO.src.ConfigEngine import ConfigEngine
+            label = request_info.get('label', '')
+            res = ConfigEngine.checkpoint(service_instance, label=label, actor=str(request.user))
+            if not res.get("success"):
+                return JsonResponse({"success": False, "error": res.get("error", "Failed to capture checkpoint")})
 
-            store_info = ServiceConfig.service_get_config_store(service_id)
-            snapshots = store_info.get("snapshots", [])
+            snapshots = ConfigEngine.get_snapshots_list(service_instance)
             return JsonResponse({
                 "success": True,
                 "msg": "Checkpoint successfully captured!",
+                "snapshot_id": res.get("snapshot_id"),
                 "snapshots": snapshots,
                 "active_checkpoint": snapshots[0] if snapshots else None
             })
@@ -1889,31 +1895,69 @@ def cPlatformIO_config_manager_view(request):
             if not ret:
                 return JsonResponse({"success": False, "error": msg})
 
+            from cPlatformIO.src.ConfigEngine import ConfigEngine
+            snapshots = ConfigEngine.get_snapshots_list(service_instance)
             return JsonResponse({
                 "success": True,
                 "msg": msg,
                 "snapshot": payload.get("snapshot", {}),
-                "snapshots": payload.get("snapshots", []),
-                "active_checkpoint": payload.get("snapshots", [None])[0] if payload.get("snapshots") else None,
+                "snapshots": snapshots,
+                "active_checkpoint": snapshots[0] if snapshots else None,
             })
 
         elif user_action == 'view_snapshot':
+            from cPlatformIO.src.ConfigEngine import ConfigEngine
+            snapshot_id = request_info.get('snapshot_id')
             version = request_info.get('version')
             timestamp = request_info.get('timestamp')
-            ret, msg, content = ServiceConfig.service_get_snapshot_content(
-                service_id,
-                version,
-                timestamp
-            )
-            if not ret:
+            ok, msg, content = ConfigEngine.get_snapshot_content(service_instance, snapshot_id=snapshot_id, version=version, timestamp=timestamp)
+            if not ok:
                 return JsonResponse({"success": False, "error": msg})
 
             return JsonResponse({
                 "success": True,
                 "msg": "Snapshot content loaded successfully!",
                 "content": content,
+                "snapshot_id": snapshot_id,
                 "version": version,
                 "timestamp": timestamp,
+            })
+
+        elif user_action == 'get_snapshots_diff':
+            from cPlatformIO.src.ConfigEngine import ConfigEngine
+            snap1 = request_info.get('snap1', {})
+            snap2 = request_info.get('snap2', {})
+            diff_res = ConfigEngine.compare(service_instance, snap1, snap2)
+            return JsonResponse(diff_res)
+
+        elif user_action in ['validate_yaml', 'validate_config']:
+            from cPlatformIO.src.ConfigEngine import ConfigEngine
+            text = request_info.get('yaml_text') or request_info.get('config_text') or ''
+            target = ConfigEngine.get_service_runtime_target(service_instance)
+            val_res = ConfigEngine.validate(text, target["format"])
+            return JsonResponse({
+                "success": val_res["valid"],
+                "msg": val_res["message"],
+                "details": val_res["details"],
+                "format": target["format"],
+            })
+
+        elif user_action == 'direct_apply_config':
+            from cPlatformIO.src.ConfigEngine import ConfigEngine
+            text = request_info.get('yaml_text') or request_info.get('config_text') or ''
+            apply_mode = request_info.get('apply_mode', 'reload')
+            app_res = ConfigEngine.apply(service_instance, text, apply_mode=apply_mode, actor=str(request.user))
+            if not app_res.get("success"):
+                return JsonResponse({"success": False, "error": app_res.get("error", "Apply failed"), "stage": app_res.get("stage")})
+
+            snapshots = ConfigEngine.get_snapshots_list(service_instance)
+            return JsonResponse({
+                "success": True,
+                "msg": app_res.get("msg", "Configuration applied successfully!"),
+                "operation_id": app_res.get("operation_id"),
+                "content_hash": app_res.get("content_hash"),
+                "snapshots": snapshots,
+                "details": app_res
             })
 
         elif user_action == 'prepare_migration':
@@ -1947,78 +1991,6 @@ def cPlatformIO_config_manager_view(request):
                 "migration_artifact": payload.get("migration_artifact", {}),
             })
 
-        elif user_action == 'direct_apply_config':
-            yaml_text = request_info.get('yaml_text', '')
-            apply_mode = request_info.get('apply_mode', 'reload')
-
-            node_instance = service_instance.Node
-            runtime_target = ServiceConfig.service_get_runtime_config_target(service_instance)
-            config_capabilities = runtime_target.get("config_capabilities", {})
-            if not config_capabilities.get("apply_enabled", True):
-                return JsonResponse({
-                    "success": False,
-                    "error": config_capabilities.get("disabled_reason") or "Config apply is disabled for this service"
-                })
-            if config_capabilities.get("restart_required") and apply_mode == "reload":
-                apply_mode = "restart"
-
-            config_is_yaml = config_capabilities.get("config_is_yaml", True)
-
-            # Validate YAML only if it is a yaml file
-            if config_is_yaml:
-                val_ret, val_msg, val_payload = ServiceConfig.service_validate_yaml_text(yaml_text)
-                if not val_ret:
-                    return JsonResponse({"success": False, "error": f"Invalid YAML: {val_msg}"})
-
-            # Parse YAML into dict to update database
-            if config_is_yaml:
-                try:
-                    config_dict = yaml.safe_load(yaml_text)
-                except Exception as e:
-                    return JsonResponse({"success": False, "error": f"YAML parse error: {str(e)}"})
-            else:
-                try:
-                    config_dict = yaml.safe_load(yaml_text)
-                    if not isinstance(config_dict, dict):
-                        config_dict = {"raw_content": yaml_text}
-                except Exception:
-                    config_dict = {"raw_content": yaml_text}
-
-            # 1. Capture current config checkpoint before overwriting (Rollback protection)
-            ServiceConfig.service_run_config_checkpoint(service_id)
-
-            # 2. Apply to node
-            from cPlatformIO.src import serviceInstall
-            apply_res = serviceInstall.sInstall_apply_service_config_migration(
-                service_instance,
-                node_instance.node_id,
-                yaml_text,
-                apply_mode=apply_mode,
-                container_name=runtime_target.get("container_name") or service_instance.service_id,
-                service_name=runtime_target.get("config_service_name") or service_instance.service_type or service_instance.service_name,
-                version=runtime_target.get("config_version") or service_instance.service_version,
-                config_path=config_capabilities.get("config_path") or None,
-                node_volume=node_instance.node_volume,
-            )
-
-            if not apply_res.get("success", False):
-                return JsonResponse({"success": False, "error": apply_res.get("error", "Failed to apply config")})
-
-            # 3. Synchronize database
-            service_instance.service_config = config_dict
-            service_instance.save()
-
-            # 4. Capture a new checkpoint of the applied config so it's logged in history
-            ServiceConfig.service_run_config_checkpoint(service_id)
-
-            store_info = ServiceConfig.service_get_config_store(service_id)
-            return JsonResponse({
-                "success": True,
-                "msg": "Config applied successfully!",
-                "snapshots": store_info.get("snapshots", []),
-                "details": apply_res
-            })
-
         elif user_action == 'apply_migration':
             migration_artifact_id = request_info.get('migration_artifact_id')
             apply_mode = request_info.get('apply_mode', 'reload')
@@ -2032,19 +2004,36 @@ def cPlatformIO_config_manager_view(request):
             if not ret:
                 return JsonResponse({"success": False, "error": msg})
 
-            store_info = ServiceConfig.service_get_config_store(service_id)
+            from cPlatformIO.src.ConfigEngine import ConfigEngine
+            snapshots = ConfigEngine.get_snapshots_list(service_instance)
             return JsonResponse({
                 "success": True,
                 "msg": msg,
                 "artifact_id": payload.get("artifact_id", ""),
                 "apply_result": payload.get("apply_result", {}),
-                "snapshots": store_info.get("snapshots", []),
+                "snapshots": snapshots,
             })
 
         elif user_action == 'restore_migration':
             backup_path = request_info.get('backup_path')
+            snapshot_id = request_info.get('snapshot_id')
             resolved_config_path = request_info.get('resolved_config_path')
             apply_mode = request_info.get('apply_mode', 'reload')
+
+            from cPlatformIO.src.ConfigEngine import ConfigEngine
+            if snapshot_id:
+                ok_c, msg_c, snap_content = ConfigEngine.get_snapshot_content(service_instance, snapshot_id=snapshot_id)
+                if ok_c and snap_content:
+                    app_res = ConfigEngine.apply(service_instance, snap_content, apply_mode=apply_mode, actor=str(request.user))
+                    if app_res.get("success"):
+                        snapshots = ConfigEngine.get_snapshots_list(service_instance)
+                        return JsonResponse({
+                            "success": True,
+                            "msg": "Snapshot restored successfully!",
+                            "snapshots": snapshots,
+                        })
+                    return JsonResponse({"success": False, "error": app_res.get("error", "Restore failed")})
+
             ret, msg, payload = ServiceConfig.service_restore_snapshot_migration(
                 service_id,
                 backup_path,
@@ -2054,39 +2043,12 @@ def cPlatformIO_config_manager_view(request):
             if not ret:
                 return JsonResponse({"success": False, "error": msg})
 
-            store_info = ServiceConfig.service_get_config_store(service_id)
+            snapshots = ConfigEngine.get_snapshots_list(service_instance)
             return JsonResponse({
                 "success": True,
                 "msg": msg,
                 "restore_result": payload.get("restore_result", {}),
-                "snapshots": store_info.get("snapshots", []),
-            })
-
-        elif user_action == 'validate_yaml':
-            yaml_text = request_info.get('yaml_text', '')
-            runtime_target = ServiceConfig.service_get_runtime_config_target(service_instance)
-            config_capabilities = runtime_target.get("config_capabilities", {})
-            config_is_yaml = config_capabilities.get("config_is_yaml", True)
-
-            if config_is_yaml:
-                val_ret, val_msg, val_payload = ServiceConfig.service_validate_yaml_text(yaml_text)
-            else:
-                val_ret, val_msg, val_payload = True, "Config format is not YAML (validation bypassed)", {}
-
-            return JsonResponse({
-                "success": val_ret,
-                "msg": val_msg,
-                "details": val_payload
-            })
-
-        elif user_action == 'get_snapshots_diff':
-            snap1 = request_info.get('snap1', {})
-            snap2 = request_info.get('snap2', {})
-            ok, msg, diff_html = ServiceConfig.service_get_snapshots_diff(service_id, snap1, snap2)
-            return JsonResponse({
-                "success": ok,
-                "msg": msg,
-                "diff_html": diff_html
+                "snapshots": snapshots,
             })
 
         return JsonResponse({"success": False, "error": "Invalid action"})

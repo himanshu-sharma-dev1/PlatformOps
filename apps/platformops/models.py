@@ -94,12 +94,9 @@ DEPLOY_OPTIONS = [
 ]
 
 ROLE = [
-    ('Management', 'Management'),
-    ('Admin', 'Admin'),
     ('System_Admin', 'System_Admin'),
     ('Operational', 'Operational'),
-    ('Developer', 'Developer'),
-    ('Viewer', 'Viewer'),
+    ('Management', 'Management'),
 ]
 
 

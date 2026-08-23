@@ -487,11 +487,31 @@ def delete_node_instance(node_id):
 
 
 def node_get_monitoring_stats():
-    stats_info = {"cluster_count": ClusterConfig.cluster_get_all_cluster_count(), "node_count": Node.objects.count(),
-                  "gpu_node_count": Node.objects.exclude(gpu_status__in=["None", "disabled"]).count(),
-                  "live_node_count": Node.objects.filter(service__service_type="InfraPrometheus").distinct().count(),
-                  "infra_service_count": ServiceConfig.service_get_infra_service_count(),
-                  "config_snapshot_count": sum(
-                      1 for _ in (Path(settings.BASE_DIR) / "logs/config_snapshots").rglob("config.yaml") if (Path(settings.BASE_DIR) / "logs/config_snapshots").exists()
-                  ),                  }
+    from cPlatformIO.src import PlatformPath
+    snapshot_root = PlatformPath.get_local_snapshot_root()
+    seen_snapshots = set()
+    if snapshot_root.exists() and snapshot_root.is_dir():
+        for p in snapshot_root.rglob("config.yaml"):
+            parts = p.parts
+            if len(parts) >= 4:
+                seen_snapshots.add(f"{parts[-4]}::{parts[-3]}::{parts[-2]}")
+            else:
+                seen_snapshots.add(str(p))
+
+    backup_root = Path("/home/ubuntu/PlatformOps_Backup/config")
+    if backup_root.exists() and backup_root.is_dir():
+        for p in backup_root.rglob("config.yaml"):
+            parts = p.parts
+            if len(parts) >= 4:
+                seen_snapshots.add(f"{parts[-4]}::{parts[-3]}::{parts[-2]}")
+
+    stats_info = {
+        "cluster_count": ClusterConfig.cluster_get_all_cluster_count(),
+        "node_count": Node.objects.count(),
+        "gpu_node_count": Node.objects.exclude(gpu_status__in=["None", "disabled"]).count(),
+        "live_node_count": Node.objects.filter(service__service_type="InfraPrometheus").distinct().count(),
+        "infra_service_count": ServiceConfig.service_get_infra_service_count(),
+        "config_snapshot_count": len(seen_snapshots),
+    }
     return stats_info
+

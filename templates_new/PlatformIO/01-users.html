@@ -539,7 +539,8 @@
 <!-- Pass Django template values to external JS -->
 <script>
   window.CSRF_TOKEN     = '{{ csrf_token }}';
-  window.CPLATFORM_URL  = '{{ cplatform_url }}';
+  window.PLATFORMOPS_URL = '{{ platformops_url|default:cplatform_url }}';
+  window.CPLATFORM_URL  = window.PLATFORMOPS_URL;
 </script>
 <script>
   // All user IDs and data for bulk selection across pages

@@ -223,5 +223,8 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8000',
 ]
 
+PLATFORMOPS_PUBLIC_URL = os.environ.get('PLATFORMOPS_PUBLIC_URL', 'http://localhost:9020')
+
+
 
 

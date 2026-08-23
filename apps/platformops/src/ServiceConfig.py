@@ -763,13 +763,27 @@ def _contract_config_path(service_type, contract):
 
 
 def _config_capabilities(service_instance, contract, target_scope="main"):
+    from cPlatformIO.src import PlatformPath
     service_type = str(service_instance.service_type or "").strip()
     is_infra = _is_infrastructure_service_type(service_type)
-    config_path = _contract_config_path(service_type, contract)
+    config_path = _contract_config_path(service_type, contract) or PlatformPath.get_service_config_path(service_type)
     has_explicit_config = bool(config_path or _contract_has_config_files(contract))
     infra_without_config = is_infra and not has_explicit_config
     config_path_l = str(config_path or "").lower()
-    config_is_yaml = config_path_l.endswith(".yaml") or config_path_l.endswith(".yml")
+
+    if service_type == "PlatformOpsTest":
+        config_is_yaml = False
+        config_format = "json"
+        config_path = "/etc/test_service.conf"
+    elif config_path_l.endswith(".json"):
+        config_is_yaml = False
+        config_format = "json"
+    elif config_path_l.endswith(".yaml") or config_path_l.endswith(".yml"):
+        config_is_yaml = True
+        config_format = "yaml"
+    else:
+        config_is_yaml = True
+        config_format = "yaml"
 
     snapshot_enabled = bool(service_instance.Node and (not is_infra or has_explicit_config))
     apply_enabled = bool(service_instance.Node and (not is_infra or has_explicit_config))
@@ -786,23 +800,103 @@ def _config_capabilities(service_instance, contract, target_scope="main"):
         "restart_required": bool(is_infra),
         "config_path": config_path,
         "config_is_yaml": config_is_yaml,
+        "format": config_format,
         "disabled_reason": disabled_reason,
         "target_scope": target_scope,
         "requires_become_for_files": True,
     }
 
 
-def service_get_runtime_container_name(service_instance):
-    node_instance = service_instance.Node
+def service_read_live_config(service_instance):
+    """
+    Authoritatively read live configuration from the running service container / host.
+    Returns (success: bool, label: str, content: str, source_type: str)
+    """
+    from cPlatformIO.src import PlatformPath
     service_type = str(service_instance.service_type or "").strip()
+    node_instance = service_instance.Node
+    if not node_instance:
+        return False, "", "", ""
+
+    node_volume = PlatformPath.get_node_volume(node_instance)
+
+    # 1. AIOrchestrator / cPlatform
+    if service_type in ["AIOrchestrator", "cPlatform"]:
+        candidates = [
+            PlatformPath.get_base_dir() / "config" / "cPlatform_config.yaml",
+            PlatformPath.get_base_dir() / "config" / "projectConfig.yaml",
+            Path(node_volume) / "iktara" / "cPlatform" / "config" / "cPlatform_config.yaml",
+            Path("/home/ubuntu/PlatformOps_Backup/iktara/cPlatform/config/cPlatform_config.yaml"),
+            Path("/home/ubuntu/Backup_Platform/iktara/cPlatform/config/cPlatform_config.yaml"),
+        ]
+        for p in candidates:
+            if p.exists() and p.is_file():
+                try:
+                    content = p.read_text(encoding="utf-8")
+                    if content.strip():
+                        return True, "Live container runtime (config/cPlatform_config.yaml)", content, "live_container"
+                except Exception:
+                    pass
+
+    # 2. PlatformOpsTest
+    elif service_type == "PlatformOpsTest":
+        candidate_paths = [
+            Path(node_volume) / "platformops" / "testServiceConfig" / "test_service.conf",
+            Path("/home/ubuntu/PlatformOps_Backup/platformops/testServiceConfig/test_service.conf"),
+            Path("/home/ubuntu/Backup_Platform/platformops/testServiceConfig/test_service.conf"),
+        ]
+        for p in candidate_paths:
+            if p.exists() and p.is_file():
+                try:
+                    content = p.read_text(encoding="utf-8")
+                    if content.strip():
+                        return True, "Live container runtime (/etc/test_service.conf)", content, "live_container"
+                except Exception:
+                    pass
+
+    # 3. Other services with volume mappings
+    else:
+        cfg_rel_path = PlatformPath.get_service_config_path(service_type).lstrip("/")
+        candidate_paths = [
+            Path(node_volume) / cfg_rel_path,
+            Path("/home/ubuntu/PlatformOps_Backup") / cfg_rel_path,
+            Path("/home/ubuntu/Backup_Platform") / cfg_rel_path,
+        ]
+        for p in candidate_paths:
+            if p.exists() and p.is_file():
+                try:
+                    content = p.read_text(encoding="utf-8")
+                    if content.strip():
+                        return True, f"Live container runtime (/{cfg_rel_path})", content, "live_container"
+                except Exception:
+                    pass
+
+    return False, "", "", ""
+
+
+
+
+def service_get_runtime_container_name(service_instance):
+    node_instance = getattr(service_instance, "Node", None)
+    node_id_clean = str(node_instance.node_id if node_instance else "").strip().lower()
+    service_type = str(service_instance.service_type or "").strip()
+
     if service_type in ["AIOrchestrator", "cPlatform"]:
         return "iktara_cPlatform"
+
     runtime_container = _runtime_container_name(service_instance)
-    if runtime_container:
+    if runtime_container and runtime_container != str(service_instance.service_id):
         return runtime_container
+
+    # Normal main service handling for PlatformOpsTest
+    if service_type == "PlatformOpsTest":
+        return f"node-{node_id_clean}-platformops-test-service" if node_id_clean else "node-node1001-platformops-test-service"
+
     if _is_infrastructure_service_type(service_type):
         return _infra_container_name(service_type, node_instance.node_id if node_instance else "")
+
     return service_instance.service_id
+
 
 
 def service_get_runtime_main_target(service_instance, live_status=None):
@@ -1235,16 +1329,18 @@ def _update_orchestrator_config(request_info):
     return ret, msg
 
 
-def _send_service_config_api(service_name, service_port):
+def _send_service_config_api(service_name, service_port, payload=None):
     app_logger.debug(f"_send_service_config_api: service_name={service_name}, service_port={service_port}")
 
     service_instance = Service.objects.filter(service_name=service_name).first()
     if not service_instance:
         app_logger.warning(f"Service not found: {service_name}")
-        return
+        return None
 
     service_type = service_instance.service_type
     req_data = dict(service_instance.service_config or {})
+    if payload and isinstance(payload, dict):
+        req_data.update(payload)
     repo_sync = service_network_state(service_name)
     msg, host, port = service_get_route(service_instance)
 
@@ -3494,33 +3590,42 @@ def _render_split_diff_html(diff_text: str, source_name: str, target_name: str) 
 
 def service_get_snapshots_diff(service_id, snap1, snap2):
     try:
-        ret1, msg1, content1 = service_get_snapshot_content(service_id, snap1['version'], snap1['timestamp'])
+        ret1, msg1, content1 = service_get_snapshot_content(service_id, snap1.get('version'), snap1.get('timestamp'))
         if not ret1:
             return False, f"Failed to load snapshot 1: {msg1}", ""
 
-        ret2, msg2, content2 = service_get_snapshot_content(service_id, snap2['version'], snap2['timestamp'])
+        ret2, msg2, content2 = service_get_snapshot_content(service_id, snap2.get('version'), snap2.get('timestamp'))
         if not ret2:
             return False, f"Failed to load snapshot 2: {msg2}", ""
 
-        from cPlatformIO.src.structured_io import _unified_diff, _load_structured_file
-        from tempfile import NamedTemporaryFile
+        from cPlatformIO.src.structured_io import _unified_diff
+        import yaml
 
-        def _parse_content(content):
-            with NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as tmp:
-                tmp.write(content)
-                tmp_path = tmp.name
+        def _parse_content(raw_str):
+            if not raw_str or not raw_str.strip():
+                return {}
+            s = raw_str.strip()
+            if s.startswith("{") or s.startswith("["):
+                try:
+                    return json.loads(s)
+                except Exception:
+                    pass
             try:
-                data, _ = _load_structured_file(Path(tmp_path))
-                return data
-            finally:
-                if os.path.exists(tmp_path):
-                    os.remove(tmp_path)
+                data = yaml.safe_load(s)
+                return data if isinstance(data, (dict, list)) else {"content": str(data)}
+            except Exception:
+                return {"raw_text": s}
 
         dict1 = _parse_content(content1)
         dict2 = _parse_content(content2)
 
-        label1 = f"{snap1['version']} ({snap1['timestamp']})"
-        label2 = f"{snap2['version']} ({snap2['timestamp']})"
+        label1 = f"{snap1.get('version', '')} ({snap1.get('timestamp', '')})"
+        label2 = f"{snap2.get('version', '')} ({snap2.get('timestamp', '')})"
+
+        if dict1 == dict2:
+            html_diff = "<table class='diff-table'><tr><td colspan='2' style='text-align:center; padding: 24px; color: #8899aa;'>No differences detected between selected checkpoints.</td></tr></table>"
+            return True, "Snapshots are identical", html_diff
+
         diff_text = _unified_diff(dict1, dict2, label1, label2)
         html_diff = _render_split_diff_html(diff_text, label1, label2)
 

@@ -353,7 +353,8 @@ body{
 (function(){
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
-  window.CPLATFORM_URL = "{{ cplatform_url|escapejs }}";
+  window.PLATFORMOPS_URL = "{{ platformops_url|default:cplatform_url|escapejs }}";
+  window.CPLATFORM_URL = window.PLATFORMOPS_URL;
 // Data injected by Django view
   const invitation = {
     invitee: {
@@ -548,7 +549,7 @@ body{
         </div>
 
         <div class="actions">
-          <a href="${window.CPLATFORM_URL}/login/" class="btn-primary" style="text-decoration:none;">Go to login →</a>
+          <a href="${window.PLATFORMOPS_URL || window.CPLATFORM_URL || ''}/login/" class="btn-primary" style="text-decoration:none;">Go to login →</a>
         </div>
       </div>
     `;
@@ -695,7 +696,7 @@ body{
         if(data.status === 'ok'){
               card.innerHTML = renderSuccess();
               setTimeout(() => {
-                window.location.href = window.CPLATFORM_URL + '/login/';
+                window.location.href = (window.PLATFORMOPS_URL || window.CPLATFORM_URL || '') + '/login/';
               }, 3000);
           } else {
           showToast(data.msg || 'Something went wrong', 'err');
